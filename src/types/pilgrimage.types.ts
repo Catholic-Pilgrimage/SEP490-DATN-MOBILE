@@ -1,0 +1,1 @@
+// Pilgrimage site type definitions

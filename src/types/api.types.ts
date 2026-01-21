@@ -1,0 +1,1 @@
+// API response type definitions

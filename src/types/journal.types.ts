@@ -1,0 +1,1 @@
+// Journal type definitions
