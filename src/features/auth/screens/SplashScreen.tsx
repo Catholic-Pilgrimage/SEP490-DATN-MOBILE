@@ -21,6 +21,7 @@ import Animated, {
     withSpring,
     withTiming,
 } from 'react-native-reanimated';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -34,7 +35,9 @@ const SPLASH_COLORS = {
 
 const SplashScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const { isLoading, isAuthenticated, isGuest } = useAuth();
   const [isReady, setIsReady] = useState(false);
+  const [animationsComplete, setAnimationsComplete] = useState(false);
 
   // Animation values - start with small values to avoid 0 multiplication issues
   const logoScale = useSharedValue(0.01);
@@ -52,14 +55,18 @@ const SplashScreen = () => {
   const particlesOpacity = useSharedValue(0);
   const dotsOpacity = useSharedValue(0);
 
-  const navigateToAuth = useCallback(() => {
+  // Navigate based on auth state
+  const navigateToScreen = useCallback(() => {
+    // Determine destination based on auth state
+    const destination = (isAuthenticated || isGuest) ? 'Main' : 'Auth';
+    
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: 'Auth' }],
+        routes: [{ name: destination }],
       })
     );
-  }, [navigation]);
+  }, [navigation, isAuthenticated, isGuest]);
 
   // Start animations when ready
   useEffect(() => {
@@ -70,6 +77,13 @@ const SplashScreen = () => {
 
     return () => clearTimeout(mountTimer);
   }, []);
+
+  // Handle navigation when both animations and auth check are complete
+  useEffect(() => {
+    if (animationsComplete && !isLoading) {
+      navigateToScreen();
+    }
+  }, [animationsComplete, isLoading, navigateToScreen]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -166,13 +180,13 @@ const SplashScreen = () => {
     // Subtitle animation
     subtitleOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
 
-    // Navigate after animations
+    // Mark animations as complete after minimum display time
     const timer = setTimeout(() => {
-      navigateToAuth();
-    }, 3500);
+      setAnimationsComplete(true);
+    }, 2500);
 
     return () => clearTimeout(timer);
-  }, [isReady, navigateToAuth]);
+  }, [isReady]);
 
   // Animated styles
   const logoAnimatedStyle = useAnimatedStyle(() => {
@@ -291,12 +305,12 @@ const SplashScreen = () => {
 
           {/* App Title */}
           <Animated.View style={[styles.titleContainer, titleAnimatedStyle]}>
-            <Text style={styles.title}>Hanh Trinh Duc Tin</Text>
+            <Text style={styles.title}>Hành Trình Đức Tin</Text>
           </Animated.View>
 
           {/* Subtitle */}
           <Animated.Text style={[styles.subtitle, subtitleAnimatedStyle]}>
-            Dong hanh cung ban tren moi neo duong
+            Đồng hành cùng bạn trên mỗi nẻo đường
           </Animated.Text>
         </View>
 
