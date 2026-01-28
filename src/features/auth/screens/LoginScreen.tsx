@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -28,6 +28,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SHADOWS } from '../../../constants/theme.constants';
 import { useAuth } from '../../../contexts/AuthContext';
+import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
 
 // Login screen colors matching the design
 const LOGIN_COLORS = {
@@ -57,7 +58,7 @@ interface FormErrors {
 
 const LoginScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { login, continueAsGuest, isLoading, error, clearError, isAuthenticated, isGuest } = useAuth();
+  const { login, continueAsGuest, isLoading, error, clearError, isAuthenticated, isGuest, user } = useAuth();
 
   // Form state
   const [email, setEmail] = useState('');
@@ -79,17 +80,17 @@ const LoginScreen = () => {
     }
   }, [email, password]);
 
-  // Navigate to Main when authenticated or guest mode
+  // Navigate based on user role when authenticated or guest mode
   useEffect(() => {
     if (isAuthenticated || isGuest) {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: 'Main' }],
-        })
+      navigateToAppropriateScreen(
+        navigation,
+        isAuthenticated,
+        isGuest,
+        user?.role
       );
     }
-  }, [isAuthenticated, isGuest, navigation]);
+  }, [isAuthenticated, isGuest, user?.role, navigation]);
 
   // Validate form
   const validateForm = useCallback((): boolean => {

@@ -40,22 +40,29 @@ export interface LoginResponse {
   };
 }
 
-// Register request payload
+// Register request payload (snake_case for API)
 export interface RegisterRequest {
   email: string;
   password: string;
-  fullName: string;
-  role: UserRole;
-  phone?: string;
+  full_name: string;
+  phone: string;
+  date_of_birth: string; // Format: YYYY-MM-DD
 }
 
 // Register response from API
 export interface RegisterResponse {
   success: boolean;
   message: string;
-  data?: User;
+  data?: {
+    user: {
+      id: string;
+      email: string;
+      full_name: string;
+      role: string;
+      avatar_url?: string;
+    };
+  };
   error?: {
-    code: string;
     message: string;
     details?: any[];
   };
@@ -153,6 +160,7 @@ export interface AuthContextType extends AuthState {
   clearError: () => void;
   isGuest: boolean;
   continueAsGuest: () => void;
+  exitGuestMode: () => Promise<void>;
 }
 
 // Token storage keys

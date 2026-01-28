@@ -1,4 +1,4 @@
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -22,6 +22,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { useAuth } from '../../../contexts/AuthContext';
+import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,7 +36,7 @@ const SPLASH_COLORS = {
 
 const SplashScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { isLoading, isAuthenticated, isGuest } = useAuth();
+  const { isLoading, isAuthenticated, isGuest, user } = useAuth();
   const [isReady, setIsReady] = useState(false);
   const [animationsComplete, setAnimationsComplete] = useState(false);
 
@@ -55,18 +56,15 @@ const SplashScreen = () => {
   const particlesOpacity = useSharedValue(0);
   const dotsOpacity = useSharedValue(0);
 
-  // Navigate based on auth state
+  // Navigate based on auth state and user role
   const navigateToScreen = useCallback(() => {
-    // Determine destination based on auth state
-    const destination = (isAuthenticated || isGuest) ? 'Main' : 'Auth';
-    
-    navigation.dispatch(
-      CommonActions.reset({
-        index: 0,
-        routes: [{ name: destination }],
-      })
+    navigateToAppropriateScreen(
+      navigation,
+      isAuthenticated,
+      isGuest,
+      user?.role
     );
-  }, [navigation, isAuthenticated, isGuest]);
+  }, [navigation, isAuthenticated, isGuest, user?.role]);
 
   // Start animations when ready
   useEffect(() => {

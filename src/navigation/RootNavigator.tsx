@@ -3,12 +3,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import SplashScreen from '../features/auth/screens/SplashScreen';
 import { AuthNavigator } from './AuthNavigator';
+import { GuideNavigator } from './GuideNavigator';
 import { PilgrimNavigator } from './PilgrimNavigator';
 
 export type RootStackParamList = {
   Splash: undefined;
   Auth: undefined;
-  Main: undefined;
+  Main: undefined;        
+  GuideMain: undefined;  
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -38,6 +40,13 @@ export const RootNavigator = () => {
         <Stack.Screen 
           name="Main" 
           component={PilgrimNavigator}
+          options={{
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen 
+          name="GuideMain" 
+          component={GuideNavigator}
           options={{
             animation: 'fade',
           }}

@@ -149,8 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           dispatch({ type: 'AUTH_SET_LOADING', payload: false });
         }
-      } catch (error) {
-        console.error('[AuthContext] Error restoring auth state:', error);
+      } catch {
         dispatch({ type: 'AUTH_SET_LOADING', payload: false });
       }
     };
@@ -230,10 +229,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Logout function
   const logout = useCallback(async () => {
     try {
-      // Call logout API (ignore errors as we want to logout locally anyway)
-      await authApi.logout().catch(() => {});
+      // Call logout API (ignore errors)
+      await authApi.logout().catch(() => null);
 
-      // Clear all auth data from storage
+      // Clear all auth data from storage regardless of API result
       await secureStorage.clearKeys([
         AUTH_STORAGE_KEYS.ACCESS_TOKEN,
         AUTH_STORAGE_KEYS.REFRESH_TOKEN,
@@ -243,9 +242,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setIsGuest(false);
       dispatch({ type: 'AUTH_LOGOUT' });
-    } catch (error) {
-      console.error('[AuthContext] Logout error:', error);
+    } catch {
       // Still logout locally even if API call fails
+      await secureStorage.clearKeys([
+        AUTH_STORAGE_KEYS.ACCESS_TOKEN,
+        AUTH_STORAGE_KEYS.REFRESH_TOKEN,
+        AUTH_STORAGE_KEYS.USER,
+        AUTH_STORAGE_KEYS.IS_GUEST,
+      ]).catch(() => {});
+      setIsGuest(false);
       dispatch({ type: 'AUTH_LOGOUT' });
     }
   }, []);
@@ -279,8 +284,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       return true;
-    } catch (error) {
-      console.error('[AuthContext] Token refresh error:', error);
+    } catch {
       return false;
     }
   }, []);
@@ -295,8 +299,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
         dispatch({ type: 'AUTH_UPDATE_USER', payload: user });
       }
-    } catch (error) {
-      console.error('[AuthContext] Get profile error:', error);
+    } catch {
+      // Silent fail
     }
   }, []);
 
@@ -329,6 +333,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     dispatch({ type: 'AUTH_GUEST_MODE' });
   }, []);
 
+  // Exit guest mode - call this before navigating to login
+  const exitGuestMode = useCallback(async () => {
+    await secureStorage.removeItem(AUTH_STORAGE_KEYS.IS_GUEST);
+    setIsGuest(false);
+    dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+  }, []);
+
   // Memoize context value
   const contextValue = useMemo<AuthContextType>(
     () => ({
@@ -342,6 +353,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearError,
       isGuest,
       continueAsGuest,
+      exitGuestMode,
     }),
     [
       state,
@@ -354,6 +366,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       clearError,
       isGuest,
       continueAsGuest,
+      exitGuestMode,
     ]
   );
 

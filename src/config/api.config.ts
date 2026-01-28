@@ -2,6 +2,7 @@
 
 export const API_CONFIG = {
   // Base URL for the API
+  // Render free tier has cold start - first request may take 30-60 seconds
   BASE_URL: 'https://sep490-datn-backend.onrender.com',
   
   // API endpoints
@@ -19,8 +20,8 @@ export const API_CONFIG = {
     },
   },
 
-  // Request timeout in milliseconds
-  TIMEOUT: 30000,
+  // Request timeout in milliseconds (60s for Render cold start)
+  TIMEOUT: 60000,
 
   // Retry configuration
   RETRY: {
@@ -48,8 +49,8 @@ export const HTTP_STATUS = {
 
 // Error messages
 export const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.',
-  TIMEOUT_ERROR: 'Yêu cầu đã hết thời gian. Vui lòng thử lại.',
+  NETWORK_ERROR: 'Không thể kết nối đến máy chủ. Server có thể đang khởi động, vui lòng thử lại sau 30 giây.',
+  TIMEOUT_ERROR: 'Yêu cầu đã hết thời gian. Server có thể đang bận, vui lòng thử lại.',
   SERVER_ERROR: 'Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau.',
   UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
   INVALID_CREDENTIALS: 'Email hoặc mật khẩu không đúng.',

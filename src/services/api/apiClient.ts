@@ -55,22 +55,13 @@ apiClient.interceptors.request.use(
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
-      
-      // Log request in development
-      if (__DEV__) {
-        console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
-          headers: config.headers,
-          data: config.data,
-        });
-      }
-    } catch (error) {
-      console.error('[API Request] Error getting token:', error);
+    } catch {
+      // Silent fail - continue without token
     }
     
     return config;
   },
   (error: AxiosError) => {
-    console.error('[API Request Error]:', error);
     return Promise.reject(error);
   }
 );
@@ -78,28 +69,10 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle responses and errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
-    // Log response in development
-    if (__DEV__) {
-      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
-        status: response.status,
-        data: response.data,
-      });
-    }
-    
     return response;
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as ExtendedAxiosRequestConfig;
-    
-    // Log error in development
-    if (__DEV__) {
-      console.error('[API Error]:', {
-        url: originalRequest?.url,
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      });
-    }
 
     // Handle 401 Unauthorized - Try to refresh token
     if (error.response?.status === HTTP_STATUS.UNAUTHORIZED && !originalRequest._retry) {
@@ -204,19 +177,39 @@ function transformError(error: AxiosError): Error {
   // Extract error message from API response
   const apiMessage = data?.error?.message || data?.message;
   
+  // Extract validation details if available
+  const details = data?.error?.details || data?.details;
+  let detailMessage = '';
+  
+  if (details && Array.isArray(details) && details.length > 0) {
+    // Format validation errors - only show the message, not field name
+    detailMessage = details
+      .map((detail: any) => {
+        if (typeof detail === 'string') return detail;
+        if (detail.message) return detail.message;
+        if (detail.msg) return detail.msg;
+        return '';
+      })
+      .filter(Boolean)
+      .join('. ');
+  }
+  
+  // Use detail message if available, otherwise use main message
+  const fullMessage = detailMessage || apiMessage;
+  
   switch (status) {
     case HTTP_STATUS.BAD_REQUEST:
-      return new Error(apiMessage || 'Yêu cầu không hợp lệ.');
+      return new Error(fullMessage || 'Yêu cầu không hợp lệ.');
     case HTTP_STATUS.UNAUTHORIZED:
-      return new Error(apiMessage || ERROR_MESSAGES.INVALID_CREDENTIALS);
+      return new Error(fullMessage || ERROR_MESSAGES.INVALID_CREDENTIALS);
     case HTTP_STATUS.FORBIDDEN:
-      return new Error(apiMessage || ERROR_MESSAGES.ACCOUNT_LOCKED);
+      return new Error(fullMessage || ERROR_MESSAGES.ACCOUNT_LOCKED);
     case HTTP_STATUS.NOT_FOUND:
-      return new Error(apiMessage || 'Không tìm thấy tài nguyên.');
+      return new Error(fullMessage || 'Không tìm thấy tài nguyên.');
     case HTTP_STATUS.INTERNAL_SERVER_ERROR:
       return new Error(ERROR_MESSAGES.SERVER_ERROR);
     default:
-      return new Error(apiMessage || ERROR_MESSAGES.UNKNOWN_ERROR);
+      return new Error(fullMessage || ERROR_MESSAGES.UNKNOWN_ERROR);
   }
 }
 
