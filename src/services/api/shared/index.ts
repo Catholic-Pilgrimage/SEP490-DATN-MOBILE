@@ -1,0 +1,29 @@
+/**
+ * Shared API Index
+ * Central export for shared API services
+ *
+ * Usage:
+ * import { authApi, userApi, notificationApi } from '@/services/api/shared';
+ */
+
+// Auth API
+export { default as authApi } from "./authApi";
+
+// User API
+export { default as userApi } from "./userApi";
+
+// Notification API
+export { default as notificationApi } from "./notificationApi";
+
+// Combined Shared API
+import authApi from "./authApi";
+import notificationApi from "./notificationApi";
+import userApi from "./userApi";
+
+const sharedApis = {
+  auth: authApi,
+  user: userApi,
+  notification: notificationApi,
+};
+
+export default sharedApis;

@@ -1,0 +1,19 @@
+/**
+ * Pilgrim Types - Index
+ * Central export for all Pilgrim type definitions
+ *
+ * Usage:
+ * import { Site, JournalEntry, TripPlan } from '@/types/pilgrim';
+ */
+
+// Site/Explore types
+export * from "./site.types";
+
+// Journal types
+export * from "./journal.types";
+
+// Planner types
+export * from "./planner.types";
+
+// Community types
+export * from "./community.types";

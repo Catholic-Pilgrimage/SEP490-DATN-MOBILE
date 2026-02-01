@@ -55,6 +55,14 @@ apiClient.interceptors.request.use(
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
+      
+      // Debug logging for API requests
+      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+      if (config.data) {
+        // Don't log FormData content (binary files)
+        const isFormData = config.data instanceof FormData;
+        console.log(`[API] Body: ${isFormData ? '[FormData]' : JSON.stringify(config.data)}`);
+      }
     } catch {
       // Silent fail - continue without token
     }
@@ -69,6 +77,8 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle responses and errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
+    // Debug logging for successful responses
+    console.log(`[API] Response ${response.status}:`, JSON.stringify(response.data).substring(0, 200));
     return response;
   },
   async (error: AxiosError) => {
