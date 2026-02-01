@@ -1,9 +1,8 @@
 // API configuration
 
 export const API_CONFIG = {
-  // Base URL for the API
-  // Render free tier has cold start - first request may take 30-60 seconds
-  BASE_URL: 'https://sep490-datn-backend.onrender.com',
+  // Base URL for the API (from environment variable or default)
+  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://sep490-datn-backend.onrender.com',
   
   // API endpoints
   ENDPOINTS: {
@@ -20,8 +19,8 @@ export const API_CONFIG = {
     },
   },
 
-  // Request timeout in milliseconds (60s for Render cold start)
-  TIMEOUT: 60000,
+  // Request timeout in milliseconds (from environment variable or default 60s)
+  TIMEOUT: Number(process.env.EXPO_PUBLIC_API_TIMEOUT) || 60000,
 
   // Retry configuration
   RETRY: {

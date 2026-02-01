@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useReducer,
 } from 'react';
-import { authApi } from '../services/api/authApi';
+import { authApi } from '../services/api';
 import { secureStorage } from '../services/storage/secureStorage';
 import {
   AUTH_STORAGE_KEYS,

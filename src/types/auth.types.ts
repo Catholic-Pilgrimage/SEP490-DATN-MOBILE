@@ -1,7 +1,7 @@
 // Authentication type definitions
 
 // User roles
-export type UserRole = 'pilgrim' | 'local_guide';
+export type UserRole = "pilgrim" | "local_guide";
 
 // User interface
 export interface User {
@@ -127,6 +127,12 @@ export interface ResetPasswordRequest {
   confirmPassword: string;
 }
 
+// Verify email request
+export interface VerifyEmailRequest {
+  email: string;
+  otp: string;
+}
+
 // Generic API response
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -165,8 +171,8 @@ export interface AuthContextType extends AuthState {
 
 // Token storage keys
 export const AUTH_STORAGE_KEYS = {
-  ACCESS_TOKEN: 'auth_access_token',
-  REFRESH_TOKEN: 'auth_refresh_token',
-  USER: 'auth_user',
-  IS_GUEST: 'auth_is_guest',
+  ACCESS_TOKEN: "auth_access_token",
+  REFRESH_TOKEN: "auth_refresh_token",
+  USER: "auth_user",
+  IS_GUEST: "auth_is_guest",
 } as const;

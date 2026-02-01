@@ -1,39 +1,64 @@
-// Local Guide tab navigator
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { MaterialIcons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GUIDE_COLORS, GUIDE_SHADOWS } from '../constants/guide.constants';
-import { DashboardScreen } from '../features/guide/dashboard/screens';
-import { MySiteScreen } from '../features/guide/my-site/screens';
-import { SupportScreen } from '../features/guide/support/screens';
-import { ScheduleScreen } from '../features/guide/schedule/screens';
+// Local Guide tab navigator - 3 tabs: Home, My Site, Profile
+import { MaterialIcons } from "@expo/vector-icons";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SHADOWS
+} from "../constants/guide.constants";
+import { DashboardScreen } from "../features/guide/dashboard/screens";
+import { MySiteNavigator } from "./MySiteNavigator";
+import { ProfileScreen } from "../features/guide/profile/screens";
 
 export type GuideTabParamList = {
   Dashboard: undefined;
   MySite: undefined;
-  Support: undefined;
-  Schedule: undefined;
+  Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<GuideTabParamList>();
 
-type IconName = 'dashboard' | 'church' | 'headset-mic' | 'calendar-today';
+type IconName =
+  | "home"
+  | "church"
+  | "calendar-today"
+  | "chat-bubble-outline"
+  | "person-outline";
 
 interface TabIconProps {
   name: IconName;
   focused: boolean;
+  label: string;
+  hasNotification?: boolean;
 }
 
-const TabIcon = ({ name, focused }: TabIconProps) => {
+const TabIcon = ({ name, focused, label, hasNotification }: TabIconProps) => {
   return (
-    <View style={[styles.iconContainer, focused && styles.iconContainerFocused]}>
-      <MaterialIcons
-        name={name}
-        size={24}
-        color={focused ? GUIDE_COLORS.primary : GUIDE_COLORS.textMuted}
-      />
+    <View style={styles.tabIconWrapper}>
+      <View
+        style={[styles.iconContainer, focused && styles.iconContainerFocused]}
+      >
+        <MaterialIcons
+          name={
+            focused
+              ? name === "chat-bubble-outline"
+                ? "chat-bubble"
+                : name === "person-outline"
+                  ? "person"
+                  : name
+              : name
+          }
+          size={26}
+          color={focused ? GUIDE_COLORS.primary : GUIDE_COLORS.textMuted}
+        />
+        {hasNotification && <View style={styles.notificationDot} />}
+      </View>
+      <Text style={[styles.tabLabel, focused && styles.tabLabelFocused]}>
+        {label}
+      </Text>
     </View>
   );
 };
@@ -48,13 +73,11 @@ export const GuideNavigator = () => {
         tabBarStyle: [
           styles.tabBar,
           {
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom,
+            height: 70 + insets.bottom,
+            paddingBottom: insets.bottom + 8,
           },
         ],
-        tabBarActiveTintColor: GUIDE_COLORS.primary,
-        tabBarInactiveTintColor: GUIDE_COLORS.textMuted,
-        tabBarLabelStyle: styles.tabBarLabel,
+        tabBarShowLabel: false,
         tabBarHideOnKeyboard: true,
       }}
     >
@@ -62,32 +85,27 @@ export const GuideNavigator = () => {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Tổng quan',
-          tabBarIcon: ({ focused }) => <TabIcon name="dashboard" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="home" focused={focused} label="Home" />
+          ),
         }}
       />
       <Tab.Screen
         name="MySite"
-        component={MySiteScreen}
+        component={MySiteNavigator}
         options={{
-          tabBarLabel: 'Quản lý',
-          tabBarIcon: ({ focused }) => <TabIcon name="church" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="church" focused={focused} label="My Site" />
+          ),
         }}
       />
       <Tab.Screen
-        name="Support"
-        component={SupportScreen}
+        name="Profile"
+        component={ProfileScreen}
         options={{
-          tabBarLabel: 'Hỗ trợ',
-          tabBarIcon: ({ focused }) => <TabIcon name="headset-mic" focused={focused} />,
-        }}
-      />
-      <Tab.Screen
-        name="Schedule"
-        component={ScheduleScreen}
-        options={{
-          tabBarLabel: 'Ca trực',
-          tabBarIcon: ({ focused }) => <TabIcon name="calendar-today" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="person-outline" focused={focused} label="Profile" />
+          ),
         }}
       />
     </Tab.Navigator>
@@ -100,22 +118,42 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: GUIDE_COLORS.borderLight,
     paddingTop: 8,
-    ...GUIDE_SHADOWS.sm,
+    ...GUIDE_SHADOWS.lg,
   },
-  tabBarLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
+  tabIconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 64,
   },
   iconContainer: {
-    width: 40,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 2,
   },
   iconContainerFocused: {
-    backgroundColor: `${GUIDE_COLORS.primary}15`,
+    // Glow effect for active tab
+  },
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: "500",
+    color: GUIDE_COLORS.textMuted,
+    marginTop: 2,
+  },
+  tabLabelFocused: {
+    color: GUIDE_COLORS.primary,
+    fontWeight: "700",
+  },
+  notificationDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: GUIDE_COLORS.error,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.surface,
   },
 });
 
