@@ -3,15 +3,15 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { 
   MySiteScreen, 
-  EventDetailScreen,
   MediaUploadScreen,
   MediaDetailScreen,
 } from '../features/guide/my-site/screens';
-import { MediaItem } from '../types/guide';
+import EventDetailScreen from '../features/guide/my-site/screens/EventDetailScreenNew';
+import { EventItem, MediaItem } from '../types/guide';
 
 export type MySiteStackParamList = {
   MySiteHome: undefined;
-  EventDetail: { eventId?: string };
+  EventDetail: { event?: EventItem };
   MediaUpload: undefined;
   MediaDetail: { media: MediaItem };
 };

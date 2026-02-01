@@ -139,6 +139,7 @@ export const GUIDE_ENDPOINTS = {
     CREATE: `${API_BASE}/local-guide/events`,
     UPDATE: (id: string) => `${API_BASE}/local-guide/events/${id}`,
     DELETE: (id: string) => `${API_BASE}/local-guide/events/${id}`,
+    RESTORE: (id: string) => `${API_BASE}/local-guide/events/${id}/restore`,
   },
 
   // My Sites - Site management

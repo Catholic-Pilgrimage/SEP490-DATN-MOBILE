@@ -20,7 +20,8 @@ import {
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
-import { MediaItem } from "../../../../types/guide";
+import { EventItem, MediaItem } from "../../../../types/guide";
+import { EventsTab } from "../components/EventsTab";
 import { MediaTab } from "../components/MediaTab";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -31,51 +32,11 @@ type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList, 'MyS
 // Types - Updated with 4 tabs
 type TabType = "Events" | "Media" | "Schedules" | "Shifts";
 
-interface Event {
-  id: string;
-  title: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-  iconBgColor: string;
-  schedule: string;
-  location: string;
-  status: "published" | "draft";
-}
-
 // Mock data
 const MOCK_SITE = {
   name: "Basilica of St. Francis",
   location: "Assisi, Italy",
 };
-
-const MOCK_EVENTS: Event[] = [
-  {
-    id: "1",
-    title: "Feast of the Assumption",
-    icon: "church",
-    iconBgColor: GUIDE_COLORS.primaryMuted,
-    schedule: "Aug 15, 2024 • 10:00 AM",
-    location: "Main Sanctuary",
-    status: "published",
-  },
-  {
-    id: "2",
-    title: "Daily Confessions",
-    icon: "volunteer-activism",
-    iconBgColor: GUIDE_COLORS.primaryMuted,
-    schedule: "Mon-Fri • 4:00 PM - 6:00 PM",
-    location: "West Confessional",
-    status: "published",
-  },
-  {
-    id: "3",
-    title: "Choir Practice",
-    icon: "music-note",
-    iconBgColor: GUIDE_COLORS.gray100,
-    schedule: "Every Wednesday • 7:00 PM",
-    location: "",
-    status: "draft",
-  },
-];
 
 // Segmented Control Component
 interface SegmentedControlProps {
@@ -123,83 +84,6 @@ const SegmentedControl: React.FC<SegmentedControlProps> = ({
   );
 };
 
-// Event Card Component
-interface EventCardProps {
-  event: Event;
-  onEdit: () => void;
-  onDelete: () => void;
-}
-
-const EventCard: React.FC<EventCardProps> = ({ event, onEdit, onDelete }) => {
-  const isDraft = event.status === "draft";
-
-  return (
-    <View style={[styles.eventCard, isDraft && styles.eventCardDraft]}>
-      <View style={styles.eventCardContent}>
-        <View style={styles.eventCardLeft}>
-          <View
-            style={[styles.eventIcon, { backgroundColor: event.iconBgColor }]}
-          >
-            <MaterialIcons
-              name={event.icon}
-              size={24}
-              color={isDraft ? GUIDE_COLORS.gray500 : GUIDE_COLORS.primary}
-            />
-          </View>
-          <View style={styles.eventInfo}>
-            <Text style={styles.eventTitle}>{event.title}</Text>
-            <View style={styles.eventMeta}>
-              <MaterialIcons
-                name={event.location ? "calendar-today" : "event"}
-                size={14}
-                color={GUIDE_COLORS.textMuted}
-              />
-              <Text style={styles.eventMetaText}>{event.schedule}</Text>
-            </View>
-            {event.location ? (
-              <View style={styles.eventMeta}>
-                <MaterialIcons
-                  name="location-on"
-                  size={14}
-                  color={GUIDE_COLORS.textMuted}
-                />
-                <Text style={styles.eventMetaText}>{event.location}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-        <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-          <MaterialIcons name="edit" size={20} color={GUIDE_COLORS.textMuted} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Footer with actions */}
-      <View style={styles.eventCardFooter}>
-        <View
-          style={[
-            styles.statusBadge,
-            isDraft ? styles.statusBadgeDraft : styles.statusBadgePublished,
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusBadgeText,
-              isDraft
-                ? styles.statusBadgeTextDraft
-                : styles.statusBadgeTextPublished,
-            ]}
-          >
-            {isDraft ? "Draft" : "Published"}
-          </Text>
-        </View>
-        <TouchableOpacity style={styles.deleteIconButton} onPress={onDelete}>
-          <MaterialIcons name="delete-outline" size={18} color={GUIDE_COLORS.gray400} />
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-};
-
 // Main MySite Screen
 const MySiteScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -210,22 +94,16 @@ const MySiteScreen: React.FC = () => {
     navigation.goBack();
   }, [navigation]);
 
-  const handleEditEvent = useCallback((eventId: string) => {
-    navigation.navigate('EventDetail', { eventId });
+  // Event handlers
+  const handleEventPress = useCallback((event: EventItem) => {
+    navigation.navigate('EventDetail', { event });
   }, [navigation]);
 
-  const handleDeleteEvent = (eventId: string) => {
-    console.log("Delete event:", eventId);
-  };
+  const handleCreateEvent = useCallback(() => {
+    navigation.navigate('EventDetail', { event: undefined });
+  }, [navigation]);
 
-  const handleAddNew = useCallback(() => {
-    if (activeTab === "Media") {
-      navigation.navigate('MediaUpload');
-    } else {
-      navigation.navigate('EventDetail', { eventId: undefined });
-    }
-  }, [navigation, activeTab]);
-
+  // Media handlers
   const handleMediaPress = useCallback((media: MediaItem) => {
     navigation.navigate('MediaDetail', { media });
   }, [navigation]);
@@ -234,9 +112,14 @@ const MySiteScreen: React.FC = () => {
     navigation.navigate('MediaUpload');
   }, [navigation]);
 
-  const activeEventsCount = MOCK_EVENTS.filter(
-    (e) => e.status === "published",
-  ).length;
+  // FAB handler
+  const handleAddNew = useCallback(() => {
+    if (activeTab === "Media") {
+      navigation.navigate('MediaUpload');
+    } else if (activeTab === "Events") {
+      navigation.navigate('EventDetail', { event: undefined });
+    }
+  }, [navigation, activeTab]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -300,45 +183,23 @@ const MySiteScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Events Tab - Also uses FlatList, render outside ScrollView */}
+      {activeTab === "Events" && (
+        <View style={styles.mediaTabContainer}>
+          <EventsTab
+            onEventPress={handleEventPress}
+            onCreatePress={handleCreateEvent}
+          />
+        </View>
+      )}
+
       {/* Other tabs use ScrollView */}
-      {activeTab !== "Media" && (
+      {activeTab !== "Media" && activeTab !== "Events" && (
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Events Section */}
-          {activeTab === "Events" && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Scheduled Events</Text>
-                <View style={styles.activeCountBadge}>
-                  <Text style={styles.activeCountText}>
-                    {activeEventsCount} Active
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.eventsList}>
-                {MOCK_EVENTS.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    event={event}
-                    onEdit={() => handleEditEvent(event.id)}
-                    onDelete={() => handleDeleteEvent(event.id)}
-                  />
-                ))}
-              </View>
-
-              {/* Quote */}
-              <View style={styles.quoteContainer}>
-                <Text style={styles.quoteText}>
-                  "For where two or three are gathered in my name..."
-                </Text>
-              </View>
-            </View>
-          )}
-
           {/* Schedules Section Placeholder */}
           {activeTab === "Schedules" && (
             <View style={styles.placeholderSection}>
@@ -448,10 +309,6 @@ const styles = StyleSheet.create({
   },
 
   // Site Header
-  siteHeader: {
-    marginBottom: GUIDE_SPACING.xl,
-    marginTop: GUIDE_SPACING.sm,
-  },
   siteHeaderFixed: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingBottom: GUIDE_SPACING.md,
@@ -475,9 +332,6 @@ const styles = StyleSheet.create({
   },
 
   // Segmented Control
-  segmentedWrapper: {
-    marginBottom: GUIDE_SPACING.xxl,
-  },
   segmentedWrapperFixed: {
     paddingHorizontal: GUIDE_SPACING.lg,
     marginBottom: GUIDE_SPACING.md,
@@ -512,154 +366,6 @@ const styles = StyleSheet.create({
   segmentedTabTextActive: {
     color: GUIDE_COLORS.textPrimary,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-  },
-
-  // Section
-  section: {
-    gap: GUIDE_SPACING.lg,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: GUIDE_SPACING.xs,
-  },
-  sectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textPrimary,
-  },
-  activeCountBadge: {
-    backgroundColor: GUIDE_COLORS.primaryMuted,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  activeCountText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.primary,
-  },
-
-  // Events List
-  eventsList: {
-    gap: GUIDE_SPACING.lg,
-  },
-
-  // Event Card
-  eventCard: {
-    backgroundColor: GUIDE_COLORS.surface,
-    borderRadius: GUIDE_BORDER_RADIUS.xl,
-    padding: GUIDE_SPACING.lg,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    ...GUIDE_SHADOWS.md, // Increased shadow for better depth
-  },
-  eventCardDraft: {
-    opacity: 0.75,
-  },
-  eventCardContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  eventCardLeft: {
-    flexDirection: "row",
-    flex: 1,
-    gap: GUIDE_SPACING.lg,
-  },
-  eventIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: GUIDE_BORDER_RADIUS.xl,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  eventInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  eventTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
-    marginBottom: GUIDE_SPACING.xs,
-  },
-  eventMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  eventMetaText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-  },
-  editButton: {
-    padding: GUIDE_SPACING.sm,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-  },
-
-  // Event Card Footer
-  eventCardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between", // Status left, delete right
-    alignItems: "center",
-    marginTop: GUIDE_SPACING.md,
-    paddingTop: GUIDE_SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: GUIDE_COLORS.gray100,
-  },
-  deleteIconButton: {
-    padding: GUIDE_SPACING.sm,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  deleteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    paddingVertical: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-  },
-  deleteButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.error,
-  },
-  statusBadge: {
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.xs,
-    borderRadius: GUIDE_BORDER_RADIUS.full, // Pill shape
-  },
-  statusBadgePublished: {
-    backgroundColor: "#E8F5E9", // Soft pastel green
-  },
-  statusBadgeDraft: {
-    backgroundColor: GUIDE_COLORS.gray100,
-  },
-  statusBadgeText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-  },
-  statusBadgeTextPublished: {
-    color: "#2E7D32", // Darker green for contrast on pastel
-  },
-  statusBadgeTextDraft: {
-    color: GUIDE_COLORS.gray500,
-    fontStyle: "italic",
-  },
-
-  // Quote
-  quoteContainer: {
-    paddingVertical: GUIDE_SPACING.xl,
-    alignItems: "center",
-  },
-  quoteText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontStyle: "italic",
-    color: GUIDE_COLORS.textMuted,
-    opacity: 0.6,
-    textAlign: "center",
   },
 
   // Placeholder Section
