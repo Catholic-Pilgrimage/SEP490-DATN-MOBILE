@@ -1,11 +1,15 @@
 /**
  * useGuideSite Hook
  * Custom hook for fetching and managing the Local Guide's assigned site information
+ * 
+ * @deprecated Consider using useDashboardHome for full dashboard data
+ * Use this hook only when you need site info independently
  */
 
 import { useCallback, useEffect, useState } from "react";
 import { guideSiteApi } from "../../../../services/api";
 import { LocalGuideSite } from "../../../../types/guide";
+import { getSiteOpenStatus } from "../../../../utils/dateUtils";
 
 export interface UseGuideSiteResult {
   site: LocalGuideSite | null;
@@ -15,26 +19,6 @@ export interface UseGuideSiteResult {
   refetch: () => Promise<void>;
   isOpen: boolean;
 }
-
-/**
- * Check if site is currently open based on opening hours
- */
-const isSiteCurrentlyOpen = (
-  openingHours: LocalGuideSite["opening_hours"] | undefined,
-): boolean => {
-  if (!openingHours?.open || !openingHours?.close) return false;
-
-  const now = new Date();
-  const currentTime = now.getHours() * 60 + now.getMinutes();
-
-  const [openHour, openMin] = openingHours.open.split(":").map(Number);
-  const [closeHour, closeMin] = openingHours.close.split(":").map(Number);
-
-  const openTime = openHour * 60 + openMin;
-  const closeTime = closeHour * 60 + closeMin;
-
-  return currentTime >= openTime && currentTime <= closeTime;
-};
 
 /**
  * Hook to fetch the assigned site information for the Local Guide
@@ -87,7 +71,8 @@ export const useGuideSite = (): UseGuideSiteResult => {
     fetchSite();
   }, [fetchSite]);
 
-  const isOpen = isSiteCurrentlyOpen(site?.opening_hours);
+  // Use shared utility for consistency
+  const siteStatus = getSiteOpenStatus(site?.opening_hours);
 
   return {
     site,
@@ -95,7 +80,7 @@ export const useGuideSite = (): UseGuideSiteResult => {
     error,
     errorCode,
     refetch: fetchSite,
-    isOpen,
+    isOpen: siteStatus.isOpen,
   };
 };
 

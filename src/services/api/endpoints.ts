@@ -124,6 +124,28 @@ export const GUIDE_ENDPOINTS = {
   // Local Guide Site - Get assigned site info
   LOCAL_GUIDE_SITE: `${API_BASE}/local-guide/site`,
 
+  // Local Guide Site Schedule - Weekly schedule for assigned site
+  LOCAL_GUIDE_SITE_SCHEDULE: `${API_BASE}/local-guide/site-schedule`,
+
+  // Local Guide Mass Schedule - Lịch lễ management
+  LOCAL_GUIDE_MASS_SCHEDULES: {
+    LIST: `${API_BASE}/local-guide/schedules`,
+    CREATE: `${API_BASE}/local-guide/schedules`,
+    UPDATE: (id: string) => `${API_BASE}/local-guide/schedules/${id}`,
+    DELETE: (id: string) => `${API_BASE}/local-guide/schedules/${id}`,
+    RESTORE: (id: string) => `${API_BASE}/local-guide/schedules/${id}/restore`,
+  },
+
+  // @deprecated Use LOCAL_GUIDE_MASS_SCHEDULES instead
+  LOCAL_GUIDE_SCHEDULES: `${API_BASE}/local-guide/schedules`,
+
+  // SOS Support - Pending support requests
+  SOS: {
+    LIST: `${API_BASE}/sos/site/list`,
+    DETAIL: (id: string) => `${API_BASE}/sos/site/${id}`,
+    UPDATE: (id: string) => `${API_BASE}/sos/site/${id}`,
+  },
+
   // Local Guide Media - Media management for assigned site
   LOCAL_GUIDE_MEDIA: {
     LIST: `${API_BASE}/local-guide/media`,

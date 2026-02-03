@@ -26,7 +26,7 @@ import {
     GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
-import { useGuideSite } from "../hooks/useGuideSite";
+import { useDashboardHome } from "../hooks/useDashboardHome";
 
 // Premium color palette
 const PREMIUM_COLORS = {
@@ -47,22 +47,8 @@ const PREMIUM_COLORS = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// Types
-interface Task {
-  id: string;
-  title: string;
-  location: string;
-  time: string;
-  period: "AM" | "PM";
-  status: "done" | "active" | "pending";
-}
-
-interface ShiftInfo {
-  isActive: boolean;
-  startTime: string;
-  endTime: string;
-  siteName: string;
-}
+// Types - using TodayOverviewItem from hook
+import type { TodayOverviewItem } from "../../../../types/guide";
 
 // Get greeting based on time of day
 const getGreeting = (): string => {
@@ -72,40 +58,7 @@ const getGreeting = (): string => {
   return "Good Evening";
 };
 
-// Mock data
-const MOCK_SHIFT: ShiftInfo = {
-  isActive: true,
-  startTime: "08:00",
-  endTime: "16:00",
-  siteName: "Sanctuary of Our\nLady of Lourdes",
-};
-
-const MOCK_TASKS: Task[] = [
-  {
-    id: "1",
-    title: "Welcome Spanish Delegation",
-    location: "South Gate Entrance",
-    time: "09:00",
-    period: "AM",
-    status: "done",
-  },
-  {
-    id: "2",
-    title: "Rosary Procession Lead",
-    location: "Main Grotto",
-    time: "11:00",
-    period: "AM",
-    status: "active",
-  },
-  {
-    id: "3",
-    title: "Confession Coordination",
-    location: "Basilica East Wing",
-    time: "02:00",
-    period: "PM",
-    status: "pending",
-  },
-];
+// No mock data - using real data from useDashboardHome hook
 
 // Quick Action Button Component - Premium Design with Pattern
 interface QuickActionProps {
@@ -268,20 +221,32 @@ const DashboardScreen: React.FC = () => {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch assigned site info using custom hook
+  // Fetch all dashboard data using comprehensive hook
   const {
-    site: siteInfo,
-    loading: siteLoading,
-    error: siteError,
-    refetch: refetchSite,
+    data,
+    pendingBadges,
+    loading,
+    isLoading,
+    refresh,
     isOpen,
-  } = useGuideSite();
+    isOnDuty,
+    hasPendingSOS,
+    pendingSOSCount,
+    siteStatusDisplay,
+    activeShiftDisplay,
+  } = useDashboardHome();
+
+  // Extract data for convenience
+  const siteInfo = data.siteInfo;
+  const todayOverview = data.todayOverview;
+  const recentActivity = data.recentActivity;
+  const siteLoading = loading.siteInfo;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetchSite();
+    await refresh();
     setRefreshing(false);
-  }, [refetchSite]);
+  }, [refresh]);
 
   const handleClockOut = () => {
     console.log("Clock out pressed");
@@ -303,14 +268,6 @@ const DashboardScreen: React.FC = () => {
   const guideName = user?.fullName || "Guide Mateo";
   const firstName = guideName.split(" ")[0];
   const greeting = getGreeting();
-
-  // Fallback shift info from site opening hours
-  const shiftInfo: ShiftInfo = {
-    isActive: isOpen,
-    startTime: siteInfo?.opening_hours?.open || "08:00",
-    endTime: siteInfo?.opening_hours?.close || "16:00",
-    siteName: siteInfo?.name || "Loading...",
-  };
 
   return (
     <View style={[styles.container, { paddingTop: 0 }]}>
@@ -338,7 +295,7 @@ const DashboardScreen: React.FC = () => {
           <ImageBackground
             source={{
               uri:
-                siteInfo?.cover_image ||
+                siteInfo?.coverImage ||
                 "https://lh3.googleusercontent.com/aida-public/AB6AXuAqbVTkMCTc_WQ6WIfqhD4WF94ki7WRByjY6o_AgODRQ_-GDjd_SDG0wjUx5TXKIfxnBRZMJPJazyKoWgNpQQmK5lXUCPX-IHBuX5DhMyoPJHQLTWOTVMQVUEAl58b-kDY__kqar5td32hyFggIDO0c35L3t7blEUJ2WlXerbZRhnIxeWVqhw198dgBne0LHIP8AWjvPGUrXMgm3pbi9PU5KoNo6RXoo8rLmmrBsgDGJo2BszZ2kLxSsih-Kp0kybCXLq-dA3LlpdY",
             }}
             style={styles.heroBackground}
@@ -431,10 +388,10 @@ const DashboardScreen: React.FC = () => {
                     </Text>
                   </View>
                   {/* Patron Saint - Elegant Italic */}
-                  {siteInfo?.patron_saint && (
+                  {siteInfo?.patronSaint && (
                     <Text style={styles.heroPatron}>
                       <Text style={styles.heroPatronLabel}>Patron: </Text>
-                      {siteInfo.patron_saint}
+                      {siteInfo.patronSaint}
                     </Text>
                   )}
                 </View>
@@ -450,23 +407,26 @@ const DashboardScreen: React.FC = () => {
               icon="event"
               label="Create Event"
               onPress={() => handleQuickAction("create-event")}
+              badgeCount={pendingBadges.events}
             />
             <QuickActionButton
               icon="cloud-upload"
               label="Upload Media"
               onPress={() => handleQuickAction("upload-media")}
+              badgeCount={pendingBadges.media}
             />
             <QuickActionButton
               icon="schedule"
               label="Mass Schedule"
               onPress={() => handleQuickAction("mass-schedule")}
-              badgeCount={2}
+              badgeCount={pendingBadges.schedules}
             />
             <QuickActionButton
               icon="support-agent"
               label="SOS Support"
               onPress={() => handleQuickAction("sos-support")}
               variant="danger"
+              badgeCount={pendingBadges.sos}
             />
           </View>
         </View>
@@ -478,83 +438,92 @@ const DashboardScreen: React.FC = () => {
               <Text style={styles.sectionLabel}>SCHEDULE</Text>
               <Text style={styles.sectionTitleSerif}>Today's Overview</Text>
             </View>
-            <LinearGradient
-              colors={[PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.shiftBadge}
-            >
-              <Text style={styles.shiftBadgeLabel}>ACTIVE SHIFT</Text>
-              <Text style={styles.shiftBadgeTime}>
-                {shiftInfo.startTime} - {shiftInfo.endTime}
-              </Text>
-            </LinearGradient>
+            {activeShiftDisplay.shouldShow && (
+              <LinearGradient
+                colors={[PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.shiftBadge}
+              >
+                <Text style={styles.shiftBadgeLabel}>ACTIVE SHIFT</Text>
+                <Text style={styles.shiftBadgeTime}>
+                  {activeShiftDisplay.timeRange}
+                </Text>
+              </LinearGradient>
+            )}
           </View>
 
           {/* Premium Timeline */}
           <View style={styles.timeline}>
-            {MOCK_TASKS.map((task, index) => (
-              <TouchableOpacity 
-                key={task.id} 
-                style={[
-                  styles.timelineItem,
-                  task.status === "active" && styles.timelineItemActive,
-                ]}
-                activeOpacity={0.7}
-              >
-                <View style={styles.timelineLeft}>
-                  <LinearGradient
-                    colors={
-                      task.status === "active"
-                        ? [PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]
-                        : ["#E5E7EB", "#D1D5DB"]
-                    }
-                    style={styles.timelineDot}
-                  >
-                    <MaterialIcons
-                      name={task.status === "active" ? "church" : "schedule"}
-                      size={14}
-                      color={task.status === "active" ? "#FFFFFF" : "#6B7280"}
-                    />
-                  </LinearGradient>
-                  {index < MOCK_TASKS.length - 1 && (
+            {todayOverview.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <MaterialIcons name="event-available" size={48} color={GUIDE_COLORS.gray300} />
+                <Text style={styles.emptyStateText}>Không có lịch trình hôm nay</Text>
+              </View>
+            ) : (
+              todayOverview.map((item, index) => (
+                <TouchableOpacity 
+                  key={item.id} 
+                  style={[
+                    styles.timelineItem,
+                    item.isNow && styles.timelineItemActive,
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.timelineLeft}>
                     <LinearGradient
-                      colors={[PREMIUM_COLORS.gold, "rgba(212, 175, 55, 0.2)"]}
-                      style={styles.timelineLine}
-                    />
+                      colors={
+                        item.isNow
+                          ? [PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]
+                          : ["#E5E7EB", "#D1D5DB"]
+                      }
+                      style={styles.timelineDot}
+                    >
+                      <MaterialIcons
+                        name={item.type === 'schedule' ? "church" : "event"}
+                        size={14}
+                        color={item.isNow ? "#FFFFFF" : "#6B7280"}
+                      />
+                    </LinearGradient>
+                    {index < todayOverview.length - 1 && (
+                      <LinearGradient
+                        colors={[PREMIUM_COLORS.gold, "rgba(212, 175, 55, 0.2)"]}
+                        style={styles.timelineLine}
+                      />
+                    )}
+                  </View>
+                  
+                  <View style={styles.timelineContent}>
+                    <Text
+                      style={[
+                        styles.timelineTime,
+                        item.isNow && styles.timelineTimeActive,
+                      ]}
+                    >
+                      {item.displayTime}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.timelineTitle,
+                        !item.isNow && styles.timelineTitleMuted,
+                      ]}
+                    >
+                      {item.title}
+                    </Text>
+                    <View style={styles.timelineLocationRow}>
+                      <Ionicons name="location-outline" size={12} color={GUIDE_COLORS.gray400} />
+                      <Text style={styles.timelineLocation}>{item.location || 'Main Area'}</Text>
+                    </View>
+                  </View>
+                  
+                  {item.isNow && (
+                    <View style={styles.timelineActiveIndicator}>
+                      <Text style={styles.timelineActiveText}>NOW</Text>
+                    </View>
                   )}
-                </View>
-                
-                <View style={styles.timelineContent}>
-                  <Text
-                    style={[
-                      styles.timelineTime,
-                      task.status === "active" && styles.timelineTimeActive,
-                    ]}
-                  >
-                    {task.time} {task.period}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.timelineTitle,
-                      task.status !== "active" && styles.timelineTitleMuted,
-                    ]}
-                  >
-                    {task.title}
-                  </Text>
-                  <View style={styles.timelineLocationRow}>
-                    <Ionicons name="location-outline" size={12} color={GUIDE_COLORS.gray400} />
-                    <Text style={styles.timelineLocation}>{task.location}</Text>
-                  </View>
-                </View>
-                
-                {task.status === "active" && (
-                  <View style={styles.timelineActiveIndicator}>
-                    <Text style={styles.timelineActiveText}>NOW</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
 
@@ -569,67 +538,52 @@ const DashboardScreen: React.FC = () => {
           </View>
           
           <View style={styles.activityList}>
-            <TouchableOpacity style={styles.activityItem}>
-              <View style={styles.activityImageContainer}>
-                <Image
-                  source={{
-                    uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDekADLmdGNGv1W5yyCmBcIW8ciliByFipfkFI9fGnbKQhlPQGXKoyOuHtl3OO0kofeo01MeTQ-fPNakawVKTElmWxS6v1TJoLTDTfE8J6--4NDcv79t2_ncIahwc0DlzJ5YQeLpSpqFLoqGQ-ssjNrRnpv6cR9zZdzxmwxoAjh7OXgE9f_aYdsQ3ns7pLIFvmrhAlnac22WhKU8n3PNyzOjMLnlJdTcpA-xkswJXayGPskPdzPKbfZ4ZFHjFHLQlN7-eDgNuym8S8",
-                  }}
-                  style={styles.activityImage}
-                />
-                <View style={styles.activityImageOverlay}>
-                  <Ionicons name="image" size={12} color="#FFFFFF" />
-                </View>
+            {recentActivity.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <MaterialIcons name="history" size={48} color={GUIDE_COLORS.gray300} />
+                <Text style={styles.emptyStateText}>Chưa có hoạt động gần đây</Text>
               </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>Media Uploaded</Text>
-                <Text style={styles.activitySubtitle}>
-                  Interior lighting gallery
-                </Text>
-                <View style={styles.activityTimeRow}>
-                  <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
-                  <Text style={styles.activityTime}>2 minutes ago</Text>
-                </View>
-              </View>
-              <View style={styles.activityArrow}>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={PREMIUM_COLORS.gold}
-                />
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.activityItem}>
-              <View style={styles.activityImageContainer}>
-                <Image
-                  source={{
-                    uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBWzi4aM_KLdraRyPeTpAqas9S_5dkr6I7klxpi7V-os9tz9-Q0Y-PiXyK9Nb0eIb-s6qq_PeFap-ZcWL7Q_WZ5UaH0vWYFsEyIo-Z-yPvsCdaF_qAeNefbpafQpBL_16N3kxdtECRLo-7JnYfyQIn9EzMKAUSrvm26R1si9l7Md2QE9pM1Q57lnHoDpB5Jz5CZ20HrrDNkvHrDO6ZMFMNsDvcbBMiAPsA8rZO_bfO2Y_IT-1h8UyYvkfnITfOe8aXca9tgTmnb1X0",
-                  }}
-                  style={styles.activityImage}
-                />
-                <View style={[styles.activityImageOverlay, { backgroundColor: PREMIUM_COLORS.sapphire }]}>
-                  <Ionicons name="calendar" size={12} color="#FFFFFF" />
-                </View>
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>New Event Created</Text>
-                <Text style={styles.activitySubtitle}>
-                  Sunday Youth Choir
-                </Text>
-                <View style={styles.activityTimeRow}>
-                  <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
-                  <Text style={styles.activityTime}>1 hour ago</Text>
-                </View>
-              </View>
-              <View style={styles.activityArrow}>
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={PREMIUM_COLORS.gold}
-                />
-              </View>
-            </TouchableOpacity>
+            ) : (
+              recentActivity.slice(0, 5).map((activity) => (
+                <TouchableOpacity key={activity.id} style={styles.activityItem}>
+                  <View style={styles.activityImageContainer}>
+                    <Image
+                      source={{
+                        uri: activity.thumbnail || "https://via.placeholder.com/50",
+                      }}
+                      style={styles.activityImage}
+                    />
+                    <View style={[
+                      styles.activityImageOverlay, 
+                      { backgroundColor: activity.type === 'media' ? PREMIUM_COLORS.gold : PREMIUM_COLORS.sapphire }
+                    ]}>
+                      <Ionicons 
+                        name={activity.type === 'media' ? "image" : "calendar"} 
+                        size={12} 
+                        color="#FFFFFF" 
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.activityContent}>
+                    <Text style={styles.activityTitle}>{activity.title}</Text>
+                    <Text style={styles.activitySubtitle}>
+                      {activity.subtitle}
+                    </Text>
+                    <View style={styles.activityTimeRow}>
+                      <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
+                      <Text style={styles.activityTime}>{new Date(activity.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.activityArrow}>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={PREMIUM_COLORS.gold}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         </View>
 
@@ -1123,6 +1077,19 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212, 175, 55, 0.1)",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Empty State
+  emptyStateContainer: {
+    padding: GUIDE_SPACING.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.sm,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: GUIDE_COLORS.gray400,
+    textAlign: "center",
   },
 
   // Status Indicator (used by StatusIndicator component)

@@ -9,6 +9,12 @@
 // Dashboard types
 export * from "./dashboard.types";
 
+// Dashboard Home types (Active Shift, SOS, Recent Activity, etc.)
+export * from "./dashboard-home.types";
+
+// Mass Schedule types (Lịch lễ)
+export * from "./mass-schedule.types";
+
 // Site types
 export * from "./site.types";
 

@@ -22,13 +22,21 @@ export { default as guideMediaApi } from "./mediaApi";
 export * from "./eventApi";
 export { default as guideEventApi } from "./eventApi";
 
-// Dashboard API
-export * from "./dashboardApi";
-export { default as guideDashboardApi } from "./dashboardApi";
+// Dashboard API (Statistics, Site Schedule, SOS, Notifications)
+export * from "./dashboardHomeApi";
+export { default as dashboardApi } from "./dashboardHomeApi";
+// Backward compatibility aliases
+export { default as guideDashboardApi } from "./dashboardHomeApi";
+export { default as dashboardHomeApi } from "./dashboardHomeApi";
+
+// Mass Schedule API (Lịch lễ)
+export * from "./massScheduleApi";
+export { default as massScheduleApi } from "./massScheduleApi";
 
 // Combined Guide API (for backward compatibility)
-import guideDashboardApi from "./dashboardApi";
+import dashboardApi from "./dashboardHomeApi";
 import guideEventApi from "./eventApi";
+import massScheduleApi from "./massScheduleApi";
 import guideMediaApi from "./mediaApi";
 import guideSiteApi from "./siteApi";
 
@@ -36,7 +44,8 @@ const guideApis = {
   site: guideSiteApi,
   media: guideMediaApi,
   event: guideEventApi,
-  dashboard: guideDashboardApi,
+  dashboard: dashboardApi,
+  massSchedule: massScheduleApi,
 };
 
 export default guideApis;
