@@ -297,11 +297,26 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
       }
 
       const response = await getEvents(params);
-      if (response.success && response.data) {
-        setEvents(response.data.data);
+      
+      // Safe check for response structure
+      if (response?.success && response?.data) {
+        const eventData = response.data.data;
+        if (Array.isArray(eventData)) {
+          setEvents(eventData);
+        } else {
+          console.warn("Invalid event data format:", eventData);
+          setEvents([]);
+        }
+      } else {
+        console.warn("API response unsuccessful or missing data:", response);
+        setEvents([]);
       }
     } catch (error) {
       console.error("Error fetching events:", error);
+      // Keep existing events on error during refresh, clear on initial load
+      if (!isRefresh) {
+        setEvents([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -341,9 +356,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
           onPress: async () => {
             try {
               const result = await deleteEvent(event.id);
-              if (result.success) {
+              if (result?.success) {
                 Alert.alert("Thành công", "Đã xóa sự kiện");
                 fetchEvents(true);
+              } else {
+                Alert.alert("Lỗi", result?.message || "Không thể xóa sự kiện");
               }
             } catch (error: any) {
               Alert.alert("Lỗi", error.message || "Không thể xóa sự kiện");

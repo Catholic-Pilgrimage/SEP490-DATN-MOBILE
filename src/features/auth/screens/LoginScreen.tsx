@@ -18,6 +18,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  Dimensions,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -26,9 +27,15 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHADOWS } from '../../../constants/theme.constants';
 import { useAuth } from '../../../contexts/AuthContext';
 import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
+
+// Background image
+const BG_IMAGE = require('../../../../assets/images/bg2.jpg');
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Login screen colors matching the design
 const LOGIN_COLORS = {
@@ -211,18 +218,23 @@ const LoginScreen = () => {
   }, [formErrors.password]);
 
   const isButtonDisabled = isLoading || isSubmitting;
+  const insets = useSafeAreaInsets();
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={LOGIN_COLORS.backgroundLight} />
+      <ImageBackground
+        source={BG_IMAGE}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
         
-        {/* Background Gradient */}
+        {/* Overlay gradient for better readability */}
         <LinearGradient
-          colors={[`${LOGIN_COLORS.primary}1A`, LOGIN_COLORS.backgroundLight, LOGIN_COLORS.backgroundLight]}
+          colors={['rgba(253, 248, 240, 0.2)', 'rgba(253, 248, 240, 0.75)', 'rgba(253, 248, 240, 0.95)']}
           style={styles.backgroundGradient}
           start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
+          end={{ x: 0, y: 0.6 }}
         />
 
         <KeyboardAvoidingView
@@ -230,31 +242,17 @@ const LoginScreen = () => {
           style={styles.keyboardView}
         >
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 10 }]}
             showsVerticalScrollIndicator={false}
             bounces={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Header Image Section */}
-            <View style={styles.imageSection}>
-              <View style={styles.imageContainer}>
-                <ImageBackground
-                  source={{ uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB0Ux7Y_tnjFjgCO6Xd7NfDc2O8g9Wz55CYrhc_dBIk0WhAPoubqHgHpO1Xgvdwik8PldEi4YhnpEp2ry-7WdPYDPmcDNL7Znj6_jPH9OTnaX6FACxAz957pMYsH_pgNwh_lQX6QHgY3hsVqHqpx22d2-ENubTq2XkBN746u9Z4EQwV2rOvSziLJnFuETg9Lu7ek4MEGzg_4qGgR2otj9EWAqpNowVtTqCRverIBtFEWZ0N_Io-M7a6nGbqg4wz4Nlx3ya9-GTGXDxv' }}
-                  style={styles.headerImage}
-                  imageStyle={styles.headerImageStyle}
-                  resizeMode="cover"
-                >
-                  {/* Image Overlay */}
-                  <View style={styles.imageOverlay} />
-                  
-                  {/* Logo Icon Overlay */}
-                  <View style={styles.logoContainer}>
-                    <View style={styles.logoBox}>
-                      <MaterialIcons name="church" size={24} color={LOGIN_COLORS.primary} />
-                    </View>
-                  </View>
-                </ImageBackground>
+            {/* Logo Section */}
+            <View style={styles.logoSection}>
+              <View style={styles.logoBadge}>
+                <MaterialIcons name="church" size={28} color={LOGIN_COLORS.primary} />
               </View>
+              <Text style={styles.appName}>Sacred Journey</Text>
             </View>
 
             {/* Title Section */}
@@ -443,18 +441,9 @@ const LoginScreen = () => {
                 <Text style={styles.registerLink}>Đăng ký ngay</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Bottom Decorative Pattern */}
-            <View style={styles.bottomDecoration}>
-              <View style={styles.trianglePattern}>
-                {[...Array(8)].map((_, i) => (
-                  <View key={i} style={styles.triangle} />
-                ))}
-              </View>
-            </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </View>
+      </ImageBackground>
     </TouchableWithoutFeedback>
   );
 };
@@ -476,7 +465,36 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 40,
+    justifyContent: 'center',
+    paddingBottom: 20,
+  },
+
+  // Logo Section (New - for bg2.jpg background)
+  logoSection: {
+    alignItems: 'center',
+    paddingTop: 40,
+    paddingBottom: 8,
+  },
+  logoBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.large,
+    marginBottom: 8,
+    borderWidth: 2,
+    borderColor: LOGIN_COLORS.primary,
+  },
+  appName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: LOGIN_COLORS.primary,
+    letterSpacing: 1,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 
   // Header Image Section
@@ -518,23 +536,23 @@ const styles = StyleSheet.create({
   // Title Section
   titleContainer: {
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 32,
+    marginTop: 12,
+    marginBottom: 16,
     paddingHorizontal: 24,
   },
   title: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: '700',
     color: LOGIN_COLORS.textMain,
     letterSpacing: -0.5,
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: LOGIN_COLORS.textMuted,
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 
   // Error Banner
@@ -558,17 +576,17 @@ const styles = StyleSheet.create({
 
   // Form Section
   formContainer: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     flex: 1,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: LOGIN_COLORS.textMain,
-    marginBottom: 8,
+    marginBottom: 6,
     marginLeft: 4,
   },
   inputWrapper: {
@@ -578,8 +596,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: LOGIN_COLORS.borderLight,
-    height: 56,
-    paddingHorizontal: 16,
+    height: 50,
+    paddingHorizontal: 14,
     ...SHADOWS.subtle,
   },
   inputWrapperFocused: {
@@ -637,11 +655,11 @@ const styles = StyleSheet.create({
   loginButton: {
     flexDirection: 'row',
     backgroundColor: LOGIN_COLORS.primary,
-    height: 56,
+    height: 50,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
     shadowColor: LOGIN_COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
@@ -662,7 +680,7 @@ const styles = StyleSheet.create({
   dividerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 24,
+    marginVertical: 14,
   },
   dividerLine: {
     flex: 1,
@@ -680,7 +698,7 @@ const styles = StyleSheet.create({
   guestButton: {
     flexDirection: 'row',
     backgroundColor: 'transparent',
-    height: 56,
+    height: 48,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -702,7 +720,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 32,
+    marginTop: 16,
+    paddingBottom: 20,
     paddingHorizontal: 24,
   },
   footerText: {
@@ -714,34 +733,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: LOGIN_COLORS.primary,
     marginLeft: 4,
-  },
-
-  // Bottom Decoration
-  bottomDecoration: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    overflow: 'hidden',
-    opacity: 0.05,
-    pointerEvents: 'none',
-  },
-  trianglePattern: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'flex-end',
-    height: '100%',
-  },
-  triangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 20,
-    borderRightWidth: 20,
-    borderBottomWidth: 40,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: LOGIN_COLORS.textMain,
   },
 });
 

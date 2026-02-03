@@ -373,12 +373,14 @@ export const EventDetailScreen: React.FC = () => {
         result = await createEvent(eventData);
       }
 
-      if (result.success) {
+      if (result?.success) {
         Alert.alert(
           "Thành công",
           isEditMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
+      } else {
+        Alert.alert("Lỗi", result?.message || "Không thể lưu sự kiện");
       }
     } catch (error: any) {
       Alert.alert("Lỗi", error.message || "Không thể lưu sự kiện");
@@ -403,10 +405,12 @@ export const EventDetailScreen: React.FC = () => {
             setDeleting(true);
             try {
               const result = await deleteEvent(passedEvent.id);
-              if (result.success) {
+              if (result?.success) {
                 Alert.alert("Thành công", "Đã xóa sự kiện", [
                   { text: "OK", onPress: () => navigation.goBack() },
                 ]);
+              } else {
+                Alert.alert("Lỗi", result?.message || "Không thể xóa");
               }
             } catch (error: any) {
               Alert.alert("Lỗi", error.message || "Không thể xóa");

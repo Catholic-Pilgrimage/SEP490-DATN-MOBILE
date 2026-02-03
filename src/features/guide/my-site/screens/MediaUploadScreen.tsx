@@ -321,14 +321,14 @@ export const MediaUploadScreen: React.FC = () => {
         });
       }
 
-      if (result.success) {
+      if (result?.success) {
         Alert.alert(
           "Thành công",
           "Media đã được upload và đang chờ duyệt",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       } else {
-        Alert.alert("Lỗi", result.message || "Không thể upload media");
+        Alert.alert("Lỗi", result?.message || "Không thể upload media");
       }
     } catch (error) {
       console.error("Upload error:", error);

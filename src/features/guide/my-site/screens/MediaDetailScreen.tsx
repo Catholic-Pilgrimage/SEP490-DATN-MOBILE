@@ -131,11 +131,11 @@ export const MediaDetailScreen: React.FC = () => {
       const result = await updateMedia(media.id, { caption });
       console.log("[MediaDetail] Update result:", JSON.stringify(result));
       
-      if (result.success) {
+      if (result?.success) {
         Alert.alert("Thành công", "Caption đã được cập nhật");
         setIsEditing(false);
       } else {
-        Alert.alert("Lỗi", result.message || "Không thể cập nhật caption");
+        Alert.alert("Lỗi", result?.message || "Không thể cập nhật caption");
       }
     } catch (error: any) {
       console.error("[MediaDetail] Update error:", error);
@@ -163,12 +163,12 @@ export const MediaDetailScreen: React.FC = () => {
               const result = await deleteMedia(media.id);
               console.log("[MediaDetail] Delete result:", JSON.stringify(result));
               
-              if (result.success) {
+              if (result?.success) {
                 Alert.alert("Thành công", "Media đã được xóa", [
                   { text: "OK", onPress: () => navigation.goBack() },
                 ]);
               } else {
-                Alert.alert("Lỗi", result.message || "Không thể xóa media");
+                Alert.alert("Lỗi", result?.message || "Không thể xóa media");
               }
             } catch (error: any) {
               console.error("[MediaDetail] Delete error:", error);

@@ -294,7 +294,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authApi.getProfile();
 
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         const user = response.data;
         await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
         dispatch({ type: 'AUTH_UPDATE_USER', payload: user });
@@ -309,12 +309,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authApi.updateProfile(data);
 
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         const user = response.data;
         await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
         dispatch({ type: 'AUTH_UPDATE_USER', payload: user });
       } else {
-        throw new Error(response.error?.message || 'Cập nhật thất bại');
+        throw new Error(response?.error?.message || 'Cập nhật thất bại');
       }
     } catch (error: any) {
       throw error;

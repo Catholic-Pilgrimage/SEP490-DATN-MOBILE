@@ -169,11 +169,11 @@ export const useGuideMedia = (
 
         const response = await guideMediaApi.getMedia(queryParams);
 
-        if (response.success && response.data) {
+        if (response?.success && response?.data) {
           setMedia(response.data.data);
           setPagination(response.data.pagination);
         } else {
-          setError(response.message || "Không thể tải danh sách media");
+          setError(response?.message || "Không thể tải danh sách media");
         }
       } catch (err) {
         const apiError = err as ApiErrorResponse;
@@ -199,7 +199,7 @@ export const useGuideMedia = (
         page: nextPage,
       });
 
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         setMedia((prev) => [...prev, ...response.data!.data]);
         setPagination(response.data.pagination);
       }
@@ -226,7 +226,7 @@ export const useGuideMedia = (
 
         const response = await guideMediaApi.uploadMedia(data);
 
-        if (response.success && response.data) {
+        if (response?.success && response?.data) {
           // Add new media to the beginning of the list
           setMedia((prev) => [response.data!, ...prev]);
 
@@ -240,7 +240,7 @@ export const useGuideMedia = (
 
           return response.data;
         } else {
-          setError(response.message || "Không thể upload media");
+          setError(response?.message || "Không thể upload media");
           return null;
         }
       } catch (err) {
@@ -264,7 +264,7 @@ export const useGuideMedia = (
 
         const response = await guideMediaApi.updateMedia(id, data);
 
-        if (response.success && response.data) {
+        if (response?.success && response?.data) {
           // Update the media in the list
           setMedia((prev) =>
             prev.map((item) => (item.id === id ? response.data! : item)),
@@ -272,7 +272,7 @@ export const useGuideMedia = (
 
           return response.data;
         } else {
-          setError(response.message || "Không thể cập nhật media");
+          setError(response?.message || "Không thể cập nhật media");
           return null;
         }
       } catch (err) {
@@ -296,7 +296,7 @@ export const useGuideMedia = (
 
         const response = await guideMediaApi.deleteMedia(id);
 
-        if (response.success) {
+        if (response?.success) {
           // Remove from list or mark as inactive
           setMedia((prev) => prev.filter((item) => item.id !== id));
 
@@ -310,7 +310,7 @@ export const useGuideMedia = (
 
           return true;
         } else {
-          setError(response.message || "Không thể xóa media");
+          setError(response?.message || "Không thể xóa media");
           return false;
         }
       } catch (err) {
@@ -334,7 +334,7 @@ export const useGuideMedia = (
 
         const response = await guideMediaApi.restoreMedia(id);
 
-        if (response.success && response.data) {
+        if (response?.success && response?.data) {
           // Update the media in the list if it exists
           setMedia((prev) =>
             prev.map((item) => (item.id === id ? response.data! : item)),
@@ -342,7 +342,7 @@ export const useGuideMedia = (
 
           return response.data;
         } else {
-          setError(response.message || "Không thể khôi phục media");
+          setError(response?.message || "Không thể khôi phục media");
           return null;
         }
       } catch (err) {

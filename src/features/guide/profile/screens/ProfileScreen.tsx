@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { CommonActions, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
@@ -7,6 +7,8 @@ import {
   Alert,
   Dimensions,
   Image,
+  Linking,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -23,8 +25,25 @@ import {
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import { LocalGuideSite } from "../../../../types/guide";
+import { useGuideProfile } from "../hooks/useGuideProfile";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Premium color palette
+const PREMIUM_COLORS = {
+  gold: "#D4AF37",
+  goldLight: "#F4E4BA",
+  goldDark: "#B8860B",
+  cream: "#FDF8F0",
+  warmWhite: "#FFFEF9",
+  charcoal: "#1A1A1A",
+  slate: "#64748B",
+  emerald: "#10B981",
+  ruby: "#E11D48",
+  sapphire: "#2563EB",
+  amber: "#F59E0B",
+};
 
 // Types
 interface Shift {
@@ -36,44 +55,28 @@ interface Shift {
   status: "confirmed" | "pending";
 }
 
-interface AssignedSite {
-  id: string;
-  name: string;
-  location: string;
-  imageUrl: string;
-}
-
-interface GuideProfile {
-  id: string;
-  name: string;
-  role: string;
-  region: string;
-  isVerified: boolean;
-  avatarUrl: string;
-  assignedSite: AssignedSite;
-}
-
-// Mock data
-const MOCK_PROFILE: GuideProfile = {
-  id: "1",
-  name: "Matteo Ricci",
-  role: "Official Guide",
-  region: "Nazareth Region",
-  isVerified: true,
-  avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop",
-  assignedSite: {
-    id: "1",
-    name: "Church of the Holy Sepulchre",
-    location: "Old City, Jerusalem",
-    imageUrl: "https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=800&h=400&fit=crop",
-  },
+// Region mapping for display
+const REGION_DISPLAY: Record<string, string> = {
+  Bac: "Miền Bắc",
+  Trung: "Miền Trung",
+  Nam: "Miền Nam",
 };
 
+// Site type mapping for display
+const SITE_TYPE_DISPLAY: Record<string, string> = {
+  church: "Nhà thờ",
+  shrine: "Đền thánh",
+  monastery: "Tu viện",
+  center: "Trung tâm",
+  other: "Khác",
+};
+
+// Mock shifts (TODO: Replace with API)
 const MOCK_SHIFTS: Shift[] = [
   {
     id: "1",
     title: "Morning Liturgy",
-    date: new Date(2024, 9, 12), // Oct 12
+    date: new Date(2026, 1, 5),
     startTime: "09:00 AM",
     endTime: "12:00 PM",
     status: "confirmed",
@@ -81,18 +84,10 @@ const MOCK_SHIFTS: Shift[] = [
   {
     id: "2",
     title: "Afternoon Tour",
-    date: new Date(2024, 9, 14), // Oct 14
+    date: new Date(2026, 1, 7),
     startTime: "02:00 PM",
     endTime: "05:00 PM",
     status: "pending",
-  },
-  {
-    id: "3",
-    title: "High Mass Support",
-    date: new Date(2024, 9, 18), // Oct 18
-    startTime: "10:00 AM",
-    endTime: "01:00 PM",
-    status: "confirmed",
   },
 ];
 
@@ -192,39 +187,159 @@ const ShiftItem: React.FC<{ shift: Shift }> = ({ shift }) => {
   );
 };
 
-// Assigned Site Card Component
-const AssignedSiteCard: React.FC<{ site: AssignedSite }> = ({ site }) => {
+// Enhanced Assigned Site Card Component with Full Details
+const AssignedSiteCard: React.FC<{
+  site: LocalGuideSite;
+  onCallPress?: () => void;
+  onEmailPress?: () => void;
+}> = ({ site, onCallPress, onEmailPress }) => {
+  const handleCall = () => {
+    if (site.contact_info?.phone) {
+      Linking.openURL(`tel:${site.contact_info.phone}`);
+    }
+    onCallPress?.();
+  };
+
+  const handleEmail = () => {
+    if (site.contact_info?.email) {
+      Linking.openURL(`mailto:${site.contact_info.email}`);
+    }
+    onEmailPress?.();
+  };
+
   return (
-    <View style={styles.siteCard}>
+    <View style={styles.siteCardEnhanced}>
       {/* Site Image */}
-      <Image
-        source={{ uri: site.imageUrl }}
-        style={styles.siteImage}
-        resizeMode="cover"
-      />
+      <View style={styles.siteImageContainer}>
+        <Image
+          source={{
+            uri:
+              site.cover_image ||
+              "https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=800&h=400&fit=crop",
+          }}
+          style={styles.siteImage}
+          resizeMode="cover"
+        />
 
-      {/* Gradient Overlay */}
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}
-        style={styles.siteGradient}
-      />
+        {/* Gradient Overlay */}
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}
+          style={styles.siteGradient}
+        />
 
-      {/* Assigned Badge */}
-      <View style={styles.assignedBadge}>
-        <Text style={styles.assignedBadgeText}>ASSIGNED</Text>
+        {/* Assigned Badge */}
+        <View style={styles.assignedBadge}>
+          <Text style={styles.assignedBadgeText}>ASSIGNED</Text>
+        </View>
+
+        {/* Site Type Badge */}
+        <View style={styles.siteTypeBadge}>
+          <MaterialIcons name="church" size={12} color="#FFFFFF" />
+          <Text style={styles.siteTypeBadgeText}>
+            {SITE_TYPE_DISPLAY[site.type] || site.type}
+          </Text>
+        </View>
+
+        {/* Site Content */}
+        <View style={styles.siteContent}>
+          <Text style={styles.siteName}>{site.name}</Text>
+          <View style={styles.siteLocationRow}>
+            <MaterialIcons
+              name="location-on"
+              size={16}
+              color="rgba(255,255,255,0.9)"
+            />
+            <Text style={styles.siteLocation} numberOfLines={1}>
+              {site.address}
+            </Text>
+          </View>
+        </View>
       </View>
 
-      {/* Site Content */}
-      <View style={styles.siteContent}>
-        <Text style={styles.siteName}>{site.name}</Text>
-        <View style={styles.siteLocationRow}>
-          <MaterialIcons name="location-on" size={16} color="rgba(255,255,255,0.9)" />
-          <Text style={styles.siteLocation}>{site.location}</Text>
+      {/* Site Details Section */}
+      <View style={styles.siteDetails}>
+        {/* Region & Province */}
+        <View style={styles.siteDetailRow}>
+          <View style={styles.siteDetailItem}>
+            <Ionicons name="map-outline" size={16} color={PREMIUM_COLORS.gold} />
+            <Text style={styles.siteDetailLabel}>Vùng</Text>
+            <Text style={styles.siteDetailValue}>
+              {REGION_DISPLAY[site.region] || site.region}
+            </Text>
+          </View>
+          <View style={styles.siteDetailDivider} />
+          <View style={styles.siteDetailItem}>
+            <Ionicons name="location-outline" size={16} color={PREMIUM_COLORS.gold} />
+            <Text style={styles.siteDetailLabel}>Tỉnh/TP</Text>
+            <Text style={styles.siteDetailValue}>{site.province}</Text>
+          </View>
         </View>
+
+        {/* Patron Saint */}
+        {site.patron_saint && (
+          <View style={styles.patronContainer}>
+            <MaterialIcons name="auto-awesome" size={16} color={PREMIUM_COLORS.gold} />
+            <View style={styles.patronContent}>
+              <Text style={styles.patronLabel}>Bổn mạng</Text>
+              <Text style={styles.patronValue}>{site.patron_saint}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Opening Hours */}
+        {site.opening_hours && (
+          <View style={styles.hoursContainer}>
+            <MaterialIcons name="schedule" size={16} color={PREMIUM_COLORS.gold} />
+            <View style={styles.hoursContent}>
+              <Text style={styles.hoursLabel}>Giờ mở cửa</Text>
+              <Text style={styles.hoursValue}>
+                {site.opening_hours.open} - {site.opening_hours.close}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Contact Info */}
+        {(site.contact_info?.phone || site.contact_info?.email) && (
+          <View style={styles.contactRow}>
+            {site.contact_info?.phone && (
+              <TouchableOpacity style={styles.contactButton} onPress={handleCall}>
+                <LinearGradient
+                  colors={[PREMIUM_COLORS.emerald, "#059669"]}
+                  style={styles.contactButtonGradient}
+                >
+                  <Ionicons name="call" size={16} color="#FFFFFF" />
+                  <Text style={styles.contactButtonText}>Gọi điện</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+            {site.contact_info?.email && (
+              <TouchableOpacity style={styles.contactButton} onPress={handleEmail}>
+                <LinearGradient
+                  colors={[PREMIUM_COLORS.sapphire, "#1d4ed8"]}
+                  style={styles.contactButtonGradient}
+                >
+                  <Ionicons name="mail" size={16} color="#FFFFFF" />
+                  <Text style={styles.contactButtonText}>Email</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
     </View>
   );
 };
+
+// Loading Skeleton for Profile
+const ProfileSkeleton: React.FC = () => (
+  <View style={styles.skeletonContainer}>
+    <View style={styles.skeletonAvatar} />
+    <View style={styles.skeletonName} />
+    <View style={styles.skeletonRole} />
+    <View style={styles.skeletonCard} />
+  </View>
+);
 
 // Main Profile Screen
 const ProfileScreen: React.FC = () => {
@@ -232,6 +347,16 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Use API hook for profile and site data
+  const { profile, site, loading, error, refetch, isVerified } = useGuideProfile();
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -276,6 +401,29 @@ const ProfileScreen: React.FC = () => {
     );
   }, [logout, navigation]);
 
+  // Default avatar - simple user icon placeholder
+  const DEFAULT_AVATAR = "https://ui-avatars.com/api/?name=User&background=D4AF37&color=fff&size=200&font-size=0.4";
+  
+  // Get display values from profile
+  const displayName = profile?.full_name || (loading ? "" : "Chưa cập nhật");
+  const displayRole = profile?.role === "local_guide" ? "Local Guide" : "Pilgrim";
+  const displayRegion = site ? REGION_DISPLAY[site.region] || site.region : "";
+  
+  // Generate avatar URL - use API or generate from name
+  const getAvatarUrl = () => {
+    if (profile?.avatar_url) {
+      return profile.avatar_url;
+    }
+    // Generate avatar from name if no avatar_url
+    if (profile?.full_name) {
+      const encodedName = encodeURIComponent(profile.full_name);
+      return `https://ui-avatars.com/api/?name=${encodedName}&background=D4AF37&color=fff&size=200&font-size=0.35`;
+    }
+    return DEFAULT_AVATAR;
+  };
+  
+  const avatarUrl = getAvatarUrl();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar
@@ -311,67 +459,124 @@ const ProfileScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Profile Header Section */}
-        <View style={styles.profileSection}>
-          <ProfileAvatar
-            imageUrl={MOCK_PROFILE.avatarUrl}
-            isVerified={MOCK_PROFILE.isVerified}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={GUIDE_COLORS.primary}
+            colors={[GUIDE_COLORS.primary]}
           />
+        }
+      >
+        {/* Loading State */}
+        {loading && !profile && <ProfileSkeleton />}
 
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{MOCK_PROFILE.name}</Text>
-            <Text style={styles.profileRole}>
-              {MOCK_PROFILE.role} • {MOCK_PROFILE.region}
-            </Text>
-            {MOCK_PROFILE.isVerified && (
-              <View style={styles.verifiedTag}>
-                <Text style={styles.verifiedTagText}>VERIFIED GUIDE</Text>
-              </View>
-            )}
-          </View>
-        </View>
-
-        {/* Assigned Site Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <MaterialIcons
-              name="church"
-              size={20}
-              color={GUIDE_COLORS.primary}
-            />
-            <Text style={styles.sectionTitle}>Your Sanctuary</Text>
-          </View>
-          <AssignedSiteCard site={MOCK_PROFILE.assignedSite} />
-        </View>
-
-        {/* Upcoming Shifts Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <View style={styles.sectionHeader}>
-              <MaterialIcons
-                name="calendar-today"
-                size={20}
-                color={GUIDE_COLORS.primary}
-              />
-              <Text style={styles.sectionTitle}>Upcoming Liturgy Shifts</Text>
-            </View>
-            <TouchableOpacity onPress={handleViewAllShifts}>
-              <Text style={styles.viewAllText}>View All</Text>
+        {/* Error State */}
+        {error && !profile && (
+          <View style={styles.errorContainer}>
+            <MaterialIcons name="error-outline" size={48} color={PREMIUM_COLORS.ruby} />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={refetch}>
+              <Text style={styles.retryButtonText}>Thử lại</Text>
             </TouchableOpacity>
           </View>
+        )}
 
-          <View style={styles.shiftsList}>
-            {MOCK_SHIFTS.map((shift) => (
-              <ShiftItem key={shift.id} shift={shift} />
-            ))}
-          </View>
-        </View>
+        {/* Profile Content */}
+        {profile && (
+          <>
+            {/* Profile Header Section */}
+            <View style={styles.profileSection}>
+              <ProfileAvatar imageUrl={avatarUrl} isVerified={isVerified} />
+
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{displayName}</Text>
+                <Text style={styles.profileRole}>
+                  {displayRole}
+                  {displayRegion ? ` • ${displayRegion}` : ""}
+                </Text>
+                {isVerified && (
+                  <View style={styles.verifiedTag}>
+                    <Text style={styles.verifiedTagText}>VERIFIED GUIDE</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Email & Phone Info */}
+              <View style={styles.contactInfoSection}>
+                {profile.email && (
+                  <View style={styles.contactInfoItem}>
+                    <Ionicons name="mail-outline" size={16} color={GUIDE_COLORS.textMuted} />
+                    <Text style={styles.contactInfoText}>{profile.email}</Text>
+                  </View>
+                )}
+                {profile.phone && (
+                  <View style={styles.contactInfoItem}>
+                    <Ionicons name="call-outline" size={16} color={GUIDE_COLORS.textMuted} />
+                    <Text style={styles.contactInfoText}>{profile.phone}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Assigned Site Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <MaterialIcons
+                  name="church"
+                  size={20}
+                  color={GUIDE_COLORS.primary}
+                />
+                <Text style={styles.sectionTitle}>Your Sanctuary</Text>
+              </View>
+              {site ? (
+                <AssignedSiteCard site={site} />
+              ) : (
+                <View style={styles.noSiteCard}>
+                  <MaterialIcons
+                    name="church"
+                    size={48}
+                    color={GUIDE_COLORS.gray300}
+                  />
+                  <Text style={styles.noSiteText}>
+                    Chưa được gán địa điểm
+                  </Text>
+                  <Text style={styles.noSiteSubtext}>
+                    Liên hệ quản trị viên để được gán địa điểm
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Upcoming Shifts Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.sectionHeader}>
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={20}
+                    color={GUIDE_COLORS.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Upcoming Liturgy Shifts</Text>
+                </View>
+                <TouchableOpacity onPress={handleViewAllShifts}>
+                  <Text style={styles.viewAllText}>View All</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.shiftsList}>
+                {MOCK_SHIFTS.map((shift) => (
+                  <ShiftItem key={shift.id} shift={shift} />
+                ))}
+              </View>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.signOutButton, isLoggingOut && styles.signOutButtonDisabled]} 
           onPress={handleSignOut}
           disabled={isLoggingOut}
@@ -702,6 +907,245 @@ const styles = StyleSheet.create({
   },
   statusTextPending: {
     color: "#c2410c",
+  },
+
+  // Enhanced Site Card
+  siteCardEnhanced: {
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    overflow: "hidden",
+    backgroundColor: GUIDE_COLORS.surface,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.borderLight,
+    ...GUIDE_SHADOWS.md,
+  },
+  siteImageContainer: {
+    position: "relative",
+    height: 180,
+  },
+  siteTypeBadge: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: "rgba(212, 175, 55, 0.9)",
+  },
+  siteTypeBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  siteDetails: {
+    padding: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.md,
+  },
+  siteDetailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-around",
+    paddingVertical: GUIDE_SPACING.sm,
+    backgroundColor: GUIDE_COLORS.background,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+  },
+  siteDetailItem: {
+    alignItems: "center",
+    gap: 4,
+    flex: 1,
+  },
+  siteDetailDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: GUIDE_COLORS.borderLight,
+  },
+  siteDetailLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  siteDetailValue: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  patronContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.sm,
+    backgroundColor: `${PREMIUM_COLORS.gold}10`,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: `${PREMIUM_COLORS.gold}30`,
+  },
+  patronContent: {
+    flex: 1,
+  },
+  patronLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.gold,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  patronValue: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textPrimary,
+    marginTop: 2,
+  },
+  hoursContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.sm,
+    backgroundColor: GUIDE_COLORS.background,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+  },
+  hoursContent: {
+    flex: 1,
+  },
+  hoursLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  hoursValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+    marginTop: 2,
+  },
+  contactRow: {
+    flexDirection: "row",
+    gap: GUIDE_SPACING.sm,
+  },
+  contactButton: {
+    flex: 1,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    overflow: "hidden",
+  },
+  contactButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+  },
+  contactButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
+  // No Site Card
+  noSiteCard: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: GUIDE_SPACING.xxl,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    backgroundColor: GUIDE_COLORS.surface,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.borderLight,
+    borderStyle: "dashed",
+  },
+  noSiteText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textMuted,
+    marginTop: GUIDE_SPACING.md,
+  },
+  noSiteSubtext: {
+    fontSize: 13,
+    color: GUIDE_COLORS.gray400,
+    marginTop: GUIDE_SPACING.xs,
+    textAlign: "center",
+  },
+
+  // Contact Info Section in Profile
+  contactInfoSection: {
+    marginTop: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.xs,
+  },
+  contactInfoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  contactInfoText: {
+    fontSize: 13,
+    color: GUIDE_COLORS.textMuted,
+  },
+
+  // Loading Skeleton
+  skeletonContainer: {
+    alignItems: "center",
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.xl,
+  },
+  skeletonAvatar: {
+    width: 128,
+    height: 128,
+    borderRadius: 64,
+    backgroundColor: GUIDE_COLORS.gray200,
+  },
+  skeletonName: {
+    width: 180,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: GUIDE_COLORS.gray200,
+    marginTop: GUIDE_SPACING.md,
+  },
+  skeletonRole: {
+    width: 140,
+    height: 16,
+    borderRadius: 6,
+    backgroundColor: GUIDE_COLORS.gray200,
+    marginTop: GUIDE_SPACING.sm,
+  },
+  skeletonCard: {
+    width: "100%",
+    height: 200,
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    backgroundColor: GUIDE_COLORS.gray200,
+    marginTop: GUIDE_SPACING.xl,
+  },
+
+  // Error State
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: GUIDE_SPACING.xxl,
+    paddingHorizontal: GUIDE_SPACING.lg,
+  },
+  errorText: {
+    fontSize: 16,
+    color: PREMIUM_COLORS.ruby,
+    marginTop: GUIDE_SPACING.md,
+    textAlign: "center",
+  },
+  retryButton: {
+    marginTop: GUIDE_SPACING.md,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.sm,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: GUIDE_COLORS.primary,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   // Footer

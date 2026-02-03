@@ -1,8 +1,8 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import {
     Animated,
     Dimensions,
@@ -15,6 +15,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -26,6 +27,23 @@ import {
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useGuideSite } from "../hooks/useGuideSite";
+
+// Premium color palette
+const PREMIUM_COLORS = {
+  gold: "#D4AF37",
+  goldLight: "#F4E4BA",
+  goldDark: "#B8860B",
+  cream: "#FDF8F0",
+  warmWhite: "#FFFEF9",
+  charcoal: "#1A1A1A",
+  slate: "#64748B",
+  emerald: "#10B981",
+  ruby: "#E11D48",
+  sapphire: "#2563EB",
+  amber: "#F59E0B",
+  gradientGold: ["#D4AF37", "#F4E4BA", "#D4AF37"],
+  gradientPremium: ["#1A1A1A", "#2D2D2D", "#1A1A1A"],
+};
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -89,12 +107,13 @@ const MOCK_TASKS: Task[] = [
   },
 ];
 
-// Quick Action Button Component
+// Quick Action Button Component - Premium Design with Pattern
 interface QuickActionProps {
   icon: keyof typeof MaterialIcons.glyphMap;
   label: string;
   onPress: () => void;
   variant?: "default" | "danger";
+  badgeCount?: number;
 }
 
 const QuickActionButton: React.FC<QuickActionProps> = ({
@@ -102,146 +121,118 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
   label,
   onPress,
   variant = "default",
+  badgeCount,
 }) => {
   const isDanger = variant === "danger";
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.quickActionButton,
-        isDanger && styles.quickActionButtonDanger,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View
-        style={[
-          styles.quickActionIconContainer,
-          isDanger && styles.quickActionIconContainerDanger,
-        ]}
-      >
-        <MaterialIcons
-          name={icon}
-          size={22}
-          color={isDanger ? GUIDE_COLORS.error : GUIDE_COLORS.primary}
-        />
-      </View>
-      <Text
-        style={[
-          styles.quickActionLabel,
-          isDanger && styles.quickActionLabelDanger,
-        ]}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-};
-
-// Task Item Component
-interface TaskItemProps {
-  task: Task;
-  onPress: () => void;
-}
-
-const TaskItem: React.FC<TaskItemProps> = ({ task, onPress }) => {
-  const isDone = task.status === "done";
-  const isActive = task.status === "active";
-
-  const getStatusIcon = () => {
-    switch (task.status) {
-      case "done":
-        return (
-          <View style={styles.taskStatusDone}>
-            <MaterialIcons
-              name="check"
-              size={14}
-              color={GUIDE_COLORS.success}
-            />
-          </View>
-        );
-      case "active":
-        return (
-          <Animated.View style={styles.taskStatusActive}>
-            <MaterialIcons
-              name="play-arrow"
-              size={14}
-              color={GUIDE_COLORS.primary}
-            />
-          </Animated.View>
-        );
-      default:
-        return (
-          <View style={styles.taskStatusPending}>
-            <MaterialIcons
-              name="schedule"
-              size={14}
-              color={GUIDE_COLORS.gray400}
-            />
-          </View>
-        );
-    }
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.95,
+      useNativeDriver: true,
+    }).start();
   };
 
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Unified gold gradient for all cards, ruby for danger
+  const gradientColors: [string, string] = isDanger 
+    ? ["#DC2626", "#B91C1C"] 
+    : [PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark];
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.taskItem,
-        isDone && styles.taskItemDone,
-        isActive && styles.taskItemActive,
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {/* Time Column */}
-      <View style={styles.taskTimeContainer}>
-        <Text style={[styles.taskTime, isActive && styles.taskTimeActive]}>
-          {task.time}
-        </Text>
-        <Text style={[styles.taskPeriod, isActive && styles.taskPeriodActive]}>
-          {task.period}
-        </Text>
-      </View>
-
-      {/* Divider */}
-      <View style={styles.taskDivider} />
-
-      {/* Content */}
-      <View style={styles.taskContent}>
-        <Text style={[styles.taskTitle, isDone && styles.taskTitleDone]}>
-          {task.title}
-        </Text>
-        <Text style={styles.taskLocation}>{task.location}</Text>
-      </View>
-
-      {/* Status Icon */}
-      {getStatusIcon()}
-    </TouchableOpacity>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        style={styles.quickActionButton}
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+      >
+        <LinearGradient
+          colors={gradientColors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.quickActionGradient}
+        >
+          {/* Decorative Pattern - Cross motif */}
+          <View style={styles.quickActionPattern}>
+            <MaterialIcons
+              name="add"
+              size={80}
+              color="rgba(255, 255, 255, 0.1)"
+            />
+          </View>
+          
+          {/* Icon */}
+          <View style={styles.quickActionIconContainer}>
+            <MaterialIcons
+              name={icon}
+              size={26}
+              color="#FFFFFF"
+            />
+          </View>
+          
+          {/* Label */}
+          <Text style={styles.quickActionLabel}>
+            {label}
+          </Text>
+          
+          {/* Badge */}
+          {badgeCount !== undefined && badgeCount > 0 && (
+            <View style={styles.quickActionBadge}>
+              <Text style={styles.quickActionBadgeText}>{badgeCount}</Text>
+            </View>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
-// Status Indicator Component
+// Status Indicator Component - Premium Animated
 const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
-  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isActive) {
       Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.5,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]),
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(pulseAnim, {
+              toValue: 1.8,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(pulseAnim, {
+              toValue: 1,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.sequence([
+            Animated.timing(glowAnim, {
+              toValue: 0,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+            Animated.timing(glowAnim, {
+              toValue: 0.3,
+              duration: 1200,
+              useNativeDriver: true,
+            }),
+          ]),
+        ])
       ).start();
     }
-  }, [isActive, pulseAnim]);
+  }, [isActive, pulseAnim, glowAnim]);
 
   return (
     <View style={styles.statusIndicatorContainer}>
@@ -249,7 +240,10 @@ const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
         <Animated.View
           style={[
             styles.statusIndicatorPulse,
-            { transform: [{ scale: pulseAnim }] },
+            { 
+              transform: [{ scale: pulseAnim }],
+              opacity: glowAnim,
+            },
           ]}
         />
       )}
@@ -258,7 +252,7 @@ const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
           styles.statusIndicatorDot,
           {
             backgroundColor: isActive
-              ? GUIDE_COLORS.success
+              ? PREMIUM_COLORS.emerald
               : GUIDE_COLORS.gray400,
           },
         ]}
@@ -339,7 +333,7 @@ const DashboardScreen: React.FC = () => {
           />
         }
       >
-        {/* Hero Header Section */}
+        {/* Hero Header Section - Premium Design */}
         <View style={styles.heroSection}>
           <ImageBackground
             source={{
@@ -351,44 +345,73 @@ const DashboardScreen: React.FC = () => {
             resizeMode="cover"
           >
             <LinearGradient
-              colors={["rgba(18, 24, 38, 0.3)", "rgba(248, 248, 246, 0.95)", GUIDE_COLORS.background]}
-              locations={[0, 0.7, 1]}
+              colors={[
+                "rgba(0, 0, 0, 0.1)", 
+                "rgba(0, 0, 0, 0.3)",
+                "rgba(253, 248, 240, 0.85)", 
+                PREMIUM_COLORS.cream
+              ]}
+              locations={[0, 0.3, 0.7, 1]}
               style={styles.heroGradient}
             >
-              {/* Top App Bar */}
+              {/* Top App Bar - Glassmorphism */}
               <View
                 style={[
                   styles.topAppBar,
-                  { paddingTop: insets.top + GUIDE_SPACING.md },
+                  { paddingTop: insets.top + GUIDE_SPACING.sm },
                 ]}
               >
                 <TouchableOpacity style={styles.appBarButton}>
-                  <MaterialIcons
-                    name="account-circle"
-                    size={24}
-                    color="#FFFFFF"
-                  />
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
+                    style={styles.appBarButtonGradient}
+                  >
+                    <Ionicons
+                      name="person"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                  </LinearGradient>
                 </TouchableOpacity>
-                <Text style={styles.appBarTitle}>Cathedral Guide</Text>
+                
+                <View style={styles.appBarTitleContainer}>
+                  <Text style={styles.appBarTitle}>CATHEDRAL GUIDE</Text>
+                  <View style={styles.appBarTitleUnderline} />
+                </View>
+                
                 <TouchableOpacity style={styles.appBarButton}>
-                  <MaterialIcons
-                    name="notifications"
-                    size={24}
-                    color="#FFFFFF"
-                  />
+                  <LinearGradient
+                    colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
+                    style={styles.appBarButtonGradient}
+                  >
+                    <Ionicons
+                      name="notifications"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>3</Text>
+                    </View>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
 
-              {/* Hero Content */}
+              {/* Hero Content - Premium Typography */}
               <View style={styles.heroContent}>
-                <Text style={styles.heroGreeting}>{greeting}, Guide</Text>
+                <View style={styles.greetingContainer}>
+                  <View style={styles.greetingLine} />
+                  <Text style={styles.heroGreeting}>{greeting}, Guide</Text>
+                  <View style={styles.greetingLine} />
+                </View>
+                
                 <Text style={styles.heroSiteName}>
                   {siteLoading
                     ? "Đang tải..."
                     : siteInfo?.name || "Chưa được gán site"}
                 </Text>
+                
                 <View style={styles.heroMeta}>
-                  {/* Open/Closed Status */}
+                  {/* Open/Closed Status - Premium Badge */}
                   <View
                     style={[
                       styles.statusBadge,
@@ -397,25 +420,21 @@ const DashboardScreen: React.FC = () => {
                         : styles.statusBadgeClosed,
                     ]}
                   >
-                    <View
-                      style={[
-                        styles.statusDot,
-                        { backgroundColor: isOpen ? "#22C55E" : "#EF4444" },
-                      ]}
-                    />
+                    <StatusIndicator isActive={isOpen} />
                     <Text
                       style={[
                         styles.statusText,
-                        { color: isOpen ? "#4ADE80" : "#F87171" },
+                        { color: isOpen ? PREMIUM_COLORS.emerald : PREMIUM_COLORS.ruby },
                       ]}
                     >
-                      {isOpen ? "Open" : "Closed"}
+                      {isOpen ? "OPEN" : "CLOSED"}
                     </Text>
                   </View>
-                  {/* Patron Saint */}
+                  {/* Patron Saint - Elegant Italic */}
                   {siteInfo?.patron_saint && (
                     <Text style={styles.heroPatron}>
-                      Patron: {siteInfo.patron_saint}
+                      <Text style={styles.heroPatronLabel}>Patron: </Text>
+                      {siteInfo.patron_saint}
                     </Text>
                   )}
                 </View>
@@ -424,7 +443,7 @@ const DashboardScreen: React.FC = () => {
           </ImageBackground>
         </View>
 
-        {/* Floating Quick Action Grid */}
+        {/* Premium Quick Action Grid */}
         <View style={styles.quickActionsOverlay}>
           <View style={styles.quickActionsGrid}>
             <QuickActionButton
@@ -441,56 +460,71 @@ const DashboardScreen: React.FC = () => {
               icon="schedule"
               label="Mass Schedule"
               onPress={() => handleQuickAction("mass-schedule")}
+              badgeCount={2}
             />
             <QuickActionButton
-              icon="warning"
-              label="SOS"
-              onPress={() => handleQuickAction("report-sos")}
+              icon="support-agent"
+              label="SOS Support"
+              onPress={() => handleQuickAction("sos-support")}
               variant="danger"
             />
           </View>
         </View>
 
-        {/* Today's Overview Section */}
+        {/* Today's Overview Section - Premium Design */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <View>
-              <Text style={styles.sectionLabel}>Schedule</Text>
+              <Text style={styles.sectionLabel}>SCHEDULE</Text>
               <Text style={styles.sectionTitleSerif}>Today's Overview</Text>
             </View>
-            <View style={styles.shiftBadge}>
-              <Text style={styles.shiftBadgeLabel}>Active Shift</Text>
+            <LinearGradient
+              colors={[PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.shiftBadge}
+            >
+              <Text style={styles.shiftBadgeLabel}>ACTIVE SHIFT</Text>
               <Text style={styles.shiftBadgeTime}>
                 {shiftInfo.startTime} - {shiftInfo.endTime}
               </Text>
-            </View>
+            </LinearGradient>
           </View>
 
-          {/* Timeline */}
+          {/* Premium Timeline */}
           <View style={styles.timeline}>
             {MOCK_TASKS.map((task, index) => (
-              <View key={task.id} style={styles.timelineItem}>
-                <View
-                  style={[
-                    styles.timelineDot,
-                    task.status === "active"
-                      ? styles.timelineDotActive
-                      : styles.timelineDotInactive,
-                  ]}
-                >
-                  <MaterialIcons
-                    name={task.status === "active" ? "church" : "engineering"}
-                    size={12}
-                    color={
+              <TouchableOpacity 
+                key={task.id} 
+                style={[
+                  styles.timelineItem,
+                  task.status === "active" && styles.timelineItemActive,
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={styles.timelineLeft}>
+                  <LinearGradient
+                    colors={
                       task.status === "active"
-                        ? GUIDE_COLORS.backgroundDark
-                        : "#FFFFFF"
+                        ? [PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]
+                        : ["#E5E7EB", "#D1D5DB"]
                     }
-                  />
+                    style={styles.timelineDot}
+                  >
+                    <MaterialIcons
+                      name={task.status === "active" ? "church" : "schedule"}
+                      size={14}
+                      color={task.status === "active" ? "#FFFFFF" : "#6B7280"}
+                    />
+                  </LinearGradient>
+                  {index < MOCK_TASKS.length - 1 && (
+                    <LinearGradient
+                      colors={[PREMIUM_COLORS.gold, "rgba(212, 175, 55, 0.2)"]}
+                      style={styles.timelineLine}
+                    />
+                  )}
                 </View>
-                {index < MOCK_TASKS.length - 1 && (
-                  <View style={styles.timelineLine} />
-                )}
+                
                 <View style={styles.timelineContent}>
                   <Text
                     style={[
@@ -508,55 +542,93 @@ const DashboardScreen: React.FC = () => {
                   >
                     {task.title}
                   </Text>
-                  <Text style={styles.timelineLocation}>{task.location}</Text>
+                  <View style={styles.timelineLocationRow}>
+                    <Ionicons name="location-outline" size={12} color={GUIDE_COLORS.gray400} />
+                    <Text style={styles.timelineLocation}>{task.location}</Text>
+                  </View>
                 </View>
-              </View>
+                
+                {task.status === "active" && (
+                  <View style={styles.timelineActiveIndicator}>
+                    <Text style={styles.timelineActiveText}>NOW</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Recent Activity Section */}
+        {/* Recent Activity Section - Premium Cards */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitleSerif}>Recent Activity</Text>
+          <View style={styles.sectionHeaderWithAction}>
+            <Text style={styles.sectionTitleSerif}>Recent Activity</Text>
+            <TouchableOpacity style={styles.viewAllButton}>
+              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={14} color={PREMIUM_COLORS.gold} />
+            </TouchableOpacity>
+          </View>
+          
           <View style={styles.activityList}>
             <TouchableOpacity style={styles.activityItem}>
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDekADLmdGNGv1W5yyCmBcIW8ciliByFipfkFI9fGnbKQhlPQGXKoyOuHtl3OO0kofeo01MeTQ-fPNakawVKTElmWxS6v1TJoLTDTfE8J6--4NDcv79t2_ncIahwc0DlzJ5YQeLpSpqFLoqGQ-ssjNrRnpv6cR9zZdzxmwxoAjh7OXgE9f_aYdsQ3ns7pLIFvmrhAlnac22WhKU8n3PNyzOjMLnlJdTcpA-xkswJXayGPskPdzPKbfZ4ZFHjFHLQlN7-eDgNuym8S8",
-                }}
-                style={styles.activityImage}
-              />
+              <View style={styles.activityImageContainer}>
+                <Image
+                  source={{
+                    uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuDekADLmdGNGv1W5yyCmBcIW8ciliByFipfkFI9fGnbKQhlPQGXKoyOuHtl3OO0kofeo01MeTQ-fPNakawVKTElmWxS6v1TJoLTDTfE8J6--4NDcv79t2_ncIahwc0DlzJ5YQeLpSpqFLoqGQ-ssjNrRnpv6cR9zZdzxmwxoAjh7OXgE9f_aYdsQ3ns7pLIFvmrhAlnac22WhKU8n3PNyzOjMLnlJdTcpA-xkswJXayGPskPdzPKbfZ4ZFHjFHLQlN7-eDgNuym8S8",
+                  }}
+                  style={styles.activityImage}
+                />
+                <View style={styles.activityImageOverlay}>
+                  <Ionicons name="image" size={12} color="#FFFFFF" />
+                </View>
+              </View>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>Media Uploaded</Text>
                 <Text style={styles.activitySubtitle}>
-                  Interior lighting gallery • 2m ago
+                  Interior lighting gallery
                 </Text>
+                <View style={styles.activityTimeRow}>
+                  <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
+                  <Text style={styles.activityTime}>2 minutes ago</Text>
+                </View>
               </View>
-              <MaterialIcons
-                name="chevron-right"
-                size={20}
-                color={GUIDE_COLORS.gray400}
-              />
+              <View style={styles.activityArrow}>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={PREMIUM_COLORS.gold}
+                />
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.activityItem}>
-              <Image
-                source={{
-                  uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBWzi4aM_KLdraRyPeTpAqas9S_5dkr6I7klxpi7V-os9tz9-Q0Y-PiXyK9Nb0eIb-s6qq_PeFap-ZcWL7Q_WZ5UaH0vWYFsEyIo-Z-yPvsCdaF_qAeNefbpafQpBL_16N3kxdtECRLo-7JnYfyQIn9EzMKAUSrvm26R1si9l7Md2QE9pM1Q57lnHoDpB5Jz5CZ20HrrDNkvHrDO6ZMFMNsDvcbBMiAPsA8rZO_bfO2Y_IT-1h8UyYvkfnITfOe8aXca9tgTmnb1X0",
-                }}
-                style={styles.activityImage}
-              />
+              <View style={styles.activityImageContainer}>
+                <Image
+                  source={{
+                    uri: "https://lh3.googleusercontent.com/aida-public/AB6AXuBWzi4aM_KLdraRyPeTpAqas9S_5dkr6I7klxpi7V-os9tz9-Q0Y-PiXyK9Nb0eIb-s6qq_PeFap-ZcWL7Q_WZ5UaH0vWYFsEyIo-Z-yPvsCdaF_qAeNefbpafQpBL_16N3kxdtECRLo-7JnYfyQIn9EzMKAUSrvm26R1si9l7Md2QE9pM1Q57lnHoDpB5Jz5CZ20HrrDNkvHrDO6ZMFMNsDvcbBMiAPsA8rZO_bfO2Y_IT-1h8UyYvkfnITfOe8aXca9tgTmnb1X0",
+                  }}
+                  style={styles.activityImage}
+                />
+                <View style={[styles.activityImageOverlay, { backgroundColor: PREMIUM_COLORS.sapphire }]}>
+                  <Ionicons name="calendar" size={12} color="#FFFFFF" />
+                </View>
+              </View>
               <View style={styles.activityContent}>
                 <Text style={styles.activityTitle}>New Event Created</Text>
                 <Text style={styles.activitySubtitle}>
-                  Sunday Youth Choir • 1h ago
+                  Sunday Youth Choir
                 </Text>
+                <View style={styles.activityTimeRow}>
+                  <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
+                  <Text style={styles.activityTime}>1 hour ago</Text>
+                </View>
               </View>
-              <MaterialIcons
-                name="chevron-right"
-                size={20}
-                color={GUIDE_COLORS.gray400}
-              />
+              <View style={styles.activityArrow}>
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={PREMIUM_COLORS.gold}
+                />
+              </View>
             </TouchableOpacity>
           </View>
         </View>
@@ -571,7 +643,7 @@ const DashboardScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background, // Light cream background
+    backgroundColor: PREMIUM_COLORS.cream,
   },
   scrollView: {
     flex: 1,
@@ -581,9 +653,9 @@ const styles = StyleSheet.create({
     paddingBottom: GUIDE_SPACING.xxl,
   },
 
-  // Hero Section
+  // Hero Section - Premium Design
   heroSection: {
-    height: SCREEN_WIDTH * 1.0,
+    height: SCREEN_WIDTH * 0.95,
     width: "100%",
   },
   heroBackground: {
@@ -594,6 +666,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
+  
+  // Top App Bar - Glassmorphism
   topAppBar: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -602,85 +676,133 @@ const styles = StyleSheet.create({
     paddingBottom: GUIDE_SPACING.sm,
   },
   appBarButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: "hidden",
+  },
+  appBarButtonGradient: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  appBarTitleContainer: {
     alignItems: "center",
   },
   appBarTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    fontSize: 11,
+    fontWeight: "700",
     color: "#FFFFFF",
-    opacity: 0.9,
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
+    letterSpacing: 3,
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
+  appBarTitleUnderline: {
+    width: 30,
+    height: 2,
+    backgroundColor: PREMIUM_COLORS.gold,
+    marginTop: 4,
+    borderRadius: 1,
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: PREMIUM_COLORS.ruby,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  notificationBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  
+  // Hero Content - Premium Typography
   heroContent: {
     paddingHorizontal: GUIDE_SPACING.xl,
-    paddingBottom: GUIDE_SPACING.xxl * 2,
+    paddingBottom: GUIDE_SPACING.xxl * 2.5,
+  },
+  greetingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  greetingLine: {
+    width: 20,
+    height: 1,
+    backgroundColor: PREMIUM_COLORS.gold,
   },
   heroGreeting: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.primary,
-    letterSpacing: 3,
+    fontSize: 11,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.gold,
+    letterSpacing: 2.5,
     textTransform: "uppercase",
-    marginBottom: GUIDE_SPACING.xs,
   },
   heroSiteName: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeHero,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: "#FFFFFF",
-    lineHeight: GUIDE_TYPOGRAPHY.fontSizeHero * 1.2,
+    fontSize: 30,
+    fontWeight: "800",
+    color: PREMIUM_COLORS.charcoal,
+    lineHeight: 36,
     marginBottom: GUIDE_SPACING.md,
+    textShadowColor: "rgba(255, 255, 255, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   heroMeta: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: GUIDE_SPACING.md,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.sm,
+    gap: GUIDE_SPACING.xs,
     paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.xs,
+    paddingVertical: 6,
     borderRadius: GUIDE_BORDER_RADIUS.full,
   },
   statusBadgeOpen: {
-    backgroundColor: "rgba(34, 197, 94, 0.2)",
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(34, 197, 94, 0.3)",
+    borderColor: "rgba(16, 185, 129, 0.3)",
   },
   statusBadgeClosed: {
-    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    backgroundColor: "rgba(225, 29, 72, 0.15)",
     borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    borderColor: "rgba(225, 29, 72, 0.3)",
   },
   statusText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    textTransform: "uppercase",
+    fontSize: 11,
+    fontWeight: "700",
     letterSpacing: 1,
   },
   heroPatron: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    fontSize: 13,
+    color: PREMIUM_COLORS.gold,
+  },
+  heroPatronLabel: {
+    fontWeight: "400",
     fontStyle: "italic",
-    color: "rgba(236, 182, 19, 0.9)",
   },
 
-  // Quick Actions Overlay
+  // Quick Actions - Premium Cards
   quickActionsOverlay: {
     paddingHorizontal: GUIDE_SPACING.lg,
-    marginTop: -GUIDE_SPACING.xxl * 1.5,
+    marginTop: -GUIDE_SPACING.xxl * 2,
     zIndex: 10,
   },
   quickActionsGrid: {
@@ -690,42 +812,76 @@ const styles = StyleSheet.create({
   },
   quickActionButton: {
     width: (SCREEN_WIDTH - GUIDE_SPACING.lg * 2 - GUIDE_SPACING.md) / 2,
-    backgroundColor: GUIDE_COLORS.surface, // White background
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
     borderRadius: GUIDE_BORDER_RADIUS.xl,
-    padding: GUIDE_SPACING.lg,
-    gap: GUIDE_SPACING.md,
-    ...GUIDE_SHADOWS.md,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
   },
-  quickActionButtonDanger: {
-    backgroundColor: GUIDE_COLORS.surface,
-    borderColor: "rgba(220, 38, 38, 0.2)",
+  quickActionGradient: {
+    padding: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.xl,
+    paddingBottom: GUIDE_SPACING.lg,
+    alignItems: "flex-start",
+    position: "relative",
+    overflow: "hidden",
+    minHeight: 110,
+  },
+  quickActionPattern: {
+    position: "absolute",
+    top: -20,
+    right: -20,
+    opacity: 1,
   },
   quickActionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    backgroundColor: GUIDE_COLORS.primaryMuted,
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-  },
-  quickActionIconContainerDanger: {
-    backgroundColor: GUIDE_COLORS.errorLight,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   quickActionLabel: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary, // Dark text on light bg
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginTop: GUIDE_SPACING.sm,
+    letterSpacing: 0.3,
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  quickActionLabelDanger: {
-    color: GUIDE_COLORS.error,
+  quickActionBadge: {
+    position: "absolute",
+    top: GUIDE_SPACING.sm,
+    right: GUIDE_SPACING.sm,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 24,
+    alignItems: "center",
+  },
+  quickActionBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: PREMIUM_COLORS.gold,
   },
 
-  // Sections
+  // Sections - Premium Layout
   section: {
     paddingHorizontal: GUIDE_SPACING.xl,
-    paddingTop: GUIDE_SPACING.xl,
+    paddingTop: GUIDE_SPACING.xxl,
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -733,211 +889,243 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: GUIDE_SPACING.xl,
   },
+  sectionHeaderWithAction: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: GUIDE_SPACING.lg,
+  },
   sectionLabel: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.primary,
-    textTransform: "uppercase",
+    fontSize: 10,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.gold,
     letterSpacing: 2,
     marginBottom: GUIDE_SPACING.xs,
   },
   sectionTitleSerif: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXL,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary, // Dark text for light theme
+    fontSize: 22,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.charcoal,
+    letterSpacing: -0.5,
   },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.gold,
+  },
+  
+  // Shift Badge - Premium Gradient
   shiftBadge: {
-    backgroundColor: GUIDE_COLORS.primaryMuted,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.primaryBorder,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.xs,
+    paddingVertical: GUIDE_SPACING.sm,
+    alignItems: "flex-end",
   },
   shiftBadgeLabel: {
-    fontSize: 10,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.primary,
-    textTransform: "uppercase",
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 1,
+    opacity: 0.9,
   },
   shiftBadgeTime: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textPrimary, // Dark text
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
     fontVariant: ["tabular-nums"],
+    marginTop: 2,
   },
 
-  // Timeline
+  // Timeline - Premium Design
   timeline: {
-    paddingLeft: GUIDE_SPACING.xs,
+    gap: GUIDE_SPACING.sm,
   },
   timelineItem: {
     flexDirection: "row",
-    paddingBottom: GUIDE_SPACING.xl,
-    position: "relative",
+    alignItems: "flex-start",
+    backgroundColor: "#FFFFFF",
+    padding: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  timelineItemActive: {
+    borderColor: PREMIUM_COLORS.gold,
+    borderWidth: 1.5,
+    backgroundColor: "#FFFEF9",
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.gold,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  timelineLeft: {
+    alignItems: "center",
+    marginRight: GUIDE_SPACING.md,
   },
   timelineDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 2,
-  },
-  timelineDotActive: {
-    backgroundColor: GUIDE_COLORS.primary,
-    borderWidth: 4,
-    borderColor: GUIDE_COLORS.background,
-  },
-  timelineDotInactive: {
-    backgroundColor: GUIDE_COLORS.gray300,
-    borderWidth: 4,
-    borderColor: GUIDE_COLORS.background,
   },
   timelineLine: {
-    position: "absolute",
-    left: 11,
-    top: 24,
-    bottom: 0,
     width: 2,
-    backgroundColor: GUIDE_COLORS.primary, // Gold vertical line
-    opacity: 0.3,
-    zIndex: 1,
+    height: 40,
+    marginTop: GUIDE_SPACING.xs,
+    borderRadius: 1,
   },
   timelineContent: {
     flex: 1,
-    marginLeft: GUIDE_SPACING.lg,
-    paddingTop: 2,
+    paddingTop: 4,
   },
   timelineTime: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    fontSize: 11,
+    fontWeight: "700",
     color: GUIDE_COLORS.gray400,
     fontVariant: ["tabular-nums"],
+    letterSpacing: 0.5,
   },
   timelineTimeActive: {
-    color: GUIDE_COLORS.primary,
+    color: PREMIUM_COLORS.gold,
   },
   timelineTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary, // Dark text
+    fontSize: 16,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.charcoal,
     marginTop: 2,
+    lineHeight: 22,
   },
   timelineTitleMuted: {
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.gray500,
+    fontWeight: "600",
+  },
+  timelineLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
   },
   timelineLocation: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-    marginTop: 2,
+    fontSize: 12,
+    color: GUIDE_COLORS.gray400,
+  },
+  timelineActiveIndicator: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    alignSelf: "flex-start",
+  },
+  timelineActiveText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: 1,
   },
 
-  // Activity List
+  // Activity List - Premium Cards
   activityList: {
     gap: GUIDE_SPACING.md,
-    marginTop: GUIDE_SPACING.md,
   },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: GUIDE_SPACING.md,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: "#FFFFFF",
     padding: GUIDE_SPACING.md,
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    ...GUIDE_SHADOWS.sm,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 1,
+      },
+    }),
+  },
+  activityImageContainer: {
+    position: "relative",
   },
   activityImage: {
-    width: 48,
-    height: 48,
+    width: 56,
+    height: 56,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
+  },
+  activityImageOverlay: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: PREMIUM_COLORS.gold,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
   },
   activityContent: {
     flex: 1,
   },
   activityTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary, // Dark text
+    fontSize: 14,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.charcoal,
   },
   activitySubtitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontStyle: "italic",
-    color: GUIDE_COLORS.gray400,
+    fontSize: 12,
+    color: GUIDE_COLORS.gray500,
     marginTop: 2,
   },
+  activityTimeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  activityTime: {
+    fontSize: 11,
+    color: GUIDE_COLORS.gray400,
+  },
+  activityArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
-  // Legacy styles (kept for TaskItem component if still used)
-  backgroundGradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 384,
-    zIndex: 0,
-  },
-  header: {
-    paddingHorizontal: GUIDE_SPACING.xl,
-    paddingTop: GUIDE_SPACING.xxl,
-    paddingBottom: GUIDE_SPACING.lg,
-    gap: GUIDE_SPACING.xl,
-  },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-  },
-  headerTextContainer: {
-    flex: 1,
-    marginRight: GUIDE_SPACING.lg,
-  },
-  greeting: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-    fontStyle: "italic",
-    letterSpacing: 0.5,
-    marginBottom: GUIDE_SPACING.xs,
-  },
-  siteName: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeHeading,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
-    lineHeight:
-      GUIDE_TYPOGRAPHY.fontSizeHeading * GUIDE_TYPOGRAPHY.lineHeightTight,
-  },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    borderWidth: 2,
-    borderColor: GUIDE_COLORS.primaryBorder,
-    padding: 2,
-    backgroundColor: GUIDE_COLORS.surface,
-  },
-  avatar: {
-    width: "100%",
-    height: "100%",
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  statusWidget: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: GUIDE_COLORS.surfaceElevated,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.primaryBorder,
-    borderRadius: GUIDE_BORDER_RADIUS.xl,
-    paddingVertical: GUIDE_SPACING.lg,
-    paddingHorizontal: GUIDE_SPACING.lg,
-    ...GUIDE_SHADOWS.sm,
-  },
-  statusLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.md,
-  },
+  // Status Indicator (used by StatusIndicator component)
   statusIndicatorContainer: {
     position: "relative",
     width: 12,
@@ -950,144 +1138,12 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.success,
-    opacity: 0.4,
+    backgroundColor: PREMIUM_COLORS.emerald,
   },
   statusIndicatorDot: {
-    width: 12,
-    height: 12,
+    width: 10,
+    height: 10,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  statusTextContainer: {
-    gap: 2,
-  },
-  statusTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textPrimary,
-  },
-  statusSubtitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.textMuted,
-  },
-  clockOutButton: {
-    paddingVertical: GUIDE_SPACING.sm,
-    paddingHorizontal: GUIDE_SPACING.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.primaryBorder,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  clockOutButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.primary,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  sectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXL,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  viewAllText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.primary,
-  },
-  tasksList: {
-    gap: GUIDE_SPACING.md,
-    marginTop: -GUIDE_SPACING.sm,
-  },
-  taskItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.primaryBorderLight,
-    borderRadius: GUIDE_BORDER_RADIUS.xl,
-    padding: GUIDE_SPACING.lg,
-    gap: GUIDE_SPACING.lg,
-    ...GUIDE_SHADOWS.sm,
-  },
-  taskItemDone: {
-    opacity: 0.6,
-  },
-  taskItemActive: {
-    borderLeftWidth: 4,
-    borderLeftColor: GUIDE_COLORS.primary,
-    ...GUIDE_SHADOWS.md,
-  },
-  taskTimeContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 48,
-  },
-  taskTime: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textMuted,
-  },
-  taskTimeActive: {
-    color: GUIDE_COLORS.primary,
-  },
-  taskPeriod: {
-    fontSize: 10,
-    color: GUIDE_COLORS.textMuted,
-    textTransform: "uppercase",
-  },
-  taskPeriodActive: {
-    color: GUIDE_COLORS.primary,
-  },
-  taskDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: GUIDE_COLORS.primaryBorder,
-  },
-  taskContent: {
-    flex: 1,
-  },
-  taskTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textPrimary,
-  },
-  taskTitleDone: {
-    textDecorationLine: "line-through",
-    textDecorationColor: GUIDE_COLORS.primaryBorder,
-  },
-  taskLocation: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.textMuted,
-    marginTop: 2,
-  },
-  taskStatusDone: {
-    width: 24,
-    height: 24,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.successLight,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  taskStatusActive: {
-    width: 24,
-    height: 24,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.primaryMuted,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  taskStatusPending: {
-    width: 24,
-    height: 24,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.gray100,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 

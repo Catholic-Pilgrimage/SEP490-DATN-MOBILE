@@ -179,9 +179,10 @@ const SplashScreen = () => {
     subtitleOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
 
     // Mark animations as complete after minimum display time
+    // Reduced from 2500ms to 1500ms for faster app startup
     const timer = setTimeout(() => {
       setAnimationsComplete(true);
-    }, 2500);
+    }, 1500);
 
     return () => clearTimeout(timer);
   }, [isReady]);

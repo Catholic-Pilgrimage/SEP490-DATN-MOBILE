@@ -265,11 +265,25 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
       if (statusFilter !== "all") params.status = statusFilter;
 
       const response = await getMedia(params);
-      if (response.success && response.data) {
-        setMediaList(response.data.data);
+      if (response?.success && response?.data) {
+        const mediaData = response.data.data;
+        if (Array.isArray(mediaData)) {
+          setMediaList(mediaData);
+        } else {
+          console.warn("Invalid media data format:", mediaData);
+          setMediaList([]);
+        }
+      } else {
+        console.warn("API response unsuccessful or missing data:", response);
+        if (!isRefresh) {
+          setMediaList([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching media:", error);
+      if (!isRefresh) {
+        setMediaList([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

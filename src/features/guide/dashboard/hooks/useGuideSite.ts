@@ -60,10 +60,10 @@ export const useGuideSite = (): UseGuideSiteResult => {
 
       const response = await guideSiteApi.getAssignedSite();
 
-      if (response.success && response.data) {
+      if (response?.success && response?.data) {
         setSite(response.data);
       } else {
-        setError(response.message || "Không thể tải thông tin địa điểm");
+        setError(response?.message || "Không thể tải thông tin địa điểm");
       }
     } catch (err: any) {
       const status = err?.response?.status;
