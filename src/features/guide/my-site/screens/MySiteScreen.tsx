@@ -1,9 +1,11 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
+  Animated,
   Dimensions,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -19,18 +21,39 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
+import { useResponsive } from "../../../../hooks/useResponsive";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { EventItem, MediaItem } from "../../../../types/guide";
-import { EventsTab } from "../components/EventsTab";
-import { MediaTab } from "../components/MediaTab";
+import { EventsTab, LocationsTab, SchedulesTab } from "../components";
+import MediaTab from "../components/MediaTab";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// Premium color palette
+const PREMIUM_COLORS = {
+  gold: "#D4AF37",
+  goldLight: "#F4E4BA",
+  goldDark: "#B8860B",
+  cream: "#FDF8F0",
+  charcoal: "#1A1A1A",
+  warmGray: "#F7F5F2",
+  brown: "#8B7355",
+};
 
 // Navigation type
 type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList, 'MySiteHome'>;
 
-// Types - Updated with 4 tabs
-type TabType = "Events" | "Media" | "Schedules" | "Shifts";
+// Types - Updated with 5 tabs (using Vietnamese for shorter labels)
+type TabType = "Sự kiện" | "Media" | "Lịch lễ" | "Ca trực" | "Địa điểm";
+
+// Tab icons mapping
+const TAB_ICONS: Record<TabType, keyof typeof MaterialIcons.glyphMap> = {
+  "Sự kiện": "event",
+  "Media": "photo-library",
+  "Lịch lễ": "church",
+  "Ca trực": "schedule",
+  "Địa điểm": "place",
+};
 
 // Mock data
 const MOCK_SITE = {
@@ -38,48 +61,56 @@ const MOCK_SITE = {
   location: "Assisi, Italy",
 };
 
-// Segmented Control Component
-interface SegmentedControlProps {
+// Premium Underline Tab Component
+interface UnderlineTabsProps {
   tabs: TabType[];
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
 }
 
-const SegmentedControl: React.FC<SegmentedControlProps> = ({
+const UnderlineTabs: React.FC<UnderlineTabsProps> = ({
   tabs,
   activeTab,
   onTabChange,
 }) => {
-  const activeIndex = tabs.indexOf(activeTab);
+  const { fontSize, spacing, iconSize } = useResponsive();
 
   return (
     <View style={styles.segmentedControl}>
-      <View
-        style={[
-          styles.segmentedIndicator,
-          {
-            left: `${(activeIndex / tabs.length) * 100}%` as any,
-            width: `${100 / tabs.length}%` as any,
-          },
-        ]}
-      />
-      {tabs.map((tab) => (
-        <TouchableOpacity
-          key={tab}
-          style={styles.segmentedTab}
-          onPress={() => onTabChange(tab)}
-          activeOpacity={0.7}
-        >
-          <Text
+      {tabs.map((tab, index) => {
+        const isActive = activeTab === tab;
+        const isFirst = index === 0;
+        const isLast = index === tabs.length - 1;
+        return (
+          <TouchableOpacity
+            key={tab}
             style={[
-              styles.segmentedTabText,
-              activeTab === tab && styles.segmentedTabTextActive,
+              styles.segmentedTab,
+              isActive && styles.segmentedTabActive,
+              isFirst && styles.segmentedTabFirst,
+              isLast && styles.segmentedTabLast,
             ]}
+            onPress={() => onTabChange(tab)}
+            activeOpacity={0.7}
           >
-            {tab}
-          </Text>
-        </TouchableOpacity>
-      ))}
+            <MaterialIcons
+              name={TAB_ICONS[tab]}
+              size={iconSize(20)}
+              color={isActive ? "#FFF" : PREMIUM_COLORS.brown}
+            />
+            <Text
+              style={[
+                styles.segmentedTabText,
+                { fontSize: fontSize(12) },
+                isActive && styles.segmentedTabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {tab}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
@@ -88,11 +119,30 @@ const SegmentedControl: React.FC<SegmentedControlProps> = ({
 const MySiteScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MySiteNavigationProp>();
-  const [activeTab, setActiveTab] = useState<TabType>("Events");
+  const [activeTab, setActiveTab] = useState<TabType>("Sự kiện");
+  const { spacing, fontSize, iconSize } = useResponsive();
+  const fabScale = useRef(new Animated.Value(1)).current;
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
+
+  // FAB animation
+  const handleFabPressIn = () => {
+    Animated.spring(fabScale, {
+      toValue: 0.9,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleFabPressOut = () => {
+    Animated.spring(fabScale, {
+      toValue: 1,
+      friction: 3,
+      useNativeDriver: true,
+    }).start();
+  };
 
   // Event handlers
   const handleEventPress = useCallback((event: EventItem) => {
@@ -116,7 +166,7 @@ const MySiteScreen: React.FC = () => {
   const handleAddNew = useCallback(() => {
     if (activeTab === "Media") {
       navigation.navigate('MediaUpload');
-    } else if (activeTab === "Events") {
+    } else if (activeTab === "Sự kiện") {
       navigation.navigate('EventDetail', { event: undefined });
     }
   }, [navigation, activeTab]);
@@ -148,7 +198,16 @@ const MySiteScreen: React.FC = () => {
           />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Site Management</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity
+          style={styles.moreButton}
+          onPress={() => setShowMoreMenu(!showMoreMenu)}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={22}
+            color={GUIDE_COLORS.gray500}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Site Title - Always visible */}
@@ -164,10 +223,10 @@ const MySiteScreen: React.FC = () => {
         </View>
       </View>
 
-      {/* Segmented Control - Always visible */}
-      <View style={styles.segmentedWrapperFixed}>
-        <SegmentedControl
-          tabs={["Events", "Media", "Schedules", "Shifts"]}
+      {/* Pill Tabs - Premium Design */}
+      <View style={styles.tabsWrapper}>
+        <UnderlineTabs
+          tabs={["Sự kiện", "Media", "Lịch lễ", "Ca trực", "Địa điểm"]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
@@ -184,7 +243,7 @@ const MySiteScreen: React.FC = () => {
       )}
 
       {/* Events Tab - Also uses FlatList, render outside ScrollView */}
-      {activeTab === "Events" && (
+      {activeTab === "Sự kiện" && (
         <View style={styles.mediaTabContainer}>
           <EventsTab
             onEventPress={handleEventPress}
@@ -193,32 +252,30 @@ const MySiteScreen: React.FC = () => {
         </View>
       )}
 
+      {/* Locations Tab - Map with pin points */}
+      {activeTab === "Địa điểm" && (
+        <View style={styles.mediaTabContainer}>
+          <LocationsTab />
+        </View>
+      )}
+
+      {/* Schedules Tab - Mass Schedule management */}
+      {activeTab === "Lịch lễ" && (
+        <View style={styles.mediaTabContainer}>
+          <SchedulesTab />
+        </View>
+      )}
+
       {/* Other tabs use ScrollView */}
-      {activeTab !== "Media" && activeTab !== "Events" && (
+      {activeTab !== "Media" && activeTab !== "Sự kiện" && activeTab !== "Địa điểm" && activeTab !== "Lịch lễ" && (
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Schedules Section Placeholder */}
-          {activeTab === "Schedules" && (
-            <View style={styles.placeholderSection}>
-              <MaterialIcons
-                name="calendar-today"
-                size={64}
-                color={GUIDE_COLORS.gray300}
-              />
-              <Text style={styles.placeholderText}>
-                Lịch lễ - Coming Soon
-              </Text>
-              <Text style={styles.placeholderSubtext}>
-                Quản lý lịch trình các buổi lễ và sự kiện
-              </Text>
-            </View>
-          )}
 
           {/* Shifts Section Placeholder */}
-          {activeTab === "Shifts" && (
+          {activeTab === "Ca trực" && (
             <View style={styles.placeholderSection}>
               <MaterialIcons
                 name="schedule"
@@ -239,14 +296,21 @@ const MySiteScreen: React.FC = () => {
         </ScrollView>
       )}
 
-      {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleAddNew}
-        activeOpacity={0.9}
-      >
-        <MaterialIcons name="add" size={28} color={GUIDE_COLORS.surface} />
-      </TouchableOpacity>
+      {/* Floating Action Button - Premium with better shadow */}
+      {/* Only show for tabs that don't have their own FAB */}
+      {activeTab !== "Lịch lễ" && activeTab !== "Địa điểm" && (
+        <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={handleAddNew}
+            onPressIn={handleFabPressIn}
+            onPressOut={handleFabPressOut}
+            activeOpacity={1}
+          >
+            <MaterialIcons name="add" size={iconSize(28)} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 };
@@ -254,7 +318,7 @@ const MySiteScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
+    backgroundColor: PREMIUM_COLORS.cream,
   },
   backgroundDecoration: {
     position: "absolute",
@@ -262,7 +326,7 @@ const styles = StyleSheet.create({
     right: 0,
     width: 256,
     height: 256,
-    opacity: 0.05,
+    opacity: 0.03,
     zIndex: 0,
   },
   backgroundIcon: {
@@ -287,7 +351,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingVertical: GUIDE_SPACING.md,
-    backgroundColor: GUIDE_COLORS.background,
+    backgroundColor: PREMIUM_COLORS.cream,
     zIndex: 10,
   },
   backButton: {
@@ -300,9 +364,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
+    color: PREMIUM_COLORS.charcoal,
     flex: 1,
     textAlign: "center",
+    letterSpacing: 0.5,
   },
   headerSpacer: {
     width: 40,
@@ -311,12 +376,12 @@ const styles = StyleSheet.create({
   // Site Header
   siteHeaderFixed: {
     paddingHorizontal: GUIDE_SPACING.lg,
-    paddingBottom: GUIDE_SPACING.md,
+    paddingBottom: GUIDE_SPACING.lg,
   },
   siteTitle: {
-    fontSize: 28,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
+    fontSize: 26,
+    fontWeight: "800",
+    color: PREMIUM_COLORS.charcoal,
     letterSpacing: -0.5,
     marginBottom: GUIDE_SPACING.xs,
   },
@@ -327,45 +392,102 @@ const styles = StyleSheet.create({
   },
   siteLocationText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
+    color: PREMIUM_COLORS.gold,
     fontStyle: "italic",
   },
 
-  // Segmented Control
-  segmentedWrapperFixed: {
-    paddingHorizontal: GUIDE_SPACING.lg,
+  // Pill Tabs - Premium Soft Pill Design
+  tabsWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: GUIDE_SPACING.md,
     marginBottom: GUIDE_SPACING.md,
   },
+  underlineTabs: {
+    flexDirection: "row",
+    flex: 1,
+    gap: GUIDE_SPACING.xs,
+  },
+  underlineTab: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.xs,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: "transparent",
+    flexDirection: "row",
+    gap: 4,
+  },
+  underlineTabActive: {
+    backgroundColor: PREMIUM_COLORS.goldLight,
+  },
+  underlineTabText: {
+    fontWeight: "500",
+    color: GUIDE_COLORS.gray400,
+  },
+  underlineTabTextActive: {
+    color: PREMIUM_COLORS.goldDark,
+    fontWeight: "700",
+  },
+
+  // Segmented Control - Premium Design
   segmentedControl: {
     flexDirection: "row",
-    height: 48,
-    backgroundColor: "rgba(0, 0, 0, 0.05)",
-    borderRadius: GUIDE_BORDER_RADIUS.xl,
-    padding: 4,
-    position: "relative",
-  },
-  segmentedIndicator: {
-    position: "absolute",
-    top: 4,
-    bottom: 4,
-    backgroundColor: GUIDE_COLORS.surface,
+    flex: 1,
+    backgroundColor: PREMIUM_COLORS.warmGray,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: 3,
     ...GUIDE_SHADOWS.sm,
   },
   segmentedTab: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    zIndex: 1,
+    justifyContent: "center",
+    paddingVertical: GUIDE_SPACING.sm + 2,
+    paddingHorizontal: GUIDE_SPACING.xs,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    backgroundColor: "transparent",
+    flexDirection: "column",
+    gap: 2,
+  },
+  segmentedTabActive: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  segmentedTabFirst: {
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.md,
+    borderBottomLeftRadius: GUIDE_BORDER_RADIUS.md,
+  },
+  segmentedTabLast: {
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.md,
+    borderBottomRightRadius: GUIDE_BORDER_RADIUS.md,
   },
   segmentedTabText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textMuted,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.brown,
   },
   segmentedTabTextActive: {
-    color: GUIDE_COLORS.textPrimary,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#FFF",
+    fontWeight: "700",
+  },
+  moreButton: {
+    width: 40,
+    height: 40,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: PREMIUM_COLORS.warmGray,
   },
 
   // Placeholder Section
@@ -386,21 +508,31 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // FAB
-  fab: {
+  // FAB - Premium with soft floating shadow
+  fabContainer: {
     position: "absolute",
-    bottom: 96,
+    bottom: 24,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.primary,
+    zIndex: 20,
+  },
+  fab: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
-    ...GUIDE_SHADOWS.lg,
-    shadowColor: GUIDE_COLORS.primary,
-    shadowOpacity: 0.4,
-    zIndex: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
 });
 

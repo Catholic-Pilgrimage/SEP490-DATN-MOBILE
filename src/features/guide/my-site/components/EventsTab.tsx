@@ -2,20 +2,25 @@
  * EventsTab Component
  * Displays events list with status filter, CRUD operations
  * Calls real API: GET /api/local-guide/events
+ * Premium UI Design with Bottom Sheet Filter (Gold Standard)
  */
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Image,
+  Modal,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import {
@@ -30,6 +35,18 @@ import { EventItem, EventStatus } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
+// Premium Colors
+const PREMIUM_COLORS = {
+  gold: "#D4AF37",
+  goldLight: "#F5E6B8",
+  goldDark: "#B8960C",
+  cream: "#FDF8F0",
+  charcoal: "#1A1A1A",
+  warmGray: "#F7F5F2",
+  brown: "#8B7355",
+  brownLight: "#E8E0D5",
+};
+
 // ============================================
 // TYPES
 // ============================================
@@ -42,48 +59,168 @@ interface EventsTabProps {
 }
 
 // ============================================
-// STATUS FILTER COMPONENT
+// STATUS FILTER - Bottom Sheet Design (Gold Standard)
 // ============================================
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; icon?: keyof typeof MaterialIcons.glyphMap }[] = [
-  { key: "all", label: "Tất cả", color: GUIDE_COLORS.textMuted },
-  { key: "pending", label: "Chờ duyệt", color: GUIDE_COLORS.warning, icon: "schedule" },
-  { key: "approved", label: "Đã duyệt", color: GUIDE_COLORS.success, icon: "check-circle" },
-  { key: "rejected", label: "Từ chối", color: GUIDE_COLORS.error, icon: "cancel" },
+const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string }[] = [
+  { key: "all", label: "Tất cả", color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: "Hiển thị tất cả sự kiện" },
+  { key: "pending", label: "Chờ duyệt", color: "#E67E22", bgColor: "#FFF8E1", icon: "schedule", description: "Sự kiện đang chờ phê duyệt" },
+  { key: "approved", label: "Đã duyệt", color: "#27AE60", bgColor: "#E8F5E9", icon: "check-circle", description: "Sự kiện đã được phê duyệt" },
+  { key: "rejected", label: "Từ chối", color: "#E74C3C", bgColor: "#FFEBEE", icon: "cancel", description: "Sự kiện bị từ chối" },
 ];
 
-interface StatusFilterChipProps {
-  filter: typeof STATUS_FILTERS[0];
-  isActive: boolean;
+interface FilterBottomSheetProps {
+  visible: boolean;
+  activeFilter: StatusFilter;
+  onFilterChange: (filter: StatusFilter) => void;
+  onClose: () => void;
+}
+
+const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
+  visible,
+  activeFilter,
+  onFilterChange,
+  onClose,
+}) => {
+  const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
+  
+  // Reset selection when opened
+  React.useEffect(() => {
+    if (visible) {
+      setSelectedFilter(activeFilter);
+    }
+  }, [visible, activeFilter]);
+
+  const handleApply = () => {
+    onFilterChange(selectedFilter);
+    onClose();
+  };
+
+  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.bottomSheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.bottomSheetContainer}>
+              {/* Handle Bar */}
+              <View style={styles.handleBarContainer}>
+                <View style={styles.handleBar} />
+              </View>
+              
+              {/* Header */}
+              <View style={styles.bottomSheetHeader}>
+                <Text style={styles.bottomSheetTitle}>Lọc sự kiện</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Filter Options */}
+              <View style={styles.filterOptionsContainer}>
+                {STATUS_FILTERS.map((filter) => {
+                  const isSelected = selectedFilter === filter.key;
+                  return (
+                    <TouchableOpacity
+                      key={filter.key}
+                      style={[
+                        styles.filterOption,
+                        isSelected && { backgroundColor: filter.bgColor, borderColor: filter.color },
+                      ]}
+                      onPress={() => setSelectedFilter(filter.key)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.filterOptionLeft}>
+                        <View style={[styles.filterIconContainer, { backgroundColor: filter.bgColor }]}>
+                          {filter.icon ? (
+                            <MaterialIcons name={filter.icon} size={20} color={filter.color} />
+                          ) : (
+                            <MaterialIcons name="apps" size={20} color={filter.color} />
+                          )}
+                        </View>
+                        <View style={styles.filterOptionText}>
+                          <Text style={[styles.filterOptionLabel, { color: isSelected ? filter.color : GUIDE_COLORS.textPrimary }]}>
+                            {filter.label}
+                          </Text>
+                          {filter.description && (
+                            <Text style={styles.filterOptionDescription}>{filter.description}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <View style={[styles.checkCircle, { backgroundColor: filter.color }]}>
+                          <Ionicons name="checkmark" size={16} color="#FFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              
+              {/* Apply Button */}
+              <View style={styles.bottomSheetFooter}>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={handleApply}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
+// Filter Trigger Button
+interface FilterTriggerProps {
+  activeFilter: StatusFilter;
   onPress: () => void;
 }
 
-const StatusFilterChip: React.FC<StatusFilterChipProps> = ({ filter, isActive, onPress }) => (
-  <TouchableOpacity
-    style={[
-      styles.statusChip,
-      isActive && { backgroundColor: filter.color, borderColor: filter.color },
-    ]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    {filter.icon && (
-      <MaterialIcons
-        name={filter.icon}
-        size={14}
-        color={isActive ? GUIDE_COLORS.surface : filter.color}
-      />
-    )}
-    <Text
-      style={[
-        styles.statusChipText,
-        { color: isActive ? GUIDE_COLORS.surface : filter.color },
-      ]}
-    >
-      {filter.label}
-    </Text>
-  </TouchableOpacity>
-);
+const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) => {
+  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
+  const isFiltered = activeFilter !== "all";
+
+  return (
+    <View style={styles.filterTriggerContainer}>
+      <TouchableOpacity
+        style={[
+          styles.filterTriggerButton,
+          isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name="filter"
+          size={18}
+          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+        />
+        <Text style={[
+          styles.filterTriggerText,
+          isFiltered && { color: activeFilterInfo?.color },
+        ]}>
+          {isFiltered ? activeFilterInfo?.label : "Lọc"}
+        </Text>
+        <Ionicons
+          name="chevron-down"
+          size={16}
+          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+        />
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 // ============================================
 // STATUS BADGE COMPONENT
@@ -97,11 +234,11 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const getConfig = () => {
     switch (status) {
       case "pending":
-        return { bg: "#FFF3E0", color: GUIDE_COLORS.warning, label: "Chờ duyệt" };
+        return { bg: "#FFF8E1", color: "#E67E22", label: "Chờ duyệt" };
       case "approved":
-        return { bg: "#E8F5E9", color: GUIDE_COLORS.success, label: "Đã duyệt" };
+        return { bg: "#E8F5E9", color: "#27AE60", label: "Đã duyệt" };
       case "rejected":
-        return { bg: "#FFEBEE", color: GUIDE_COLORS.error, label: "Từ chối" };
+        return { bg: "#FFEBEE", color: "#E74C3C", label: "Từ chối" };
     }
   };
 
@@ -117,7 +254,8 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 };
 
 // ============================================
-// EVENT CARD COMPONENT
+// EVENT CARD COMPONENT - Premium Design
+// Date column on left, content on right, 3-dot menu
 // ============================================
 
 interface EventCardProps {
@@ -127,16 +265,17 @@ interface EventCardProps {
 }
 
 const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
+  const [showMenu, setShowMenu] = useState(false);
   const canEdit = event.status === "pending" || event.status === "rejected";
   
   // Format date display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    return {
+      day: date.getDate().toString().padStart(2, '0'),
+      month: date.toLocaleDateString("vi-VN", { month: "short" }).toUpperCase(),
+      year: date.getFullYear().toString(),
+    };
   };
 
   // Format time display
@@ -145,105 +284,110 @@ const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
     return timeStr.substring(0, 5); // HH:MM
   };
 
+  const dateInfo = formatDate(event.start_date);
+
+  const handleMenuPress = () => {
+    if (!canEdit) return;
+    Alert.alert(
+      event.name,
+      "Chọn thao tác",
+      [
+        { text: "Sửa", onPress: () => onPress() },
+        { text: "Xóa", style: "destructive", onPress: () => onDelete() },
+        { text: "Hủy", style: "cancel" },
+      ]
+    );
+  };
+
   return (
     <TouchableOpacity
       style={styles.eventCard}
       onPress={onPress}
-      activeOpacity={0.9}
+      activeOpacity={0.95}
     >
-      {/* Banner Image */}
-      {event.banner_url ? (
-        <Image
-          source={{ uri: event.banner_url }}
-          style={styles.eventBanner}
-          resizeMode="cover"
-        />
-      ) : (
-        <View style={styles.eventBannerPlaceholder}>
-          <MaterialIcons name="event" size={40} color={GUIDE_COLORS.gray300} />
-        </View>
-      )}
-
-      {/* Status Badge */}
-      <View style={styles.statusBadgeContainer}>
-        <StatusBadge status={event.status} />
+      {/* Date Column - Rounded corners */}
+      <View style={styles.dateColumn}>
+        <Text style={styles.dateDay}>{dateInfo.day}</Text>
+        <Text style={styles.dateMonth}>{dateInfo.month}</Text>
       </View>
 
-      {/* Content */}
-      <View style={styles.eventContent}>
-        <Text style={styles.eventName} numberOfLines={2}>
-          {event.name}
-        </Text>
+      {/* Perforated Line Effect */}
+      <View style={styles.perforatedLine} />
 
+      {/* Content Column */}
+      <View style={styles.contentColumn}>
+        {/* Header with title */}
+        <View style={styles.cardHeader}>
+          <Text style={styles.eventName} numberOfLines={1}>
+            {event.name}
+          </Text>
+          {canEdit && (
+            <TouchableOpacity 
+              style={styles.menuButton}
+              onPress={handleMenuPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="ellipsis-vertical" size={18} color={GUIDE_COLORS.gray400} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Status Badge - Below title */}
+        <View style={styles.badgeRow}>
+          <StatusBadge status={event.status} />
+        </View>
+
+        {/* Description */}
         {event.description ? (
-          <Text style={styles.eventDescription} numberOfLines={2}>
+          <Text style={styles.eventDescription} numberOfLines={1}>
             {event.description}
           </Text>
         ) : null}
 
-        {/* Date & Time */}
-        <View style={styles.eventMeta}>
-          <MaterialIcons name="calendar-today" size={14} color={GUIDE_COLORS.primary} />
-          <Text style={styles.eventMetaText}>
-            {formatDate(event.start_date)}
-            {event.end_date && event.end_date !== event.start_date 
-              ? ` - ${formatDate(event.end_date)}` 
-              : ""}
-          </Text>
+        {/* Meta info row */}
+        <View style={styles.metaRow}>
+          {(event.start_time || event.end_time) && (
+            <View style={styles.metaItem}>
+              <Ionicons name="time-outline" size={14} color={PREMIUM_COLORS.gold} />
+              <Text style={styles.metaText}>
+                {formatTime(event.start_time)}
+                {event.end_time ? ` - ${formatTime(event.end_time)}` : ""}
+              </Text>
+            </View>
+          )}
+          {event.location && (
+            <View style={styles.metaItem}>
+              <Ionicons name="location-outline" size={14} color={PREMIUM_COLORS.gold} />
+              <Text style={styles.metaText} numberOfLines={1}>{event.location}</Text>
+            </View>
+          )}
         </View>
-
-        {(event.start_time || event.end_time) && (
-          <View style={styles.eventMeta}>
-            <MaterialIcons name="access-time" size={14} color={GUIDE_COLORS.primary} />
-            <Text style={styles.eventMetaText}>
-              {formatTime(event.start_time)}
-              {event.end_time ? ` - ${formatTime(event.end_time)}` : ""}
-            </Text>
-          </View>
-        )}
-
-        {event.location && (
-          <View style={styles.eventMeta}>
-            <MaterialIcons name="location-on" size={14} color={GUIDE_COLORS.primary} />
-            <Text style={styles.eventMetaText}>{event.location}</Text>
-          </View>
-        )}
 
         {/* Rejection Reason */}
         {event.status === "rejected" && event.rejection_reason && (
           <View style={styles.rejectionBox}>
-            <MaterialIcons name="info" size={14} color={GUIDE_COLORS.error} />
-            <Text style={styles.rejectionText} numberOfLines={2}>
+            <Ionicons name="alert-circle" size={14} color="#E74C3C" />
+            <Text style={styles.rejectionText} numberOfLines={1}>
               {event.rejection_reason}
             </Text>
           </View>
         )}
       </View>
 
-      {/* Actions */}
-      {canEdit && (
-        <View style={styles.eventActions}>
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={onPress}
-          >
-            <MaterialIcons name="edit" size={18} color={GUIDE_COLORS.primary} />
-            <Text style={styles.actionButtonText}>Sửa</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButtonDelete}
-            onPress={onDelete}
-          >
-            <MaterialIcons name="delete-outline" size={18} color={GUIDE_COLORS.error} />
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Thumbnail */}
+      {event.banner_url ? (
+        <Image
+          source={{ uri: event.banner_url }}
+          style={styles.thumbnail}
+          resizeMode="cover"
+        />
+      ) : null}
     </TouchableOpacity>
   );
 };
 
 // ============================================
-// EMPTY STATE COMPONENT
+// EMPTY STATE COMPONENT - Premium Design
 // ============================================
 
 interface EmptyStateProps {
@@ -254,7 +398,7 @@ interface EmptyStateProps {
 const EmptyState: React.FC<EmptyStateProps> = ({ onCreatePress, statusFilter }) => (
   <View style={styles.emptyState}>
     <View style={styles.emptyIconContainer}>
-      <MaterialIcons name="event-note" size={48} color={GUIDE_COLORS.gray300} />
+      <Ionicons name="calendar-outline" size={48} color={PREMIUM_COLORS.gold} />
     </View>
     <Text style={styles.emptyTitle}>
       {statusFilter === "all" ? "Chưa có sự kiện nào" : `Không có sự kiện ${STATUS_FILTERS.find(f => f.key === statusFilter)?.label.toLowerCase()}`}
@@ -264,7 +408,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onCreatePress, statusFilter }) 
     </Text>
     {statusFilter === "all" && (
       <TouchableOpacity style={styles.emptyButton} onPress={onCreatePress} activeOpacity={0.8}>
-        <MaterialIcons name="add" size={20} color={GUIDE_COLORS.surface} />
+        <Ionicons name="add" size={20} color="#FFF" />
         <Text style={styles.emptyButtonText}>Tạo sự kiện</Text>
       </TouchableOpacity>
     )}
@@ -280,6 +424,8 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // IMPORTANT: All hooks must be called at the top, before any conditional returns
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const fetchEvents = useCallback(async (isRefresh = false) => {
     try {
@@ -323,17 +469,30 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
     }
   }, [statusFilter]);
 
-  // Fetch when filter changes
-  React.useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
+  // Fetch when filter changes or on focus
+  // Use ref to track if initial load happened
+  const hasInitiallyLoaded = React.useRef(false);
 
-  // Refresh on focus
+  // Refresh on focus (handles both initial load and re-focus)
   useFocusEffect(
     useCallback(() => {
-      fetchEvents(true);
+      if (hasInitiallyLoaded.current) {
+        // Already loaded, just refresh
+        fetchEvents(true);
+      } else {
+        // Initial load
+        fetchEvents(false);
+        hasInitiallyLoaded.current = true;
+      }
     }, [fetchEvents])
   );
+
+  // Re-fetch when filter changes (but not on initial mount)
+  React.useEffect(() => {
+    if (hasInitiallyLoaded.current) {
+      fetchEvents(false);
+    }
+  }, [statusFilter]);
 
   const handleRefresh = useCallback(() => {
     fetchEvents(true);
@@ -389,17 +548,19 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
 
   return (
     <View style={styles.container}>
-      {/* Status Filter */}
-      <View style={styles.filterContainer}>
-        {STATUS_FILTERS.map((filter) => (
-          <StatusFilterChip
-            key={filter.key}
-            filter={filter}
-            isActive={statusFilter === filter.key}
-            onPress={() => setStatusFilter(filter.key)}
-          />
-        ))}
-      </View>
+      {/* Filter Trigger Button */}
+      <FilterTrigger
+        activeFilter={statusFilter}
+        onPress={() => setShowFilterSheet(true)}
+      />
+
+      {/* Filter Bottom Sheet */}
+      <FilterBottomSheet
+        visible={showFilterSheet}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+        onClose={() => setShowFilterSheet(false)}
+      />
 
       {/* Events List */}
       <FlatList
@@ -426,13 +587,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
 };
 
 // ============================================
-// STYLES
+// STYLES - Premium Design
 // ============================================
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
+    backgroundColor: PREMIUM_COLORS.cream,
   },
   loadingContainer: {
     flex: 1,
@@ -440,27 +601,129 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Filter
-  filterContainer: {
-    flexDirection: "row",
+  // Filter Trigger Button
+  filterTriggerContainer: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingVertical: GUIDE_SPACING.sm,
-    gap: GUIDE_SPACING.xs,
   },
-  statusChip: {
+  filterTriggerButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
+    alignSelf: "flex-start",
+    gap: GUIDE_SPACING.xs,
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.sm,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray200,
     backgroundColor: GUIDE_COLORS.surface,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.borderLight,
+    ...GUIDE_SHADOWS.sm,
   },
-  statusChipText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+  filterTriggerText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+
+  // Bottom Sheet
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  bottomSheetContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
+  },
+  handleBarContainer: {
+    alignItems: "center",
+    paddingVertical: GUIDE_SPACING.sm,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GUIDE_COLORS.gray300,
+  },
+  bottomSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.borderLight,
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  closeButton: {
+    padding: GUIDE_SPACING.xs,
+  },
+  filterOptionsContainer: {
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.sm,
+  },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.borderLight,
+    backgroundColor: "#FFF",
+  },
+  filterOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.md,
+  },
+  filterIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterOptionText: {
+    gap: 2,
+  },
+  filterOptionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  filterOptionDescription: {
+    fontSize: 12,
+    color: GUIDE_COLORS.textMuted,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomSheetFooter: {
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+  },
+  applyButton: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    paddingVertical: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    alignItems: "center",
+    ...GUIDE_SHADOWS.md,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
   },
 
   // List
@@ -469,104 +732,135 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
 
-  // Event Card
+  // Event Card - Ticket style with rounded date column
   eventCard: {
-    backgroundColor: GUIDE_COLORS.surface,
+    flexDirection: "row",
+    backgroundColor: "#FFF",
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     overflow: "hidden",
-    ...GUIDE_SHADOWS.md,
+    minHeight: 110,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  eventBanner: {
-    width: "100%",
-    height: 140,
-  },
-  eventBannerPlaceholder: {
-    width: "100%",
-    height: 100,
-    backgroundColor: GUIDE_COLORS.gray100,
+  dateColumn: {
+    width: 64,
+    backgroundColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: GUIDE_SPACING.lg,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.lg,
+    borderBottomLeftRadius: GUIDE_BORDER_RADIUS.lg,
   },
-  statusBadgeContainer: {
-    position: "absolute",
-    top: GUIDE_SPACING.sm,
-    right: GUIDE_SPACING.sm,
+  perforatedLine: {
+    width: 2,
+    backgroundColor: PREMIUM_COLORS.cream,
+    marginVertical: GUIDE_SPACING.sm,
+    borderRadius: 1,
   },
+  dateDay: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#FFF",
+    letterSpacing: -0.5,
+  },
+  dateMonth: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  contentColumn: {
+    flex: 1,
+    padding: GUIDE_SPACING.md,
+    paddingLeft: GUIDE_SPACING.sm,
+    justifyContent: "center",
+    gap: 6,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  menuButton: {
+    padding: 6,
+    marginRight: -4,
+  },
+  thumbnail: {
+    width: 70,
+    height: "100%",
+    minHeight: 110,
+  },
+
+  // Status Badge
   statusBadge: {
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   statusBadgeText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
-  eventContent: {
-    padding: GUIDE_SPACING.md,
-  },
+
+  // Event Info
   eventName: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
-    marginBottom: GUIDE_SPACING.xs,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.charcoal,
+    flex: 1,
+    letterSpacing: -0.3,
   },
   eventDescription: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textSecondary,
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  eventMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 4,
-  },
-  eventMetaText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     color: GUIDE_COLORS.textSecondary,
-    flex: 1,
+    lineHeight: 18,
   },
-  rejectionBox: {
+  metaRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    marginTop: GUIDE_SPACING.sm,
-    padding: GUIDE_SPACING.sm,
-    backgroundColor: "#FFEBEE",
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
+    flexWrap: "wrap",
+    gap: GUIDE_SPACING.md,
+    marginTop: 2,
   },
-  rejectionText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.error,
-    flex: 1,
-  },
-  eventActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingBottom: GUIDE_SPACING.md,
-    gap: GUIDE_SPACING.sm,
-  },
-  actionButton: {
+  metaItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.primaryMuted,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
   },
-  actionButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.primary,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+  metaText: {
+    fontSize: 12,
+    color: GUIDE_COLORS.textSecondary,
   },
-  actionButtonDelete: {
-    padding: GUIDE_SPACING.xs,
+  rejectionBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: GUIDE_SPACING.xs,
+    padding: 6,
+    backgroundColor: "#FFEBEE",
+    borderRadius: 4,
+  },
+  rejectionText: {
+    fontSize: 11,
+    color: "#E74C3C",
+    flex: 1,
   },
 
-  // Empty State
+  // Empty State - Premium
   emptyState: {
     flex: 1,
     justifyContent: "center",
@@ -578,15 +872,15 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: PREMIUM_COLORS.goldLight,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: GUIDE_SPACING.lg,
   },
   emptyTitle: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.charcoal,
     marginBottom: GUIDE_SPACING.xs,
     textAlign: "center",
   },
@@ -602,13 +896,13 @@ const styles = StyleSheet.create({
     gap: GUIDE_SPACING.xs,
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.primary,
+    backgroundColor: PREMIUM_COLORS.gold,
     borderRadius: GUIDE_BORDER_RADIUS.md,
   },
   emptyButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.surface,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#FFF",
+    fontWeight: "600",
   },
 });
 
