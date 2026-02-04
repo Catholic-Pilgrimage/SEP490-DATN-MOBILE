@@ -1,31 +1,40 @@
-import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useState, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    Platform,
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SHADOWS,
-    GUIDE_SPACING,
-    GUIDE_TYPOGRAPHY,
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SPACING
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useI18n } from "../../../../hooks/useI18n";
+import {
+  getFontSize,
+  getSpacing,
+  isSmallScreen,
+  isTablet,
+  moderateScale,
+  responsive
+} from "../../../../utils/responsive";
+import { PilgrimInsights, QuickActionsBar, RecentReviews } from "../components";
 import { useDashboardHome } from "../hooks/useDashboardHome";
 
 // Premium color palette
@@ -45,17 +54,44 @@ const PREMIUM_COLORS = {
   gradientPremium: ["#1A1A1A", "#2D2D2D", "#1A1A1A"],
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// Use dynamic dimensions that update on rotation/resize
+const getScreenWidth = () => Dimensions.get("window").width;
+const getScreenHeight = () => Dimensions.get("window").height;
+
+// Responsive helper functions for this component
+const getHeroHeight = () => {
+  const width = getScreenWidth();
+  if (width < 375) return width * 0.85; // Small screens
+  if (width < 414) return width * 0.9;  // Medium screens
+  if (width >= 768) return width * 0.5; // Tablets
+  return width * 0.95; // Large phones
+};
+
+const getQuickActionWidth = () => {
+  const screenWidth = getScreenWidth();
+  const horizontalPadding = getSpacing(GUIDE_SPACING.lg) * 2;
+  const gap = getSpacing(GUIDE_SPACING.md);
+  return (screenWidth - horizontalPadding - gap) / 2;
+};
+
+const getQuickActionMinHeight = () => {
+  return responsive({
+    small: 95,
+    medium: 105,
+    large: 115,
+    tablet: 130,
+    default: 110,
+  });
+};
 
 // Types - using TodayOverviewItem from hook
-import type { TodayOverviewItem } from "../../../../types/guide";
 
-// Get greeting based on time of day
-const getGreeting = (): string => {
+// Get greeting key based on time of day
+const getGreetingKey = (): string => {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good Morning";
-  if (hour < 18) return "Good Afternoon";
-  return "Good Evening";
+  if (hour < 12) return "dashboard.greetings.morning";
+  if (hour < 18) return "dashboard.greetings.afternoon";
+  return "dashboard.greetings.evening";
 };
 
 // No mock data - using real data from useDashboardHome hook
@@ -95,14 +131,24 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
   };
 
   // Unified gold gradient for all cards, ruby for danger
-  const gradientColors: [string, string] = isDanger 
-    ? ["#DC2626", "#B91C1C"] 
+  const gradientColors: [string, string] = isDanger
+    ? ["#DC2626", "#B91C1C"]
     : [PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark];
+
+  // Responsive sizes
+  const iconSize = moderateScale(24, 0.3);
+  const patternSize = moderateScale(70, 0.3);
+  const iconContainerSize = moderateScale(44, 0.3);
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
-        style={styles.quickActionButton}
+        style={[
+          styles.quickActionButton,
+          {
+            width: getQuickActionWidth(),
+          }
+        ]}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -112,31 +158,41 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
           colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.quickActionGradient}
+          style={[
+            styles.quickActionGradient,
+            { minHeight: getQuickActionMinHeight() }
+          ]}
         >
           {/* Decorative Pattern - Cross motif */}
           <View style={styles.quickActionPattern}>
             <MaterialIcons
               name="add"
-              size={80}
+              size={patternSize}
               color="rgba(255, 255, 255, 0.1)"
             />
           </View>
-          
+
           {/* Icon */}
-          <View style={styles.quickActionIconContainer}>
+          <View style={[
+            styles.quickActionIconContainer,
+            {
+              width: iconContainerSize,
+              height: iconContainerSize,
+              borderRadius: iconContainerSize * 0.3,
+            }
+          ]}>
             <MaterialIcons
               name={icon}
-              size={26}
+              size={iconSize}
               color="#FFFFFF"
             />
           </View>
-          
+
           {/* Label */}
           <Text style={styles.quickActionLabel}>
             {label}
           </Text>
-          
+
           {/* Badge */}
           {badgeCount !== undefined && badgeCount > 0 && (
             <View style={styles.quickActionBadge}>
@@ -193,7 +249,7 @@ const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
         <Animated.View
           style={[
             styles.statusIndicatorPulse,
-            { 
+            {
               transform: [{ scale: pulseAnim }],
               opacity: glowAnim,
             },
@@ -221,6 +277,9 @@ const DashboardScreen: React.FC = () => {
   const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Use dynamic dimensions for responsive updates
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+
   // Fetch all dashboard data using comprehensive hook
   const {
     data,
@@ -235,6 +294,28 @@ const DashboardScreen: React.FC = () => {
     siteStatusDisplay,
     activeShiftDisplay,
   } = useDashboardHome();
+
+  // Responsive values that update with screen size
+  const heroHeight = getHeroHeight();
+  const isSmall = isSmallScreen();
+  const tablet = isTablet();
+
+  // Responsive font sizes
+  const siteNameFontSize = responsive({
+    small: 24,
+    medium: 28,
+    large: 30,
+    tablet: 36,
+    default: 28,
+  });
+
+  const sectionTitleFontSize = responsive({
+    small: 18,
+    medium: 20,
+    large: 22,
+    tablet: 26,
+    default: 22,
+  });
 
   // Extract data for convenience
   const siteInfo = data.siteInfo;
@@ -265,9 +346,20 @@ const DashboardScreen: React.FC = () => {
     console.log("View all tasks");
   };
 
-  const guideName = user?.fullName || "Guide Mateo";
+  // Get display name - prefer fullName, fallback to email username, then default
+  const getDisplayName = () => {
+    if (user?.fullName && user.fullName.trim()) {
+      return user.fullName;
+    }
+    if (user?.email) {
+      return user.email.split('@')[0]; // Use email username as fallback
+    }
+    return "Local Guide";
+  };
+  const guideName = getDisplayName();
   const firstName = guideName.split(" ")[0];
-  const greeting = getGreeting();
+  const { t } = useI18n();
+  const greeting = t(getGreetingKey());
 
   return (
     <View style={[styles.container, { paddingTop: 0 }]}>
@@ -291,7 +383,7 @@ const DashboardScreen: React.FC = () => {
         }
       >
         {/* Hero Header Section - Premium Design */}
-        <View style={styles.heroSection}>
+        <View style={[styles.heroSection, { height: heroHeight }]}>
           <ImageBackground
             source={{
               uri:
@@ -303,19 +395,21 @@ const DashboardScreen: React.FC = () => {
           >
             <LinearGradient
               colors={[
-                "rgba(0, 0, 0, 0.1)", 
-                "rgba(0, 0, 0, 0.3)",
-                "rgba(253, 248, 240, 0.85)", 
+                "rgba(0, 0, 0, 0.6)",
+                "rgba(0, 0, 0, 0.55)",
+                "rgba(0, 0, 0, 0.4)",
+                "rgba(0, 0, 0, 0.5)",
+                "rgba(253, 248, 240, 0.95)",
                 PREMIUM_COLORS.cream
               ]}
-              locations={[0, 0.3, 0.7, 1]}
+              locations={[0, 0.2, 0.4, 0.55, 0.8, 1]}
               style={styles.heroGradient}
             >
               {/* Top App Bar - Glassmorphism */}
               <View
                 style={[
                   styles.topAppBar,
-                  { paddingTop: insets.top + GUIDE_SPACING.sm },
+                  { paddingTop: insets.top + getSpacing(GUIDE_SPACING.sm) },
                 ]}
               >
                 <TouchableOpacity style={styles.appBarButton}>
@@ -330,12 +424,12 @@ const DashboardScreen: React.FC = () => {
                     />
                   </LinearGradient>
                 </TouchableOpacity>
-                
+
                 <View style={styles.appBarTitleContainer}>
-                  <Text style={styles.appBarTitle}>CATHEDRAL GUIDE</Text>
+                  <Text style={styles.appBarTitle}>{t("dashboard.cathedralGuide")}</Text>
                   <View style={styles.appBarTitleUnderline} />
                 </View>
-                
+
                 <TouchableOpacity style={styles.appBarButton}>
                   <LinearGradient
                     colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
@@ -357,16 +451,19 @@ const DashboardScreen: React.FC = () => {
               <View style={styles.heroContent}>
                 <View style={styles.greetingContainer}>
                   <View style={styles.greetingLine} />
-                  <Text style={styles.heroGreeting}>{greeting}, Guide</Text>
+                  <Text style={styles.heroGreeting}>{greeting}, {guideName}</Text>
                   <View style={styles.greetingLine} />
                 </View>
-                
-                <Text style={styles.heroSiteName}>
+
+                <Text style={[
+                  styles.heroSiteName,
+                  { fontSize: siteNameFontSize, lineHeight: siteNameFontSize * 1.2 }
+                ]}>
                   {siteLoading
-                    ? "Đang tải..."
-                    : siteInfo?.name || "Chưa được gán site"}
+                    ? t("common.loading")
+                    : siteInfo?.name || t("dashboard.notAssignedSite")}
                 </Text>
-                
+
                 <View style={styles.heroMeta}>
                   {/* Open/Closed Status - Premium Badge */}
                   <View
@@ -378,21 +475,22 @@ const DashboardScreen: React.FC = () => {
                     ]}
                   >
                     <StatusIndicator isActive={isOpen} />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: isOpen ? PREMIUM_COLORS.emerald : PREMIUM_COLORS.ruby },
-                      ]}
-                    >
-                      {isOpen ? "OPEN" : "CLOSED"}
+                    <Text style={styles.statusText}>
+                      {isOpen ? t("dashboard.status.open") : t("dashboard.status.closed")}
                     </Text>
                   </View>
-                  {/* Patron Saint - Elegant Italic */}
+                  {/* Patron Saint - Elegant Italic with ellipsis */}
                   {siteInfo?.patronSaint && (
-                    <Text style={styles.heroPatron}>
-                      <Text style={styles.heroPatronLabel}>Patron: </Text>
-                      {siteInfo.patronSaint}
-                    </Text>
+                    <View style={styles.heroPatronContainer}>
+                      <Text
+                        style={[styles.heroPatron, { fontSize: getFontSize(13) }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        <Text style={styles.heroPatronLabel}>{t("dashboard.patron")}: </Text>
+                        {siteInfo.patronSaint}
+                      </Text>
+                    </View>
                   )}
                 </View>
               </View>
@@ -400,43 +498,34 @@ const DashboardScreen: React.FC = () => {
           </ImageBackground>
         </View>
 
-        {/* Premium Quick Action Grid */}
-        <View style={styles.quickActionsOverlay}>
-          <View style={styles.quickActionsGrid}>
-            <QuickActionButton
-              icon="event"
-              label="Create Event"
-              onPress={() => handleQuickAction("create-event")}
-              badgeCount={pendingBadges.events}
-            />
-            <QuickActionButton
-              icon="cloud-upload"
-              label="Upload Media"
-              onPress={() => handleQuickAction("upload-media")}
-              badgeCount={pendingBadges.media}
-            />
-            <QuickActionButton
-              icon="schedule"
-              label="Mass Schedule"
-              onPress={() => handleQuickAction("mass-schedule")}
-              badgeCount={pendingBadges.schedules}
-            />
-            <QuickActionButton
-              icon="support-agent"
-              label="SOS Support"
-              onPress={() => handleQuickAction("sos-support")}
-              variant="danger"
-              badgeCount={pendingBadges.sos}
-            />
-          </View>
+        {/* Compact Quick Actions Bar - Horizontal Scroll */}
+        <View style={[styles.quickActionsOverlay, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
+          <QuickActionsBar
+            onActionPress={(actionId) => handleQuickAction(actionId)}
+            badges={{
+              "post-news": pendingBadges.events,
+              "add-schedule": pendingBadges.schedules,
+              "upload-media": pendingBadges.media,
+              "sos-log": pendingBadges.sos,
+            }}
+          />
+        </View>
+
+        {/* Pilgrim Insights Section - Live Data */}
+        <View style={[styles.pilgrimSection, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
+          <PilgrimInsights
+            liveCheckInCount={12} // TODO: Connect to real API
+            todayVisitors={48}    // TODO: Connect to real API
+            onViewAll={() => console.log('View all pilgrim stats')}
+          />
         </View>
 
         {/* Today's Overview Section - Premium Design */}
-        <View style={styles.section}>
+        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
           <View style={styles.sectionHeaderRow}>
             <View>
-              <Text style={styles.sectionLabel}>SCHEDULE</Text>
-              <Text style={styles.sectionTitleSerif}>Today's Overview</Text>
+              <Text style={[styles.sectionLabel, { fontSize: getFontSize(10) }]}>{t("todayOverview.sectionLabel")}</Text>
+              <Text style={[styles.sectionTitleSerif, { fontSize: sectionTitleFontSize }]}>{t("todayOverview.title")}</Text>
             </View>
             {activeShiftDisplay.shouldShow && (
               <LinearGradient
@@ -445,7 +534,7 @@ const DashboardScreen: React.FC = () => {
                 end={{ x: 1, y: 1 }}
                 style={styles.shiftBadge}
               >
-                <Text style={styles.shiftBadgeLabel}>ACTIVE SHIFT</Text>
+                <Text style={styles.shiftBadgeLabel}>{t("todayOverview.activeShift")}</Text>
                 <Text style={styles.shiftBadgeTime}>
                   {activeShiftDisplay.timeRange}
                 </Text>
@@ -457,13 +546,13 @@ const DashboardScreen: React.FC = () => {
           <View style={styles.timeline}>
             {todayOverview.length === 0 ? (
               <View style={styles.emptyStateContainer}>
-                <MaterialIcons name="event-available" size={48} color={GUIDE_COLORS.gray300} />
-                <Text style={styles.emptyStateText}>Không có lịch trình hôm nay</Text>
+                <MaterialIcons name="event-available" size={moderateScale(48, 0.3)} color={GUIDE_COLORS.gray300} />
+                <Text style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}>{t("todayOverview.noSchedule")}</Text>
               </View>
             ) : (
               todayOverview.map((item, index) => (
-                <TouchableOpacity 
-                  key={item.id} 
+                <TouchableOpacity
+                  key={item.id}
                   style={[
                     styles.timelineItem,
                     item.isNow && styles.timelineItemActive,
@@ -492,7 +581,7 @@ const DashboardScreen: React.FC = () => {
                       />
                     )}
                   </View>
-                  
+
                   <View style={styles.timelineContent}>
                     <Text
                       style={[
@@ -511,14 +600,14 @@ const DashboardScreen: React.FC = () => {
                       {item.title}
                     </Text>
                     <View style={styles.timelineLocationRow}>
-                      <Ionicons name="location-outline" size={12} color={GUIDE_COLORS.gray400} />
-                      <Text style={styles.timelineLocation}>{item.location || 'Main Area'}</Text>
+                      <Ionicons name="location-outline" size={moderateScale(12, 0.3)} color={GUIDE_COLORS.gray400} />
+                      <Text style={[styles.timelineLocation, { fontSize: getFontSize(12) }]}>{item.location || t("todayOverview.mainArea")}</Text>
                     </View>
                   </View>
-                  
+
                   {item.isNow && (
                     <View style={styles.timelineActiveIndicator}>
-                      <Text style={styles.timelineActiveText}>NOW</Text>
+                      <Text style={styles.timelineActiveText}>{t("todayOverview.now")}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -528,20 +617,20 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Recent Activity Section - Premium Cards */}
-        <View style={styles.section}>
+        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.xl) }]}>
           <View style={styles.sectionHeaderWithAction}>
-            <Text style={styles.sectionTitleSerif}>Recent Activity</Text>
+            <Text style={[styles.sectionTitleSerif, { fontSize: sectionTitleFontSize }]}>{t("recentActivity.title")}</Text>
             <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={styles.viewAllText}>View All</Text>
-              <Ionicons name="chevron-forward" size={14} color={PREMIUM_COLORS.gold} />
+              <Text style={[styles.viewAllText, { fontSize: getFontSize(13) }]}>{t("common.viewAll")}</Text>
+              <Ionicons name="chevron-forward" size={moderateScale(14, 0.3)} color={PREMIUM_COLORS.gold} />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.activityList}>
             {recentActivity.length === 0 ? (
               <View style={styles.emptyStateContainer}>
-                <MaterialIcons name="history" size={48} color={GUIDE_COLORS.gray300} />
-                <Text style={styles.emptyStateText}>Chưa có hoạt động gần đây</Text>
+                <MaterialIcons name="history" size={moderateScale(48, 0.3)} color={GUIDE_COLORS.gray300} />
+                <Text style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}>{t("recentActivity.noActivity")}</Text>
               </View>
             ) : (
               recentActivity.slice(0, 5).map((activity) => (
@@ -551,16 +640,16 @@ const DashboardScreen: React.FC = () => {
                       source={{
                         uri: activity.thumbnail || "https://via.placeholder.com/50",
                       }}
-                      style={styles.activityImage}
+                      style={[styles.activityImage, { width: moderateScale(56, 0.3), height: moderateScale(56, 0.3) }]}
                     />
                     <View style={[
-                      styles.activityImageOverlay, 
+                      styles.activityImageOverlay,
                       { backgroundColor: activity.type === 'media' ? PREMIUM_COLORS.gold : PREMIUM_COLORS.sapphire }
                     ]}>
-                      <Ionicons 
-                        name={activity.type === 'media' ? "image" : "calendar"} 
-                        size={12} 
-                        color="#FFFFFF" 
+                      <Ionicons
+                        name={activity.type === 'media' ? "image" : "calendar"}
+                        size={moderateScale(12, 0.3)}
+                        color="#FFFFFF"
                       />
                     </View>
                   </View>
@@ -587,6 +676,44 @@ const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Recent Reviews Section - Pilgrim Feedback */}
+        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.lg) }]}>
+          <RecentReviews
+            reviews={[
+              {
+                id: '1',
+                pilgrimName: 'Maria Nguyễn',
+                pilgrimAvatar: 'https://randomuser.me/api/portraits/women/44.jpg',
+                rating: 5,
+                content: 'Buổi hành hương rất ý nghĩa! Hướng dẫn viên nhiệt tình và am hiểu lịch sử.',
+                createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+                isReplied: false,
+              },
+              {
+                id: '2',
+                pilgrimName: 'Joseph Trần',
+                pilgrimAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+                rating: 4,
+                content: 'Nhà thờ rất đẹp, không gian tĩnh lặng phù hợp cầu nguyện.',
+                createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+                isReplied: true,
+              },
+              {
+                id: '3',
+                pilgrimName: 'Teresa Lê',
+                pilgrimAvatar: 'https://randomuser.me/api/portraits/women/68.jpg',
+                rating: 5,
+                content: 'Tuyệt vời! Sẽ quay lại lần sau.',
+                createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                isReplied: false,
+              },
+            ]}
+            onReply={(reviewId) => console.log('Reply to review:', reviewId)}
+            onViewAll={() => console.log('View all reviews')}
+            onAISummary={() => console.log('Generate AI summary')}
+          />
+        </View>
+
         {/* Bottom Spacing for Tab Bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -609,7 +736,7 @@ const styles = StyleSheet.create({
 
   // Hero Section - Premium Design
   heroSection: {
-    height: SCREEN_WIDTH * 0.95,
+    // Height is now set dynamically in the component
     width: "100%",
   },
   heroBackground: {
@@ -620,35 +747,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "space-between",
   },
-  
+
   // Top App Bar - Glassmorphism
   topAppBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingBottom: GUIDE_SPACING.sm,
+    paddingHorizontal: getSpacing(GUIDE_SPACING.lg),
+    paddingBottom: getSpacing(GUIDE_SPACING.sm),
   },
   appBarButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: "hidden",
+    width: moderateScale(44, 0.3),
+    height: moderateScale(44, 0.3),
+    borderRadius: moderateScale(22, 0.3),
+    overflow: "visible", // Allow badge to overflow
   },
   appBarButtonGradient: {
     width: "100%",
     height: "100%",
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 22,
+    borderRadius: moderateScale(22, 0.3),
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.2)",
+    overflow: "visible", // Allow badge to overflow
   },
   appBarTitleContainer: {
     alignItems: "center",
   },
   appBarTitle: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: "700",
     color: "#FFFFFF",
     letterSpacing: 3,
@@ -657,7 +785,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   appBarTitleUnderline: {
-    width: 30,
+    width: moderateScale(30, 0.3),
     height: 2,
     backgroundColor: PREMIUM_COLORS.gold,
     marginTop: 4,
@@ -668,49 +796,48 @@ const styles = StyleSheet.create({
     top: -2,
     right: -2,
     backgroundColor: PREMIUM_COLORS.ruby,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: moderateScale(18, 0.3),
+    height: moderateScale(18, 0.3),
+    borderRadius: moderateScale(9, 0.3),
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
     borderColor: "#FFFFFF",
   },
   notificationBadgeText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: "700",
     color: "#FFFFFF",
   },
-  
+
   // Hero Content - Premium Typography
   heroContent: {
-    paddingHorizontal: GUIDE_SPACING.xl,
-    paddingBottom: GUIDE_SPACING.xxl * 2.5,
+    paddingHorizontal: getSpacing(GUIDE_SPACING.xl),
+    paddingBottom: getSpacing(GUIDE_SPACING.xxl) * 2.5,
   },
   greetingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    marginBottom: GUIDE_SPACING.sm,
+    gap: getSpacing(GUIDE_SPACING.sm),
+    marginBottom: getSpacing(GUIDE_SPACING.sm),
   },
   greetingLine: {
-    width: 20,
+    width: moderateScale(20, 0.3),
     height: 1,
     backgroundColor: PREMIUM_COLORS.gold,
   },
   heroGreeting: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: "600",
     color: PREMIUM_COLORS.gold,
     letterSpacing: 2.5,
     textTransform: "uppercase",
   },
   heroSiteName: {
-    fontSize: 30,
+    // fontSize is now set dynamically in the component
     fontWeight: "800",
     color: PREMIUM_COLORS.charcoal,
-    lineHeight: 36,
-    marginBottom: GUIDE_SPACING.md,
+    marginBottom: getSpacing(GUIDE_SPACING.md),
     textShadowColor: "rgba(255, 255, 255, 0.8)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
@@ -718,54 +845,68 @@ const styles = StyleSheet.create({
   heroMeta: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    gap: GUIDE_SPACING.md,
+    flexWrap: "nowrap",
+    gap: getSpacing(GUIDE_SPACING.sm),
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: 6,
+    gap: getSpacing(GUIDE_SPACING.xs),
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
+    paddingVertical: moderateScale(6, 0.3),
     borderRadius: GUIDE_BORDER_RADIUS.full,
   },
   statusBadgeOpen: {
-    backgroundColor: "rgba(16, 185, 129, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
+    backgroundColor: "rgba(16, 185, 129, 0.9)",
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 1)",
   },
   statusBadgeClosed: {
-    backgroundColor: "rgba(225, 29, 72, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(225, 29, 72, 0.3)",
+    backgroundColor: "rgba(185, 28, 28, 0.9)",
+    borderWidth: 1.5,
+    borderColor: "rgba(185, 28, 28, 1)",
   },
   statusText: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: "700",
     letterSpacing: 1,
+    color: "#FFF",
+  },
+  heroPatronContainer: {
+    flex: 1,
+    minWidth: 0, // Allow shrinking below content size
   },
   heroPatron: {
-    fontSize: 13,
-    color: PREMIUM_COLORS.gold,
+    // fontSize is now set dynamically in the component
+    color: "#FFF",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
+    paddingVertical: moderateScale(6, 0.3),
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    overflow: "hidden",
   },
   heroPatronLabel: {
     fontWeight: "400",
     fontStyle: "italic",
+    color: PREMIUM_COLORS.goldLight,
   },
 
   // Quick Actions - Premium Cards
   quickActionsOverlay: {
-    paddingHorizontal: GUIDE_SPACING.lg,
-    marginTop: -GUIDE_SPACING.xxl * 2,
+    // paddingHorizontal is now set dynamically in the component
+    marginTop: -getSpacing(GUIDE_SPACING.xl),
     zIndex: 10,
+  },
+  pilgrimSection: {
+    marginTop: getSpacing(GUIDE_SPACING.md),
   },
   quickActionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: GUIDE_SPACING.md,
+    // gap is now set dynamically in the component
   },
   quickActionButton: {
-    width: (SCREEN_WIDTH - GUIDE_SPACING.lg * 2 - GUIDE_SPACING.md) / 2,
+    // width is now set dynamically in the component
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     overflow: "hidden",
     ...Platform.select({
@@ -781,24 +922,22 @@ const styles = StyleSheet.create({
     }),
   },
   quickActionGradient: {
-    padding: GUIDE_SPACING.lg,
-    paddingTop: GUIDE_SPACING.xl,
-    paddingBottom: GUIDE_SPACING.lg,
+    padding: getSpacing(GUIDE_SPACING.lg),
+    paddingTop: getSpacing(GUIDE_SPACING.xl),
+    paddingBottom: getSpacing(GUIDE_SPACING.lg),
     alignItems: "flex-start",
     position: "relative",
     overflow: "hidden",
-    minHeight: 110,
+    // minHeight is now set dynamically in the component
   },
   quickActionPattern: {
     position: "absolute",
-    top: -20,
-    right: -20,
+    top: moderateScale(-20, 0.3),
+    right: moderateScale(-20, 0.3),
     opacity: 1,
   },
   quickActionIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 15,
+    // width, height, borderRadius are now set dynamically in the component
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
@@ -806,10 +945,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
   quickActionLabel: {
-    fontSize: 14,
+    fontSize: getFontSize(14),
     fontWeight: "700",
     color: "#FFFFFF",
-    marginTop: GUIDE_SPACING.sm,
+    marginTop: getSpacing(GUIDE_SPACING.sm),
     letterSpacing: 0.3,
     textShadowColor: "rgba(0, 0, 0, 0.2)",
     textShadowOffset: { width: 0, height: 1 },
@@ -817,47 +956,47 @@ const styles = StyleSheet.create({
   },
   quickActionBadge: {
     position: "absolute",
-    top: GUIDE_SPACING.sm,
-    right: GUIDE_SPACING.sm,
+    top: getSpacing(GUIDE_SPACING.sm),
+    right: getSpacing(GUIDE_SPACING.sm),
     backgroundColor: "#FFFFFF",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    minWidth: 24,
+    paddingHorizontal: moderateScale(8, 0.3),
+    paddingVertical: moderateScale(4, 0.3),
+    borderRadius: moderateScale(12, 0.3),
+    minWidth: moderateScale(24, 0.3),
     alignItems: "center",
   },
   quickActionBadgeText: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: "800",
     color: PREMIUM_COLORS.gold,
   },
 
   // Sections - Premium Layout
   section: {
-    paddingHorizontal: GUIDE_SPACING.xl,
-    paddingTop: GUIDE_SPACING.xxl,
+    // paddingHorizontal is now set dynamically in the component
+    paddingTop: getSpacing(GUIDE_SPACING.lg),
   },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: GUIDE_SPACING.xl,
+    marginBottom: getSpacing(GUIDE_SPACING.md),
   },
   sectionHeaderWithAction: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: GUIDE_SPACING.lg,
+    marginBottom: getSpacing(GUIDE_SPACING.lg),
   },
   sectionLabel: {
-    fontSize: 10,
+    // fontSize is now set dynamically in the component
     fontWeight: "700",
     color: PREMIUM_COLORS.gold,
     letterSpacing: 2,
-    marginBottom: GUIDE_SPACING.xs,
+    marginBottom: getSpacing(GUIDE_SPACING.xs),
   },
   sectionTitleSerif: {
-    fontSize: 22,
+    // fontSize is now set dynamically in the component
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
     letterSpacing: -0.5,
@@ -865,30 +1004,30 @@ const styles = StyleSheet.create({
   viewAllButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: moderateScale(4, 0.3),
   },
   viewAllText: {
-    fontSize: 13,
+    // fontSize is now set dynamically in the component
     fontWeight: "600",
     color: PREMIUM_COLORS.gold,
   },
-  
+
   // Shift Badge - Premium Gradient
   shiftBadge: {
     borderRadius: GUIDE_BORDER_RADIUS.lg,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
+    paddingVertical: getSpacing(GUIDE_SPACING.sm),
     alignItems: "flex-end",
   },
   shiftBadgeLabel: {
-    fontSize: 9,
+    fontSize: getFontSize(9),
     fontWeight: "700",
     color: "#FFFFFF",
     letterSpacing: 1,
     opacity: 0.9,
   },
   shiftBadgeTime: {
-    fontSize: 13,
+    fontSize: getFontSize(13),
     fontWeight: "700",
     color: "#FFFFFF",
     fontVariant: ["tabular-nums"],
@@ -897,13 +1036,13 @@ const styles = StyleSheet.create({
 
   // Timeline - Premium Design
   timeline: {
-    gap: GUIDE_SPACING.sm,
+    gap: getSpacing(GUIDE_SPACING.sm),
   },
   timelineItem: {
     flexDirection: "row",
     alignItems: "flex-start",
     backgroundColor: "#FFFFFF",
-    padding: GUIDE_SPACING.md,
+    padding: getSpacing(GUIDE_SPACING.md),
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
@@ -937,27 +1076,27 @@ const styles = StyleSheet.create({
   },
   timelineLeft: {
     alignItems: "center",
-    marginRight: GUIDE_SPACING.md,
+    marginRight: getSpacing(GUIDE_SPACING.md),
   },
   timelineDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: moderateScale(32, 0.3),
+    height: moderateScale(32, 0.3),
+    borderRadius: moderateScale(16, 0.3),
     justifyContent: "center",
     alignItems: "center",
   },
   timelineLine: {
     width: 2,
-    height: 40,
-    marginTop: GUIDE_SPACING.xs,
+    height: moderateScale(40, 0.3),
+    marginTop: getSpacing(GUIDE_SPACING.xs),
     borderRadius: 1,
   },
   timelineContent: {
     flex: 1,
-    paddingTop: 4,
+    paddingTop: moderateScale(4, 0.3),
   },
   timelineTime: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     fontWeight: "700",
     color: GUIDE_COLORS.gray400,
     fontVariant: ["tabular-nums"],
@@ -967,11 +1106,11 @@ const styles = StyleSheet.create({
     color: PREMIUM_COLORS.gold,
   },
   timelineTitle: {
-    fontSize: 16,
+    fontSize: getFontSize(16),
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
     marginTop: 2,
-    lineHeight: 22,
+    lineHeight: getFontSize(22),
   },
   timelineTitleMuted: {
     color: GUIDE_COLORS.gray500,
@@ -980,22 +1119,22 @@ const styles = StyleSheet.create({
   timelineLocationRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
+    gap: moderateScale(4, 0.3),
+    marginTop: moderateScale(4, 0.3),
   },
   timelineLocation: {
-    fontSize: 12,
+    // fontSize is now set dynamically in the component
     color: GUIDE_COLORS.gray400,
   },
   timelineActiveIndicator: {
     backgroundColor: PREMIUM_COLORS.gold,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: moderateScale(10, 0.3),
+    paddingVertical: moderateScale(4, 0.3),
     borderRadius: GUIDE_BORDER_RADIUS.full,
     alignSelf: "flex-start",
   },
   timelineActiveText: {
-    fontSize: 10,
+    fontSize: getFontSize(10),
     fontWeight: "700",
     color: "#FFFFFF",
     letterSpacing: 1,
@@ -1003,14 +1142,14 @@ const styles = StyleSheet.create({
 
   // Activity List - Premium Cards
   activityList: {
-    gap: GUIDE_SPACING.md,
+    gap: getSpacing(GUIDE_SPACING.md),
   },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.md,
+    gap: getSpacing(GUIDE_SPACING.md),
     backgroundColor: "#FFFFFF",
-    padding: GUIDE_SPACING.md,
+    padding: getSpacing(GUIDE_SPACING.md),
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
@@ -1030,17 +1169,16 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   activityImage: {
-    width: 56,
-    height: 56,
+    // width and height are now set dynamically in the component
     borderRadius: GUIDE_BORDER_RADIUS.lg,
   },
   activityImageOverlay: {
     position: "absolute",
-    bottom: -4,
-    right: -4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    bottom: moderateScale(-4, 0.3),
+    right: moderateScale(-4, 0.3),
+    width: moderateScale(24, 0.3),
+    height: moderateScale(24, 0.3),
+    borderRadius: moderateScale(12, 0.3),
     backgroundColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
@@ -1051,29 +1189,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityTitle: {
-    fontSize: 14,
+    fontSize: getFontSize(14),
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
   },
   activitySubtitle: {
-    fontSize: 12,
+    fontSize: getFontSize(12),
     color: GUIDE_COLORS.gray500,
     marginTop: 2,
   },
   activityTimeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    marginTop: 4,
+    gap: moderateScale(4, 0.3),
+    marginTop: moderateScale(4, 0.3),
   },
   activityTime: {
-    fontSize: 11,
+    fontSize: getFontSize(11),
     color: GUIDE_COLORS.gray400,
   },
   activityArrow: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: moderateScale(32, 0.3),
+    height: moderateScale(32, 0.3),
+    borderRadius: moderateScale(16, 0.3),
     backgroundColor: "rgba(212, 175, 55, 0.1)",
     justifyContent: "center",
     alignItems: "center",
@@ -1081,13 +1219,13 @@ const styles = StyleSheet.create({
 
   // Empty State
   emptyStateContainer: {
-    padding: GUIDE_SPACING.xl,
+    padding: getSpacing(GUIDE_SPACING.xl),
     alignItems: "center",
     justifyContent: "center",
-    gap: GUIDE_SPACING.sm,
+    gap: getSpacing(GUIDE_SPACING.sm),
   },
   emptyStateText: {
-    fontSize: 14,
+    // fontSize is now set dynamically in the component
     color: GUIDE_COLORS.gray400,
     textAlign: "center",
   },
@@ -1095,21 +1233,21 @@ const styles = StyleSheet.create({
   // Status Indicator (used by StatusIndicator component)
   statusIndicatorContainer: {
     position: "relative",
-    width: 12,
-    height: 12,
+    width: moderateScale(12, 0.3),
+    height: moderateScale(12, 0.3),
     justifyContent: "center",
     alignItems: "center",
   },
   statusIndicatorPulse: {
     position: "absolute",
-    width: 12,
-    height: 12,
+    width: moderateScale(12, 0.3),
+    height: moderateScale(12, 0.3),
     borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: PREMIUM_COLORS.emerald,
   },
   statusIndicatorDot: {
-    width: 10,
-    height: 10,
+    width: moderateScale(10, 0.3),
+    height: moderateScale(10, 0.3),
     borderRadius: GUIDE_BORDER_RADIUS.full,
   },
 });

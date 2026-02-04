@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState } from 'react';
 import {
   Animated,
+  Dimensions,
   Image,
   ImageBackground,
   NativeScrollEvent,
@@ -14,7 +15,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Keyboard
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
@@ -90,10 +92,31 @@ const FILTER_CATEGORIES = [
 
 const HEADER_HEIGHT = 80;
 
+// Calculate banner width based on screen - leave small peek for next card
+const HORIZONTAL_PADDING = SPACING.lg; // Padding from screen edge
+const PEEK_WIDTH = 24; // How much of next card should show
+const BANNER_GAP = SPACING.md; // Gap between banners
+
+const getBannerWidth = (screenWidth: number) => {
+  // Banner width = screen width - left padding - peek - gap/2
+  return screenWidth - getSpacing(HORIZONTAL_PADDING) - PEEK_WIDTH - getSpacing(BANNER_GAP) / 2;
+};
+
+const getBannerHeight = (bannerWidth: number) => {
+  // Maintain aspect ratio ~1.7:1 (width:height)
+  return Math.min(bannerWidth * 0.6, 260);
+};
+
 export const ExploreScreen = ({ navigation }: any) => {
+  const { width: screenWidth } = useWindowDimensions();
   const [selectedFilter, setSelectedFilter] = useState<string>('filter-story');
   const [allSites, setAllSites] = useState(ALL_SITES);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  
+  // Responsive banner dimensions
+  const bannerWidth = getBannerWidth(screenWidth);
+  const bannerHeight = getBannerHeight(bannerWidth);
+  const snapInterval = bannerWidth + getSpacing(BANNER_GAP);
   
   // Header animation
   const insets = useSafeAreaInsets();
@@ -163,11 +186,7 @@ export const ExploreScreen = ({ navigation }: any) => {
 
   const handleBannerScroll = (event: any) => {
     const scrollPosition = event.nativeEvent.contentOffset.x;
-    const index = Math.round(scrollPosition / (responsive({
-      small: 340,
-      medium: 365,
-      default: 365,
-    }) + getSpacing(SPACING.md)));
+    const index = Math.round(scrollPosition / snapInterval);
     setActiveBannerIndex(index);
   };
 
@@ -320,11 +339,7 @@ export const ExploreScreen = ({ navigation }: any) => {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            snapToInterval={responsive({
-              small: 340 + getSpacing(SPACING.md),
-              medium: 365 + getSpacing(SPACING.md),
-              default: 365 + getSpacing(SPACING.md),
-            })}
+            snapToInterval={snapInterval}
             decelerationRate="fast"
             contentContainerStyle={styles.bannerScrollContent}
             onScroll={handleBannerScroll}
@@ -333,7 +348,10 @@ export const ExploreScreen = ({ navigation }: any) => {
             {BANNER_DATA.map((banner, index) => (
               <TouchableOpacity 
                 key={banner.id}
-                style={styles.heroBanner} 
+                style={[
+                  styles.heroBanner,
+                  { width: bannerWidth, height: bannerHeight }
+                ]} 
                 activeOpacity={0.9}
               >
                 <ImageBackground
@@ -604,26 +622,13 @@ const styles = StyleSheet.create({
   },
   bannerScrollContent: {
     paddingLeft: getSpacing(SPACING.lg),
-    paddingRight: getSpacing(SPACING.md),
+    paddingRight: getSpacing(SPACING.lg),
   },
   heroBanner: {
-    width: responsive({
-      small: 340,
-      medium: 365,
-      large: 385,
-      tablet: 480,
-      default: 365,
-    }),
+    // width and height are now set dynamically in component
     marginRight: getSpacing(SPACING.md),
     borderRadius: moderateScale(BORDER_RADIUS.xl),
     overflow: 'hidden',
-    height: responsive({
-      small: 200,
-      medium: 220,
-      large: 240,
-      tablet: 280,
-      default: 220,
-    }),
     ...SHADOWS.large,
     elevation: 8,
   },
