@@ -6,6 +6,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authApi, guideSiteApi } from "../../../../services/api";
+import { guideEventApi, guideMediaApi } from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 
 // ============================================
@@ -32,9 +33,19 @@ export interface GuideProfileData {
   language: string;
 }
 
+/**
+ * Stats data for profile display
+ */
+export interface GuideProfileStats {
+  eventsCount: number;
+  mediaCount: number;
+  reviewsCount: number;
+}
+
 export interface UseGuideProfileResult {
   profile: GuideProfileData | null;
   site: LocalGuideSite | null;
+  stats: GuideProfileStats;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -53,6 +64,11 @@ export interface UseGuideProfileResult {
 export const useGuideProfile = (): UseGuideProfileResult => {
   const [profile, setProfile] = useState<GuideProfileData | null>(null);
   const [site, setSite] = useState<LocalGuideSite | null>(null);
+  const [stats, setStats] = useState<GuideProfileStats>({
+    eventsCount: 0,
+    mediaCount: 0,
+    reviewsCount: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,10 +77,12 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       setLoading(true);
       setError(null);
 
-      // Fetch profile and site in parallel
-      const [profileResponse, siteResponse] = await Promise.all([
+      // Fetch profile, site, and stats in parallel
+      const [profileResponse, siteResponse, eventsResponse, mediaResponse] = await Promise.all([
         authApi.getProfile(),
         guideSiteApi.getAssignedSite().catch(() => null), // Don't fail if site not assigned
+        guideEventApi.getEvents({ limit: 1 }).catch(() => null), // Get total count
+        guideMediaApi.getMedia({ limit: 1 }).catch(() => null), // Get total count
       ]);
 
       if (profileResponse?.success && profileResponse?.data) {
@@ -95,6 +113,18 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       if (siteResponse?.success && siteResponse?.data) {
         setSite(siteResponse.data);
       }
+
+      // Handle stats from pagination totalItems
+      const eventsTotal = eventsResponse?.data?.pagination?.totalItems || 0;
+      const mediaTotal = mediaResponse?.data?.pagination?.totalItems || 0;
+      // Reviews count - placeholder for future API integration
+      const reviewsTotal = 0;
+      
+      setStats({
+        eventsCount: eventsTotal,
+        mediaCount: mediaTotal,
+        reviewsCount: reviewsTotal,
+      });
     } catch (err: any) {
       const status = err?.response?.status;
 
@@ -119,6 +149,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
   return {
     profile,
     site,
+    stats,
     loading,
     error,
     refetch: fetchProfile,

@@ -1,19 +1,22 @@
 /**
  * MediaTab Component
- * Displays media gallery with status filter, badges, and empty state
+ * Displays media gallery with Bottom Sheet filter (Gold Standard), badges, and empty state
  */
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   Image,
+  Modal,
+  Platform,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import {
@@ -47,18 +50,28 @@ interface MediaTabProps {
 // FILTER COMPONENTS
 // ============================================
 
+// Premium Colors
+const PREMIUM_COLORS = {
+  gold: "#D4AF37",
+  goldLight: "#F5E6B8",
+  goldDark: "#B8960C",
+  cream: "#FDF8F0",
+  brown: "#8B7355",
+  brownLight: "#E8E0D5",
+};
+
 const TYPE_FILTERS: { key: TypeFilter; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-  { key: "all", label: "All", icon: "apps" },
-  { key: "image", label: "Photos", icon: "photo" },
-  { key: "video", label: "Videos", icon: "videocam" },
+  { key: "all", label: "Tất cả", icon: "apps" },
+  { key: "image", label: "Ảnh", icon: "photo" },
+  { key: "video", label: "Video", icon: "videocam" },
   { key: "panorama", label: "360°", icon: "panorama-fish-eye" },
 ];
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; icon?: keyof typeof MaterialIcons.glyphMap }[] = [
-  { key: "all", label: "All", color: GUIDE_COLORS.textMuted },
-  { key: "pending", label: "Pending", color: GUIDE_COLORS.warning, icon: "schedule" },
-  { key: "approved", label: "Approved", color: GUIDE_COLORS.success, icon: "check-circle" },
-  { key: "rejected", label: "Rejected", color: GUIDE_COLORS.error, icon: "cancel" },
+const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string }[] = [
+  { key: "all", label: "Tất cả", color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: "Hiển thị tất cả media" },
+  { key: "pending", label: "Chờ duyệt", color: GUIDE_COLORS.warning, bgColor: "#FFF8E1", icon: "schedule", description: "Media đang chờ phê duyệt" },
+  { key: "approved", label: "Đã duyệt", color: GUIDE_COLORS.success, bgColor: "#E8F5E9", icon: "check-circle", description: "Media đã được phê duyệt" },
+  { key: "rejected", label: "Từ chối", color: GUIDE_COLORS.error, bgColor: "#FFEBEE", icon: "cancel", description: "Media bị từ chối" },
 ];
 
 interface TypeFilterChipProps {
@@ -84,38 +97,157 @@ const TypeFilterChip: React.FC<TypeFilterChipProps> = ({ filter, isActive, onPre
   </TouchableOpacity>
 );
 
-interface StatusFilterChipProps {
-  filter: typeof STATUS_FILTERS[0];
-  isActive: boolean;
+// ============================================
+// FILTER BOTTOM SHEET (Gold Standard)
+// ============================================
+
+interface FilterBottomSheetProps {
+  visible: boolean;
+  activeFilter: StatusFilter;
+  onFilterChange: (filter: StatusFilter) => void;
+  onClose: () => void;
+}
+
+const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
+  visible,
+  activeFilter,
+  onFilterChange,
+  onClose,
+}) => {
+  const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
+  
+  React.useEffect(() => {
+    if (visible) {
+      setSelectedFilter(activeFilter);
+    }
+  }, [visible, activeFilter]);
+
+  const handleApply = () => {
+    onFilterChange(selectedFilter);
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.bottomSheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.bottomSheetContainer}>
+              {/* Handle Bar */}
+              <View style={styles.handleBarContainer}>
+                <View style={styles.handleBar} />
+              </View>
+              
+              {/* Header */}
+              <View style={styles.bottomSheetHeader}>
+                <Text style={styles.bottomSheetTitle}>Lọc media</Text>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+              
+              {/* Filter Options */}
+              <View style={styles.filterOptionsContainer}>
+                {STATUS_FILTERS.map((filter) => {
+                  const isSelected = selectedFilter === filter.key;
+                  return (
+                    <TouchableOpacity
+                      key={filter.key}
+                      style={[
+                        styles.filterOption,
+                        isSelected && { backgroundColor: filter.bgColor, borderColor: filter.color },
+                      ]}
+                      onPress={() => setSelectedFilter(filter.key)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.filterOptionLeft}>
+                        <View style={[styles.filterIconContainer, { backgroundColor: filter.bgColor }]}>
+                          {filter.icon ? (
+                            <MaterialIcons name={filter.icon} size={20} color={filter.color} />
+                          ) : (
+                            <MaterialIcons name="apps" size={20} color={filter.color} />
+                          )}
+                        </View>
+                        <View style={styles.filterOptionText}>
+                          <Text style={[styles.filterOptionLabel, { color: isSelected ? filter.color : GUIDE_COLORS.textPrimary }]}>
+                            {filter.label}
+                          </Text>
+                          {filter.description && (
+                            <Text style={styles.filterOptionDescription}>{filter.description}</Text>
+                          )}
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <View style={[styles.checkCircle, { backgroundColor: filter.color }]}>
+                          <Ionicons name="checkmark" size={16} color="#FFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              
+              {/* Apply Button */}
+              <View style={styles.bottomSheetFooter}>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={handleApply}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
+// Filter Trigger Button
+interface FilterTriggerProps {
+  activeFilter: StatusFilter;
   onPress: () => void;
 }
 
-const StatusFilterChip: React.FC<StatusFilterChipProps> = ({ filter, isActive, onPress }) => (
-  <TouchableOpacity
-    style={[
-      styles.statusChip,
-      isActive && { backgroundColor: filter.color, borderColor: filter.color },
-    ]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    {filter.icon && (
-      <MaterialIcons
-        name={filter.icon}
-        size={14}
-        color={isActive ? GUIDE_COLORS.surface : filter.color}
-      />
-    )}
-    <Text
+const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) => {
+  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
+  const isFiltered = activeFilter !== "all";
+
+  return (
+    <TouchableOpacity
       style={[
-        styles.statusChipText,
-        { color: isActive ? GUIDE_COLORS.surface : filter.color },
+        styles.filterTriggerButton,
+        isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
       ]}
+      onPress={onPress}
+      activeOpacity={0.7}
     >
-      {filter.label}
-    </Text>
-  </TouchableOpacity>
-);
+      <Ionicons
+        name="filter"
+        size={18}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+      <Text style={[
+        styles.filterTriggerText,
+        isFiltered && { color: activeFilterInfo?.color },
+      ]}>
+        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+      </Text>
+      <Ionicons
+        name="chevron-down"
+        size={16}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+    </TouchableOpacity>
+  );
+};
 
 // ============================================
 // STATUS BADGE COMPONENT
@@ -249,6 +381,8 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  // IMPORTANT: All hooks must be called at the top, before any conditional returns
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const fetchMedia = useCallback(async (isRefresh = false) => {
     try {
@@ -315,15 +449,84 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
 
   const keyExtractor = useCallback((item: MediaItem) => item.id, []);
 
-  // Count media by status
-  const pendingCount = mediaList.filter((m) => m.status === "pending").length;
-  const approvedCount = mediaList.filter((m) => m.status === "approved").length;
-  const rejectedCount = mediaList.filter((m) => m.status === "rejected").length;
+  // Group media by date (like Photos app)
+  const groupMediaByDate = useCallback((items: MediaItem[]) => {
+    const groups: Record<string, MediaItem[]> = {};
+    
+    items.forEach((item) => {
+      const date = new Date(item.created_at);
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      let dateKey: string;
+      
+      if (date.toDateString() === today.toDateString()) {
+        dateKey = "Hôm nay";
+      } else if (date.toDateString() === yesterday.toDateString()) {
+        dateKey = "Hôm qua";
+      } else {
+        // Format: "Thứ X, DD tháng MM, YYYY" for this year, add year if different
+        const dayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+        const dayName = dayNames[date.getDay()];
+        const day = date.getDate();
+        const month = date.getMonth() + 1;
+        const year = date.getFullYear();
+        
+        if (year === today.getFullYear()) {
+          dateKey = `${dayName}, ${day} tháng ${month}`;
+        } else {
+          dateKey = `${dayName}, ${day} tháng ${month}, ${year}`;
+        }
+      }
+      
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(item);
+    });
+    
+    // Convert to SectionList format, sorted by most recent first
+    return Object.entries(groups)
+      .map(([title, data]) => ({ title, data }))
+      .sort((a, b) => {
+        // Sort by the first item's created_at in each group
+        const dateA = new Date(a.data[0]?.created_at || 0);
+        const dateB = new Date(b.data[0]?.created_at || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+  }, []);
+
+  const sections = groupMediaByDate(mediaList);
+
+  // Render a row of grid items (3 per row)
+  const renderGridRow = (items: MediaItem[], startIndex: number) => (
+    <View style={styles.gridRow} key={`row-${startIndex}`}>
+      {items.map((item) => (
+        <MediaGridItem key={item.id} item={item} onPress={() => onMediaPress(item)} />
+      ))}
+      {/* Fill empty spots if less than 3 items */}
+      {items.length < NUM_COLUMNS &&
+        Array(NUM_COLUMNS - items.length)
+          .fill(null)
+          .map((_, i) => <View key={`empty-${i}`} style={styles.gridItemEmpty} />)}
+    </View>
+  );
+
+  // Render section with grid layout
+  const renderSectionContent = (data: MediaItem[]) => {
+    const rows = [];
+    for (let i = 0; i < data.length; i += NUM_COLUMNS) {
+      const rowItems = data.slice(i, i + NUM_COLUMNS);
+      rows.push(renderGridRow(rowItems, i));
+    }
+    return <View style={styles.sectionGrid}>{rows}</View>;
+  };
 
   return (
     <View style={styles.container}>
-      {/* Type Filters */}
-      <View style={styles.filterSection}>
+      {/* Filter Row: Type Filters + Status Filter Trigger */}
+      <View style={styles.filterRow}>
         <View style={styles.typeFilters}>
           {TYPE_FILTERS.map((filter) => (
             <TypeFilterChip
@@ -334,48 +537,47 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
             />
           ))}
         </View>
+        
+        {/* Status Filter Trigger */}
+        <FilterTrigger
+          activeFilter={statusFilter}
+          onPress={() => setShowFilterSheet(true)}
+        />
       </View>
 
-      {/* Status Filters */}
-      <View style={styles.statusFilters}>
-        {STATUS_FILTERS.map((filter) => (
-          <StatusFilterChip
-            key={filter.key}
-            filter={filter}
-            isActive={statusFilter === filter.key}
-            onPress={() => setStatusFilter(filter.key)}
-          />
-        ))}
-      </View>
-
-      {/* Stats Summary */}
-      {!loading && mediaList.length > 0 && (
-        <View style={styles.statsSummary}>
-          <Text style={styles.statsText}>
-            <Text style={{ color: GUIDE_COLORS.warning }}>{pendingCount}</Text> pending •{" "}
-            <Text style={{ color: GUIDE_COLORS.success }}>{approvedCount}</Text> approved •{" "}
-            <Text style={{ color: GUIDE_COLORS.error }}>{rejectedCount}</Text> rejected
-          </Text>
-        </View>
-      )}
+      {/* Filter Bottom Sheet */}
+      <FilterBottomSheet
+        visible={showFilterSheet}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+        onClose={() => setShowFilterSheet(false)}
+      />
 
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-          <Text style={styles.loadingText}>Loading media...</Text>
+          <Text style={styles.loadingText}>Đang tải media...</Text>
         </View>
       ) : mediaList.length === 0 ? (
         <EmptyState onUploadPress={onUploadPress} />
       ) : (
-        <FlatList
-          data={mediaList}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          numColumns={NUM_COLUMNS}
-          contentContainerStyle={styles.gridContainer}
-          columnWrapperStyle={styles.gridRow}
+        <SectionList
+          sections={sections}
+          keyExtractor={(item, index) => item.id + index}
+          renderItem={() => null}
+          renderSectionHeader={({ section: { title, data } }) => (
+            <View>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{title}</Text>
+                <Text style={styles.sectionCount}>{data.length}</Text>
+              </View>
+              {renderSectionContent(data)}
+            </View>
+          )}
+          contentContainerStyle={styles.sectionListContent}
           showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -428,35 +630,165 @@ const styles = StyleSheet.create({
     color: GUIDE_COLORS.surface,
   },
 
-  // Status Filters
-  statusFilters: {
-    flexDirection: "row",
-    gap: GUIDE_SPACING.sm,
-    marginBottom: GUIDE_SPACING.md,
-  },
-  statusChip: {
+  // Filter Row
+  filterRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
+    justifyContent: "space-between",
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  
+  // Filter Trigger Button
+  filterTriggerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.xs,
     paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.xs,
     borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: GUIDE_COLORS.surface,
     borderWidth: 1.5,
     borderColor: GUIDE_COLORS.borderLight,
-    backgroundColor: GUIDE_COLORS.surface,
   },
-  statusChipText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+  filterTriggerText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
   },
 
-  // Stats Summary
-  statsSummary: {
+  // Bottom Sheet
+  bottomSheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  bottomSheetContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
+  },
+  handleBarContainer: {
+    alignItems: "center",
+    paddingVertical: GUIDE_SPACING.sm,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GUIDE_COLORS.gray300,
+  },
+  bottomSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.borderLight,
+  },
+  bottomSheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  closeButton: {
+    padding: GUIDE_SPACING.xs,
+  },
+  filterOptionsContainer: {
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.sm,
+  },
+  filterOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.borderLight,
+    backgroundColor: "#FFF",
+  },
+  filterOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.md,
+  },
+  filterIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterOptionText: {
+    gap: 2,
+  },
+  filterOptionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  filterOptionDescription: {
+    fontSize: 12,
+    color: GUIDE_COLORS.textMuted,
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bottomSheetFooter: {
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+  },
+  applyButton: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    paddingVertical: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    alignItems: "center",
+    ...GUIDE_SHADOWS.md,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+
+  // Section Headers (grouped by date)
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.xs,
+    marginBottom: GUIDE_SPACING.xs,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  sectionCount: {
+    fontSize: 12,
+    color: GUIDE_COLORS.textMuted,
+  },
+  sectionListContent: {
+    paddingBottom: GUIDE_SPACING.xxl,
+  },
+  sectionGrid: {
     marginBottom: GUIDE_SPACING.md,
   },
-  statsText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.textMuted,
+  gridRow: {
+    flexDirection: "row",
+    gap: GRID_GAP,
+    marginBottom: GRID_GAP,
+  },
+  gridItemEmpty: {
+    width: ITEM_SIZE,
+    height: ITEM_SIZE,
   },
 
   // Loading
@@ -473,13 +805,6 @@ const styles = StyleSheet.create({
   },
 
   // Grid
-  gridContainer: {
-    paddingBottom: GUIDE_SPACING.xxl,
-  },
-  gridRow: {
-    gap: GRID_GAP,
-    marginBottom: GRID_GAP,
-  },
   gridItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
