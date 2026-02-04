@@ -13,6 +13,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -22,6 +23,7 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from '../../../../constants/guide.constants';
+import { AIWriterInput } from '../../../../components/ui/AIWriterInput';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -156,6 +158,22 @@ const EventDetailScreen: React.FC = () => {
     // TODO: Navigate to map screen
   };
 
+  const handleAIGenerate = async (prompt: string): Promise<string> => {
+    // TODO: Call AI API to generate description
+    // Mock AI-generated content for demo
+    const generatedContent = `${formData.name} là một sự kiện hành hương đặc biệt được tổ chức vào ngày ${formData.date} lúc ${formData.time} tại ${formData.location}.\n\nĐây là cơ hội tuyệt vời để cùng nhau cầu nguyện và tìm về với đức tin. Mọi người hãy mang theo nước uống và mặc trang phục thoải mái.`;
+    return generatedContent;
+  };
+
+  const handleTranslate = async (): Promise<void> => {
+    // TODO: Call translation API
+    Alert.alert(
+      'Dịch thuật',
+      'Đang dịch sang ngôn ngữ khác...',
+      [{ text: 'OK' }]
+    );
+  };
+
   const handleSave = () => {
     console.log('Save event:', formData);
     // TODO: Implement save logic
@@ -265,17 +283,19 @@ const EventDetailScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Section 3: Description */}
+          {/* Section 3: Description with AI Writer */}
           <View style={styles.section}>
             <SectionHeader title="Description" />
 
-            <InputField
+            <AIWriterInput
               label="About this Event"
               value={formData.description}
               onChangeText={updateFormField('description')}
               placeholder="Describe the spiritual significance and itinerary..."
-              multiline
-              numberOfLines={6}
+              onAIGenerate={handleAIGenerate}
+              showTranslate={true}
+              onTranslate={handleTranslate}
+              maxLength={1000}
             />
           </View>
 

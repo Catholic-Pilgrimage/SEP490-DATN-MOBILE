@@ -2,6 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import SplashScreen from '../features/auth/screens/SplashScreen';
+import { PersonalInfoScreen } from '../features/guide/profile/screens';
 import { AuthNavigator } from './AuthNavigator';
 import { GuideNavigator } from './GuideNavigator';
 import { PilgrimNavigator } from './PilgrimNavigator';
@@ -10,7 +11,9 @@ export type RootStackParamList = {
   Splash: undefined;
   Auth: undefined;
   Main: undefined;        
-  GuideMain: undefined;  
+  GuideMain: undefined;
+  // Guide Profile Screens
+  PersonalInfo: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +52,14 @@ export const RootNavigator = () => {
           component={GuideNavigator}
           options={{
             animation: 'fade',
+          }}
+        />
+        {/* Guide Profile Screens */}
+        <Stack.Screen 
+          name="PersonalInfo" 
+          component={PersonalInfoScreen}
+          options={{
+            animation: 'slide_from_right',
           }}
         />
       </Stack.Navigator>

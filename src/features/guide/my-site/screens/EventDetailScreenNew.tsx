@@ -241,8 +241,12 @@ export const EventDetailScreen: React.FC = () => {
   const route = useRoute<EventDetailRouteProp>();
   const { event: passedEvent } = route.params || {};
 
-  const isEditMode = !!passedEvent;
-  const canEdit = !passedEvent || passedEvent.status === "pending" || passedEvent.status === "rejected";
+  // Mode management
+  const isCreateMode = !passedEvent; // Creating new event
+  const canBeEdited = passedEvent?.status === "pending" || passedEvent?.status === "rejected";
+  
+  // isEditing: true when creating new OR when user clicked Edit button
+  const [isEditing, setIsEditing] = useState(isCreateMode);
 
   // Form state
   const [name, setName] = useState(passedEvent?.name || "");
@@ -284,9 +288,33 @@ export const EventDetailScreen: React.FC = () => {
     return date.toTimeString().substring(0, 5);
   };
 
+  // Toggle edit mode
+  const handleEnableEdit = useCallback(() => {
+    if (canBeEdited) {
+      setIsEditing(true);
+    }
+  }, [canBeEdited]);
+
+  // Cancel edit mode (for existing events)
+  const handleCancelEdit = useCallback(() => {
+    if (!isCreateMode && passedEvent) {
+      // Reset form to original values
+      setName(passedEvent.name || "");
+      setDescription(passedEvent.description || "");
+      setStartDate(passedEvent.start_date ? new Date(passedEvent.start_date) : null);
+      setEndDate(passedEvent.end_date ? new Date(passedEvent.end_date) : null);
+      setStartTime(passedEvent.start_time ? parseTime(passedEvent.start_time) : null);
+      setEndTime(passedEvent.end_time ? parseTime(passedEvent.end_time) : null);
+      setLocation(passedEvent.location || "");
+      setBannerUri(passedEvent.banner_url || null);
+      setNewBannerFile(null);
+      setIsEditing(false);
+    }
+  }, [isCreateMode, passedEvent]);
+
   // Pick banner image
   const handlePickBanner = useCallback(async () => {
-    if (!canEdit) return;
+    if (!isEditing) return;
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
@@ -321,7 +349,7 @@ export const EventDetailScreen: React.FC = () => {
         });
       }
     }
-  }, [canEdit]);
+  }, [isEditing]);
 
   // Validate form
   const validateForm = (): boolean => {
@@ -367,7 +395,7 @@ export const EventDetailScreen: React.FC = () => {
       }
 
       let result;
-      if (isEditMode && passedEvent) {
+      if (!isCreateMode && passedEvent) {
         result = await updateEvent(passedEvent.id, eventData);
       } else {
         result = await createEvent(eventData);
@@ -376,7 +404,7 @@ export const EventDetailScreen: React.FC = () => {
       if (result?.success) {
         Alert.alert(
           "Thành công",
-          isEditMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
+          !isCreateMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       } else {
@@ -387,7 +415,7 @@ export const EventDetailScreen: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [name, description, startDate, endDate, startTime, endTime, location, newBannerFile, isEditMode, passedEvent, navigation]);
+  }, [name, description, startDate, endDate, startTime, endTime, location, newBannerFile, isCreateMode, passedEvent, navigation]);
 
   // Handle delete
   const handleDelete = useCallback(() => {
@@ -433,12 +461,19 @@ export const EventDetailScreen: React.FC = () => {
           <MaterialIcons name="arrow-back-ios" size={20} color={GUIDE_COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isEditMode ? "Chi tiết sự kiện" : "Tạo sự kiện mới"}
+          {isCreateMode ? "Tạo sự kiện mới" : (isEditing ? "Chỉnh sửa" : "Chi tiết sự kiện")}
         </Text>
-        {isEditMode && passedEvent && (
-          <StatusBadge status={passedEvent.status} />
-        )}
-        {!isEditMode && <View style={{ width: 80 }} />}
+        <View style={styles.headerRight}>
+          {!isCreateMode && passedEvent && (
+            <StatusBadge status={passedEvent.status} />
+          )}
+          {!isCreateMode && canBeEdited && !isEditing && (
+            <TouchableOpacity style={styles.editHeaderButton} onPress={handleEnableEdit}>
+              <MaterialIcons name="edit" size={20} color={GUIDE_COLORS.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {isCreateMode && <View style={{ width: 80 }} />}
       </View>
 
       <KeyboardAvoidingView
@@ -468,7 +503,7 @@ export const EventDetailScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.bannerContainer}
               onPress={handlePickBanner}
-              disabled={!canEdit}
+              disabled={!isEditing}
               activeOpacity={0.8}
             >
               {bannerUri ? (
@@ -476,10 +511,12 @@ export const EventDetailScreen: React.FC = () => {
               ) : (
                 <View style={styles.bannerPlaceholder}>
                   <MaterialIcons name="add-photo-alternate" size={48} color={GUIDE_COLORS.gray300} />
-                  <Text style={styles.bannerPlaceholderText}>Thêm ảnh bìa</Text>
+                  <Text style={styles.bannerPlaceholderText}>
+                    {isEditing ? "Thêm ảnh bìa" : "Chưa có ảnh bìa"}
+                  </Text>
                 </View>
               )}
-              {canEdit && bannerUri && (
+              {isEditing && bannerUri && (
                 <View style={styles.bannerEditOverlay}>
                   <MaterialIcons name="edit" size={24} color={GUIDE_COLORS.surface} />
                 </View>
@@ -498,7 +535,7 @@ export const EventDetailScreen: React.FC = () => {
               placeholder="VD: Lễ Giáng Sinh 2026"
               icon="event"
               required
-              editable={canEdit}
+              editable={isEditing}
               maxLength={255}
             />
 
@@ -510,7 +547,7 @@ export const EventDetailScreen: React.FC = () => {
               multiline
               numberOfLines={4}
               icon="description"
-              editable={canEdit}
+              editable={isEditing}
               maxLength={2000}
             />
           </View>
@@ -528,7 +565,7 @@ export const EventDetailScreen: React.FC = () => {
                   mode="date"
                   placeholder="Chọn ngày"
                   required
-                  editable={canEdit}
+                  editable={isEditing}
                 />
               </View>
               <View style={styles.halfField}>
@@ -538,7 +575,7 @@ export const EventDetailScreen: React.FC = () => {
                   onChange={setEndDate}
                   mode="date"
                   placeholder="Chọn ngày"
-                  editable={canEdit}
+                  editable={isEditing}
                 />
               </View>
             </View>
@@ -551,7 +588,7 @@ export const EventDetailScreen: React.FC = () => {
                   onChange={setStartTime}
                   mode="time"
                   placeholder="Chọn giờ"
-                  editable={canEdit}
+                  editable={isEditing}
                 />
               </View>
               <View style={styles.halfField}>
@@ -561,7 +598,7 @@ export const EventDetailScreen: React.FC = () => {
                   onChange={setEndTime}
                   mode="time"
                   placeholder="Chọn giờ"
-                  editable={canEdit}
+                  editable={isEditing}
                 />
               </View>
             </View>
@@ -576,7 +613,7 @@ export const EventDetailScreen: React.FC = () => {
               onChangeText={setLocation}
               placeholder="VD: Sân nhà thờ chính"
               icon="location-on"
-              editable={canEdit}
+              editable={isEditing}
               maxLength={255}
             />
           </View>
@@ -591,8 +628,22 @@ export const EventDetailScreen: React.FC = () => {
             </View>
           )}
 
-          {/* Action Buttons */}
-          {canEdit && (
+          {/* Edit Button for View Mode */}
+          {!isCreateMode && canBeEdited && !isEditing && (
+            <View style={styles.actionButtons}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={handleEnableEdit}
+                activeOpacity={0.8}
+              >
+                <MaterialIcons name="edit" size={22} color={GUIDE_COLORS.surface} />
+                <Text style={styles.editButtonText}>Chỉnh sửa sự kiện</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Action Buttons for Edit Mode */}
+          {isEditing && (
             <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[styles.saveButton, saving && styles.buttonDisabled]}
@@ -605,18 +656,32 @@ export const EventDetailScreen: React.FC = () => {
                 ) : (
                   <>
                     <MaterialIcons
-                      name={isEditMode ? "save" : "add"}
+                      name={isCreateMode ? "add" : "save"}
                       size={22}
                       color={GUIDE_COLORS.surface}
                     />
                     <Text style={styles.saveButtonText}>
-                      {isEditMode ? "Lưu thay đổi" : "Tạo sự kiện"}
+                      {isCreateMode ? "Tạo sự kiện" : "Lưu thay đổi"}
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
 
-              {isEditMode && (
+              {/* Cancel button when editing existing event */}
+              {!isCreateMode && (
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={handleCancelEdit}
+                  disabled={saving || deleting}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons name="close" size={22} color={GUIDE_COLORS.textSecondary} />
+                  <Text style={styles.cancelButtonText}>Hủy chỉnh sửa</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Delete button */}
+              {!isCreateMode && (
                 <TouchableOpacity
                   style={[styles.deleteButton, deleting && styles.buttonDisabled]}
                   onPress={handleDelete}
@@ -859,6 +924,21 @@ const styles = StyleSheet.create({
     gap: GUIDE_SPACING.md,
     marginTop: GUIDE_SPACING.lg,
   },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.primary,
+    paddingVertical: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    ...GUIDE_SHADOWS.md,
+  },
+  editButtonText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.surface,
+  },
   saveButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -873,6 +953,22 @@ const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: GUIDE_COLORS.surface,
+  },
+  cancelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.surface,
+    paddingVertical: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray300,
+  },
+  cancelButtonText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    color: GUIDE_COLORS.textSecondary,
   },
   deleteButton: {
     flexDirection: "row",
@@ -892,6 +988,21 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+
+  // Header Right
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+  },
+  editHeaderButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GUIDE_COLORS.gray100,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 
