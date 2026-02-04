@@ -1,1 +1,126 @@
-// Vietnamese translations
+{
+    "common": {
+        "loading": "Đang tải...",
+        "error": "Lỗi",
+        "success": "Thành công",
+        "cancel": "Hủy",
+        "confirm": "Xác nhận",
+        "save": "Lưu",
+        "delete": "Xóa",
+        "edit": "Chỉnh sửa",
+        "close": "Đóng",
+        "back": "Quay lại",
+        "next": "Tiếp theo",
+        "done": "Hoàn tất",
+        "yes": "Có",
+        "no": "Không",
+        "ok": "Đồng ý",
+        "retry": "Thử lại",
+        "search": "Tìm kiếm",
+        "filter": "Lọc",
+        "sortBy": "Sắp xếp theo",
+        "viewAll": "Xem tất cả",
+        "seeMore": "Xem thêm",
+        "noData": "Không có dữ liệu",
+        "notAssigned": "Chưa được gán",
+        "or": "Hoặc"
+    },
+    "auth": {
+        "login": "Đăng nhập",
+        "logout": "Đăng xuất",
+        "register": "Đăng ký",
+        "forgotPassword": "Quên mật khẩu?",
+        "email": "Email",
+        "password": "Mật khẩu",
+        "confirmPassword": "Xác nhận mật khẩu",
+        "fullName": "Họ và tên",
+        "phoneNumber": "Số điện thoại",
+        "welcomeBack": "Chào mừng trở lại",
+        "continueJourney": "Tiếp tục hành trình đức tin của bạn",
+        "loginFailed": "Đăng nhập thất bại",
+        "checkCredentials": "Vui lòng kiểm tra lại thông tin đăng nhập.",
+        "noAccount": "Chưa có tài khoản?",
+        "registerNow": "Đăng ký ngay",
+        "continueAsGuest": "Tiếp tục với tư cách Khách",
+        "validation": {
+            "emailRequired": "Vui lòng nhập email",
+            "emailInvalid": "Email không hợp lệ",
+            "passwordRequired": "Vui lòng nhập mật khẩu",
+            "passwordMinLength": "Mật khẩu phải có ít nhất {{count}} ký tự"
+        },
+        "errors": {
+            "loginFailed": "Đăng nhập thất bại",
+            "guestError": "Không thể tiếp tục. Vui lòng thử lại."
+        }
+    },
+    "navigation": {
+        "home": "Trang chủ",
+        "mySite": "Site của tôi",
+        "profile": "Hồ sơ",
+        "explore": "Khám phá",
+        "schedule": "Lịch trình",
+        "community": "Cộng đồng",
+        "notifications": "Thông báo"
+    },
+    "dashboard": {
+        "cathedralGuide": "HƯỚNG DẪN NHÀ THỜ",
+        "greetings": {
+            "morning": "Chào buổi sáng",
+            "afternoon": "Chào buổi chiều",
+            "evening": "Chào buổi tối"
+        },
+        "guide": "Local Guide",
+        "status": {
+            "open": "MỞ CỬA",
+            "closed": "ĐÓNG CỬA"
+        },
+        "patron": "Bổn mạng",
+        "notAssignedSite": "Chưa được gán site"
+    },
+    "quickActions": {
+        "postNews": "Đăng tin",
+        "schedule": "Lịch trình",
+        "upload": "Tải lên",
+        "goLive": "Phát trực tiếp",
+        "sosLog": "Nhật ký SOS"
+    },
+    "pilgrimInsights": {
+        "sectionLabel": "CỘNG ĐỒNG",
+        "title": "Thống kê hành hương",
+        "currentPilgrims": "Đang hành hương",
+        "todayVisitors": "Khách hôm nay"
+    },
+    "todayOverview": {
+        "sectionLabel": "LỊCH TRÌNH",
+        "title": "Tổng quan hôm nay",
+        "activeShift": "CA HOẠT ĐỘNG",
+        "noSchedule": "Không có lịch trình hôm nay",
+        "now": "ĐANG DIỄN RA",
+        "mainArea": "Khu vực chính"
+    },
+    "recentActivity": {
+        "title": "Hoạt động gần đây",
+        "noActivity": "Chưa có hoạt động gần đây"
+    },
+    "reviews": {
+        "sectionLabel": "PHẢN HỒI",
+        "title": "Đánh giá gần đây",
+        "aiSummary": "Tóm tắt AI",
+        "replied": "Đã phản hồi",
+        "reply": "Phản hồi",
+        "noReviews": "Chưa có đánh giá nào",
+        "timeAgo": {
+            "justNow": "Vừa xong",
+            "hoursAgo": "{{count}}h trước",
+            "daysAgo": "{{count}} ngày trước"
+        }
+    },
+    "time": {
+        "today": "Hôm nay",
+        "yesterday": "Hôm qua",
+        "tomorrow": "Ngày mai",
+        "thisWeek": "Tuần này",
+        "thisMonth": "Tháng này"
+    },
+    "appName": "Hành Trình Thánh"
+}

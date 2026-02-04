@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -18,7 +19,6 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  Dimensions,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -30,6 +30,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHADOWS } from '../../../constants/theme.constants';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useI18n } from '../../../hooks/useI18n';
 import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
 
 // Background image
@@ -76,6 +77,9 @@ const LoginScreen = () => {
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // i18n
+  const { t } = useI18n();
+
   // Animation values
   const shakeAnimation = useSharedValue(0);
   const buttonScale = useSharedValue(1);
@@ -105,16 +109,16 @@ const LoginScreen = () => {
 
     // Validate email
     if (!email.trim()) {
-      errors.email = 'Vui lòng nhập email';
+      errors.email = t('auth.validation.emailRequired');
     } else if (!EMAIL_REGEX.test(email.trim())) {
-      errors.email = 'Email không hợp lệ';
+      errors.email = t('auth.validation.emailInvalid');
     }
 
     // Validate password
     if (!password) {
-      errors.password = 'Vui lòng nhập mật khẩu';
+      errors.password = t('auth.validation.passwordRequired');
     } else if (password.length < MIN_PASSWORD_LENGTH) {
-      errors.password = `Mật khẩu phải có ít nhất ${MIN_PASSWORD_LENGTH} ký tự`;
+      errors.password = t('auth.validation.passwordMinLength', { count: MIN_PASSWORD_LENGTH });
     }
 
     setFormErrors(errors);
@@ -153,10 +157,10 @@ const LoginScreen = () => {
   // Handle login
   const handleLogin = useCallback(async () => {
     Keyboard.dismiss();
-    
+
     // Clear previous errors
     setFormErrors({});
-    
+
     // Validate form
     if (!validateForm()) {
       triggerShakeAnimation();
@@ -173,12 +177,12 @@ const LoginScreen = () => {
       // Navigation is handled by useEffect when isAuthenticated changes
     } catch (error: any) {
       triggerShakeAnimation();
-      
+
       // Show error alert with specific message
       Alert.alert(
-        'Đăng nhập thất bại',
-        error.message || 'Vui lòng kiểm tra lại thông tin đăng nhập.',
-        [{ text: 'Đồng ý', style: 'default' }]
+        t('auth.errors.loginFailed'),
+        error.message || t('auth.checkCredentials'),
+        [{ text: t('common.ok'), style: 'default' }]
       );
     } finally {
       setIsSubmitting(false);
@@ -198,7 +202,7 @@ const LoginScreen = () => {
       await continueAsGuest();
       // Navigation is handled by useEffect when isGuest changes
     } catch (error) {
-      Alert.alert('Lỗi', 'Không thể tiếp tục. Vui lòng thử lại.');
+      Alert.alert(t('common.error'), t('auth.errors.guestError'));
     }
   }, [continueAsGuest]);
 
@@ -228,7 +232,7 @@ const LoginScreen = () => {
         resizeMode="cover"
       >
         <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-        
+
         {/* Overlay gradient for better readability */}
         <LinearGradient
           colors={['rgba(253, 248, 240, 0.2)', 'rgba(253, 248, 240, 0.75)', 'rgba(253, 248, 240, 0.95)']}
@@ -252,13 +256,13 @@ const LoginScreen = () => {
               <View style={styles.logoBadge}>
                 <MaterialIcons name="church" size={28} color={LOGIN_COLORS.primary} />
               </View>
-              <Text style={styles.appName}>Sacred Journey</Text>
+              <Text style={styles.appName}>{t('appName')}</Text>
             </View>
 
             {/* Title Section */}
             <View style={styles.titleContainer}>
-              <Text style={styles.title}>Chào mừng trở lại</Text>
-              <Text style={styles.subtitle}>Tiếp tục hành trình đức tin của bạn</Text>
+              <Text style={styles.title}>{t('auth.welcomeBack')}</Text>
+              <Text style={styles.subtitle}>{t('auth.continueJourney')}</Text>
             </View>
 
             {/* Form Section */}
@@ -273,22 +277,22 @@ const LoginScreen = () => {
 
               {/* Email Input */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={styles.label}>{t('auth.email')}</Text>
                 <View style={[
                   styles.inputWrapper,
                   emailFocused && styles.inputWrapperFocused,
                   formErrors.email && styles.inputWrapperError,
                 ]}>
-                  <MaterialIcons 
-                    name="mail-outline" 
-                    size={22} 
+                  <MaterialIcons
+                    name="mail-outline"
+                    size={22}
                     color={
-                      formErrors.email 
-                        ? LOGIN_COLORS.error 
-                        : emailFocused 
-                          ? LOGIN_COLORS.primary 
+                      formErrors.email
+                        ? LOGIN_COLORS.error
+                        : emailFocused
+                          ? LOGIN_COLORS.primary
                           : LOGIN_COLORS.textMuted
-                    } 
+                    }
                     style={styles.inputIcon}
                   />
                   <TextInput
@@ -323,22 +327,22 @@ const LoginScreen = () => {
 
               {/* Password Input */}
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Mật khẩu</Text>
+                <Text style={styles.label}>{t('auth.password')}</Text>
                 <View style={[
                   styles.inputWrapper,
                   passwordFocused && styles.inputWrapperFocused,
                   formErrors.password && styles.inputWrapperError,
                 ]}>
-                  <MaterialIcons 
-                    name="lock-outline" 
-                    size={22} 
+                  <MaterialIcons
+                    name="lock-outline"
+                    size={22}
                     color={
-                      formErrors.password 
-                        ? LOGIN_COLORS.error 
-                        : passwordFocused 
-                          ? LOGIN_COLORS.primary 
+                      formErrors.password
+                        ? LOGIN_COLORS.error
+                        : passwordFocused
+                          ? LOGIN_COLORS.primary
                           : LOGIN_COLORS.textMuted
-                    } 
+                    }
                     style={styles.inputIcon}
                   />
                   <TextInput
@@ -362,17 +366,17 @@ const LoginScreen = () => {
                     style={styles.eyeButton}
                     activeOpacity={0.7}
                   >
-                    <MaterialIcons 
-                      name={showPassword ? 'visibility' : 'visibility-off'} 
-                      size={22} 
-                      color={LOGIN_COLORS.textMuted} 
+                    <MaterialIcons
+                      name={showPassword ? 'visibility' : 'visibility-off'}
+                      size={22}
+                      color={LOGIN_COLORS.textMuted}
                     />
                   </TouchableOpacity>
                 </View>
                 {formErrors.password && (
                   <Text style={styles.errorText}>{formErrors.password}</Text>
                 )}
-                
+
                 {/* Forgot Password Link */}
                 <TouchableOpacity
                   onPress={handleForgotPassword}
@@ -380,17 +384,17 @@ const LoginScreen = () => {
                   activeOpacity={0.7}
                   disabled={isButtonDisabled}
                 >
-                  <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+                  <Text style={styles.forgotPasswordText}>{t('auth.forgotPassword')}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Login Button */}
               <Animated.View style={buttonAnimatedStyle}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[
                     styles.loginButton,
                     isButtonDisabled && styles.loginButtonDisabled,
-                  ]} 
+                  ]}
                   onPress={handleLogin}
                   onPressIn={handleButtonPressIn}
                   onPressOut={handleButtonPressOut}
@@ -401,7 +405,7 @@ const LoginScreen = () => {
                     <ActivityIndicator size="small" color={LOGIN_COLORS.buttonTextDark} />
                   ) : (
                     <>
-                      <Text style={styles.loginButtonText}>Đăng nhập</Text>
+                      <Text style={styles.loginButtonText}>{t('auth.login')}</Text>
                       <MaterialIcons name="arrow-forward" size={20} color={LOGIN_COLORS.buttonTextDark} />
                     </>
                   )}
@@ -411,7 +415,7 @@ const LoginScreen = () => {
               {/* Divider */}
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>Hoặc</Text>
+                <Text style={styles.dividerText}>{t('common.or')}</Text>
                 <View style={styles.dividerLine} />
               </View>
 
@@ -426,19 +430,19 @@ const LoginScreen = () => {
                 disabled={isButtonDisabled}
               >
                 <MaterialIcons name="person-outline" size={22} color={LOGIN_COLORS.buttonTextDark} />
-                <Text style={styles.guestButtonText}>Tiếp tục với tư cách Khách</Text>
+                <Text style={styles.guestButtonText}>{t('auth.continueAsGuest')}</Text>
               </TouchableOpacity>
             </Animated.View>
 
             {/* Footer - Register Link */}
             <View style={styles.footerContainer}>
-              <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-              <TouchableOpacity 
-                onPress={handleRegister} 
+              <Text style={styles.footerText}>{t('auth.noAccount')} </Text>
+              <TouchableOpacity
+                onPress={handleRegister}
                 activeOpacity={0.7}
                 disabled={isButtonDisabled}
               >
-                <Text style={styles.registerLink}>Đăng ký ngay</Text>
+                <Text style={styles.registerLink}>{t('auth.registerNow')}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>

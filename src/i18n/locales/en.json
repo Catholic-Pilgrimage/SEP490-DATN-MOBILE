@@ -1,1 +1,126 @@
-// English translations
+{
+    "common": {
+        "loading": "Loading...",
+        "error": "Error",
+        "success": "Success",
+        "cancel": "Cancel",
+        "confirm": "Confirm",
+        "save": "Save",
+        "delete": "Delete",
+        "edit": "Edit",
+        "close": "Close",
+        "back": "Back",
+        "next": "Next",
+        "done": "Done",
+        "yes": "Yes",
+        "no": "No",
+        "ok": "OK",
+        "retry": "Retry",
+        "search": "Search",
+        "filter": "Filter",
+        "sortBy": "Sort by",
+        "viewAll": "View All",
+        "seeMore": "See More",
+        "noData": "No data",
+        "notAssigned": "Not assigned",
+        "or": "Or"
+    },
+    "auth": {
+        "login": "Login",
+        "logout": "Logout",
+        "register": "Register",
+        "forgotPassword": "Forgot password?",
+        "email": "Email",
+        "password": "Password",
+        "confirmPassword": "Confirm Password",
+        "fullName": "Full Name",
+        "phoneNumber": "Phone Number",
+        "welcomeBack": "Welcome Back",
+        "continueJourney": "Continue your journey of faith",
+        "loginFailed": "Login Failed",
+        "checkCredentials": "Please check your login credentials.",
+        "noAccount": "Don't have an account?",
+        "registerNow": "Register Now",
+        "continueAsGuest": "Continue as Guest",
+        "validation": {
+            "emailRequired": "Please enter your email",
+            "emailInvalid": "Invalid email format",
+            "passwordRequired": "Please enter your password",
+            "passwordMinLength": "Password must be at least {{count}} characters"
+        },
+        "errors": {
+            "loginFailed": "Login Failed",
+            "guestError": "Unable to continue. Please try again."
+        }
+    },
+    "navigation": {
+        "home": "Home",
+        "mySite": "My Site",
+        "profile": "Profile",
+        "explore": "Explore",
+        "schedule": "Schedule",
+        "community": "Community",
+        "notifications": "Notifications"
+    },
+    "dashboard": {
+        "cathedralGuide": "CATHEDRAL GUIDE",
+        "greetings": {
+            "morning": "Good Morning",
+            "afternoon": "Good Afternoon",
+            "evening": "Good Evening"
+        },
+        "guide": "Local Guide",
+        "status": {
+            "open": "OPEN",
+            "closed": "CLOSED"
+        },
+        "patron": "Patron",
+        "notAssignedSite": "Not assigned to a site"
+    },
+    "quickActions": {
+        "postNews": "Post News",
+        "schedule": "Schedule",
+        "upload": "Upload",
+        "goLive": "Go Live",
+        "sosLog": "SOS Log"
+    },
+    "pilgrimInsights": {
+        "sectionLabel": "COMMUNITY",
+        "title": "Pilgrim Insights",
+        "currentPilgrims": "Currently on pilgrimage",
+        "todayVisitors": "Today's visitors"
+    },
+    "todayOverview": {
+        "sectionLabel": "SCHEDULE",
+        "title": "Today's Overview",
+        "activeShift": "ACTIVE SHIFT",
+        "noSchedule": "No schedule for today",
+        "now": "NOW",
+        "mainArea": "Main Area"
+    },
+    "recentActivity": {
+        "title": "Recent Activity",
+        "noActivity": "No recent activity"
+    },
+    "reviews": {
+        "sectionLabel": "FEEDBACK",
+        "title": "Recent Reviews",
+        "aiSummary": "AI Summary",
+        "replied": "Replied",
+        "reply": "Reply",
+        "noReviews": "No reviews yet",
+        "timeAgo": {
+            "justNow": "Just now",
+            "hoursAgo": "{{count}}h ago",
+            "daysAgo": "{{count}} days ago"
+        }
+    },
+    "time": {
+        "today": "Today",
+        "yesterday": "Yesterday",
+        "tomorrow": "Tomorrow",
+        "thisWeek": "This week",
+        "thisMonth": "This month"
+    },
+    "appName": "Sacred Journey"
+}
