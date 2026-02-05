@@ -4,7 +4,7 @@
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -24,13 +24,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
-  GUIDE_SHADOWS,
   GUIDE_SPACING,
-  GUIDE_TYPOGRAPHY,
+  GUIDE_TYPOGRAPHY
 } from "../../../../constants/guide.constants";
-import { deleteMedia, updateMedia } from "../../../../services/api/guide/mediaApi";
-import { MediaItem, MediaStatus } from "../../../../types/guide";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
+import { deleteMedia, updateMedia } from "../../../../services/api/guide/mediaApi";
+import { MediaStatus } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -127,10 +126,8 @@ export const MediaDetailScreen: React.FC = () => {
 
     setIsSaving(true);
     try {
-      console.log("[MediaDetail] Updating caption for media:", media.id);
       const result = await updateMedia(media.id, { caption });
-      console.log("[MediaDetail] Update result:", JSON.stringify(result));
-      
+
       if (result?.success) {
         Alert.alert("Thành công", "Caption đã được cập nhật");
         setIsEditing(false);
@@ -159,10 +156,8 @@ export const MediaDetailScreen: React.FC = () => {
           onPress: async () => {
             setIsDeleting(true);
             try {
-              console.log("[MediaDetail] Deleting media:", media.id);
               const result = await deleteMedia(media.id);
-              console.log("[MediaDetail] Delete result:", JSON.stringify(result));
-              
+
               if (result?.success) {
                 Alert.alert("Thành công", "Media đã được xóa", [
                   { text: "OK", onPress: () => navigation.goBack() },

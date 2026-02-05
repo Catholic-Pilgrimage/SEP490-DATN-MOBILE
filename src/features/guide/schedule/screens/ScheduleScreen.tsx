@@ -1,22 +1,22 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    Dimensions,
-    Image,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SHADOWS,
-    GUIDE_SPACING,
-    GUIDE_TYPOGRAPHY,
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SHADOWS,
+  GUIDE_SPACING,
+  GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -304,19 +304,19 @@ const ScheduleScreen: React.FC = () => {
   };
 
   const handleProfilePress = () => {
-    console.log("Profile pressed");
+    // TODO: Navigate to profile
   };
 
   const handleAssignmentPress = (id: string) => {
-    console.log("Assignment pressed:", id);
+    // TODO: Navigate to assignment detail
   };
 
   const handleHistoryPress = () => {
-    console.log("History pressed");
+    // TODO: Navigate to shift history
   };
 
   const handleSubmitAvailability = () => {
-    console.log("Submit availability pressed");
+    // TODO: Open availability submission
   };
 
   return (
@@ -406,7 +406,7 @@ const ScheduleScreen: React.FC = () => {
                           styles.calendarDayText,
                           !day.isCurrentMonth && styles.calendarDayTextMuted,
                           day.date === selectedDate &&
-                            styles.calendarDayTextSelected,
+                          styles.calendarDayTextSelected,
                         ]}
                       >
                         {day.date}

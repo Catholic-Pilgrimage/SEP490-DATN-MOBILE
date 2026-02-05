@@ -6,21 +6,21 @@ export const COLORS = {
   primaryDark: '#0F1828',
   primaryGradientStart: '#1A2845',
   primaryGradientEnd: '#2C3E58',
-  
+
   // Accent Colors - Warm Gold (Divine Light, Sacred)
-  accent: '#C9A572', // Elegant warm gold
-  accentLight: '#DFC09A',
-  accentDark: '#A88A5E',
+  accent: '#ecb613', // Bright gold from mockup
+  accentLight: '#f5d35a',
+  accentDark: '#c9a010',
   accentChampagne: '#F8F3ED',
-  accentMetallic: '#C9A572',
+  accentMetallic: '#ecb613',
   accentSubtle: '#FCF9F5', // Soft parchment
-  
+
   // Spiritual Colors
   holy: '#8B7355', // Bronze/incense
   divine: '#DBC4A2', // Light gold
   sacred: '#6A5ACD', // Violet (Mary's color)
   sacredLight: '#E6E3FF',
-  
+
   // Alert Colors - Refined
   danger: '#DC4C4C', // Softer red
   dangerLight: '#FFF5F5',
@@ -30,36 +30,36 @@ export const COLORS = {
   successLight: '#F6FFED',
   info: '#1890FF',
   infoLight: '#E6F7FF',
-  
+
   // Neutral Colors - Pure & Sacred
   white: '#FFFFFF',
   black: '#000000',
-  background: '#FAFBFC', // Soft white background
-  backgroundDark: '#F5F7FA',
-  backgroundSoft: '#FCFDFE',
+  background: '#f8f8f6', // Cream/beige from mockup
+  backgroundDark: '#221d10', // Dark mode from mockup
+  backgroundSoft: '#fafaf8',
   backgroundCard: '#FFFFFF', // Pure white cards
   parchment: '#FAF7F2', // Vintage paper
-  
+
   // Text Colors - Clear Hierarchy
-  textPrimary: '#1A2845', // Match primary for consistency
-  textSecondary: '#6B7A8F', // Softer slate
+  textPrimary: '#181611', // Dark brown from mockup
+  textSecondary: '#897f61', // Muted gold-brown from mockup
   textTertiary: '#9AA5B1',
   textLight: '#C5CDD5',
   textWhite: '#FFFFFF',
-  textAccent: '#C9A572',
+  textAccent: '#ecb613',
   textHoly: '#8B7355', // Bronze spiritual
-  
+
   // Border & Divider - Ultra Subtle
   border: '#F0EDE5',
   borderLight: '#F7F5F0',
   borderMedium: '#E5E1D8',
   divider: '#EEEBE3',
-  
+
   // Surface Elevations (for depth)
   surface0: '#FDFBF7', // Base
   surface1: '#FFFEF9', // Slightly elevated
   surface2: '#FFFFFF', // More elevated
-  
+
   // Overlay - Refined
   overlay: 'rgba(26, 42, 70, 0.4)',
   overlayLight: 'rgba(26, 42, 70, 0.2)',
