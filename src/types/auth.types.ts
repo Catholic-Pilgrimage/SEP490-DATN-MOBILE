@@ -1,23 +1,8 @@
 // Authentication type definitions
 
-// User roles
-export type UserRole = "pilgrim" | "local_guide";
+import { UpdateProfileRequest, User } from "./user.types";
 
-// User interface
-export interface User {
-  id: string;
-  email: string;
-  fullName: string;
-  role: UserRole;
-  avatar?: string;
-  phone?: string;
-  address?: string;
-  bio?: string;
-  isVerified: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+// User roles and interface imported from other files
 
 // Login request payload
 export interface LoginRequest {
@@ -98,14 +83,7 @@ export interface ProfileResponse {
   };
 }
 
-// Update profile request
-export interface UpdateProfileRequest {
-  fullName?: string;
-  phone?: string;
-  address?: string;
-  bio?: string;
-  avatar?: string;
-}
+// Update profile request imported from user.types
 
 // Change password request
 export interface ChangePasswordRequest {
@@ -133,17 +111,7 @@ export interface VerifyEmailRequest {
   otp: string;
 }
 
-// Generic API response
-export interface ApiResponse<T = any> {
-  success: boolean;
-  message: string;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-    details?: any[];
-  };
-}
+
 
 // Auth state for context/store
 export interface AuthState {

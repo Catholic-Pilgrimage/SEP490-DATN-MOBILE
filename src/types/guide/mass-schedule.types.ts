@@ -29,7 +29,7 @@ export type MassScheduleStatus = 'pending' | 'approved' | 'rejected';
  * 5 = Thứ Sáu (Friday)
  * 6 = Thứ Bảy (Saturday)
  */
-export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+import { DayOfWeek } from "../common.types";
 
 // ============================================
 // RESPONSE TYPES

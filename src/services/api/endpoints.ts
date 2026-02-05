@@ -53,6 +53,10 @@ export const PILGRIM_ENDPOINTS = {
     REMOVE_FAVORITE: (id: string) => `${API_BASE}/sites/${id}/favorite`,
     REVIEWS: (id: string) => `${API_BASE}/sites/${id}/reviews`,
     ADD_REVIEW: (id: string) => `${API_BASE}/sites/${id}/reviews`,
+    MEDIA: (id: string) => `${API_BASE}/sites/${id}/media`,
+    MASS_SCHEDULES: (id: string) => `${API_BASE}/sites/${id}/mass-schedules`,
+    EVENTS: (id: string) => `${API_BASE}/sites/${id}/events`,
+    NEARBY_PLACES: (id: string) => `${API_BASE}/sites/${id}/nearby-places`,
   },
 
   // Planner - Trip planning
