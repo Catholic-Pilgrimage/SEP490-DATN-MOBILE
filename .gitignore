@@ -1,40 +1,108 @@
-# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# dependencies
+
+# Firebase Credentials (CRITICAL!)
+*-firebase-adminsdk-*.json
+firebase-adminsdk-*.json
+pilgrimapp-*-firebase-adminsdk-*.json
+
+# Environment Variables
+.env
+.env*.local
+.env.development
+.env.production
+
+# API Keys & Secrets
+secrets.json
+*.secret
+
+# ============================================
+# DEPENDENCIES
+# ============================================
+
 node_modules/
+
+# ============================================
+# EXPO & REACT NATIVE
+# ============================================
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
 
-# Native
-.kotlin/
-*.orig.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-
 # Metro
 .metro-health-check*
 
-# debug
+# ============================================
+# NATIVE BUILD FILES
+# ============================================
+
+# Native folders
+.kotlin/
+*.orig.*
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# iOS
+*.ipa
+*.xcarchive
+
+# ============================================
+# CERTIFICATES & KEYS
+# ============================================
+
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.pem
+*.cer
+*.mobileprovision
+*.certSigningRequest
+
+# ============================================
+# LOGS & DEBUGGING
+# ============================================
+
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+*.log
+
+# ============================================
+# OS FILES
+# ============================================
 
 # macOS
 .DS_Store
-*.pem
 
-# local env files
-.env*.local
+# Windows
+Thumbs.db
 
-# typescript
+# ============================================
+# IDE
+# ============================================
+
+.vscode/
+.idea/
+
+# ============================================
+# TYPESCRIPT
+# ============================================
+
 *.tsbuildinfo
+
+# ============================================
+# MISC
+# ============================================
 
 app-example
 
