@@ -5,6 +5,10 @@
 firebase-adminsdk-*.json
 pilgrimapp-*-firebase-adminsdk-*.json
 
+# Firebase Config Files (Contains API keys)
+google-services.json
+GoogleService-Info.plist
+
 # Environment Variables
 .env
 .env*.local
