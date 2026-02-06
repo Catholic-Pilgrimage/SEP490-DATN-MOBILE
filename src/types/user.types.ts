@@ -1,6 +1,6 @@
 // User type definitions
 
-import { UserRole } from "./auth.types";
+import { UserRole } from "./common.types";
 
 /**
  * Full User interface

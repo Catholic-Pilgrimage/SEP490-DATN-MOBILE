@@ -7,15 +7,7 @@
 // ENUMS / UNION TYPES
 // ============================================
 
-/**
- * Site region
- */
-export type SiteRegion = "Bac" | "Trung" | "Nam";
-
-/**
- * Site type
- */
-export type SiteType = "church" | "shrine" | "monastery" | "center" | "other";
+import { SiteRegion, SiteType } from "../common.types";
 
 /**
  * Site status for guide-managed sites

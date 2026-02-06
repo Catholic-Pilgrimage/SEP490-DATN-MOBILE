@@ -1,29 +1,19 @@
 /**
- * Pilgrim Types - Site
- * Type definitions for Pilgrim Site/Explore features
+ * Pilgrim Site Types
  */
 
-// ============================================
-// ENUMS / UNION TYPES
-// ============================================
+// Enums
+import {
+  DayOfWeek,
+  NearbyPlaceCategory,
+  SiteMediaType,
+  SiteRegion,
+  SiteType
+} from "../common.types";
 
-/**
- * Site region
- */
-export type SiteRegion = "Bac" | "Trung" | "Nam";
 
-/**
- * Site type
- */
-export type SiteType = "church" | "shrine" | "monastery" | "center" | "other";
 
-// ============================================
-// RESPONSE TYPES
-// ============================================
-
-/**
- * Site for pilgrim view
- */
+// Site Base
 export interface Site {
   id: string;
   code: string;
@@ -42,22 +32,14 @@ export interface Site {
   rating: number;
   reviewCount: number;
   isFavorite: boolean;
-  distance?: number; // in km, for nearby searches
-  openingHours?: {
-    open: string;
-    close: string;
-  };
-  contactInfo?: {
-    phone?: string;
-    email?: string;
-  };
+  distance?: number;
+  openingHours?: { open: string; close: string };
+  contactInfo?: { phone?: string; email?: string; website?: string };
+  history?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-/**
- * Site summary (for lists)
- */
 export interface SiteSummary {
   id: string;
   name: string;
@@ -68,53 +50,117 @@ export interface SiteSummary {
   distance?: number;
   isFavorite: boolean;
   type: SiteType;
+  region?: 'Bac' | 'Trung' | 'Nam';
 }
 
-/**
- * Nearby site
- */
 export interface NearbySite extends SiteSummary {
   latitude: number;
   longitude: number;
-  distance: number; // in km
+  distance: number;
 }
 
-/**
- * Featured site
- */
 export interface FeaturedSite extends SiteSummary {
   description: string;
   featuredReason?: string;
 }
 
-// ============================================
-// REQUEST TYPES
-// ============================================
+// Site Media
+export interface SiteMedia {
+  id: string;
+  code: string;
+  url: string;
+  type: SiteMediaType;
+  caption?: string;
+  created_at: string;
+}
 
-/**
- * Search sites params
- */
-export interface SearchSitesParams {
-  query?: string;
-  region?: SiteRegion;
-  type?: SiteType;
+export interface GetSiteMediaParams {
   page?: number;
   limit?: number;
+  type?: SiteMediaType;
 }
 
-/**
- * Nearby sites params
- */
-export interface NearbySitesParams {
+export interface SiteMediaResponse {
+  success: boolean;
+  data: SiteMedia[];
+}
+
+// Mass Schedules
+export interface SiteMassSchedule {
+  id: string;
+  code: string;
+  days_of_week: DayOfWeek[];
+  time: string;
+  note?: string;
+  created_at: string;
+}
+
+export interface GetSiteMassSchedulesParams {
+  day_of_week?: DayOfWeek;
+}
+
+export interface SiteMassScheduleResponse {
+  success: boolean;
+  data: SiteMassSchedule[];
+}
+
+// Events
+export interface SiteEvent {
+  id: string;
+  code: string;
+  name: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  banner_url?: string;
+  created_at: string;
+}
+
+export interface GetSiteEventsParams {
+  page?: number;
+  limit?: number;
+  upcoming?: 'true' | 'false';
+}
+
+export interface SiteEventResponse {
+  success: boolean;
+  data: SiteEvent[];
+}
+
+// Nearby Places
+export interface SiteNearbyPlace {
+  id: string;
+  code: string;
+  name: string;
+  category: NearbyPlaceCategory;
+  address: string;
   latitude: number;
   longitude: number;
-  radius?: number; // in km, default 10
-  limit?: number;
+  distance_meters: number;
+  phone?: string;
+  description?: string;
 }
 
-/**
- * Site review
- */
+export interface GetSiteNearbyPlacesParams {
+  page?: number;
+  limit?: number;
+  category?: NearbyPlaceCategory;
+}
+
+export interface SiteNearbyPlaceResponse {
+  success: boolean;
+  message?: string;
+  data: {
+    site: { id: string; code: string; name: string };
+    data: SiteNearbyPlace[];
+    pagination: { page: number; limit: number; totalItems: number; totalPages: number };
+  };
+}
+
+// Reviews
 export interface SiteReview {
   id: string;
   userId: string;
@@ -127,11 +173,25 @@ export interface SiteReview {
   updatedAt: string;
 }
 
-/**
- * Create review request
- */
 export interface CreateReviewRequest {
   rating: number;
   content: string;
   images?: string[];
+}
+
+// Search
+export interface SearchSitesParams {
+  query?: string;
+  region?: SiteRegion;
+  type?: SiteType;
+  province?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface NearbySitesParams {
+  latitude: number;
+  longitude: number;
+  radius?: number;
+  limit?: number;
 }

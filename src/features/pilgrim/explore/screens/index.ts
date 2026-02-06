@@ -1,1 +1,1 @@
-// Placeholder for explore screens index
+export { ExploreScreen } from './ExploreScreen';

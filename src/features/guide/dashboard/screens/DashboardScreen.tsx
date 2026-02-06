@@ -330,20 +330,19 @@ const DashboardScreen: React.FC = () => {
   }, [refresh]);
 
   const handleClockOut = () => {
-    console.log("Clock out pressed");
+    // TODO: Implement clock out functionality
   };
 
   const handleQuickAction = (actionId: string) => {
-    console.log("Quick action:", actionId);
-    // TODO: Navigate to respective screens
+    // TODO: Navigate to respective screens based on actionId
   };
 
   const handleTaskPress = (taskId: string) => {
-    console.log("Task pressed:", taskId);
+    // TODO: Navigate to task detail
   };
 
   const handleViewAllTasks = () => {
-    console.log("View all tasks");
+    // TODO: Navigate to all tasks screen
   };
 
   // Get display name - prefer fullName, fallback to email username, then default
@@ -516,7 +515,7 @@ const DashboardScreen: React.FC = () => {
           <PilgrimInsights
             liveCheckInCount={12} // TODO: Connect to real API
             todayVisitors={48}    // TODO: Connect to real API
-            onViewAll={() => console.log('View all pilgrim stats')}
+            onViewAll={() => { /* TODO: Navigate to pilgrim stats */ }}
           />
         </View>
 
@@ -708,9 +707,9 @@ const DashboardScreen: React.FC = () => {
                 isReplied: false,
               },
             ]}
-            onReply={(reviewId) => console.log('Reply to review:', reviewId)}
-            onViewAll={() => console.log('View all reviews')}
-            onAISummary={() => console.log('Generate AI summary')}
+            onReply={(reviewId) => { /* TODO: Navigate to reply screen */ }}
+            onViewAll={() => { /* TODO: Navigate to all reviews */ }}
+            onAISummary={() => { /* TODO: Generate AI summary */ }}
           />
         </View>
 

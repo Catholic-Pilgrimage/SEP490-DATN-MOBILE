@@ -7,7 +7,7 @@ import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, SHADOWS, TYPOGRAPHY } from '../constants/theme.constants';
 import { useAuth } from '../contexts/AuthContext';
-import ExploreScreen from '../features/pilgrim/explore/screens/ExploreScreen';
+import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
 
 const Tab = createBottomTabNavigator();
@@ -27,8 +27,8 @@ const PROFILE_COLORS = {
 
 const ExploreStackNavigator = () => {
   return (
-    <ExploreStack.Navigator 
-      screenOptions={{ 
+    <ExploreStack.Navigator
+      screenOptions={{
         headerShown: false,
         contentStyle: {
           backgroundColor: COLORS.background,
@@ -39,15 +39,15 @@ const ExploreStackNavigator = () => {
         fullScreenGestureEnabled: true,
       }}
     >
-      <ExploreStack.Screen 
-        name="ExploreMain" 
+      <ExploreStack.Screen
+        name="ExploreMain"
         component={ExploreScreen}
         options={{
           animation: 'none',
         }}
       />
-      <ExploreStack.Screen 
-        name="SiteDetail" 
+      <ExploreStack.Screen
+        name="SiteDetail"
         component={SiteDetailScreen}
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
@@ -150,7 +150,6 @@ const ProfileScreen = () => {
       return;
     }
     // TODO: Navigate to specific screen
-    console.log('Navigate to:', item.label);
   };
 
   return (
@@ -160,7 +159,7 @@ const ProfileScreen = () => {
         style={profileStyles.headerGradient}
       />
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={profileStyles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -188,7 +187,7 @@ const ProfileScreen = () => {
 
         {/* Guest Login Banner */}
         {isGuest && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={profileStyles.loginBanner}
             onPress={handleLogin}
             activeOpacity={0.8}
@@ -227,7 +226,7 @@ const ProfileScreen = () => {
           <Text style={profileStyles.menuTitle}>TÀI KHOẢN</Text>
           <View style={profileStyles.menuCard}>
             {menuItems.map((item, index) => (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={index}
                 style={[
                   profileStyles.menuItem,
@@ -237,10 +236,10 @@ const ProfileScreen = () => {
                 onPress={() => handleMenuPress(item)}
               >
                 <View style={profileStyles.menuItemLeft}>
-                  <Ionicons 
-                    name={item.icon as any} 
-                    size={22} 
-                    color={PROFILE_COLORS.textMain} 
+                  <Ionicons
+                    name={item.icon as any}
+                    size={22}
+                    color={PROFILE_COLORS.textMain}
                   />
                   <Text style={profileStyles.menuItemText}>{item.label}</Text>
                 </View>
@@ -259,7 +258,7 @@ const ProfileScreen = () => {
 
         {/* Login or Logout Button */}
         {isGuest ? (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={profileStyles.loginButton}
             onPress={handleLogin}
             activeOpacity={0.8}
@@ -268,7 +267,7 @@ const ProfileScreen = () => {
             <Text style={profileStyles.loginButtonText}>Đăng nhập / Đăng ký</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={profileStyles.logoutButton}
             onPress={handleLogout}
             activeOpacity={0.8}

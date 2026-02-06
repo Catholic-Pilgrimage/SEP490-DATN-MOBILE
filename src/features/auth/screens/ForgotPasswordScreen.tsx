@@ -4,15 +4,15 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SHADOWS } from '../../../constants/theme.constants';
 
@@ -48,28 +48,25 @@ const ForgotPasswordScreen = () => {
   const [resendTimer, setResendTimer] = useState(0);
 
   const handleSendOTP = () => {
-    // Send OTP logic
-    console.log('Send OTP to:', email);
+    // TODO: Send OTP logic
     setCurrentStep('otp');
     startResendTimer();
   };
 
   const handleVerifyOTP = () => {
-    // Verify OTP logic
+    // TODO: Verify OTP logic
     const otpCode = otp.join('');
-    console.log('Verify OTP:', otpCode);
     setCurrentStep('newPassword');
   };
 
   const handleResetPassword = () => {
-    // Reset password logic
-    console.log('Reset password:', { newPassword, confirmPassword });
+    // TODO: Reset password logic
     setCurrentStep('success');
   };
 
   const handleResendOTP = () => {
     if (resendTimer === 0) {
-      console.log('Resend OTP');
+      // TODO: Resend OTP logic
       startResendTimer();
     }
   };
@@ -167,10 +164,10 @@ const ForgotPasswordScreen = () => {
           styles.inputWrapper,
           focusedField === 'email' && styles.inputWrapperFocused
         ]}>
-          <MaterialIcons 
-            name="mail-outline" 
-            size={22} 
-            color={focusedField === 'email' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name="mail-outline"
+            size={22}
+            color={focusedField === 'email' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted}
             style={styles.inputIcon}
           />
           <TextInput
@@ -187,8 +184,8 @@ const ForgotPasswordScreen = () => {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={styles.primaryButton} 
+      <TouchableOpacity
+        style={styles.primaryButton}
         onPress={handleSendOTP}
         activeOpacity={0.9}
       >
@@ -238,8 +235,8 @@ const ForgotPasswordScreen = () => {
       {/* Resend OTP */}
       <View style={styles.resendContainer}>
         <Text style={styles.resendText}>Không nhận được mã? </Text>
-        <TouchableOpacity 
-          onPress={handleResendOTP} 
+        <TouchableOpacity
+          onPress={handleResendOTP}
           disabled={resendTimer > 0}
           activeOpacity={0.7}
         >
@@ -252,8 +249,8 @@ const ForgotPasswordScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity 
-        style={styles.primaryButton} 
+      <TouchableOpacity
+        style={styles.primaryButton}
         onPress={handleVerifyOTP}
         activeOpacity={0.9}
       >
@@ -288,10 +285,10 @@ const ForgotPasswordScreen = () => {
           styles.inputWrapper,
           focusedField === 'newPassword' && styles.inputWrapperFocused
         ]}>
-          <MaterialIcons 
-            name="lock-outline" 
-            size={22} 
-            color={focusedField === 'newPassword' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name="lock-outline"
+            size={22}
+            color={focusedField === 'newPassword' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted}
             style={styles.inputIcon}
           />
           <TextInput
@@ -310,10 +307,10 @@ const ForgotPasswordScreen = () => {
             style={styles.eyeButton}
             activeOpacity={0.7}
           >
-            <MaterialIcons 
-              name={showPassword ? 'visibility' : 'visibility-off'} 
-              size={22} 
-              color={FORGOT_COLORS.textMuted} 
+            <MaterialIcons
+              name={showPassword ? 'visibility' : 'visibility-off'}
+              size={22}
+              color={FORGOT_COLORS.textMuted}
             />
           </TouchableOpacity>
         </View>
@@ -326,10 +323,10 @@ const ForgotPasswordScreen = () => {
           styles.inputWrapper,
           focusedField === 'confirmPassword' && styles.inputWrapperFocused
         ]}>
-          <MaterialIcons 
-            name="lock-outline" 
-            size={22} 
-            color={focusedField === 'confirmPassword' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name="lock-outline"
+            size={22}
+            color={focusedField === 'confirmPassword' ? FORGOT_COLORS.primary : FORGOT_COLORS.textMuted}
             style={styles.inputIcon}
           />
           <TextInput
@@ -348,10 +345,10 @@ const ForgotPasswordScreen = () => {
             style={styles.eyeButton}
             activeOpacity={0.7}
           >
-            <MaterialIcons 
-              name={showConfirmPassword ? 'visibility' : 'visibility-off'} 
-              size={22} 
-              color={FORGOT_COLORS.textMuted} 
+            <MaterialIcons
+              name={showConfirmPassword ? 'visibility' : 'visibility-off'}
+              size={22}
+              color={FORGOT_COLORS.textMuted}
             />
           </TouchableOpacity>
         </View>
@@ -360,10 +357,10 @@ const ForgotPasswordScreen = () => {
       {/* Password Requirements */}
       <View style={styles.requirementsContainer}>
         <View style={styles.requirementItem}>
-          <MaterialIcons 
-            name={newPassword.length >= 8 ? 'check-circle' : 'radio-button-unchecked'} 
-            size={16} 
-            color={newPassword.length >= 8 ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name={newPassword.length >= 8 ? 'check-circle' : 'radio-button-unchecked'}
+            size={16}
+            color={newPassword.length >= 8 ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted}
           />
           <Text style={[
             styles.requirementText,
@@ -371,10 +368,10 @@ const ForgotPasswordScreen = () => {
           ]}>Ít nhất 8 ký tự</Text>
         </View>
         <View style={styles.requirementItem}>
-          <MaterialIcons 
-            name={/[A-Z]/.test(newPassword) ? 'check-circle' : 'radio-button-unchecked'} 
-            size={16} 
-            color={/[A-Z]/.test(newPassword) ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name={/[A-Z]/.test(newPassword) ? 'check-circle' : 'radio-button-unchecked'}
+            size={16}
+            color={/[A-Z]/.test(newPassword) ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted}
           />
           <Text style={[
             styles.requirementText,
@@ -382,10 +379,10 @@ const ForgotPasswordScreen = () => {
           ]}>Ít nhất 1 chữ hoa</Text>
         </View>
         <View style={styles.requirementItem}>
-          <MaterialIcons 
-            name={/[0-9]/.test(newPassword) ? 'check-circle' : 'radio-button-unchecked'} 
-            size={16} 
-            color={/[0-9]/.test(newPassword) ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted} 
+          <MaterialIcons
+            name={/[0-9]/.test(newPassword) ? 'check-circle' : 'radio-button-unchecked'}
+            size={16}
+            color={/[0-9]/.test(newPassword) ? FORGOT_COLORS.success : FORGOT_COLORS.textMuted}
           />
           <Text style={[
             styles.requirementText,
@@ -394,8 +391,8 @@ const ForgotPasswordScreen = () => {
         </View>
       </View>
 
-      <TouchableOpacity 
-        style={styles.primaryButton} 
+      <TouchableOpacity
+        style={styles.primaryButton}
         onPress={handleResetPassword}
         activeOpacity={0.9}
       >
@@ -418,8 +415,8 @@ const ForgotPasswordScreen = () => {
         Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng nhập với mật khẩu mới.
       </Text>
 
-      <TouchableOpacity 
-        style={styles.primaryButton} 
+      <TouchableOpacity
+        style={styles.primaryButton}
         onPress={handleBackToLogin}
         activeOpacity={0.9}
       >
@@ -432,7 +429,7 @@ const ForgotPasswordScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={FORGOT_COLORS.backgroundLight} />
-      
+
       {/* Background Gradient */}
       <LinearGradient
         colors={[FORGOT_COLORS.primaryLight, FORGOT_COLORS.backgroundLight, FORGOT_COLORS.backgroundLight]}
@@ -452,7 +449,7 @@ const ForgotPasswordScreen = () => {
         >
           {/* Header with Back Button */}
           {currentStep !== 'success' && currentStep !== 'email' && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.backButton}
               onPress={handleBack}
               activeOpacity={0.7}
@@ -473,8 +470,8 @@ const ForgotPasswordScreen = () => {
           {/* Footer - Back to Login */}
           {currentStep !== 'success' && (
             <View style={styles.footerContainer}>
-              <TouchableOpacity 
-                onPress={handleBackToLogin} 
+              <TouchableOpacity
+                onPress={handleBackToLogin}
                 activeOpacity={0.7}
                 style={styles.backToLoginButton}
               >

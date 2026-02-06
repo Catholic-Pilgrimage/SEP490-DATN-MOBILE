@@ -1,63 +1,134 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { BORDER_RADIUS, COLORS, SPACING } from '../../../../constants/theme.constants';
 import { getSpacing, moderateScale, responsive } from '../../../../utils/responsive';
 
 interface SiteListCardProps {
   id: string;
   name: string;
-  location?: string;
-  distance: string;
-  image: { uri: string };
+  address: string;
+  siteType: 'church' | 'shrine' | 'monastery' | 'center' | 'other';
+  region?: 'Bac' | 'Trung' | 'Nam';
+  coverImage: string;
+  reviewCount?: number;
   isFavorite: boolean;
+  isVisited?: boolean;
   onPress: () => void;
   onFavoritePress: () => void;
+  onVisitedPress?: () => void;
 }
+
+const SITE_TYPE_LABELS = {
+  church: 'Nhà thờ',
+  shrine: 'Đền thánh',
+  monastery: 'Tu viện',
+  center: 'Trung tâm',
+  other: 'Khác',
+};
+
+const REGION_LABELS = {
+  Bac: 'Miền Bắc',
+  Trung: 'Miền Trung',
+  Nam: 'Miền Nam',
+};
 
 export const SiteListCard: React.FC<SiteListCardProps> = ({
   name,
-  location,
-  distance,
-  image,
+  address,
+  siteType,
+  region,
+  coverImage,
+  reviewCount = 0,
   isFavorite,
+  isVisited = false,
   onPress,
   onFavoritePress,
+  onVisitedPress,
 }) => {
   return (
-    <TouchableOpacity 
-      style={styles.card} 
+    <TouchableOpacity
+      style={styles.card}
       onPress={onPress}
       activeOpacity={0.96}
     >
+      {/* Image with Badge */}
       <View style={styles.imageContainer}>
-        <Image 
-          source={image} 
-          style={styles.image} 
+        <Image
+          source={{ uri: coverImage }}
+          style={styles.image}
           resizeMode="cover"
         />
-        <View style={styles.imageBadge}>
-          <Text style={styles.imageBadgeIcon}>⛪</Text>
+        <View style={styles.regionBadge}>
+          <Text style={styles.regionText}>
+            {region ? REGION_LABELS[region] : SITE_TYPE_LABELS[siteType]}
+          </Text>
         </View>
       </View>
-      
+
+      {/* Content Section */}
       <View style={styles.content}>
-        <View style={styles.textContainer}>
-          <Text style={styles.name} numberOfLines={1}>
-            {name}
+        {/* Title */}
+        <Text style={styles.name} numberOfLines={2}>
+          {name}
+        </Text>
+
+        {/* Location */}
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
+          <Text style={styles.location} numberOfLines={1}>
+            {address}
           </Text>
-          {location && (
-            <View style={styles.locationRow}>
-              <Text style={styles.locationIcon}>📍</Text>
-              <Text style={styles.location} numberOfLines={1}>
-                {location}
-              </Text>
-            </View>
-          )}
         </View>
-        
-        <View style={styles.rightSection}>
-          <View style={styles.distanceBadge}>
-            <Text style={styles.distanceText}>{distance}</Text>
+
+        {/* Divider */}
+        <View style={styles.divider} />
+
+        {/* Bottom Row: Stats + Actions */}
+        <View style={styles.bottomRow}>
+          {/* Pilgrim Count */}
+          <View style={styles.statsContainer}>
+            <Ionicons name="people-outline" size={18} color={COLORS.textSecondary} />
+            <Text style={styles.statsText}>
+              {reviewCount > 1000
+                ? `${(reviewCount / 1000).toFixed(1)}k`
+                : reviewCount
+              } Người hành hương
+            </Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actions}>
+            {/* Favorite Button */}
+            <TouchableOpacity
+              style={[styles.actionButton, isFavorite && styles.actionButtonActive]}
+              onPress={onFavoritePress}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={18}
+                color={isFavorite ? COLORS.accent : COLORS.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {/* Visited Button */}
+            {onVisitedPress && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  isVisited && styles.actionButtonVisited
+                ]}
+                onPress={onVisitedPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={isVisited ? "checkmark-circle" : "checkmark-circle-outline"}
+                  size={18}
+                  color={isVisited ? '#22C55E' : COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -67,112 +138,126 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.white,
-    borderRadius: moderateScale(BORDER_RADIUS.lg),
-    marginBottom: getSpacing(SPACING.md) + 4,
-    ...SHADOWS.medium,
+    backgroundColor: '#ffffff',
+    borderRadius: moderateScale(24),
+    marginBottom: moderateScale(24),
     overflow: 'hidden',
-    borderWidth: 0,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e6e4dc',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
+
   imageContainer: {
-    width: responsive({
-      small: 85,
-      medium: moderateScale(95),
-      tablet: moderateScale(115),
-      default: moderateScale(95),
-    }),
+    width: '100%',
     height: responsive({
-      small: 85,
-      medium: moderateScale(95),
-      tablet: moderateScale(115),
-      default: moderateScale(95),
+      small: 180,
+      medium: 192,
+      tablet: 220,
+      default: 192,
     }),
     position: 'relative',
     backgroundColor: COLORS.backgroundDark,
   },
+
   image: {
     width: '100%',
     height: '100%',
   },
-  imageBadge: {
+
+  regionBadge: {
     position: 'absolute',
-    top: getSpacing(SPACING.xs),
-    left: getSpacing(SPACING.xs),
-    width: moderateScale(28),
-    height: moderateScale(28),
-    borderRadius: moderateScale(14),
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOWS.small,
+    top: moderateScale(16),
+    left: moderateScale(16),
+    paddingHorizontal: moderateScale(12),
+    paddingVertical: moderateScale(4),
+    backgroundColor: 'rgba(255, 255, 255, 0.90)',
+    borderRadius: BORDER_RADIUS.full,
   },
-  imageBadgeIcon: {
-    fontSize: 14,
+
+  regionText: {
+    fontSize: moderateScale(11),
+    fontWeight: '700',
+    color: '#181611',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
+
   content: {
-    flex: 1,
-    flexDirection: 'row',
-    padding: getSpacing(SPACING.md) + 2,
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    padding: moderateScale(16),
   },
-  textContainer: {
-    flex: 1,
-    paddingRight: getSpacing(SPACING.sm),
-  },
+
   name: {
-    fontSize: responsive({
-      small: TYPOGRAPHY.fontSize.lg,
-      medium: TYPOGRAPHY.fontSize.xl,
-      tablet: TYPOGRAPHY.fontSize.xxl,
-      default: TYPOGRAPHY.fontSize.xl,
-    }),
-    color: COLORS.primary,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    marginBottom: getSpacing(SPACING.xs),
+    fontSize: moderateScale(20),
+    color: '#181611',
+    fontWeight: '700',
+    marginBottom: moderateScale(8),
     letterSpacing: -0.3,
-    lineHeight: responsive({
-      small: TYPOGRAPHY.fontSize.lg * 1.3,
-      medium: TYPOGRAPHY.fontSize.xl * 1.3,
-      default: TYPOGRAPHY.fontSize.xl * 1.3,
-    }),
+    lineHeight: moderateScale(26),
   },
+
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginBottom: moderateScale(12),
   },
-  locationIcon: {
-    fontSize: 12,
-    opacity: 0.8,
-  },
+
   location: {
     flex: 1,
-    fontSize: responsive({
-      small: TYPOGRAPHY.fontSize.sm,
-      medium: TYPOGRAPHY.fontSize.md,
-      tablet: TYPOGRAPHY.fontSize.lg,
-      default: TYPOGRAPHY.fontSize.md,
-    }),
-    color: COLORS.textSecondary,
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    fontSize: moderateScale(14),
+    color: '#897f61',
+    fontWeight: '400',
   },
-  rightSection: {
+
+  divider: {
+    height: 1,
+    backgroundColor: '#f4f3f0',
+    marginVertical: moderateScale(12),
+  },
+
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
+  statsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+
+  statsText: {
+    fontSize: moderateScale(12),
+    color: '#897f61',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  actions: {
+    flexDirection: 'row',
+    gap: getSpacing(SPACING.sm),
+  },
+
+  actionButton: {
+    width: moderateScale(40),
+    height: moderateScale(40),
+    borderRadius: moderateScale(20),
+    backgroundColor: '#f4f3f0',
     justifyContent: 'center',
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
-  distanceBadge: {
-    backgroundColor: COLORS.accentChampagne,
-    paddingHorizontal: getSpacing(SPACING.md),
-    paddingVertical: getSpacing(SPACING.xs) + 2,
-    borderRadius: BORDER_RADIUS.full,
-    ...SHADOWS.subtle,
+
+  actionButtonActive: {
+    backgroundColor: 'rgba(236, 182, 19, 0.10)',
   },
-  distanceText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.accent,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
+
+  actionButtonVisited: {
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
   },
 });

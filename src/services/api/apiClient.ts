@@ -51,22 +51,24 @@ apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
       const accessToken = await secureStorage.getItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN);
-      
+
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
-      
-      // Debug logging for API requests
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
-      if (config.data) {
-        // Don't log FormData content (binary files)
-        const isFormData = config.data instanceof FormData;
-        console.log(`[API] Body: ${isFormData ? '[FormData]' : JSON.stringify(config.data)}`);
+
+      // Debug logging for API requests (only in development)
+      if (__DEV__) {
+        console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+        if (config.data) {
+          // Don't log FormData content (binary files)
+          const isFormData = config.data instanceof FormData;
+          console.log(`[API] Body: ${isFormData ? '[FormData]' : JSON.stringify(config.data)}`);
+        }
       }
     } catch {
       // Silent fail - continue without token
     }
-    
+
     return config;
   },
   (error: AxiosError) => {
@@ -77,8 +79,10 @@ apiClient.interceptors.request.use(
 // Response interceptor - Handle responses and errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
-    // Debug logging for successful responses
-    console.log(`[API] Response ${response.status}:`, JSON.stringify(response.data).substring(0, 200));
+    // Debug logging for successful responses (only in development)
+    if (__DEV__) {
+      console.log(`[API] Response ${response.status}:`, JSON.stringify(response.data).substring(0, 200));
+    }
     return response;
   },
   async (error: AxiosError) => {
@@ -87,9 +91,9 @@ apiClient.interceptors.response.use(
     // Handle 401 Unauthorized - Try to refresh token
     if (error.response?.status === HTTP_STATUS.UNAUTHORIZED && !originalRequest._retry) {
       // Don't retry for login/refresh-token endpoints
-      const isAuthEndpoint = originalRequest.url?.includes('/auth/login') || 
-                            originalRequest.url?.includes('/auth/refresh-token');
-      
+      const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/refresh-token');
+
       if (isAuthEndpoint) {
         return Promise.reject(error);
       }
@@ -113,7 +117,7 @@ apiClient.interceptors.response.use(
 
       try {
         const refreshToken = await secureStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
-        
+
         if (!refreshToken) {
           throw new Error('No refresh token available');
         }
@@ -125,10 +129,10 @@ apiClient.interceptors.response.use(
 
         if (response.data.success && response.data.data?.accessToken) {
           const newAccessToken = response.data.data.accessToken;
-          
+
           // Save new tokens
           await secureStorage.setItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN, newAccessToken);
-          
+
           if (response.data.data.refreshToken) {
             await secureStorage.setItem(
               AUTH_STORAGE_KEYS.REFRESH_TOKEN,
@@ -142,21 +146,21 @@ apiClient.interceptors.response.use(
           }
 
           processQueue(null, newAccessToken);
-          
+
           return apiClient(originalRequest);
         } else {
           throw new Error('Token refresh failed');
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        
+
         // Clear tokens on refresh failure
         await secureStorage.clearKeys([
           AUTH_STORAGE_KEYS.ACCESS_TOKEN,
           AUTH_STORAGE_KEYS.REFRESH_TOKEN,
           AUTH_STORAGE_KEYS.USER,
         ]);
-        
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -183,14 +187,14 @@ function transformError(error: AxiosError): Error {
   }
 
   const { status, data } = error.response as AxiosResponse<any>;
-  
+
   // Extract error message from API response
   const apiMessage = data?.error?.message || data?.message;
-  
+
   // Extract validation details if available
   const details = data?.error?.details || data?.details;
   let detailMessage = '';
-  
+
   if (details && Array.isArray(details) && details.length > 0) {
     // Format validation errors - only show the message, not field name
     detailMessage = details
@@ -203,10 +207,10 @@ function transformError(error: AxiosError): Error {
       .filter(Boolean)
       .join('. ');
   }
-  
+
   // Use detail message if available, otherwise use main message
   const fullMessage = detailMessage || apiMessage;
-  
+
   switch (status) {
     case HTTP_STATUS.BAD_REQUEST:
       return new Error(fullMessage || 'Yêu cầu không hợp lệ.');

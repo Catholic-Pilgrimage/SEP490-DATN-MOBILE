@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -13,9 +14,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AIWriterInput } from '../../../../components/ui/AIWriterInput';
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -23,7 +24,6 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from '../../../../constants/guide.constants';
-import { AIWriterInput } from '../../../../components/ui/AIWriterInput';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -144,17 +144,14 @@ const EventDetailScreen: React.FC = () => {
   }, [navigation]);
 
   const handleDatePress = () => {
-    console.log('Open date picker');
     // TODO: Implement date picker
   };
 
   const handleTimePress = () => {
-    console.log('Open time picker');
     // TODO: Implement time picker
   };
 
   const handleMapPress = () => {
-    console.log('Open map');
     // TODO: Navigate to map screen
   };
 
@@ -175,7 +172,6 @@ const EventDetailScreen: React.FC = () => {
   };
 
   const handleSave = () => {
-    console.log('Save event:', formData);
     // TODO: Implement save logic
   };
 
