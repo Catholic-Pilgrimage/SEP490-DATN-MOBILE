@@ -122,5 +122,14 @@
         "thisWeek": "Tuần này",
         "thisMonth": "Tháng này"
     },
+    "planner": {
+        "myPlans": "Kế hoạch của tôi",
+        "dashboardTitle": "Kế hoạch\nHành hương",
+        "shared": "Được chia sẻ",
+        "draft": "Bản nháp",
+        "days": "Ngày",
+        "planNewJourney": "Lập kế hoạch mới",
+        "startJourney": "Bắt đầu hành trình tâm linh tiếp theo của bạn."
+    },
     "appName": "Hành Trình Thánh"
 }
