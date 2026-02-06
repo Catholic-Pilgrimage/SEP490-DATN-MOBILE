@@ -9,6 +9,7 @@ interface NearbyPlaceCardProps {
     name: string;
     distance: string;
     type: PlaceType;
+    address?: string;
     onDirections?: () => void;
 }
 
@@ -31,6 +32,7 @@ export const NearbyPlaceCard: React.FC<NearbyPlaceCardProps> = ({
     name,
     distance,
     type,
+    address,
     onDirections,
 }) => {
     return (
@@ -45,6 +47,7 @@ export const NearbyPlaceCard: React.FC<NearbyPlaceCardProps> = ({
                 </View>
                 <View style={styles.info}>
                     <Text style={styles.name}>{name}</Text>
+                    {address && <Text style={styles.address} numberOfLines={1}>{address}</Text>}
                     <Text style={styles.distance}>{distance}</Text>
                 </View>
             </View>
@@ -91,9 +94,16 @@ const styles = StyleSheet.create({
         fontWeight: TYPOGRAPHY.fontWeight.bold,
         color: COLORS.textPrimary,
     },
+    address: {
+        fontSize: TYPOGRAPHY.fontSize.sm,
+        color: COLORS.textSecondary,
+        maxWidth: 200,
+    },
     distance: {
         fontSize: TYPOGRAPHY.fontSize.xs,
-        color: COLORS.textSecondary,
+        color: COLORS.accent,
+        fontWeight: TYPOGRAPHY.fontWeight.medium,
+        marginTop: 2,
     },
     directionsButton: {
         backgroundColor: 'rgba(201, 165, 114, 0.2)',

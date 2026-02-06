@@ -1,79 +1,157 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  Animated,
+  ActivityIndicator,
   Dimensions,
   Image,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { useSiteDetail, useSiteEvents, useSiteMassSchedules, useSiteMedia, useSiteNearbyPlaces } from '../../../../hooks/useSites';
+import { DayOfWeek } from '../../../../types';
 import { EventCard, NearbyPlaceCard, QuickActionButton } from '../components';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_HEIGHT = Dimensions.get('window').height * 0.45;
 
-// Mock data matching the HTML template
-const MOCK_SITE_DETAIL = {
-  id: '1',
-  name: 'Vương Cung Thánh Đường Đức Bà',
-  type: 'Nhà thờ',
-  location: 'TP. Hồ Chí Minh, Việt Nam',
-  images: [
-    'https://sakos.vn/wp-content/uploads/2024/04/nha-tho-duc-ba-2_1624854355.jpg',
-    'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg/1200px-Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg',
-    'https://ik.imagekit.io/tvlk/blog/2023/02/nha-tho-duc-ba-1.jpg?tr=dpr-2,w-675',
-  ],
-  description: `Vương Cung Thánh Đường Đức Bà Sài Gòn là nhà thờ chính tòa của Tổng giáo phận Thành phố Hồ Chí Minh. Đây là công trình kiến trúc độc đáo của thành phố, được xây dựng từ năm 1863 đến năm 1880 theo phong cách kiến trúc Roman và Gothic. Nhà thờ nằm ở trung tâm thành phố, tại Công trường Công xã Paris, Quận 1.`,
-  massSchedule: [
-    { day: 'Ngày thường', times: ['07:00 (Tiếng Việt)', '18:00 (Chầu Thánh Thể)'] },
-    { day: 'Thứ Bảy', times: ['07:00 (Tiếng Việt)', '18:00 (Lễ Vọng)'] },
-    { day: 'Chúa Nhật', times: ['08:00 (Trọng thể)', '10:30 (Tiếng Anh)', '17:00 (Rước kiệu)'] },
-  ],
-  gallery: [
-    { type: 'image', url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg/1200px-Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg' },
-    { type: 'video', url: 'https://ik.imagekit.io/tvlk/blog/2023/02/nha-tho-duc-ba-1.jpg?tr=dpr-2,w-675', thumbnail: 'https://ik.imagekit.io/tvlk/blog/2023/02/nha-tho-duc-ba-1.jpg?tr=dpr-2,w-675' },
-    { type: 'image', url: 'https://sakos.vn/wp-content/uploads/2024/04/nha-tho-duc-ba-2_1624854355.jpg' },
-  ],
-  events: [
-    {
-      id: '1',
-      date: 'Tháng 10, 4',
-      title: 'Rước Kiệu Đức Mẹ',
-      description: 'Tham gia cùng hàng ngàn giáo dân.',
-      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg/1200px-Saigon_Notre-Dame_Basilica_%28Front_view%29.jpg',
-    },
-    {
-      id: '2',
-      date: 'Tháng 11, 1',
-      title: 'Lễ Các Thánh',
-      description: 'Cầu nguyện và chầu Thánh Thể.',
-      image: 'https://ik.imagekit.io/tvlk/blog/2023/02/nha-tho-duc-ba-1.jpg?tr=dpr-2,w-675',
-    },
-  ],
-  nearbyPlaces: [
-    { name: 'Khách Sạn Hành Hương', distance: '0.2 km', type: 'hotel' as const },
-    { name: 'Nhà Hàng Công Giáo', distance: '0.4 km', type: 'restaurant' as const },
-    { name: 'Nhà Thờ Tân Định', distance: '1.2 km', type: 'church' as const },
-  ],
-};
-
-export const SiteDetailScreen = ({ navigation }: any) => {
+export const SiteDetailScreen = ({ navigation, route }: any) => {
+  const { siteId } = route.params || {};
   const insets = useSafeAreaInsets();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const scrollY = React.useRef(new Animated.Value(0)).current;
+
+  // -- Fetch Data Hooks --
+  const {
+    site,
+    isLoading: isLoadingDetail,
+    refetch: refetchDetail
+  } = useSiteDetail(siteId, { autoFetch: true });
+
+  const {
+    media,
+    isLoading: isLoadingMedia,
+    refetch: refetchMedia
+  } = useSiteMedia(siteId, { autoFetch: true, params: { limit: 10, type: 'image' } });
+
+  const {
+    schedules,
+    isLoading: isLoadingSchedules,
+    refetch: refetchSchedules
+  } = useSiteMassSchedules(siteId, { autoFetch: true });
+
+  const {
+    events,
+    isLoading: isLoadingEvents,
+    refetch: refetchEvents
+  } = useSiteEvents(siteId, { autoFetch: true, params: { upcoming: 'true', limit: 5 } });
+
+  const {
+    places,
+    isLoading: isLoadingPlaces,
+    refetch: refetchPlaces
+  } = useSiteNearbyPlaces(siteId, { autoFetch: true, params: { limit: 3 } });
+
+  const isLoading = isLoadingDetail || isLoadingMedia || isLoadingSchedules || isLoadingEvents || isLoadingPlaces;
+
+  const handleRefresh = () => {
+    refetchDetail();
+    refetchMedia();
+    refetchSchedules();
+    refetchEvents();
+    refetchPlaces();
+  };
 
   const handleBack = () => navigation.goBack();
   const handleShare = () => { };
   const handleBookmark = () => setIsBookmarked(!isBookmarked);
+
+  // -- Data Processing --
+
+  // Format mass schedules for display
+  const formattedSchedules = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [];
+
+    // Helper to format days (e.g., [0] -> "Chúa Nhật", [1,2,3,4,5,6] -> "Ngày thường")
+    const formatDays = (days: DayOfWeek[]) => {
+      if (days.includes(0) && days.length === 1) return 'Chúa Nhật';
+      if (days.length === 6 && !days.includes(0)) return 'Ngày thường';
+      if (days.includes(6) && days.length === 1) return 'Thứ Bảy';
+
+      return days.map(d => {
+        if (d === 0) return 'CN';
+        return `T${d + 1}`;
+      }).join(', ');
+    };
+
+    // Group by days
+    const grouped = new Map<string, string[]>();
+
+    schedules.forEach(schedule => {
+      const daysKey = formatDays(schedule.days_of_week);
+      const timeStr = schedule.time.substring(0, 5); // HH:MM
+      const noteStr = schedule.note ? ` (${schedule.note})` : '';
+      const fullTimeStr = `${timeStr}${noteStr}`;
+
+      if (grouped.has(daysKey)) {
+        grouped.get(daysKey)?.push(fullTimeStr);
+      } else {
+        grouped.set(daysKey, [fullTimeStr]);
+      }
+    });
+
+    // Convert to array
+    return Array.from(grouped.entries()).map(([day, times]) => ({
+      day,
+      times: times.sort()
+    }));
+  }, [schedules]);
+
+  // Combine site images and media gallery for hero section slider
+  const heroImages = useMemo(() => {
+    const images = site?.images || [];
+    const mediaImages = media
+      .filter(m => m.type === 'image')
+      .map(m => m.url);
+
+    // Add cover image if exists
+    const allImages = site?.coverImage ? [site.coverImage, ...images, ...mediaImages] : [...images, ...mediaImages];
+
+    // Remove duplicates and limit to 5
+    return [...new Set(allImages)].slice(0, 5);
+  }, [site, media]);
+
+  // Fallback if no images
+  const displayImages = heroImages.length > 0
+    ? heroImages
+    : ['https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop'];
+
+  if (isLoading && !site) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
+      </View>
+    );
+  }
+
+  if (!site) {
+    return (
+      <View style={[styles.container, styles.errorContainer]}>
+        <Text style={styles.errorText}>Không tìm thấy thông tin địa điểm</Text>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <Text style={styles.backButtonText}>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -84,12 +162,15 @@ export const SiteDetailScreen = ({ navigation }: any) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={handleRefresh} tintColor={COLORS.white} />
+        }
       >
         {/* Hero Section */}
         <View style={[styles.heroContainer, { height: HERO_HEIGHT }]}>
           {/* Background Image */}
           <Image
-            source={{ uri: MOCK_SITE_DETAIL.images[activeImageIndex] }}
+            source={{ uri: displayImages[activeImageIndex] || displayImages[0] }}
             style={StyleSheet.absoluteFillObject}
             resizeMode="cover"
           />
@@ -111,9 +192,9 @@ export const SiteDetailScreen = ({ navigation }: any) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.heroButton} onPress={handleBookmark}>
                 <Ionicons
-                  name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                  name={isBookmarked ? "heart" : "heart-outline"}
                   size={22}
-                  color="#fff"
+                  color={isBookmarked ? COLORS.danger : "#fff"}
                 />
               </TouchableOpacity>
             </View>
@@ -123,30 +204,44 @@ export const SiteDetailScreen = ({ navigation }: any) => {
           <View style={styles.heroContent}>
             <View style={styles.typeBadge}>
               <Ionicons name="business" size={12} color={COLORS.textPrimary} />
-              <Text style={styles.typeBadgeText}>{MOCK_SITE_DETAIL.type}</Text>
+              <Text style={styles.typeBadgeText}>{site.type === 'church' ? 'Nhà thờ' : site.type}</Text>
             </View>
-            <Text style={styles.heroTitle}>{MOCK_SITE_DETAIL.name}</Text>
+            <Text style={styles.heroTitle}>{site.name}</Text>
+
+            {/* Patron Saint in Hero */}
+            {site.patronSaint && (
+              <View style={styles.patronSaintBadge}>
+                <Ionicons name="star" size={14} color={COLORS.accent} />
+                <Text style={styles.patronSaintText}>{site.patronSaint}</Text>
+              </View>
+            )}
+
             <View style={styles.locationRow}>
               <Ionicons name="location" size={16} color={COLORS.accent} />
-              <Text style={styles.locationText}>{MOCK_SITE_DETAIL.location}</Text>
+              <Text style={styles.locationText} numberOfLines={1}>
+                {site.address}
+                {(site.province || site.district) && `, ${site.district || ''} ${site.province || ''}`}
+              </Text>
             </View>
 
             {/* Pagination Dots */}
-            <View style={styles.paginationDots}>
-              {MOCK_SITE_DETAIL.images.map((_, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setActiveImageIndex(index)}
-                >
-                  <View
-                    style={[
-                      styles.dot,
-                      index === activeImageIndex ? styles.activeDot : styles.inactiveDot,
-                    ]}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
+            {displayImages.length > 1 && (
+              <View style={styles.paginationDots}>
+                {displayImages.map((_, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setActiveImageIndex(index)}
+                  >
+                    <View
+                      style={[
+                        styles.dot,
+                        index === activeImageIndex ? styles.activeDot : styles.inactiveDot,
+                      ]}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         </View>
 
@@ -155,10 +250,35 @@ export const SiteDetailScreen = ({ navigation }: any) => {
           {/* Quick Actions Card */}
           <View style={styles.quickActionsCard}>
             <QuickActionButton icon="navigate" label="Dẫn đường" />
-            <QuickActionButton icon="call" label="Gọi điện" />
-            <QuickActionButton icon="globe-outline" label="Website" />
-            <QuickActionButton icon="heart-outline" label="Ủng hộ" />
+            {site.contactInfo?.phone && (
+              <QuickActionButton icon="call" label="Gọi điện" />
+            )}
+            {site.contactInfo?.website && (
+              <QuickActionButton icon="globe-outline" label="Website" />
+            )}
+            <QuickActionButton icon="gift-outline" label="Ủng hộ" />
           </View>
+
+          {/* Key Information Card - Only show provided info */}
+          {/* We only show this card if there's information to show. 
+              Currently minimal info is Opening Hours as Patron Saint moved to Hero 
+              and Contact Info is redundant. */}
+          {(site.openingHours?.open || site.openingHours?.close) && (
+            <View style={styles.infoCard}>
+              {/* Opening Hours */}
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.infoIconContainer}>
+                  <Ionicons name="time-outline" size={20} color={COLORS.accent} />
+                </View>
+                <View style={styles.infoContent}>
+                  <Text style={styles.infoLabel}>Giờ mở cửa</Text>
+                  <Text style={styles.infoValue}>
+                    {site.openingHours?.open ? site.openingHours.open.slice(0, 5) : '--'} - {site.openingHours?.close ? site.openingHours.close.slice(0, 5) : '--'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* About Section */}
           <View style={styles.section}>
@@ -167,109 +287,136 @@ export const SiteDetailScreen = ({ navigation }: any) => {
               style={styles.descriptionText}
               numberOfLines={isDescriptionExpanded ? undefined : 4}
             >
-              {MOCK_SITE_DETAIL.description}
+              {site.description || 'Chưa có thông tin mô tả.'}
             </Text>
-            <TouchableOpacity
-              style={styles.readMoreButton}
-              onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-            >
-              <Text style={styles.readMoreText}>
-                {isDescriptionExpanded ? 'Thu gọn' : 'Đọc thêm'}
-              </Text>
-              <Ionicons
-                name={isDescriptionExpanded ? "chevron-up" : "chevron-down"}
-                size={14}
-                color={COLORS.accent}
-              />
-            </TouchableOpacity>
+
+            {site.description && site.description.length > 150 && (
+              <TouchableOpacity
+                style={styles.readMoreButton}
+                onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+              >
+                <Text style={styles.readMoreText}>
+                  {isDescriptionExpanded ? 'Thu gọn' : 'Đọc thêm'}
+                </Text>
+                <Ionicons
+                  name={isDescriptionExpanded ? "chevron-up" : "chevron-down"}
+                  size={14}
+                  color={COLORS.accent}
+                />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* Photos & Videos Gallery */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Hình ảnh & Video</Text>
-              <TouchableOpacity>
-                <Text style={styles.seeAllText}>Xem tất cả</Text>
-              </TouchableOpacity>
+          {/* History Section - Only if distinct from description */}
+          {site.history && site.history !== site.description && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Lịch sử hình thành</Text>
+              <Text style={styles.descriptionText}>
+                {site.history}
+              </Text>
             </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.galleryScroll}
-            >
-              {MOCK_SITE_DETAIL.gallery.map((item, index) => (
-                <TouchableOpacity key={index} style={styles.galleryItem}>
-                  <Image
-                    source={{ uri: item.type === 'video' ? item.thumbnail : item.url }}
-                    style={styles.galleryImage}
-                    resizeMode="cover"
-                  />
-                  {item.type === 'video' && (
-                    <View style={styles.playButtonOverlay}>
-                      <View style={styles.playButton}>
-                        <Ionicons name="play" size={20} color="#fff" />
-                      </View>
-                    </View>
-                  )}
+          )}
+
+          {/* Photos & Videos Gallery - Only show if we have media */}
+          {media && media.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Hình ảnh & Video</Text>
+                <TouchableOpacity>
+                  <Text style={styles.seeAllText}>Xem tất cả</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.galleryScroll}
+              >
+                {media.map((item, index) => (
+                  <TouchableOpacity key={item.id || index} style={styles.galleryItem}>
+                    <Image
+                      source={{ uri: item.url }}
+                      style={styles.galleryImage}
+                      resizeMode="cover"
+                    />
+                    {item.type === 'video' && (
+                      <View style={styles.playButtonOverlay}>
+                        <View style={styles.playButton}>
+                          <Ionicons name="play" size={20} color="#fff" />
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
           {/* Mass Schedule */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Lịch Thánh Lễ</Text>
-            <View style={styles.scheduleCard}>
-              {MOCK_SITE_DETAIL.massSchedule.map((schedule, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.scheduleRow,
-                    index % 2 === 1 && styles.scheduleRowAlt,
-                    index === MOCK_SITE_DETAIL.massSchedule.length - 1 && styles.scheduleRowLast,
-                  ]}
-                >
-                  <Text style={[
-                    styles.scheduleDay,
-                    schedule.day === 'Chúa Nhật' && styles.scheduleDayHighlight,
-                  ]}>
-                    {schedule.day}
-                  </Text>
-                  <View style={styles.scheduleTimes}>
-                    {schedule.times.map((time, timeIndex) => (
-                      <Text
-                        key={timeIndex}
-                        style={[
-                          styles.scheduleTime,
-                          timeIndex === 0 && schedule.day === 'Chúa Nhật' && styles.scheduleTimeHighlight,
-                        ]}
-                      >
-                        {time}
-                      </Text>
-                    ))}
+            {formattedSchedules.length > 0 ? (
+              <View style={styles.scheduleCard}>
+                {formattedSchedules.map((schedule, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.scheduleRow,
+                      index % 2 === 1 && styles.scheduleRowAlt,
+                      index === formattedSchedules.length - 1 && styles.scheduleRowLast,
+                    ]}
+                  >
+                    <Text style={[
+                      styles.scheduleDay,
+                      schedule.day === 'Chúa Nhật' && styles.scheduleDayHighlight,
+                    ]}>
+                      {schedule.day}
+                    </Text>
+                    <View style={styles.scheduleTimes}>
+                      {schedule.times.map((time, timeIndex) => (
+                        <Text
+                          key={timeIndex}
+                          style={[
+                            styles.scheduleTime,
+                            timeIndex === 0 && schedule.day === 'Chúa Nhật' && styles.scheduleTimeHighlight,
+                          ]}
+                        >
+                          {time}
+                        </Text>
+                      ))}
+                    </View>
                   </View>
-                </View>
-              ))}
-              <TouchableOpacity style={styles.viewFullScheduleButton}>
-                <Text style={styles.viewFullScheduleText}>XEM LỊCH ĐẦY ĐỦ</Text>
-              </TouchableOpacity>
-            </View>
+                ))}
+                <TouchableOpacity style={styles.viewFullScheduleButton}>
+                  <Text style={styles.viewFullScheduleText}>XEM LỊCH ĐẦY ĐỦ</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Đang cập nhật lịch lễ...</Text>
+              </View>
+            )}
           </View>
 
           {/* Upcoming Events */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Sự kiện sắp tới</Text>
-            <View style={styles.eventsContainer}>
-              {MOCK_SITE_DETAIL.events.map((event) => (
-                <EventCard
-                  key={event.id}
-                  image={event.image}
-                  date={event.date}
-                  title={event.title}
-                  description={event.description}
-                />
-              ))}
-            </View>
+            {events && events.length > 0 ? (
+              <View style={styles.eventsContainer}>
+                {events.map((event) => (
+                  <EventCard
+                    key={event.id}
+                    image={event.banner_url || site.coverImage}
+                    date={event.start_date} // You might want to format this date
+                    title={event.name}
+                    description={event.description || ''}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Chưa có sự kiện sắp tới.</Text>
+              </View>
+            )}
           </View>
 
           {/* Around the Sanctuary */}
@@ -279,7 +426,11 @@ export const SiteDetailScreen = ({ navigation }: any) => {
               {/* Map Placeholder */}
               <View style={styles.mapPlaceholder}>
                 <Image
-                  source={{ uri: 'https://maps.googleapis.com/maps/api/staticmap?center=10.7769,106.6958&zoom=15&size=400x200&maptype=roadmap&key=placeholder' }}
+                  source={{
+                    uri: (site.latitude && site.longitude)
+                      ? `https://maps.googleapis.com/maps/api/staticmap?center=${site.latitude},${site.longitude}&zoom=15&size=400x200&maptype=roadmap&markers=color:red%7C${site.latitude},${site.longitude}&key=placeholder`
+                      : 'https://maps.googleapis.com/maps/api/staticmap?center=10.7769,106.6958&zoom=15&size=400x200&maptype=roadmap&key=placeholder'
+                  }}
                   style={styles.mapImage}
                   resizeMode="cover"
                 />
@@ -289,21 +440,24 @@ export const SiteDetailScreen = ({ navigation }: any) => {
                     <Text style={styles.viewMapText}>Xem bản đồ</Text>
                   </TouchableOpacity>
                 </View>
-                {/* Location Pin */}
-                <View style={styles.mapPin}>
-                  <Ionicons name="location" size={32} color={COLORS.accent} />
-                </View>
               </View>
 
               {/* Nearby Places List */}
-              {MOCK_SITE_DETAIL.nearbyPlaces.map((place, index) => (
-                <NearbyPlaceCard
-                  key={index}
-                  name={place.name}
-                  distance={place.distance}
-                  type={place.type}
-                />
-              ))}
+              {places && places.length > 0 ? (
+                places.map((place, index) => (
+                  <NearbyPlaceCard
+                    key={place.id || index}
+                    name={place.name}
+                    address={place.address}
+                    distance={`${Math.round(place.distance_meters / 100) / 10} km`}
+                    type={place.category as any}
+                  />
+                ))
+              ) : (
+                <View style={{ padding: SPACING.md }}>
+                  <Text style={{ color: COLORS.textSecondary }}>Không có địa điểm lân cận nào.</Text>
+                </View>
+              )}
             </View>
           </View>
 
@@ -319,6 +473,30 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  errorText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontFamily: TYPOGRAPHY.fontFamily.body,
+    color: COLORS.danger,
+    marginBottom: SPACING.md,
+  },
+  backButton: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  backButtonText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
   },
   scrollView: {
     flex: 1,
@@ -394,6 +572,18 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: TYPOGRAPHY.fontWeight.medium,
+    flex: 1,
+  },
+  patronSaintBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: SPACING.xs,
+  },
+  patronSaintText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.accent,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
   },
   paginationDots: {
     flexDirection: 'row',
@@ -428,9 +618,67 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     marginTop: -SPACING.lg,
+    marginBottom: SPACING.md,
     ...SHADOWS.medium,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
+    justifyContent: 'space-around',
+  },
+
+  // Info Card
+  infoCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    ...SHADOWS.small,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  infoIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: 'rgba(201, 165, 114, 0.1)', // Light accent
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    marginBottom: 2,
+  },
+  infoValue: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
+    color: COLORS.textPrimary,
+  },
+
+  // Empty State
+  emptyContainer: {
+    padding: SPACING.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface0,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderStyle: 'dashed',
+  },
+  emptyText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
   },
 
   // Section

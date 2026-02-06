@@ -82,7 +82,11 @@ export interface GetSiteMediaParams {
 
 export interface SiteMediaResponse {
   success: boolean;
-  data: SiteMedia[];
+  data: {
+    site: { id: string; code: string; name: string };
+    data: SiteMedia[];
+    pagination?: { page: number; limit: number; totalItems: number; totalPages: number };
+  };
 }
 
 // Mass Schedules
@@ -101,7 +105,10 @@ export interface GetSiteMassSchedulesParams {
 
 export interface SiteMassScheduleResponse {
   success: boolean;
-  data: SiteMassSchedule[];
+  data: {
+    site: { id: string; code: string; name: string };
+    data: SiteMassSchedule[];
+  };
 }
 
 // Events
@@ -127,7 +134,11 @@ export interface GetSiteEventsParams {
 
 export interface SiteEventResponse {
   success: boolean;
-  data: SiteEvent[];
+  data: {
+    site: { id: string; code: string; name: string };
+    data: SiteEvent[];
+    pagination?: { page: number; limit: number; totalItems: number; totalPages: number };
+  };
 }
 
 // Nearby Places
