@@ -18,6 +18,83 @@ export type PlanStatus =
   | "cancelled";
 
 /**
+ * Backend Plan Entity (matches API response)
+ */
+export interface PlanEntity {
+  id: string;
+  user_id: string;
+  name: string;
+  start_date: string;
+  number_of_days: number;
+  number_of_people: number;
+  transportation: string;
+  budget_level: string;
+  status: string;
+  is_public: boolean;
+  share_token: string;
+  share_role: string;
+  owner: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url: string;
+  };
+  created_at: string;
+  updated_at: string;
+  items_by_day?: Record<string, PlanItem[]>;
+}
+
+export interface PlanItem {
+  id: string;
+  uuid?: string; // Sometimes ID might be passed as uuid or id? keeping generic
+  planner_id?: string;
+  site_id?: string;
+  day_number?: number;
+  order_index?: number;
+  note?: string; // API uses 'note'
+  site: {
+    id?: string;
+    name: string;
+    image?: string;
+    address?: string;
+    cover_image?: string;
+    latitude?: number;
+    longitude?: number;
+  };
+  arrival_time?: string;
+  departure_time?: string;
+}
+
+export interface AddPlanItemRequest {
+  site_id: string;
+  day_number: number;
+  note?: string;
+}
+
+export interface AddPlanItemResponse {
+  item: PlanItem;
+}
+
+export interface ReorderPlanItemsRequest {
+  day_number: number;
+  item_ids: string[];
+}
+
+export interface ReorderPlanItemsResponse {
+  items: PlanItem[];
+}
+
+export interface GetPlansResponse {
+  planners: PlanEntity[];
+  pagination: {
+    page: number
+    limit: number;
+    totalItems?: number; // backend might use different key, but for now assuming standard
+    totalPages?: number;
+  };
+}
+
+/**
  * Transportation type
  */
 export type TransportationType =

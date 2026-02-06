@@ -61,14 +61,17 @@ export const PILGRIM_ENDPOINTS = {
 
   // Planner - Trip planning
   PLANNER: {
-    LIST: `${API_BASE}/plans`,
-    CREATE: `${API_BASE}/plans`,
-    DETAIL: (id: string) => `${API_BASE}/plans/${id}`,
-    UPDATE: (id: string) => `${API_BASE}/plans/${id}`,
-    DELETE: (id: string) => `${API_BASE}/plans/${id}`,
-    AI_SUGGEST: `${API_BASE}/plans/ai-suggest`,
-    INVITE: (id: string) => `${API_BASE}/plans/${id}/invite`,
-    PARTICIPANTS: (id: string) => `${API_BASE}/plans/${id}/participants`,
+    LIST: `${API_BASE}/planners`,
+    CREATE: `${API_BASE}/planners`,
+    DETAIL: (id: string) => `${API_BASE}/planners/${id}`,
+    UPDATE: (id: string) => `${API_BASE}/planners/${id}`,
+    DELETE: (id: string) => `${API_BASE}/planners/${id}`,
+    AI_SUGGEST: `${API_BASE}/planners/ai-suggest`,
+    INVITE: (id: string) => `${API_BASE}/planners/${id}/invite`,
+    PARTICIPANTS: (id: string) => `${API_BASE}/planners/${id}/participants`,
+    ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
+    DELETE_ITEM: (planId: string, itemId: string) => `${API_BASE}/planners/${planId}/items/${itemId}`,
+    REORDER_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/reorder`,
   },
 
   // Journal - Spiritual journals

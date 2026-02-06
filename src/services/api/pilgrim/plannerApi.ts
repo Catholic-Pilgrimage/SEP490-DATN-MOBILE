@@ -14,18 +14,21 @@
  */
 
 import {
-    ApiResponse,
-    PaginatedResponse,
-    PaginationParams,
+  ApiResponse,
+  PaginationParams,
 } from "../../../types/api.types";
 import {
-    AISuggestionRequest,
-    CreatePlanRequest,
-    InviteParticipantRequest,
-    PlanParticipant,
-    PlanSummary,
-    TripPlan,
-    UpdatePlanRequest
+  AddPlanItemRequest,
+  AddPlanItemResponse,
+  AISuggestionRequest,
+  CreatePlanRequest,
+  GetPlansResponse,
+  InviteParticipantRequest,
+  PlanEntity,
+  PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
+  ReorderPlanItemsRequest,
+  ReorderPlanItemsResponse,
+  UpdatePlanRequest
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -39,8 +42,8 @@ import { PILGRIM_ENDPOINTS } from "../endpoints";
  */
 export const getPlans = async (
   params?: PaginationParams,
-): Promise<PaginatedResponse<PlanSummary>> => {
-  const response = await apiClient.get<PaginatedResponse<PlanSummary>>(
+): Promise<ApiResponse<GetPlansResponse>> => {
+  const response = await apiClient.get<ApiResponse<GetPlansResponse>>(
     PILGRIM_ENDPOINTS.PLANNER.LIST,
     { params },
   );
@@ -52,8 +55,8 @@ export const getPlans = async (
  */
 export const getPlanDetail = async (
   id: string,
-): Promise<ApiResponse<TripPlan>> => {
-  const response = await apiClient.get<ApiResponse<TripPlan>>(
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.get<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.DETAIL(id),
   );
   return response.data;
@@ -64,8 +67,8 @@ export const getPlanDetail = async (
  */
 export const createPlan = async (
   data: CreatePlanRequest,
-): Promise<ApiResponse<TripPlan>> => {
-  const response = await apiClient.post<ApiResponse<TripPlan>>(
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.post<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.CREATE,
     data,
   );
@@ -78,8 +81,8 @@ export const createPlan = async (
 export const updatePlan = async (
   id: string,
   data: UpdatePlanRequest,
-): Promise<ApiResponse<TripPlan>> => {
-  const response = await apiClient.put<ApiResponse<TripPlan>>(
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.patch<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.UPDATE(id),
     data,
   );
@@ -97,12 +100,53 @@ export const deletePlan = async (id: string): Promise<ApiResponse<void>> => {
 };
 
 /**
+ * Add item to plan
+ */
+export const addPlanItem = async (
+  planId: string,
+  data: AddPlanItemRequest,
+): Promise<ApiResponse<AddPlanItemResponse>> => {
+  const response = await apiClient.post<ApiResponse<AddPlanItemResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.ADD_ITEM(planId),
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * Delete item from plan
+ */
+export const deletePlanItem = async (
+  planId: string,
+  itemId: string,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.delete<ApiResponse<void>>(
+    PILGRIM_ENDPOINTS.PLANNER.DELETE_ITEM(planId, itemId),
+  );
+  return response.data;
+};
+
+/**
+ * Reorder items in plan
+ */
+export const reorderPlanItems = async (
+  planId: string,
+  data: ReorderPlanItemsRequest,
+): Promise<ApiResponse<ReorderPlanItemsResponse>> => {
+  const response = await apiClient.patch<ApiResponse<ReorderPlanItemsResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.REORDER_ITEMS(planId),
+    data,
+  );
+  return response.data;
+};
+
+/**
  * Get AI trip suggestions
  */
 export const getAISuggestions = async (
   data: AISuggestionRequest,
-): Promise<ApiResponse<TripPlan>> => {
-  const response = await apiClient.post<ApiResponse<TripPlan>>(
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.post<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.AI_SUGGEST,
     data,
   );
@@ -148,6 +192,9 @@ const pilgrimPlannerApi = {
   getAISuggestions,
   inviteParticipant,
   getParticipants,
+  addPlanItem,
+  deletePlanItem,
+  reorderPlanItems,
 };
 
 export default pilgrimPlannerApi;

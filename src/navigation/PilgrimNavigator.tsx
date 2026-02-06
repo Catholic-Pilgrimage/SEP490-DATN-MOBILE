@@ -5,6 +5,7 @@ import { createNativeStackNavigator, NativeStackNavigationProp } from '@react-na
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, TYPOGRAPHY } from '../constants/theme.constants';
 import { useAuth } from '../contexts/AuthContext';
 import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
@@ -306,6 +307,7 @@ import { useTranslation } from 'react-i18next';
 
 export const PilgrimNavigator = () => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -314,8 +316,8 @@ export const PilgrimNavigator = () => {
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.textTertiary,
         tabBarStyle: {
-          height: Platform.OS === 'android' ? 70 : 80, // Increased height for Android and iOS
-          paddingBottom: Platform.OS === 'android' ? 12 : 20, // More bottom padding for Safe Area
+          height: 60 + (insets.bottom || 10),
+          paddingBottom: insets.bottom || 10,
           paddingTop: 8,
           backgroundColor: COLORS.white,
           borderTopWidth: 1,
@@ -339,14 +341,6 @@ export const PilgrimNavigator = () => {
               label = t('navigation.schedule');
               break;
             case 'Vi tri':
-              // We might not have a key for "Location" yet in navigation block, checking.
-              // en.json has home, mySite, profile, explore, schedule, community, notifications.
-              // Let's assume we add "location" or map it to something appropriate.
-              // For now, let's look at the View_File output for en.json again. 
-              // It doesn't have "location". I should probably add it or use a fallback. 
-              // Let's add "location" key to translations in next step.
-              // For now, I will use a hardcoded fallback or existing key if similar.
-              // Actually, let's keep it consistent. I will add "location" to JSONs.
               label = t('navigation.location', { defaultValue: 'Vị trí' });
               break;
             case 'Ho so':

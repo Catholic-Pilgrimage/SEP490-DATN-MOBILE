@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     Animated,
     Dimensions,
@@ -12,57 +13,62 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
-import { TransportationType } from '../../../../types/pilgrim/planner.types';
+import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
+import { PlanEntity, TransportationType } from '../../../../types/pilgrim/planner.types';
 import PlanCard, { PlanUI } from '../components/PlanCard';
 
 const { width } = Dimensions.get('window');
-
-// Mock Data
-const MOCK_PLANS: PlanUI[] = [
-    {
-        id: '1',
-        title: 'Fatima & Lourdes',
-        startDate: '2024-05-15',
-        endDate: '2024-05-24', // 10 days
-        status: 'planned',
-        stopCount: 5,
-        participantCount: 3,
-        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
-        isShared: true,
-        transportation: ['plane', 'bus'] as TransportationType[],
-    },
-    {
-        id: '2',
-        title: 'Rome Jubilee',
-        startDate: '2024-12-01',
-        endDate: '2024-12-07', // 7 days
-        status: 'draft',
-        stopCount: 3,
-        participantCount: 1,
-        coverImage: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5',
-        isShared: false,
-        transportation: ['plane', 'walk'] as TransportationType[],
-    },
-    {
-        id: '3',
-        title: 'Camino de Santiago',
-        startDate: '2025-08-20',
-        endDate: '2025-09-23', // 35 days
-        status: 'draft',
-        stopCount: 30,
-        participantCount: 2,
-        coverImage: 'https://images.unsplash.com/photo-1563820612-40f900609b2e',
-        isShared: false,
-        transportation: ['walk'] as TransportationType[],
-    },
-];
 
 import { useTranslation } from 'react-i18next';
 
 export const PlannerScreen = ({ navigation }: any) => {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const [plans, setPlans] = useState<PlanUI[]>(MOCK_PLANS);
+    const [plans, setPlans] = useState<PlanUI[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch Plans
+    const fetchPlans = useCallback(async () => {
+        try {
+            // setLoading(true); // Maybe don't set loading on refocus to avoid flicker? 
+            // Or only initial loading. Let's keep it simple for now or use a refreshing state.
+            const response = await pilgrimPlannerApi.getPlans({ page: 1, limit: 10 });
+            if (response.success && response.data?.planners) {
+                // Map API Entity to UI Model
+                const mappedPlans: PlanUI[] = response.data.planners.map((entity: PlanEntity) => {
+                    // Calculate end date based on duration
+                    const start = new Date(entity.start_date);
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + (entity.number_of_days || 1));
+
+                    return {
+                        id: entity.id,
+                        title: entity.name,
+                        startDate: entity.start_date,
+                        endDate: end.toISOString().split('T')[0],
+                        status: (entity.status as any) || 'planned',
+                        stopCount: 0, // Not provided in list API yet
+                        participantCount: entity.number_of_people,
+                        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe', // Placeholder or randomize
+                        isShared: entity.is_public,
+                        transportation: [entity.transportation as TransportationType],
+                    };
+                });
+                setPlans(mappedPlans);
+            }
+        } catch (error) {
+            console.error('Failed to fetch plans:', error);
+            // Optional: Alert.alert('Error', 'Failed to load plans');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchPlans();
+        }, [fetchPlans])
+    );
 
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
