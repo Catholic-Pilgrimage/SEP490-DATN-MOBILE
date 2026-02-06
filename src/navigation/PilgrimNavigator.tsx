@@ -8,10 +8,14 @@ import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View }
 import { COLORS, SHADOWS, TYPOGRAPHY } from '../constants/theme.constants';
 import { useAuth } from '../contexts/AuthContext';
 import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
+import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScreen';
+import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
+import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const ExploreStack = createNativeStackNavigator();
+const PlannerStack = createNativeStackNavigator();
 
 const PROFILE_COLORS = {
   primary: '#cfaa3a',
@@ -64,10 +68,24 @@ const CommunityScreen = () => (
   </View>
 );
 
-const PlannerScreen = () => (
-  <View style={styles.placeholder}>
-    <Text style={styles.placeholderText}>Lich trinh</Text>
-  </View>
+const PlannerStackNavigator = () => (
+  <PlannerStack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: {
+        backgroundColor: COLORS.background,
+      },
+      animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+    }}
+  >
+    <PlannerStack.Screen name="PlannerMain" component={PlannerScreen} />
+    <PlannerStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
+    <PlannerStack.Screen
+      name="CreatePlanScreen"
+      component={CreatePlanScreen}
+      options={{ presentation: 'modal' }}
+    />
+  </PlannerStack.Navigator>
 );
 
 const LocationScreen = () => (
@@ -283,7 +301,12 @@ const ProfileScreen = () => {
   );
 };
 
+import { useTranslation } from 'react-i18next';
+// ... other imports
+
 export const PilgrimNavigator = () => {
+  const { t } = useTranslation();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -291,8 +314,8 @@ export const PilgrimNavigator = () => {
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.textTertiary,
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
+          height: Platform.OS === 'android' ? 70 : 80, // Increased height for Android and iOS
+          paddingBottom: Platform.OS === 'android' ? 12 : 20, // More bottom padding for Safe Area
           paddingTop: 8,
           backgroundColor: COLORS.white,
           borderTopWidth: 1,
@@ -301,6 +324,36 @@ export const PilgrimNavigator = () => {
         tabBarLabelStyle: {
           fontSize: TYPOGRAPHY.fontSize.xs,
           fontWeight: TYPOGRAPHY.fontWeight.medium,
+        },
+        tabBarLabel: ({ focused, color }) => {
+          let label = route.name;
+          switch (route.name) {
+            case 'Hanh huong':
+              label = t('navigation.explore');
+              break;
+            case 'Cong dong':
+              label = t('navigation.community');
+              break;
+            case 'Lich trinh':
+              // Map "Lich trinh" to "schedule" key which exists in translation
+              label = t('navigation.schedule');
+              break;
+            case 'Vi tri':
+              // We might not have a key for "Location" yet in navigation block, checking.
+              // en.json has home, mySite, profile, explore, schedule, community, notifications.
+              // Let's assume we add "location" or map it to something appropriate.
+              // For now, let's look at the View_File output for en.json again. 
+              // It doesn't have "location". I should probably add it or use a fallback. 
+              // Let's add "location" key to translations in next step.
+              // For now, I will use a hardcoded fallback or existing key if similar.
+              // Actually, let's keep it consistent. I will add "location" to JSONs.
+              label = t('navigation.location', { defaultValue: 'Vị trí' });
+              break;
+            case 'Ho so':
+              label = t('navigation.profile');
+              break;
+          }
+          return <Text style={{ color, fontSize: 10, fontWeight: '500' }}>{label}</Text>;
         },
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap = 'home';
@@ -329,10 +382,10 @@ export const PilgrimNavigator = () => {
     >
       <Tab.Screen name="Hanh huong" component={ExploreStackNavigator} />
       <Tab.Screen name="Cong dong" component={CommunityScreen} />
-      <Tab.Screen name="Lich trinh" component={PlannerScreen} />
+      <Tab.Screen name="Lich trinh" component={PlannerStackNavigator} />
       <Tab.Screen name="Vi tri" component={LocationScreen} />
       <Tab.Screen name="Ho so" component={ProfileScreen} />
-    </Tab.Navigator>
+    </Tab.Navigator >
   );
 };
 

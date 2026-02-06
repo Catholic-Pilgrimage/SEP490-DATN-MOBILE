@@ -122,5 +122,14 @@
         "thisWeek": "This week",
         "thisMonth": "This month"
     },
+    "planner": {
+        "myPlans": "My Plans",
+        "dashboardTitle": "My Pilgrimage\nPlans",
+        "shared": "Shared",
+        "draft": "Draft",
+        "days": "Days",
+        "planNewJourney": "Plan a new journey",
+        "startJourney": "Start your next spiritual journey."
+    },
     "appName": "Sacred Journey"
 }

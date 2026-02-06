@@ -17,3 +17,6 @@ export * from "./planner.types";
 
 // Community types
 export * from "./community.types";
+
+// Common types
+export * from "../common.types";

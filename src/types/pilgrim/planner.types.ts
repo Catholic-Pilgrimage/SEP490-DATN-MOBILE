@@ -90,6 +90,8 @@ export interface PlanSummary {
   stopCount: number;
   coverImage?: string;
   participantCount: number;
+  isShared?: boolean;
+  transportation?: TransportationType[];
 }
 
 // ============================================
@@ -100,12 +102,13 @@ export interface PlanSummary {
  * Create plan request
  */
 export interface CreatePlanRequest {
-  title: string;
-  description?: string;
-  startDate: string;
-  endDate: string;
-  transportation?: TransportationType;
-  estimatedBudget?: number;
+  name: string;
+  start_date: string;
+  number_of_days: number;
+  number_of_people: number;
+  transportation: string; // or TransportationType
+  budget_level: string; // 'low' | 'medium' | 'high'
+  is_public?: boolean;
 }
 
 /**

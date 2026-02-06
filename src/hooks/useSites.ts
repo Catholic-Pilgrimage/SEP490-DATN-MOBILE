@@ -157,8 +157,20 @@ export function useSiteDetail(siteId?: string, options: UseSiteDetailOptions = {
         try {
             const response = await pilgrimSiteApi.getSiteDetail(id);
             if (isMounted.current && response.success && response.data) {
-                setSite(response.data);
-                onSuccess?.(response.data);
+                const rawData = response.data as any;
+                // Map snake_case to camelCase
+                const mappedSite: Site = {
+                    ...rawData,
+                    patronSaint: rawData.patron_saint || rawData.patronSaint,
+                    coverImage: rawData.cover_image || rawData.coverImage,
+                    openingHours: rawData.opening_hours || rawData.openingHours,
+                    contactInfo: rawData.contact_info || rawData.contactInfo,
+                    isFavorite: rawData.is_favorite || rawData.isFavorite || false,
+                    reviewCount: rawData.review_count || rawData.reviewCount || 0,
+                    // Ensure other fields are passed through
+                };
+                setSite(mappedSite);
+                onSuccess?.(mappedSite);
             }
         } catch (err: any) {
             if (isMounted.current) {
@@ -208,9 +220,20 @@ export function useSiteMedia(siteId?: string, options: UseSiteMediaOptions = {})
 
         try {
             const response = await pilgrimSiteApi.getSiteMedia(id, fetchParams);
-            if (isMounted.current && response.success) {
-                setMedia(response.data);
-                onSuccess?.(response.data);
+            if (isMounted.current && (response.success || Array.isArray(response.data))) {
+                // Handle different response structures:
+                // 1. { success: true, data: { data: [...] } } (Nested)
+                // 2. { success: true, data: [...] } (Direct Array)
+                let mediaItems: SiteMedia[] = [];
+
+                if (response.data && 'data' in response.data && Array.isArray((response.data as any).data)) {
+                    mediaItems = (response.data as any).data;
+                } else if (Array.isArray(response.data)) {
+                    mediaItems = response.data;
+                }
+
+                setMedia(mediaItems);
+                onSuccess?.(mediaItems);
             }
         } catch (err: any) {
             if (isMounted.current) {
@@ -260,9 +283,19 @@ export function useSiteMassSchedules(siteId?: string, options: UseSiteMassSchedu
 
         try {
             const response = await pilgrimSiteApi.getSiteMassSchedules(id, fetchParams);
-            if (isMounted.current && response.success) {
-                setSchedules(response.data);
-                onSuccess?.(response.data);
+            if (isMounted.current && (response.success || Array.isArray(response.data))) {
+                let scheduleItems: SiteMassSchedule[] = [];
+                // Handle different response structures:
+                // 1. { success: true, data: { data: [...] } } (Nested)
+                // 2. { success: true, data: [...] } (Direct Array)
+                if (response.data && 'data' in response.data && Array.isArray((response.data as any).data)) {
+                    scheduleItems = (response.data as any).data;
+                } else if (Array.isArray(response.data)) {
+                    scheduleItems = response.data as any;
+                }
+
+                setSchedules(scheduleItems);
+                onSuccess?.(scheduleItems);
             }
         } catch (err: any) {
             if (isMounted.current) {
@@ -312,9 +345,19 @@ export function useSiteEvents(siteId?: string, options: UseSiteEventsOptions = {
 
         try {
             const response = await pilgrimSiteApi.getSiteEvents(id, fetchParams);
-            if (isMounted.current && response.success) {
-                setEvents(response.data);
-                onSuccess?.(response.data);
+            if (isMounted.current && (response.success || Array.isArray(response.data))) {
+                let eventItems: SiteEvent[] = [];
+                // Handle different response structures:
+                // 1. { success: true, data: { data: [...] } } (Nested)
+                // 2. { success: true, data: [...] } (Direct Array)
+                if (response.data && 'data' in response.data && Array.isArray((response.data as any).data)) {
+                    eventItems = (response.data as any).data;
+                } else if (Array.isArray(response.data)) {
+                    eventItems = response.data as any;
+                }
+
+                setEvents(eventItems);
+                onSuccess?.(eventItems);
             }
         } catch (err: any) {
             if (isMounted.current) {

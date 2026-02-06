@@ -137,7 +137,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
 
     return (
         <ImageBackground
-            source={require('../../../../../assets/images/bg1.png')}
+            source={require('../../../../../assets/images/bg1.jpg')}
             style={styles.container}
             resizeMode="cover"
         >
