@@ -250,8 +250,11 @@ export const SHARED_ENDPOINTS = {
     MARK_READ: (id: string) => `${API_BASE}/notifications/${id}/read`,
     MARK_ALL_READ: `${API_BASE}/notifications/read-all`,
     DELETE: (id: string) => `${API_BASE}/notifications/${id}`,
+    DELETE_ALL: `${API_BASE}/notifications`,
     SETTINGS: `${API_BASE}/notifications/settings`,
     UPDATE_SETTINGS: `${API_BASE}/notifications/settings`,
+    REGISTER_TOKEN: `${API_BASE}/notifications/token`,
+    REVOKE_TOKEN: `${API_BASE}/notifications/token`,
   },
 
   // Regions

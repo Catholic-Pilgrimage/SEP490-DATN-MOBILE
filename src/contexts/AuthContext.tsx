@@ -8,9 +8,10 @@ import React, {
   useEffect,
   useMemo,
   useReducer,
-} from 'react';
-import { authApi } from '../services/api';
-import { secureStorage } from '../services/storage/secureStorage';
+} from "react";
+import { authApi } from "../services/api";
+import notificationService from "../services/notification/notificationService";
+import { secureStorage } from "../services/storage/secureStorage";
 import {
   AUTH_STORAGE_KEYS,
   AuthContextType,
@@ -19,7 +20,7 @@ import {
   RegisterRequest,
   UpdateProfileRequest,
   User,
-} from '../types/auth.types';
+} from "../types/auth.types";
 
 // Initial auth state
 const initialState: AuthState = {
@@ -33,26 +34,32 @@ const initialState: AuthState = {
 
 // Auth action types
 type AuthAction =
-  | { type: 'AUTH_LOADING' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User; accessToken: string; refreshToken: string } }
-  | { type: 'AUTH_ERROR'; payload: string }
-  | { type: 'AUTH_LOGOUT' }
-  | { type: 'AUTH_RESTORE'; payload: { user: User; accessToken: string; refreshToken: string } }
-  | { type: 'AUTH_UPDATE_USER'; payload: User }
-  | { type: 'AUTH_CLEAR_ERROR' }
-  | { type: 'AUTH_SET_LOADING'; payload: boolean }
-  | { type: 'AUTH_GUEST_MODE' };
+  | { type: "AUTH_LOADING" }
+  | {
+      type: "AUTH_SUCCESS";
+      payload: { user: User; accessToken: string; refreshToken: string };
+    }
+  | { type: "AUTH_ERROR"; payload: string }
+  | { type: "AUTH_LOGOUT" }
+  | {
+      type: "AUTH_RESTORE";
+      payload: { user: User; accessToken: string; refreshToken: string };
+    }
+  | { type: "AUTH_UPDATE_USER"; payload: User }
+  | { type: "AUTH_CLEAR_ERROR" }
+  | { type: "AUTH_SET_LOADING"; payload: boolean }
+  | { type: "AUTH_GUEST_MODE" };
 
 // Auth reducer
 function authReducer(state: AuthState, action: AuthAction): AuthState {
   switch (action.type) {
-    case 'AUTH_LOADING':
+    case "AUTH_LOADING":
       return {
         ...state,
         isLoading: true,
         error: null,
       };
-    case 'AUTH_SUCCESS':
+    case "AUTH_SUCCESS":
       return {
         ...state,
         user: action.payload.user,
@@ -62,18 +69,18 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         isLoading: false,
         error: null,
       };
-    case 'AUTH_ERROR':
+    case "AUTH_ERROR":
       return {
         ...state,
         isLoading: false,
         error: action.payload,
       };
-    case 'AUTH_LOGOUT':
+    case "AUTH_LOGOUT":
       return {
         ...initialState,
         isLoading: false,
       };
-    case 'AUTH_RESTORE':
+    case "AUTH_RESTORE":
       return {
         ...state,
         user: action.payload.user,
@@ -83,22 +90,22 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         isLoading: false,
         error: null,
       };
-    case 'AUTH_UPDATE_USER':
+    case "AUTH_UPDATE_USER":
       return {
         ...state,
         user: action.payload,
       };
-    case 'AUTH_CLEAR_ERROR':
+    case "AUTH_CLEAR_ERROR":
       return {
         ...state,
         error: null,
       };
-    case 'AUTH_SET_LOADING':
+    case "AUTH_SET_LOADING":
       return {
         ...state,
         isLoading: action.payload,
       };
-    case 'AUTH_GUEST_MODE':
+    case "AUTH_GUEST_MODE":
       return {
         ...initialState,
         isLoading: false,
@@ -120,16 +127,19 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [state, dispatch] = useReducer(authReducer, initialState);
   const [isGuest, setIsGuest] = React.useState(false);
+  const [pushToken, setPushToken] = React.useState<string | null>(null);
 
   // Restore auth state from storage on app start
   useEffect(() => {
     const restoreAuthState = async () => {
       try {
         // Check if user is in guest mode
-        const guestMode = await secureStorage.getItem(AUTH_STORAGE_KEYS.IS_GUEST);
-        if (guestMode === 'true') {
+        const guestMode = await secureStorage.getItem(
+          AUTH_STORAGE_KEYS.IS_GUEST,
+        );
+        if (guestMode === "true") {
           setIsGuest(true);
-          dispatch({ type: 'AUTH_GUEST_MODE' });
+          dispatch({ type: "AUTH_GUEST_MODE" });
           return;
         }
 
@@ -143,85 +153,114 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (accessToken && refreshToken && userJson) {
           const user = JSON.parse(userJson) as User;
           dispatch({
-            type: 'AUTH_RESTORE',
+            type: "AUTH_RESTORE",
             payload: { user, accessToken, refreshToken },
           });
+
+          // ✅ Register push token if user is restored
+          registerPushToken();
         } else {
-          dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+          dispatch({ type: "AUTH_SET_LOADING", payload: false });
         }
       } catch {
-        dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+        dispatch({ type: "AUTH_SET_LOADING", payload: false });
       }
     };
 
     restoreAuthState();
   }, []);
 
-  // Login function
-  const login = useCallback(async (credentials: LoginRequest) => {
-    dispatch({ type: 'AUTH_LOADING' });
-
+  // ✅ Register push notification token
+  const registerPushToken = useCallback(async () => {
     try {
-      // Call login API
-      const response = await authApi.login(credentials);
-
-      if (!response.success || !response.data) {
-        const errorMessage = response.error?.message || response.message || 'Đăng nhập thất bại';
-        throw new Error(errorMessage);
+      const token = await notificationService.registerForPushNotifications();
+      if (token) {
+        setPushToken(token);
+        console.log("✅ Push token registered:", token);
       }
-
-      const { accessToken, refreshToken } = response.data;
-
-      // Save tokens to secure storage
-      await Promise.all([
-        secureStorage.setItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN, accessToken),
-        secureStorage.setItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN, refreshToken),
-        secureStorage.removeItem(AUTH_STORAGE_KEYS.IS_GUEST), // Clear guest mode
-      ]);
-
-      // Fetch user profile
-      const profileResponse = await authApi.getProfile();
-
-      if (!profileResponse.success || !profileResponse.data) {
-        throw new Error('Không thể lấy thông tin người dùng');
-      }
-
-      const user = profileResponse.data;
-
-      // Save user to storage
-      await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
-
-      setIsGuest(false);
-      dispatch({
-        type: 'AUTH_SUCCESS',
-        payload: { user, accessToken, refreshToken },
-      });
-    } catch (error: any) {
-      const errorMessage = error.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
-      dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
-      throw error;
+    } catch (error) {
+      console.error("❌ Failed to register push token:", error);
     }
   }, []);
 
+  // Login function
+  const login = useCallback(
+    async (credentials: LoginRequest) => {
+      dispatch({ type: "AUTH_LOADING" });
+
+      try {
+        // Call login API
+        const response = await authApi.login(credentials);
+
+        if (!response.success || !response.data) {
+          const errorMessage =
+            response.error?.message || response.message || "Đăng nhập thất bại";
+          throw new Error(errorMessage);
+        }
+
+        const { accessToken, refreshToken } = response.data;
+
+        // Save tokens to secure storage
+        await Promise.all([
+          secureStorage.setItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN, accessToken),
+          secureStorage.setItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN, refreshToken),
+          secureStorage.removeItem(AUTH_STORAGE_KEYS.IS_GUEST), // Clear guest mode
+        ]);
+
+        // Fetch user profile
+        const profileResponse = await authApi.getProfile();
+
+        if (!profileResponse.success || !profileResponse.data) {
+          throw new Error("Không thể lấy thông tin người dùng");
+        }
+
+        const user = profileResponse.data;
+
+        // Save user to storage
+        await secureStorage.setItem(
+          AUTH_STORAGE_KEYS.USER,
+          JSON.stringify(user),
+        );
+
+        setIsGuest(false);
+        dispatch({
+          type: "AUTH_SUCCESS",
+          payload: { user, accessToken, refreshToken },
+        });
+
+        // ✅ Register push notification token after successful login
+        await registerPushToken();
+      } catch (error: any) {
+        const errorMessage =
+          error.message || "Đăng nhập thất bại. Vui lòng thử lại.";
+        dispatch({ type: "AUTH_ERROR", payload: errorMessage });
+        throw error;
+      }
+    },
+    [registerPushToken],
+  );
+
   // Register function
   const register = useCallback(async (data: RegisterRequest) => {
-    dispatch({ type: 'AUTH_LOADING' });
+    dispatch({ type: "AUTH_LOADING" });
 
     try {
       const response = await authApi.register(data);
 
       if (!response.success) {
-        const errorMessage = response.error?.message || response.message || 'Đăng ký thất bại';
+        const errorMessage =
+          response.error?.message || response.message || "Đăng ký thất bại";
         throw new Error(errorMessage);
       }
 
-      dispatch({ type: 'AUTH_SET_LOADING', payload: false });
-      
+      dispatch({ type: "AUTH_SET_LOADING", payload: false });
+
       // After successful registration, user should login
       // We don't auto-login here, let user login manually
     } catch (error: any) {
-      const errorMessage = error.message || 'Đăng ký thất bại. Vui lòng thử lại.';
-      dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
+      const errorMessage =
+        error.message || "Đăng ký thất bại. Vui lòng thử lại.";
+      dispatch({ type: "AUTH_ERROR", payload: errorMessage });
       throw error;
     }
   }, []);
@@ -229,6 +268,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Logout function
   const logout = useCallback(async () => {
     try {
+      // ✅ Revoke push notification token before logout (silent fail)
+      if (pushToken) {
+        await notificationService.unregisterPushToken(pushToken).catch(() => {
+          console.log(
+            "⚠️ Failed to unregister push token, but continuing logout",
+          );
+        });
+        setPushToken(null);
+      }
+
       // Call logout API (ignore errors)
       await authApi.logout().catch(() => null);
 
@@ -241,24 +290,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
       ]);
 
       setIsGuest(false);
-      dispatch({ type: 'AUTH_LOGOUT' });
+      dispatch({ type: "AUTH_LOGOUT" });
     } catch {
+      // ✅ Try to revoke token even in error case (silent fail)
+      if (pushToken) {
+        notificationService.unregisterPushToken(pushToken).catch(() => {
+          console.log("⚠️ Failed to unregister push token in error handler");
+        });
+        setPushToken(null);
+      }
+
       // Still logout locally even if API call fails
-      await secureStorage.clearKeys([
-        AUTH_STORAGE_KEYS.ACCESS_TOKEN,
-        AUTH_STORAGE_KEYS.REFRESH_TOKEN,
-        AUTH_STORAGE_KEYS.USER,
-        AUTH_STORAGE_KEYS.IS_GUEST,
-      ]).catch(() => {});
+      await secureStorage
+        .clearKeys([
+          AUTH_STORAGE_KEYS.ACCESS_TOKEN,
+          AUTH_STORAGE_KEYS.REFRESH_TOKEN,
+          AUTH_STORAGE_KEYS.USER,
+          AUTH_STORAGE_KEYS.IS_GUEST,
+        ])
+        .catch(() => {});
       setIsGuest(false);
-      dispatch({ type: 'AUTH_LOGOUT' });
+      dispatch({ type: "AUTH_LOGOUT" });
     }
-  }, []);
+  }, [pushToken]);
 
   // Refresh access token
   const refreshAccessToken = useCallback(async (): Promise<boolean> => {
     try {
-      const refreshToken = await secureStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+      const refreshToken = await secureStorage.getItem(
+        AUTH_STORAGE_KEYS.REFRESH_TOKEN,
+      );
 
       if (!refreshToken) {
         return false;
@@ -273,13 +334,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Save new tokens
       await secureStorage.setItem(
         AUTH_STORAGE_KEYS.ACCESS_TOKEN,
-        response.data.accessToken
+        response.data.accessToken,
       );
 
       if (response.data.refreshToken) {
         await secureStorage.setItem(
           AUTH_STORAGE_KEYS.REFRESH_TOKEN,
-          response.data.refreshToken
+          response.data.refreshToken,
         );
       }
 
@@ -296,8 +357,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (response?.success && response?.data) {
         const user = response.data;
-        await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
-        dispatch({ type: 'AUTH_UPDATE_USER', payload: user });
+        await secureStorage.setItem(
+          AUTH_STORAGE_KEYS.USER,
+          JSON.stringify(user),
+        );
+        dispatch({ type: "AUTH_UPDATE_USER", payload: user });
       }
     } catch {
       // Silent fail
@@ -311,10 +375,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (response?.success && response?.data) {
         const user = response.data;
-        await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
-        dispatch({ type: 'AUTH_UPDATE_USER', payload: user });
+        await secureStorage.setItem(
+          AUTH_STORAGE_KEYS.USER,
+          JSON.stringify(user),
+        );
+        dispatch({ type: "AUTH_UPDATE_USER", payload: user });
       } else {
-        throw new Error(response?.error?.message || 'Cập nhật thất bại');
+        throw new Error(response?.error?.message || "Cập nhật thất bại");
       }
     } catch (error: any) {
       throw error;
@@ -323,21 +390,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Clear error
   const clearError = useCallback(() => {
-    dispatch({ type: 'AUTH_CLEAR_ERROR' });
+    dispatch({ type: "AUTH_CLEAR_ERROR" });
   }, []);
 
   // Continue as guest
   const continueAsGuest = useCallback(async () => {
-    await secureStorage.setItem(AUTH_STORAGE_KEYS.IS_GUEST, 'true');
+    await secureStorage.setItem(AUTH_STORAGE_KEYS.IS_GUEST, "true");
     setIsGuest(true);
-    dispatch({ type: 'AUTH_GUEST_MODE' });
+    dispatch({ type: "AUTH_GUEST_MODE" });
   }, []);
 
   // Exit guest mode - call this before navigating to login
   const exitGuestMode = useCallback(async () => {
     await secureStorage.removeItem(AUTH_STORAGE_KEYS.IS_GUEST);
     setIsGuest(false);
-    dispatch({ type: 'AUTH_SET_LOADING', payload: false });
+    dispatch({ type: "AUTH_SET_LOADING", payload: false });
   }, []);
 
   // Memoize context value
@@ -367,24 +434,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isGuest,
       continueAsGuest,
       exitGuestMode,
-    ]
+    ],
   );
 
   return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={contextValue}>{children}</AuthContext.Provider>
   );
 }
 
 // Custom hook to use auth context
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
-  
+
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  
+
   return context;
 }
 
