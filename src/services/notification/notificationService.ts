@@ -21,14 +21,9 @@ Notifications.setNotificationHandler({
 });
 
 /**
- * Register for push notifications
- * - Request permissions
- * - Get Expo Push Token
- * - Send token to backend
+ * Get Expo Push Token without registering it to backend
  */
-export const registerForPushNotifications = async (): Promise<
-  string | null
-> => {
+export const getExpoPushToken = async (): Promise<string | null> => {
   try {
     // Only works on physical devices
     if (!Device.isDevice) {
@@ -37,8 +32,7 @@ export const registerForPushNotifications = async (): Promise<
     }
 
     // Request permissions
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     if (existingStatus !== "granted") {
@@ -53,12 +47,30 @@ export const registerForPushNotifications = async (): Promise<
 
     // Get Expo Push Token
     const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-
     const tokenData = await Notifications.getExpoPushTokenAsync({
       projectId,
     });
 
-    const token = tokenData.data;
+    return tokenData.data;
+  } catch (error) {
+    console.error("Error getting expo push token:", error);
+    return null;
+  }
+};
+
+/**
+ * Register for push notifications
+ * - Request permissions
+ * - Get Expo Push Token
+ * - Send token to backend
+ */
+export const registerForPushNotifications = async (): Promise<
+  string | null
+> => {
+  try {
+    const token = await getExpoPushToken();
+    if (!token) return null;
+
     console.log(" Expo Push Token:", token);
 
     // Send token to backend with platform info
@@ -129,6 +141,7 @@ export const unregisterPushToken = async (token: string): Promise<void> => {
 
 const notificationService = {
   registerForPushNotifications,
+  getExpoPushToken,
   unregisterPushToken,
   addNotificationReceivedListener,
   addNotificationResponseListener,

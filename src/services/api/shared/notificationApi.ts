@@ -16,7 +16,7 @@
 
 import {
   ApiResponse,
-  PaginatedResponse,
+  Pagination,
   PaginationParams,
 } from "../../../types/api.types";
 import apiClient from "../apiClient";
@@ -59,14 +59,31 @@ export type NotificationType =
   | "sos_assigned" // SOS được tiếp nhận
   | "sos_resolved"; // SOS đã được giải quyết
 
+// DTO Types (Data Transfer Objects - from API)
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  data: Record<string, any>;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationResponse {
+  notifications: NotificationDto[];
+  pagination: Pagination;
+  unread_count: number;
+}
+
 /**
- * Notification Data Interface
+ * Notification Data Interface (Internal Model)
  */
 export interface Notification {
   id: string;
   type: NotificationType;
   title: string;
-  body: string;
+  message: string;
   data?: Record<string, any>;
   isRead: boolean;
   createdAt: string;
@@ -105,10 +122,13 @@ export interface RevokeTokenParams {
 /**
  * Get notifications
  */
+/**
+ * Get notifications
+ */
 export const getNotifications = async (
   params?: NotificationListParams,
-): Promise<PaginatedResponse<Notification>> => {
-  const response = await apiClient.get<PaginatedResponse<Notification>>(
+): Promise<ApiResponse<NotificationResponse>> => {
+  const response = await apiClient.get<ApiResponse<NotificationResponse>>(
     SHARED_ENDPOINTS.NOTIFICATIONS.LIST,
     { params },
   );
@@ -129,7 +149,7 @@ export const markAsRead = async (id: string): Promise<ApiResponse<void>> => {
  * Mark all notifications as read
  */
 export const markAllAsRead = async (): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClient.patch<ApiResponse<void>>(
     SHARED_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ,
   );
   return response.data;
@@ -350,6 +370,21 @@ export const getNotificationColor = (type: NotificationType): string => {
   return "#2196F3"; // Blue (default)
 };
 
+/**
+ * Map DTO to Model
+ */
+export const mapNotificationDtoToModel = (dto: NotificationDto): Notification => {
+  return {
+    id: dto.id,
+    type: dto.type,
+    title: dto.title,
+    message: dto.message, // Map 'message' from DTO to 'message' in Model (was 'body' in old model, but updated to match)
+    data: dto.data,
+    isRead: dto.is_read,
+    createdAt: dto.created_at,
+  };
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -373,6 +408,7 @@ const notificationApi = {
   getNotificationCategory,
   getNotificationIcon,
   getNotificationColor,
+  mapNotificationDtoToModel,
 };
 
 export default notificationApi;
