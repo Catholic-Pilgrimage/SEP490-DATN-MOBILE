@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
@@ -17,9 +17,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SPACING } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useNotifications } from '../../../../hooks/useNotifications';
 import { useSites } from '../../../../hooks/useSites';
+import notificationService from '../../../../services/notification/notificationService';
 import { SiteRegion } from '../../../../types/pilgrim';
 import { getSpacing, moderateScale } from '../../../../utils/responsive';
+import { NotificationModal } from '../components/NotificationModal';
 import { SiteListCard } from '../components/SiteListCard';
 
 type Props = NativeStackScreenProps<any, 'ExploreMain'>;
@@ -37,6 +41,24 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const selectedRegion = REGIONS.find(r => r.id === selectedRegionId)?.value;
     const [searchText, setSearchText] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showNotifications, setShowNotifications] = useState(false);
+
+    // Auth context
+    const { isAuthenticated, isGuest } = useAuth();
+
+    // Notification logic
+    const { unreadCount, fetchNotifications } = useNotifications();
+
+    useEffect(() => {
+        // Register token and fetch notifications on mount only if authenticated
+        const initNotifications = async () => {
+            if (isAuthenticated && !isGuest) {
+                await notificationService.registerForPushNotifications();
+                fetchNotifications();
+            }
+        };
+        initNotifications();
+    }, [isAuthenticated, isGuest]);
 
     const {
         sites,
@@ -196,12 +218,29 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                     <TouchableOpacity
                         style={styles.profileButton}
                         onPress={() => {
-                            console.log('Open profile');
+                            if (!isAuthenticated || isGuest) {
+                                // Optional: simple alert or navigation to login
+                                alert('Vui lòng đăng nhập để xem thông báo');
+                                return;
+                            }
+                            setShowNotifications(true);
                         }}
                     >
-                        <Ionicons name="person-circle-outline" size={30} color="#ecb613" />
+                        <View>
+                            <Ionicons name="notifications-outline" size={28} color="#ecb613" />
+                            {unreadCount > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                                </View>
+                            )}
+                        </View>
                     </TouchableOpacity>
                 </Animated.View>
+
+                <NotificationModal
+                    visible={showNotifications}
+                    onClose={() => setShowNotifications(false)}
+                />
 
                 {/* Search Bar - stays visible but moves up */}
                 <View style={styles.searchSection}>
@@ -532,5 +571,25 @@ const styles = StyleSheet.create({
     loadingMoreText: {
         fontSize: moderateScale(13),
         color: '#8E8E93',
+    },
+
+    badge: {
+        position: 'absolute',
+        top: -6,
+        right: -6,
+        backgroundColor: '#FF3B30',
+        borderRadius: 10,
+        minWidth: 20,
+        height: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+        borderWidth: 1.5,
+        borderColor: '#fff',
+    },
+    badgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: 'bold',
     },
 });
