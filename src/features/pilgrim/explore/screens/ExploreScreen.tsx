@@ -4,29 +4,36 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
+    Dimensions,
     ImageBackground,
     NativeScrollEvent,
     NativeSyntheticEvent,
+    Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BORDER_RADIUS, COLORS, SPACING } from '../../../../constants/theme.constants';
+import { COLORS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useNotifications } from '../../../../hooks/useNotifications';
 import { useSites } from '../../../../hooks/useSites';
 import notificationService from '../../../../services/notification/notificationService';
 import { SiteRegion } from '../../../../types/pilgrim';
-import { getSpacing, moderateScale } from '../../../../utils/responsive';
+import { moderateScale } from '../../../../utils/responsive';
+import { FeaturedCarousel } from '../components/FeaturedCarousel';
 import { NotificationModal } from '../components/NotificationModal';
 import { SiteListCard } from '../components/SiteListCard';
 
 type Props = NativeStackScreenProps<any, 'ExploreMain'>;
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BANNER_HEIGHT = moderateScale(220);
+const HEADER_HEIGHT_Base = 60;
 
 const REGIONS = [
     { id: 'all', label: 'Tất cả', value: undefined },
@@ -37,10 +44,13 @@ const REGIONS = [
 
 export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
+    const HEADER_HEIGHT = HEADER_HEIGHT_Base + insets.top;
+
     const [selectedRegionId, setSelectedRegionId] = useState('all');
     const selectedRegion = REGIONS.find(r => r.id === selectedRegionId)?.value;
     const [searchText, setSearchText] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
 
     // Auth context
@@ -50,7 +60,6 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const { unreadCount, fetchNotifications } = useNotifications();
 
     useEffect(() => {
-        // Register token and fetch notifications on mount only if authenticated
         const initNotifications = async () => {
             if (isAuthenticated && !isGuest) {
                 await notificationService.registerForPushNotifications();
@@ -78,11 +87,8 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         autoFetch: true
     });
 
-    const headerTranslateY = useRef(new Animated.Value(0)).current;
-    const headerBgOpacity = useRef(new Animated.Value(0)).current;
-    const headerHeight = useRef(new Animated.Value(56)).current;
-    const contentPaddingTop = useRef(new Animated.Value(140)).current;
-    const lastScrollY = useRef(0);
+    // Animation Values
+    const scrollY = useRef(new Animated.Value(0)).current;
 
     const handleRegionChange = (regionId: string) => {
         setSelectedRegionId(regionId);
@@ -95,67 +101,85 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         fetchSites({ region: selectedRegion, query: searchText });
     };
 
-    const handleMainScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        const currentScrollY = event.nativeEvent.contentOffset.y;
-        const scrollDiff = currentScrollY - lastScrollY.current;
-
-        const newOpacity = Math.min(currentScrollY / 100, 1);
-        Animated.timing(headerBgOpacity, {
-            toValue: newOpacity,
-            duration: 0,
-            useNativeDriver: false, // Changed to false for height animation compatibility
-        }).start();
-
-        // Animate header height - collapse when scrolled
-        const newHeaderHeight = currentScrollY > 30 ? 0 : 56;
-        Animated.timing(headerHeight, {
-            toValue: newHeaderHeight,
-            duration: 150,
-            useNativeDriver: false,
-        }).start();
-
-        // Animate paddingTop separately without native driver
-        const newPaddingTop = currentScrollY > 50 ? 85 : 140;
-        Animated.timing(contentPaddingTop, {
-            toValue: newPaddingTop,
-            duration: 200,
-            useNativeDriver: false,
-        }).start();
-
-        if (scrollDiff > 5 && currentScrollY > 50) {
-            Animated.spring(headerTranslateY, {
-                toValue: -100,
-                useNativeDriver: true,
-                tension: 100,
-                friction: 12,
-            }).start();
-        } else if (scrollDiff < -5) {
-            Animated.spring(headerTranslateY, {
-                toValue: 0,
-                useNativeDriver: true,
-                tension: 100,
-                friction: 12,
-            }).start();
-        }
-
-        lastScrollY.current = currentScrollY;
-    };
-
-    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        handleMainScroll(event);
-
-        const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-        const paddingToBottom = 100;
-        const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-
-        if (isCloseToBottom && hasMore && !isFetchingMore) {
-            fetchMore();
-        }
-    };
-
     const handleFavoriteToggle = async (siteId: string) => {
         console.log('Toggle favorite for:', siteId);
     };
+
+    // Derived Animations
+    // Header Search Bar + Title Opacity
+    // Trigger much later, when Large Header is mostly scrolled out
+    const headerContentOpacity = scrollY.interpolate({
+        inputRange: [120, 160], // Adjust this range based on Large Header Height
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const headerBgOpacity = scrollY.interpolate({
+        inputRange: [0, 100], // Fade background earlier for readability
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    // Sticky Filter - Trigger when Normal Filters (below banner) are about to hit top
+    // Large Header (~150) + Banner (~250 + 32) -> ~432 total offset roughly
+    // Trigger around 400-420.
+    const STICKY_TRIGGER_VAL = 410;
+
+    const stickyFilterOpacity = scrollY.interpolate({
+        inputRange: [STICKY_TRIGGER_VAL - 20, STICKY_TRIGGER_VAL],
+        outputRange: [0, 1],
+        extrapolate: 'clamp',
+    });
+
+    const stickyFilterTranslateY = scrollY.interpolate({
+        inputRange: [STICKY_TRIGGER_VAL - 20, STICKY_TRIGGER_VAL],
+        outputRange: [20, 0],
+        extrapolate: 'clamp',
+    });
+
+    // Derived Animations
+    // Header Search Bar + Title Opacity
+    // Trigger much later, when Large Header is mostly scrolled out
+    // ... animation definitions ...
+
+    // Renderers
+    // Banner renderer removed (extracted to component)
+
+    const renderFilters = (isSticky = false) => (
+        <View style={[
+            styles.filterContainer,
+            isSticky && styles.stickyFilterContent
+        ]}>
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterScrollContent}
+            >
+                {REGIONS.map(region => {
+                    const isActive = region.id === selectedRegionId;
+                    return (
+                        <TouchableOpacity
+                            key={region.id}
+                            style={[
+                                styles.filterChip,
+                                isActive && styles.filterChipActive,
+                                isSticky && styles.filterChipSticky // Smaller styling for sticky
+                            ]}
+                            onPress={() => handleRegionChange(region.id)}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[
+                                styles.filterChipText,
+                                isActive && styles.filterChipTextActive
+                            ]}>
+                                {region.label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                })}
+            </ScrollView>
+        </View>
+    );
 
     return (
         <ImageBackground
@@ -167,163 +191,195 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                 barStyle="dark-content"
                 backgroundColor="transparent"
                 translucent
-                animated
             />
 
+            {/* --- CUSTOM HEADER --- */}
             <Animated.View
                 style={[
                     styles.headerWrapper,
                     {
+                        height: HEADER_HEIGHT,
                         paddingTop: insets.top,
                         backgroundColor: headerBgOpacity.interpolate({
-                            inputRange: [0, 0.3, 1],
-                            outputRange: ['rgba(248, 248, 246, 0)', 'rgba(248, 248, 246, 0.95)', 'rgba(248, 248, 246, 1)']
+                            inputRange: [0, 1],
+                            outputRange: ['rgba(255,255,255,0)', '#FFFFFF']
                         }),
                         borderBottomWidth: 1,
                         borderBottomColor: headerBgOpacity.interpolate({
-                            inputRange: [0, 0.5, 1],
-                            outputRange: ['rgba(230, 228, 220, 0)', 'rgba(230, 228, 220, 0.5)', 'rgba(230, 228, 220, 1)']
+                            inputRange: [0, 1],
+                            outputRange: ['transparent', 'rgba(0,0,0,0.05)']
                         }),
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: headerBgOpacity.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 0.05]
+                        }),
+                        shadowRadius: 10,
+                        elevation: headerBgOpacity.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 4]
+                        })
                     }
                 ]}
             >
+                <View style={styles.headerContent}>
+                    {isSearching ? (
+                        /* --- HERO SEARCH BAR (Expanded) --- */
+                        <View style={styles.searchContainer}>
+                            <View style={[styles.searchInputWrapper, styles.heroSearchBar]}>
+                                <Ionicons name="search" size={20} color={COLORS.primary} />
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Tìm thánh đường, địa phận..."
+                                    placeholderTextColor="#9CA3AF"
+                                    autoFocus
+                                    value={searchText}
+                                    onChangeText={setSearchText}
+                                    onSubmitEditing={handleSearch}
+                                />
+                                {searchText.length > 0 && (
+                                    <TouchableOpacity onPress={() => setSearchText('')}>
+                                        <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            <TouchableOpacity onPress={() => {
+                                setIsSearching(false);
+                                setSearchText('');
+                                if (searchQuery) {
+                                    setSearchQuery('');
+                                    fetchSites({ region: selectedRegion, query: '' });
+                                }
+                            }}>
+                                <Text style={styles.cancelText}>Hủy</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        /* --- NORMAL HEADER (Collapsed) --- */
+                        <>
+                            <Animated.View style={[styles.headerLeft, { opacity: headerContentOpacity }]}>
+                                {/* Dummy Search Bar for Header when scrolled */}
+                                <TouchableOpacity
+                                    style={styles.dummySearchBar}
+                                    onPress={() => setIsSearching(true)}
+                                    activeOpacity={0.9}
+                                >
+                                    <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+                                    <Text style={styles.dummySearchText}>Tìm thánh đường...</Text>
+                                </TouchableOpacity>
+                            </Animated.View>
 
-                {/* Header with Menu, Title, Profile - Collapses on scroll */}
+                            <View style={styles.headerRight}>
+                                {/* Note: Search Icon removed here as it's replaced by Dummy Search Bar on left */}
+
+                                <TouchableOpacity
+                                    style={styles.iconButton}
+                                    onPress={() => {
+                                        if (!isAuthenticated || isGuest) {
+                                            alert('Vui lòng đăng nhập để xem thông báo');
+                                            return;
+                                        }
+                                        setShowNotifications(true);
+                                    }}
+                                >
+                                    <Ionicons name="notifications-outline" size={26} color={COLORS.primary} />
+                                    {unreadCount > 0 && (
+                                        <View style={styles.badge}>
+                                            <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+                        </>
+                    )}
+                </View>
+
+                {/* --- STICKY FILTERS --- */}
                 <Animated.View
                     style={[
-                        styles.header,
+                        styles.stickyFilterContainer,
                         {
-                            opacity: headerBgOpacity.interpolate({
-                                inputRange: [0, 0.3, 0.6],
-                                outputRange: [1, 0.5, 0]
-                            }),
-                            height: headerHeight,
-                            overflow: 'hidden',
+                            opacity: stickyFilterOpacity,
+                            transform: [{ translateY: stickyFilterTranslateY }],
+                            top: HEADER_HEIGHT,
                         }
                     ]}
                 >
-                    <TouchableOpacity
-                        style={styles.menuButton}
-                        onPress={() => {
-                            console.log('Open menu');
-                        }}
-                    >
-                        <Ionicons name="menu" size={28} color="#ecb613" />
-                    </TouchableOpacity>
-
-                    <View style={styles.headerCenter}>
-                        <Text style={styles.headerTitle}>Khám Phá Thánh Địa</Text>
-                    </View>
-
-                    <TouchableOpacity
-                        style={styles.profileButton}
-                        onPress={() => {
-                            if (!isAuthenticated || isGuest) {
-                                // Optional: simple alert or navigation to login
-                                alert('Vui lòng đăng nhập để xem thông báo');
-                                return;
-                            }
-                            setShowNotifications(true);
-                        }}
-                    >
-                        <View>
-                            <Ionicons name="notifications-outline" size={28} color="#ecb613" />
-                            {unreadCount > 0 && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                                </View>
-                            )}
-                        </View>
-                    </TouchableOpacity>
+                    {renderFilters(true)}
                 </Animated.View>
-
-                <NotificationModal
-                    visible={showNotifications}
-                    onClose={() => setShowNotifications(false)}
-                />
-
-                {/* Search Bar - stays visible but moves up */}
-                <View style={styles.searchSection}>
-                    <View style={styles.searchBarContainer}>
-                        <Ionicons
-                            name="search"
-                            size={20}
-                            color="#ecb613"
-                            style={styles.searchIcon}
-                        />
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Tìm kiếm thánh địa..."
-                            placeholderTextColor="#897f61"
-                            value={searchText}
-                            onChangeText={setSearchText}
-                            onSubmitEditing={handleSearch}
-                            returnKeyType="search"
-                        />
-                        {searchText.length > 0 && (
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setSearchText('');
-                                    fetchSites({ region: selectedRegion, query: '' });
-                                }}
-                            >
-                                <Ionicons name="close-circle" size={20} color={COLORS.textSecondary} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </View>
             </Animated.View>
 
+            <NotificationModal
+                visible={showNotifications}
+                onClose={() => setShowNotifications(false)}
+            />
+
+            {/* --- MAIN SCROLLVIEW --- */}
             <Animated.ScrollView
                 style={styles.scrollView}
-                contentContainerStyle={[
-                    styles.scrollContent,
-                    {
-                        paddingTop: Animated.add(insets.top, contentPaddingTop)
-                    }
-                ]}
+                contentContainerStyle={{
+                    paddingTop: HEADER_HEIGHT + 20, // More breathing room
+                    paddingBottom: 100
+                }}
                 showsVerticalScrollIndicator={false}
-                onScroll={handleScroll}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                    {
+                        useNativeDriver: false,
+                        listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+                            const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+                            const paddingToBottom = 200;
+                            if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+                                if (hasMore && !isFetchingMore && !isLoading) {
+                                    fetchMore();
+                                }
+                            }
+                        }
+                    }
+                )}
                 scrollEventThrottle={16}
             >
-                {/* Region Filters */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.filterChipsContainer}
-                >
-                    {REGIONS.map(region => {
-                        const isActive = region.id === selectedRegionId;
-                        return (
-                            <TouchableOpacity
-                                key={region.id}
-                                style={[
-                                    styles.filterChip,
-                                    isActive && styles.filterChipActive
-                                ]}
-                                onPress={() => handleRegionChange(region.id)}
-                                activeOpacity={0.7}
-                            >
-                                <Text style={[
-                                    styles.filterChipText,
-                                    isActive && styles.filterChipTextActive
-                                ]}>
-                                    {region.label}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </ScrollView>
+                {/* --- HERO TITLE & SEARCH TRIGGER (Visible initially) --- */}
+                {!isSearching && (
+                    <View style={styles.largeHeaderContainer}>
+                        <Text style={styles.largeHeaderTitle}>Khám Phá</Text>
+                        <Text style={styles.largeHeaderSubtitle}>Hành trình đức tin của bạn</Text>
 
-                <View style={styles.siteListSection}>
+                        {/* Large Dummy Search Bar for initial view */}
+                        <TouchableOpacity
+                            style={styles.largesearchTrigger}
+                            onPress={() => setIsSearching(true)}
+                            activeOpacity={0.9}
+                        >
+                            <Ionicons name="search" size={20} color={COLORS.primary} />
+                            <Text style={styles.largeSearchPlaceHolder}>Tìm tên thánh đường, địa phận...</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
 
+                {/* --- BANNER --- */}
+                {/* Extracted to FeaturedCarousel */}
+                {sites && sites.length > 0 && (
+                    <FeaturedCarousel
+                        sites={sites}
+                        onSitePress={(siteId) => navigation.navigate('SiteDetail', { siteId })}
+                    />
+                )}
+
+                {/* --- NORMAL FILTERS --- */}
+                <View style={styles.normalFilterSection}>
+                    {renderFilters(false)}
+                </View>
+
+                {/* --- LIST --- */}
+                <View style={styles.listContainer}>
                     {isLoading && (!sites || sites.length === 0) ? (
-                        <View style={styles.loadingContainer}>
+                        <View style={styles.centerContainer}>
                             <ActivityIndicator size="large" color={COLORS.primary} />
-                            <Text style={styles.loadingText}>Đang tải...</Text>
                         </View>
                     ) : error ? (
-                        <View style={styles.errorContainer}>
+                        <View style={styles.centerContainer}>
                             <Ionicons name="alert-circle-outline" size={48} color="#FF3B30" />
                             <Text style={styles.errorText}>{error}</Text>
                             <TouchableOpacity
@@ -335,12 +391,12 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
                     ) : !sites || sites.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="search-outline" size={48} color={COLORS.textSecondary} />
-                            <Text style={styles.emptyText}>Không tìm thấy thánh địa</Text>
+                            <Ionicons name="map-outline" size={60} color="#D1D1D6" />
+                            <Text style={styles.emptyText}>Chưa có địa điểm nào</Text>
                         </View>
                     ) : (
                         <>
-                            {sites?.map(site => (
+                            {sites.map(site => (
                                 <SiteListCard
                                     key={site.id}
                                     id={site.id}
@@ -350,15 +406,14 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     region={site.region}
                                     coverImage={site.coverImage}
                                     reviewCount={site.reviewCount}
-                                    isFavorite={site.isFavorite}
+                                    isFavorite={site.isFavorite} // Assuming API returns this
                                     onPress={() => navigation.navigate('SiteDetail', { siteId: site.id })}
                                     onFavoritePress={() => handleFavoriteToggle(site.id)}
                                 />
                             ))}
                             {isFetchingMore && (
-                                <View style={styles.loadingMoreContainer}>
+                                <View style={styles.loadingMore}>
                                     <ActivityIndicator size="small" color={COLORS.primary} />
-                                    <Text style={styles.loadingMoreText}>Đang tải thêm...</Text>
                                 </View>
                             )}
                         </>
@@ -372,224 +427,260 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
+        backgroundColor: '#F8F9FA',
     },
-
     headerWrapper: {
         position: 'absolute',
         top: 0,
         left: 0,
         right: 0,
-        zIndex: 1000,
+        zIndex: 100,
     },
-
-    header: {
+    headerContent: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: getSpacing(SPACING.lg),
-        paddingVertical: getSpacing(SPACING.sm),
+        paddingHorizontal: SPACING.lg,
     },
-
-    menuButton: {
-        width: 48,
-        height: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: BORDER_RADIUS.full,
-    },
-
-    headerCenter: {
+    headerLeft: {
         flex: 1,
-        alignItems: 'center',
+        marginRight: 12,
     },
-
     headerTitle: {
-        fontSize: moderateScale(24),
+        fontSize: 18,
         fontWeight: '700',
-        color: '#181611',
-        letterSpacing: -0.3,
+        color: COLORS.primary,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
     },
-
-    profileButton: {
-        width: 48,
-        height: 48,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: BORDER_RADIUS.full,
-    },
-
-    searchSection: {
-        paddingHorizontal: getSpacing(SPACING.lg),
-        paddingVertical: moderateScale(16),
-    },
-
-    searchBarContainer: {
+    dummySearchBar: {
+        backgroundColor: '#F3F4F6',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        height: 36,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#ffffff',
-        borderRadius: BORDER_RADIUS.full,
-        paddingHorizontal: moderateScale(16),
-        height: moderateScale(56),
-        gap: getSpacing(SPACING.sm),
-        borderWidth: 1,
-        borderColor: '#e6e4dc',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        gap: 8,
     },
-
-    searchIcon: {
-        marginRight: 0,
+    dummySearchText: {
+        color: '#9CA3AF',
+        fontSize: 14,
     },
-
-    searchInput: {
-        flex: 1,
-        fontSize: moderateScale(16),
-        color: '#181611',
-        fontWeight: '400',
-        paddingVertical: 0,
+    headerRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
     },
-
-    scrollView: {
-        flex: 1,
-    },
-
-    scrollContent: {
-        paddingBottom: getSpacing(SPACING.xl),
-    },
-
-    filterChipsContainer: {
-        paddingHorizontal: getSpacing(SPACING.lg),
-        paddingTop: moderateScale(18),
-        paddingBottom: moderateScale(16),
-        gap: moderateScale(12),
-    },
-
-    filterChip: {
-        paddingHorizontal: moderateScale(24),
-        height: moderateScale(40),
+    iconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.8)',
         justifyContent: 'center',
-        borderRadius: BORDER_RADIUS.full,
-        backgroundColor: '#ffffff',
-        marginRight: moderateScale(12),
-        borderWidth: 1,
-        borderColor: '#e6e4dc',
-    },
-
-    filterChipActive: {
-        backgroundColor: '#ecb613',
-        borderColor: '#ecb613',
-        shadowColor: '#000',
+        alignItems: 'center',
+        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
+        shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3,
     },
-
-    filterChipText: {
-        fontSize: moderateScale(14),
-        fontWeight: '500',
-        color: '#897f61',
-    },
-
-    filterChipTextActive: {
-        color: '#181611',
-        fontWeight: '600',
-    },
-
-    siteListSection: {
-        paddingHorizontal: getSpacing(SPACING.lg),
-        gap: moderateScale(16),
-    },
-
-    sectionTitle: {
-        fontSize: moderateScale(18),
-        fontWeight: '700',
-        color: '#181611',
-        marginBottom: moderateScale(12),
-    },
-
-    loadingContainer: {
-        paddingVertical: getSpacing(SPACING.xxl),
-        alignItems: 'center',
-        gap: getSpacing(SPACING.md),
-    },
-
-    loadingText: {
-        fontSize: moderateScale(15),
-        color: '#8E8E93',
-    },
-
-    errorContainer: {
-        paddingVertical: getSpacing(SPACING.xxl),
-        alignItems: 'center',
-        gap: getSpacing(SPACING.md),
-    },
-
-    errorText: {
-        fontSize: moderateScale(15),
-        color: '#FF3B30',
-        textAlign: 'center',
-    },
-
-    retryButton: {
-        paddingHorizontal: getSpacing(SPACING.lg),
-        paddingVertical: getSpacing(SPACING.sm),
-        backgroundColor: COLORS.primary,
-        borderRadius: BORDER_RADIUS.md,
-        marginTop: getSpacing(SPACING.sm),
-    },
-
-    retryButtonText: {
-        fontSize: moderateScale(15),
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-
-    emptyContainer: {
-        paddingVertical: getSpacing(SPACING.xxl),
-        alignItems: 'center',
-        gap: getSpacing(SPACING.md),
-    },
-
-    emptyText: {
-        fontSize: moderateScale(15),
-        color: '#8E8E93',
-    },
-
-    loadingMoreContainer: {
+    searchContainer: {
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 12,
+    },
+    searchInputWrapper: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 24,
+        paddingHorizontal: 14,
+        height: 44,
+        gap: 10,
+        // Shadow for Hero Search
+        shadowColor: "rgba(189, 157, 88, 0.2)",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 10,
+        elevation: 4,
+    },
+    heroSearchBar: {
+        borderWidth: 1,
+        borderColor: "rgba(189, 157, 88, 0.3)",
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 15,
+        color: COLORS.textPrimary,
+        padding: 0,
+    },
+    cancelText: {
+        fontSize: 15,
+        color: COLORS.primary,
+        fontWeight: '600',
+    },
+    largeHeaderContainer: {
+        paddingHorizontal: SPACING.lg,
+        paddingBottom: 24,
+        // paddingTop: 10, // Handled by container padding
+    },
+    largeHeaderTitle: {
+        fontSize: 34,
+        fontWeight: '800',
+        color: COLORS.primary,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+        marginBottom: 4,
+    },
+    largeHeaderSubtitle: {
+        fontSize: 15,
+        color: COLORS.textSecondary,
+        fontStyle: 'italic',
+        marginBottom: 16, // Reduced closer to search bar
+    },
+    largesearchTrigger: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        gap: 12,
+        // Soft Gold Shadow
+        shadowColor: "rgba(189, 157, 88, 0.2)",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 1,
+        shadowRadius: 20,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.6)',
+    },
+    largeSearchPlaceHolder: {
+        color: '#6B7280',
+        fontSize: 15,
+    },
+    sectionHeader: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        marginLeft: SPACING.lg,
+        marginBottom: 16,
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    },
+    // Banner styles moved to FeaturedCarousel.tsx
+    normalFilterSection: {
+        marginBottom: 20,
+    },
+    stickyFilterContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.05)',
+        paddingVertical: 12,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    stickyFilterContent: {
+        // Additional styling for sticky state if needed
+    },
+    filterContainer: {
+        // Wrapper styles
+    },
+    filterScrollContent: {
+        paddingHorizontal: SPACING.lg,
+        gap: 12,
+    },
+    filterChip: {
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 24,
+        backgroundColor: 'rgba(255, 255, 255, 0.8)', // Semi-transparent
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        // borderless look preferred for luxury, but border helps visibility on pattern
+    },
+    filterChipSticky: {
+        paddingVertical: 8,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 0,
+    },
+    filterChipActive: {
+        backgroundColor: '#B45309', // Deep Gold/Amber
+        borderColor: '#B45309',
+    },
+    filterChipText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#6B7280',
+    },
+    filterChipTextActive: {
+        color: '#fff',
+    },
+    listContainer: {
+        paddingHorizontal: SPACING.lg,
+    },
+    centerContainer: {
+        padding: 40,
+        alignItems: 'center',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    errorText: {
+        color: '#FF3B30',
+        textAlign: 'center',
+        marginTop: 12,
+        marginBottom: 12,
+    },
+    retryButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+    retryButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+    emptyContainer: {
+        padding: 40,
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: getSpacing(SPACING.md),
-        gap: getSpacing(SPACING.sm),
+        backgroundColor: 'rgba(255,255,255,0.5)',
+        borderRadius: 20,
+        marginTop: 20,
     },
-
-    loadingMoreText: {
-        fontSize: moderateScale(13),
-        color: '#8E8E93',
+    emptyText: {
+        marginTop: 16,
+        color: COLORS.textSecondary,
+        fontSize: 16,
     },
-
+    loadingMore: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
     badge: {
         position: 'absolute',
-        top: -6,
-        right: -6,
-        backgroundColor: '#FF3B30',
+        top: -4,
+        right: -4,
+        backgroundColor: '#EF4444',
         borderRadius: 10,
-        minWidth: 20,
-        height: 20,
+        minWidth: 18,
+        height: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 4,
         borderWidth: 1.5,
         borderColor: '#fff',
     },
     badgeText: {
         color: '#fff',
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: 'bold',
     },
 });

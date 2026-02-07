@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BORDER_RADIUS, COLORS, SPACING } from '../../../../constants/theme.constants';
-import { getSpacing, moderateScale, responsive } from '../../../../utils/responsive';
+import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+import { COLORS } from '../../../../constants/theme.constants';
 
 interface SiteListCardProps {
   id: string;
@@ -41,95 +41,74 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
   coverImage,
   reviewCount = 0,
   isFavorite,
-  isVisited = false,
   onPress,
   onFavoritePress,
-  onVisitedPress,
 }) => {
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={onPress}
-      activeOpacity={0.96}
+      activeOpacity={0.7}
     >
-      {/* Image with Badge */}
+      {/* Left: Image Section */}
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: coverImage }}
           style={styles.image}
-          resizeMode="cover"
         />
-        <View style={styles.regionBadge}>
-          <Text style={styles.regionText}>
+
+        {/* Badge Overlay */}
+        <View style={styles.badgeContainer}>
+          <Text style={styles.badgeText}>
             {region ? REGION_LABELS[region] : SITE_TYPE_LABELS[siteType]}
           </Text>
         </View>
+
+        {/* Favorite Button Overlay */}
+        <TouchableOpacity
+          style={styles.favoriteBtn}
+          onPress={onFavoritePress}
+        >
+          <Ionicons
+            name={isFavorite ? "heart" : "heart-outline"}
+            size={18}
+            color={isFavorite ? "#FF3B30" : "#FFF"}
+          />
+        </TouchableOpacity>
       </View>
 
-      {/* Content Section */}
-      <View style={styles.content}>
-        {/* Title */}
-        <Text style={styles.name} numberOfLines={2}>
-          {name}
-        </Text>
-
-        {/* Location */}
-        <View style={styles.locationRow}>
-          <Ionicons name="location-outline" size={16} color={COLORS.textSecondary} />
-          <Text style={styles.location} numberOfLines={1}>
-            {address}
+      {/* Right: Content Section */}
+      <View style={styles.contentContainer}>
+        <View>
+          <Text style={styles.name} numberOfLines={2}>
+            {name}
           </Text>
-        </View>
 
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Bottom Row: Stats + Actions */}
-        <View style={styles.bottomRow}>
-          {/* Pilgrim Count */}
-          <View style={styles.statsContainer}>
-            <Ionicons name="people-outline" size={18} color={COLORS.textSecondary} />
-            <Text style={styles.statsText}>
-              {reviewCount > 1000
-                ? `${(reviewCount / 1000).toFixed(1)}k`
-                : reviewCount
-              } Người hành hương
+          <View style={styles.locationRow}>
+            <Ionicons name="location-outline" size={14} color={COLORS.textSecondary} />
+            <Text style={styles.location} numberOfLines={1}>
+              {address}
             </Text>
           </View>
+        </View>
 
-          {/* Action Buttons */}
-          <View style={styles.actions}>
-            {/* Favorite Button */}
-            <TouchableOpacity
-              style={[styles.actionButton, isFavorite && styles.actionButtonActive]}
-              onPress={onFavoritePress}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isFavorite ? "heart" : "heart-outline"}
-                size={18}
-                color={isFavorite ? COLORS.accent : COLORS.textSecondary}
-              />
-            </TouchableOpacity>
+        {/* Stats / Footer */}
+        <View style={styles.footerRow}>
+          {reviewCount > 10 ? (
+            <View style={styles.statItem}>
+              <Ionicons name="people" size={12} color={COLORS.primary} />
+              <Text style={styles.statText}>
+                {reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount} đang xem
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.statItem}>
+              <Ionicons name="sparkles" size={12} color="#EAB308" />
+              <Text style={styles.statTextHighlight}>Nổi bật</Text>
+            </View>
+          )}
 
-            {/* Visited Button */}
-            {onVisitedPress && (
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  isVisited && styles.actionButtonVisited
-                ]}
-                onPress={onVisitedPress}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name={isVisited ? "checkmark-circle" : "checkmark-circle-outline"}
-                  size={18}
-                  color={isVisited ? '#22C55E' : COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
+          <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
         </View>
       </View>
     </TouchableOpacity>
@@ -138,126 +117,111 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: 'row',
     backgroundColor: '#ffffff',
-    borderRadius: moderateScale(24),
-    marginBottom: moderateScale(24),
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#e6e4dc',
+    borderRadius: 16,
+    marginBottom: 16,
+    padding: 10,
+    // Softer, more professional shadow
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowRadius: 8,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
   },
-
   imageContainer: {
-    width: '100%',
-    height: responsive({
-      small: 180,
-      medium: 192,
-      tablet: 220,
-      default: 192,
-    }),
+    width: 100,
+    height: 100,
+    borderRadius: 12,
     position: 'relative',
-    backgroundColor: COLORS.backgroundDark,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
   },
-
   image: {
     width: '100%',
     height: '100%',
+    resizeMode: 'cover',
   },
-
-  regionBadge: {
+  badgeContainer: {
     position: 'absolute',
-    top: moderateScale(16),
-    left: moderateScale(16),
-    paddingHorizontal: moderateScale(12),
-    paddingVertical: moderateScale(4),
-    backgroundColor: 'rgba(255, 255, 255, 0.90)',
-    borderRadius: BORDER_RADIUS.full,
+    top: 6,
+    left: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    zIndex: 10,
   },
-
-  regionText: {
-    fontSize: moderateScale(11),
-    fontWeight: '700',
-    color: '#181611',
-    letterSpacing: 0.8,
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
-
-  content: {
-    padding: moderateScale(16),
+  favoriteBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
-
+  contentContainer: {
+    flex: 1,
+    marginLeft: 12,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
   name: {
-    fontSize: moderateScale(20),
-    color: '#181611',
+    fontSize: 16,
     fontWeight: '700',
-    marginBottom: moderateScale(8),
-    letterSpacing: -0.3,
-    lineHeight: moderateScale(26),
+    color: '#111827',
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    marginBottom: 4,
+    lineHeight: 22,
   },
-
   locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: moderateScale(12),
+    gap: 4,
   },
-
   location: {
+    fontSize: 13,
+    color: '#6B7280',
     flex: 1,
-    fontSize: moderateScale(14),
-    color: '#897f61',
-    fontWeight: '400',
   },
-
-  divider: {
-    height: 1,
-    backgroundColor: '#f4f3f0',
-    marginVertical: moderateScale(12),
-  },
-
-  bottomRow: {
+  footerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
   },
-
-  statsContainer: {
+  statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    backgroundColor: '#F9FAFB',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-
-  statsText: {
-    fontSize: moderateScale(12),
-    color: '#897f61',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  statText: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
   },
-
-  actions: {
-    flexDirection: 'row',
-    gap: getSpacing(SPACING.sm),
-  },
-
-  actionButton: {
-    width: moderateScale(40),
-    height: moderateScale(40),
-    borderRadius: moderateScale(20),
-    backgroundColor: '#f4f3f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  actionButtonActive: {
-    backgroundColor: 'rgba(236, 182, 19, 0.10)',
-  },
-
-  actionButtonVisited: {
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+  statTextHighlight: {
+    fontSize: 11,
+    color: '#D97706',
+    fontWeight: '600',
   },
 });
