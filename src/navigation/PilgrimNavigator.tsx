@@ -9,6 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, TYPOGRAPHY } from '../constants/theme.constants';
 import { useAuth } from '../contexts/AuthContext';
 import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
+import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
+import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
+import { JournalScreen } from '../features/pilgrim/journal/screens/JournalScreen'; // Import JournalScreen
 import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScreen';
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
@@ -17,6 +20,7 @@ import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen'
 const Tab = createBottomTabNavigator();
 const ExploreStack = createNativeStackNavigator();
 const PlannerStack = createNativeStackNavigator();
+const JournalStack = createNativeStackNavigator();
 
 const PROFILE_COLORS = {
   primary: '#cfaa3a',
@@ -63,10 +67,22 @@ const ExploreStackNavigator = () => {
   );
 };
 
-const CommunityScreen = () => (
-  <View style={styles.placeholder}>
-    <Text style={styles.placeholderText}>Cong dong</Text>
-  </View>
+const JournalStackNavigator = () => (
+  <JournalStack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: COLORS.background },
+      animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+    }}
+  >
+    <JournalStack.Screen name="JournalMain" component={JournalScreen} />
+    <JournalStack.Screen name="JournalDetailScreen" component={JournalDetailScreen} />
+    <JournalStack.Screen
+      name="CreateJournalScreen"
+      component={CreateJournalScreen}
+      options={{ presentation: 'modal' }}
+    />
+  </JournalStack.Navigator>
 );
 
 const PlannerStackNavigator = () => (
@@ -333,8 +349,8 @@ export const PilgrimNavigator = () => {
             case 'Hanh huong':
               label = t('navigation.explore');
               break;
-            case 'Cong dong':
-              label = t('navigation.community');
+            case 'Nhat ky':
+              label = t('navigation.journal', { defaultValue: 'Nhật ký' });
               break;
             case 'Lich trinh':
               // Map "Lich trinh" to "schedule" key which exists in translation
@@ -356,8 +372,8 @@ export const PilgrimNavigator = () => {
             case 'Hanh huong':
               iconName = focused ? 'compass' : 'compass-outline';
               break;
-            case 'Cong dong':
-              iconName = focused ? 'people' : 'people-outline';
+            case 'Nhat ky':
+              iconName = focused ? 'book' : 'book-outline';
               break;
             case 'Lich trinh':
               iconName = focused ? 'calendar' : 'calendar-outline';
@@ -375,7 +391,7 @@ export const PilgrimNavigator = () => {
       })}
     >
       <Tab.Screen name="Hanh huong" component={ExploreStackNavigator} />
-      <Tab.Screen name="Cong dong" component={CommunityScreen} />
+      <Tab.Screen name="Nhat ky" component={JournalStackNavigator} />
       <Tab.Screen name="Lich trinh" component={PlannerStackNavigator} />
       <Tab.Screen name="Vi tri" component={LocationScreen} />
       <Tab.Screen name="Ho so" component={ProfileScreen} />

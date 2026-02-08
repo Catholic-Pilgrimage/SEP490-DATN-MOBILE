@@ -5,6 +5,7 @@ import {
     Animated,
     Dimensions,
     ImageBackground,
+    Platform,
     StatusBar,
     StyleSheet,
     Text,
@@ -264,11 +265,11 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 42, // Larger
-        fontFamily: TYPOGRAPHY.fontFamily.display,
-        fontWeight: '800',
+        fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' }),
+        fontWeight: '700', // Bold but not ExtraBold
         color: COLORS.textPrimary,
         lineHeight: 48,
-        letterSpacing: -1,
+        letterSpacing: -0.5,
     },
     headerDecoration: {
         width: 60,
