@@ -28,36 +28,55 @@ export type JournalMood =
 // ============================================
 
 /**
+ * Get Journals Response Structure
+ */
+export interface GetJournalsResponse {
+  message: string;
+  data: {
+    journals: JournalSummary[];
+    pagination?: {
+      page: number;
+      limit: number;
+      total: number;
+      total_pages: number;
+    };
+  };
+}
+
+/**
  * Journal entry
  */
 export interface JournalEntry {
   id: string;
+  user_id: string;
+  site_id: string;
+  planner_item_id?: string; // Optional in response?
   title: string;
   content: string;
-  mood?: JournalMood;
-  images: string[];
-  siteId?: string;
-  siteName?: string;
-  visibility: JournalVisibility;
-  likes: number;
-  isLiked: boolean;
-  createdAt: string;
-  updatedAt: string;
+  audio_url?: string;
+  video_url?: string;
+  image_url?: string[]; // Response has image_url array
+  privacy: JournalVisibility;
+  author: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url: string;
+  };
+  site?: {
+    id: string;
+    name: string;
+    code: string;
+    province: string;
+  };
+  created_at: string;
+  updated_at: string;
 }
 
 /**
  * Journal summary (for lists)
  */
-export interface JournalSummary {
-  id: string;
-  title: string;
-  excerpt: string;
-  coverImage?: string;
-  mood?: JournalMood;
-  siteName?: string;
-  visibility: JournalVisibility;
-  createdAt: string;
-}
+export interface JournalSummary extends JournalEntry { } // Assuming summary has same fields for now or similar subset
 
 // ============================================
 // REQUEST TYPES
@@ -69,16 +88,17 @@ export interface JournalSummary {
 export interface CreateJournalRequest {
   title: string;
   content: string;
-  mood?: JournalMood;
-  images?: string[];
-  siteId?: string;
-  visibility?: JournalVisibility;
+  planner_item_id: string; // Required
+  privacy?: JournalVisibility;
+  images?: string[]; // Local URIs to upload
+  audio?: string; // Local URI to upload
+  video?: string; // Local URI to upload
 }
 
 /**
  * Update journal request
  */
-export interface UpdateJournalRequest extends Partial<CreateJournalRequest> {}
+export interface UpdateJournalRequest extends Partial<CreateJournalRequest> { }
 
 /**
  * Get journals params

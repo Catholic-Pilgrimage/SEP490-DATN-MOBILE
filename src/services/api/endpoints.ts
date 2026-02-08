@@ -77,6 +77,7 @@ export const PILGRIM_ENDPOINTS = {
   // Journal - Spiritual journals
   JOURNAL: {
     LIST: `${API_BASE}/journals`,
+    ME: `${API_BASE}/journals/me`,
     CREATE: `${API_BASE}/journals`,
     DETAIL: (id: string) => `${API_BASE}/journals/${id}`,
     UPDATE: (id: string) => `${API_BASE}/journals/${id}`,

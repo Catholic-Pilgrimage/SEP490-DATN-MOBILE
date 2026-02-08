@@ -127,7 +127,7 @@ export const PlannerScreen = ({ navigation }: any) => {
 
             {/* Main Content */}
             <Animated.ScrollView
-                contentContainerStyle={[styles.content, { paddingTop: headerHeight + 20, paddingBottom: 100 }]}
+                contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
                 showsVerticalScrollIndicator={false}
                 onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -173,7 +173,7 @@ export const PlannerScreen = ({ navigation }: any) => {
                 </Animated.View>
 
                 {/* Plans List */}
-                <View style={{ marginTop: 20 }}>
+                <View style={{ marginTop: 10 }}>
                     {plans.map((plan) => (
                         <PlanCard
                             key={plan.id}
@@ -251,8 +251,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: SPACING.md,
-        paddingHorizontal: SPACING.sm, // reduced padding as main scrollview has padding
+        marginBottom: 10,
+        paddingBottom: SPACING.md,
+        paddingVertical: 4,
         position: 'relative',
     },
     headerSubtitle: {
