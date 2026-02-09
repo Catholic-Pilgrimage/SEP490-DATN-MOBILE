@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import type {
-    Notification as NotificationData
+  Notification as NotificationData
 } from "../services/api/shared/notificationApi";
 import notificationApi from "../services/api/shared/notificationApi";
 import notificationService from "../services/notification/notificationService";
@@ -14,32 +14,67 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
 
   /**
    * Fetch notifications from API
    */
-  const fetchNotifications = async (unreadOnly = false) => {
+  /**
+   * Fetch notifications from API
+   */
+  const fetchNotifications = async (refresh = false) => {
     try {
-      setLoading(true);
+      if (refresh) {
+        setLoading(true);
+        setPage(1);
+      } else {
+        if (!hasMore || loadingMore) return;
+        setLoadingMore(true);
+      }
+
       setError(null);
+
+      const currentPage = refresh ? 1 : page + 1;
+
+      // Add delay when loading more to show spinner clearly
+      if (!refresh) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+
       const response = await notificationApi.getNotifications({
-        page: 1,
+        page: currentPage,
         limit: 20,
-        unread_only: unreadOnly,
       });
 
-      const items = response.data?.items || [];
-      setNotifications(items);
-      setUnreadCount(items.filter((n: NotificationData) => !n.isRead).length);
+      if (response.success && response.data) {
+        const dtos = response.data.notifications || [];
+        const items = dtos.map(notificationApi.mapNotificationDtoToModel);
+
+        if (refresh) {
+          setNotifications(items);
+        } else {
+          setNotifications(prev => [...prev, ...items]);
+        }
+
+        setUnreadCount(response.data.unread_count || 0);
+        setHasMore(items.length === 20); // If < limit, no more pages
+        setPage(currentPage);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to fetch notifications",
       );
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  const refreshNotifications = () => fetchNotifications(true);
+  const loadMoreNotifications = () => fetchNotifications(false);
 
   /**
    * Mark notification as read
@@ -61,11 +96,14 @@ export const useNotifications = () => {
    */
   const markAllAsRead = async () => {
     try {
-      await notificationApi.markAllAsRead();
+      setUnreadCount(0); // Optimistic update
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
+
+      await notificationApi.markAllAsRead();
     } catch (err) {
       console.error("Error marking all as read:", err);
+      // Revert if failed (optional, but for now simple log is enough or could re-fetch)
+      fetchNotifications(true);
     }
   };
 
@@ -133,8 +171,11 @@ export const useNotifications = () => {
     notifications,
     unreadCount,
     loading,
+    loadingMore,
+    hasMore,
     error,
-    fetchNotifications,
+    fetchNotifications: refreshNotifications,
+    loadMoreNotifications,
     markAsRead,
     markAllAsRead,
     deleteNotification,

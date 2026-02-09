@@ -221,7 +221,7 @@ function transformError(error: AxiosError): Error {
     case HTTP_STATUS.NOT_FOUND:
       return new Error(fullMessage || 'Không tìm thấy tài nguyên.');
     case HTTP_STATUS.INTERNAL_SERVER_ERROR:
-      return new Error(ERROR_MESSAGES.SERVER_ERROR);
+      return new Error(fullMessage || ERROR_MESSAGES.SERVER_ERROR);
     default:
       return new Error(fullMessage || ERROR_MESSAGES.UNKNOWN_ERROR);
   }

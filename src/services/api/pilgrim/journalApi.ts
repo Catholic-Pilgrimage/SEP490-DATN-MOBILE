@@ -3,21 +3,18 @@
  * Handles journal operations for Pilgrims
  *
  * Endpoints:
- * - GET    /api/journals      - List journals
+ * - GET    /api/journals/me   - List my journals
  * - POST   /api/journals      - Create journal
- * - GET    /api/journals/:id  - Get journal detail
- * - PUT    /api/journals/:id  - Update journal
  * - DELETE /api/journals/:id  - Delete journal
- * - POST   /api/journals/:id/share - Share journal
  */
 
-import { ApiResponse, PaginatedResponse } from "../../../types/api.types";
+import { Platform } from "react-native";
+import { ApiResponse } from "../../../types/api.types";
 import {
-    CreateJournalRequest,
-    GetJournalsParams,
-    JournalEntry,
-    JournalSummary,
-    UpdateJournalRequest,
+  CreateJournalRequest,
+  GetJournalsParams,
+  GetJournalsResponse,
+  JournalEntry,
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -27,53 +24,78 @@ import { PILGRIM_ENDPOINTS } from "../endpoints";
 // ============================================
 
 /**
- * Get list of journals
+ * Get list of MY journals (private & public)
  */
-export const getJournals = async (
+export const getMyJournals = async (
   params?: GetJournalsParams,
-): Promise<PaginatedResponse<JournalSummary>> => {
-  const response = await apiClient.get<PaginatedResponse<JournalSummary>>(
-    PILGRIM_ENDPOINTS.JOURNAL.LIST,
+): Promise<GetJournalsResponse> => {
+  const response = await apiClient.get<GetJournalsResponse>(
+    PILGRIM_ENDPOINTS.JOURNAL.ME,
     { params },
   );
   return response.data;
 };
 
 /**
- * Get journal detail
- */
-export const getJournalDetail = async (
-  id: string,
-): Promise<ApiResponse<JournalEntry>> => {
-  const response = await apiClient.get<ApiResponse<JournalEntry>>(
-    PILGRIM_ENDPOINTS.JOURNAL.DETAIL(id),
-  );
-  return response.data;
-};
-
-/**
- * Create new journal
+ * Create new journal with support for file uploads (images, audio, video)
+ * Requires FormData if files are present.
  */
 export const createJournal = async (
   data: CreateJournalRequest,
 ): Promise<ApiResponse<JournalEntry>> => {
+  const formData = new FormData();
+
+  // 1. Append Text Fields
+  formData.append("title", data.title);
+  formData.append("content", data.content);
+  formData.append("planner_item_id", data.planner_item_id);
+  if (data.privacy) {
+    formData.append("privacy", data.privacy);
+  }
+
+  // 2. Append Images (Array)
+  if (data.images && data.images.length > 0) {
+    data.images.forEach((uri, index) => {
+      const fileType = uri.split('.').pop() || 'jpeg';
+      const fileName = `image_${index}.${fileType}`;
+      formData.append("images", {
+        uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+        type: `image/${fileType}`, // simplified mime type inference
+        name: fileName,
+      } as any);
+    });
+  }
+
+  // 3. Append Audio (Single file)
+  if (data.audio) {
+    const uri = data.audio;
+    const fileType = uri.split('.').pop() || 'm4a'; // default audio ext
+    formData.append("audio", {
+      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+      type: `audio/${fileType}`,
+      name: `audio.${fileType}`,
+    } as any);
+  }
+
+  // 4. Append Video (Single file)
+  if (data.video) {
+    const uri = data.video;
+    const fileType = uri.split('.').pop() || 'mp4';
+    formData.append("video", {
+      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+      type: `video/${fileType}`,
+      name: `video.${fileType}`,
+    } as any);
+  }
+
   const response = await apiClient.post<ApiResponse<JournalEntry>>(
     PILGRIM_ENDPOINTS.JOURNAL.CREATE,
-    data,
-  );
-  return response.data;
-};
-
-/**
- * Update journal
- */
-export const updateJournal = async (
-  id: string,
-  data: UpdateJournalRequest,
-): Promise<ApiResponse<JournalEntry>> => {
-  const response = await apiClient.put<ApiResponse<JournalEntry>>(
-    PILGRIM_ENDPOINTS.JOURNAL.UPDATE(id),
-    data,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
   );
   return response.data;
 };
@@ -88,29 +110,14 @@ export const deleteJournal = async (id: string): Promise<ApiResponse<void>> => {
   return response.data;
 };
 
-/**
- * Share journal
- */
-export const shareJournal = async (
-  id: string,
-): Promise<ApiResponse<{ shareUrl: string }>> => {
-  const response = await apiClient.post<ApiResponse<{ shareUrl: string }>>(
-    PILGRIM_ENDPOINTS.JOURNAL.SHARE(id),
-  );
-  return response.data;
-};
-
 // ============================================
 // EXPORT
 // ============================================
 
 const pilgrimJournalApi = {
-  getJournals,
-  getJournalDetail,
+  getMyJournals,
   createJournal,
-  updateJournal,
   deleteJournal,
-  shareJournal,
 };
 
 export default pilgrimJournalApi;

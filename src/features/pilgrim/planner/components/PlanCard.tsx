@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { PlanStatus, PlanSummary, TransportationType } from '../../../../types/pilgrim/planner.types';
 
 // Extend PlanSummary for UI purposes if needed (Mocking data structures that might not be in API yet)
@@ -42,31 +42,39 @@ const getTransportIcon = (type: TransportationType): keyof typeof Ionicons.glyph
 
 export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
     const { t } = useTranslation();
+
     // Calculate duration
     const start = new Date(plan.startDate);
     const end = new Date(plan.endDate);
     const durationDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const dateStr = start.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+    const dateStr = start.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     // Status Badge Logic
-    let statusBadge = null;
-    if (plan.isShared) {
-        statusBadge = (
-            <View style={[styles.badge, styles.badgeShared]}>
-                <View style={styles.sharedDot} />
-                <Text style={styles.badgeSharedText}>{t('planner.shared')}</Text>
+    const renderStatus = () => {
+        if (plan.status === 'draft') {
+            return (
+                <View style={[styles.statusTag, { backgroundColor: '#F0F0F0' }]}>
+                    <Text style={[styles.statusText, { color: '#888' }]}>{t('planner.draft', 'Bản nháp')}</Text>
+                </View>
+            );
+        }
+        if (plan.isShared) {
+            return (
+                <View style={[styles.statusTag, { backgroundColor: '#FFF7E6', borderColor: '#FFD591', borderWidth: 1 }]}>
+                    <Ionicons name="people-outline" size={12} color="#FA8C16" style={{ marginRight: 4 }} />
+                    <Text style={[styles.statusText, { color: '#FA8C16' }]}>{t('planner.shared', 'Chia sẻ')}</Text>
+                </View>
+            );
+        }
+        return (
+            <View style={[styles.statusTag, { backgroundColor: '#E6FFFB', borderColor: '#87E8DE', borderWidth: 1 }]}>
+                <Ionicons name="checkmark-circle-outline" size={12} color="#13C2C2" style={{ marginRight: 4 }} />
+                <Text style={[styles.statusText, { color: '#13C2C2' }]}>{plan.status || 'Planned'}</Text>
             </View>
         );
-    } else if (plan.status === 'draft') {
-        statusBadge = (
-            <View style={[styles.badge, styles.badgeDraft]}>
-                <Text style={styles.badgeDraftText}>{t('planner.draft')}</Text>
-            </View>
-        );
-    }
+    };
 
-    // Transportation Icons (Mocking list if singular)
-    const transports = plan.transportation || [];
+    const hasImage = plan.coverImage && plan.coverImage.length > 5;
 
     return (
         <TouchableOpacity
@@ -74,46 +82,62 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
             onPress={onPress}
             activeOpacity={0.9}
         >
-            <View style={styles.badgeContainer}>
-                {statusBadge}
-            </View>
-
-            <View style={styles.imageContainer}>
-                <Image
-                    source={{ uri: plan.coverImage || 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe' }}
-                    style={styles.image}
-                />
-                <View style={styles.imageOverlay} />
-            </View>
-
-            <View style={styles.content}>
-                <View>
-                    <Text style={styles.title} numberOfLines={1}>{plan.title}</Text>
-                    <View style={styles.dateRow}>
-                        <Ionicons name="calendar-outline" size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.dateText}>{dateStr}</Text>
+            {/* Left Side: Image or Placeholder pattern */}
+            <View style={styles.leftColumn}>
+                {hasImage ? (
+                    <Image
+                        source={{ uri: plan.coverImage }}
+                        style={styles.coverImage}
+                    />
+                ) : (
+                    <View style={styles.placeholderContainer}>
+                        <View style={styles.placeholderPattern}>
+                            <Ionicons name="map-outline" size={32} color="rgba(255,255,255,0.8)" />
+                        </View>
+                        <View style={styles.placeholderOverlay} />
                     </View>
+                )}
+                <View style={styles.dayBadge}>
+                    <Text style={styles.dayBadgeNumber}>{durationDays}</Text>
+                    <Text style={styles.dayBadgeText}>{t('days', 'Ngày')}</Text>
+                </View>
+            </View>
+
+            {/* Right Side: Content */}
+            <View style={styles.rightColumn}>
+                <View style={styles.headerRow}>
+                    <Text style={styles.title} numberOfLines={2}>{plan.title}</Text>
                 </View>
 
-                <View style={styles.footer}>
-                    <View style={styles.durationBadge}>
-                        <Text style={styles.durationText}>{durationDays} {t('planner.days')}</Text>
+                <View style={styles.metaContainer}>
+                    <View style={styles.metaRow}>
+                        <Ionicons name="calendar-clear-outline" size={14} color={COLORS.textSecondary} />
+                        <Text style={styles.metaText}>{dateStr}</Text>
                     </View>
 
-                    <View style={styles.transportRow}>
-                        {transports.map((t, idx) => (
-                            <Ionicons
-                                key={idx}
-                                name={getTransportIcon(t)}
-                                size={18}
-                                color={COLORS.textTertiary}
-                            />
+                    {plan.participantCount && plan.participantCount > 0 && (
+                        <View style={styles.metaRow}>
+                            <Ionicons name="person-outline" size={14} color={COLORS.textSecondary} />
+                            <Text style={styles.metaText}>{plan.participantCount} người</Text>
+                        </View>
+                    )}
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.footerRow}>
+                    <View style={styles.transportContainer}>
+                        {(plan.transportation || []).slice(0, 3).map((type, idx) => (
+                            <View key={idx} style={styles.transportIcon}>
+                                <Ionicons name={getTransportIcon(type)} size={12} color={COLORS.textTertiary} />
+                            </View>
                         ))}
-                        {transports.length === 0 && (
-                            <Ionicons name="walk-outline" size={18} color={COLORS.textTertiary} />
-                        )}
                     </View>
+                    {renderStatus()}
                 </View>
+
+                {/* Decorative corner accent */}
+                <View style={styles.decorativeCorner} />
             </View>
         </TouchableOpacity>
     );
@@ -122,113 +146,139 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
 const styles = StyleSheet.create({
     card: {
         backgroundColor: COLORS.white,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.md,
-        flexDirection: 'row',
+        borderRadius: 16,
         marginBottom: SPACING.md,
-        ...SHADOWS.medium,
-        height: 140, // Fixed height for consistency
-    },
-    badgeContainer: {
-        position: 'absolute',
-        top: SPACING.md,
-        right: SPACING.md,
-        zIndex: 10,
-    },
-    badge: {
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: 4,
-        borderRadius: BORDER_RADIUS.full,
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    badgeShared: {
-        backgroundColor: '#fff8e1', // Light yellow/gold
-    },
-    badgeSharedText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        color: '#b48805', // Darker gold
-        textTransform: 'uppercase',
-    },
-    sharedDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#b48805',
-    },
-    badgeDraft: {
-        backgroundColor: COLORS.background,
-    },
-    badgeDraftText: {
-        fontSize: 10,
-        fontWeight: 'bold',
-        color: COLORS.textSecondary,
-        textTransform: 'uppercase',
-    },
-    imageContainer: {
-        width: 100,
-        height: '100%',
-        borderRadius: BORDER_RADIUS.md,
+        height: 150,
+        ...SHADOWS.medium,
         overflow: 'hidden',
-        backgroundColor: COLORS.background,
-        marginRight: SPACING.md,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.03)',
     },
-    image: {
+    leftColumn: {
+        width: 110,
+        height: '100%',
+        position: 'relative',
+    },
+    coverImage: {
         width: '100%',
         height: '100%',
         resizeMode: 'cover',
     },
-    imageOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.05)',
+    placeholderContainer: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: COLORS.primary, // Deep blue/primary
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    content: {
+    placeholderPattern: {
+        opacity: 0.5,
+        transform: [{ rotate: '-10deg' }]
+    },
+    placeholderOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.1) 100%)', // Simulated
+    },
+    dayBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...SHADOWS.small,
+    },
+    dayBadgeNumber: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: COLORS.primary,
+        lineHeight: 16,
+    },
+    dayBadgeText: {
+        fontSize: 9,
+        color: COLORS.textSecondary,
+        fontWeight: '600',
+        textTransform: 'uppercase',
+    },
+    rightColumn: {
         flex: 1,
+        padding: 12,
+        paddingLeft: 16,
         justifyContent: 'space-between',
-        paddingVertical: 2,
+    },
+    headerRow: {
+        marginBottom: 4,
     },
     title: {
-        fontSize: TYPOGRAPHY.fontSize.lg,
-        fontFamily: TYPOGRAPHY.fontFamily.display, // Serif if available
-        fontWeight: 'bold',
+        fontSize: 18,
+        fontWeight: '700',
         color: COLORS.textPrimary,
-        marginBottom: SPACING.xs,
-        paddingRight: 40, // Space for badge
+        fontFamily: TYPOGRAPHY.fontFamily.display,
+        lineHeight: 24,
     },
-    dateRow: {
+    metaContainer: {
+        gap: 6,
+        marginBottom: 8,
+    },
+    metaRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        marginBottom: SPACING.xs,
     },
-    dateText: {
-        fontSize: TYPOGRAPHY.fontSize.sm,
+    metaText: {
+        fontSize: 13,
         color: COLORS.textSecondary,
         fontWeight: '500',
     },
-    footer: {
+    divider: {
+        height: 1,
+        backgroundColor: '#F0F0F0',
+        marginVertical: 8,
+    },
+    footerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginTop: 'auto',
     },
-    durationBadge: {
-        backgroundColor: COLORS.background,
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: 6,
-        borderRadius: BORDER_RADIUS.sm,
-    },
-    durationText: {
-        fontSize: 11,
-        fontWeight: 'bold',
-        color: COLORS.textSecondary,
-    },
-    transportRow: {
+    transportContainer: {
         flexDirection: 'row',
-        gap: SPACING.sm,
+        gap: 4,
     },
+    transportIcon: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#F5F5F5',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    statusTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    statusText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    decorativeCorner: {
+        position: 'absolute',
+        bottom: -20,
+        right: -20,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.accent, // Simple accent color
+        opacity: 0.1,
+        transform: [{ rotate: '45deg' }],
+        zIndex: -1,
+    }
 });
 
 export default PlanCard;

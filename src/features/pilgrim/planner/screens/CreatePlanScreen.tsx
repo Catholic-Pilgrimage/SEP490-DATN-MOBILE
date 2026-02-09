@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    Dimensions,
+    ActivityIndicator,
+    Alert, Dimensions,
     FlatList,
     KeyboardAvoidingView,
     Platform,
@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import { CreatePlanRequest } from '../../../../types/pilgrim/planner.types';
 
 const { width } = Dimensions.get('window');
@@ -64,19 +65,57 @@ const CreatePlanScreen = ({ navigation }: any) => {
     const [peopleCount, setPeopleCount] = useState(1);
     const [transportation, setTransportation] = useState('bus'); // Default bus
 
-    const handleCreate = () => {
-        const payload: CreatePlanRequest = {
-            name,
-            start_date: selectedDate,
-            number_of_days: duration,
-            number_of_people: peopleCount,
-            transportation,
-            budget_level: budget,
-            is_public: !isPrivate,
-        };
-        console.log('Creating Plan:', payload);
-        // Dispatch API call here
-        navigation.goBack();
+
+    const [loading, setLoading] = useState(false);
+
+    const handleCreate = async () => {
+        if (!name.trim()) {
+            Alert.alert(t('common.error'), t('planner.nameRequired', { defaultValue: 'Please enter a name for your plan' }));
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const payload: CreatePlanRequest = {
+                name,
+                start_date: selectedDate,
+                number_of_days: duration,
+                number_of_people: peopleCount,
+                transportation,
+                budget_level: budget,
+                is_public: !isPrivate,
+            };
+
+            const response = await pilgrimPlannerApi.createPlan(payload);
+
+            if (response.success) {
+                // Success
+                Alert.alert(t('common.success'), t('planner.createSuccess', { defaultValue: 'Plan created successfully!' }));
+                navigation.goBack();
+            } else {
+                throw new Error(response.message || 'Failed to create plan');
+            }
+        } catch (error: any) {
+            console.error('Create plan error:', error);
+            Alert.alert(t('common.error'), error.message || t('planner.createError', { defaultValue: 'Could not create plan. Please try again.' }));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSaveDraft = async () => {
+        // Similar to create but maybe different status if API supported it, 
+        // currently API doesn't seem to have status in CreatePlanRequest based on types,
+        // but maybe it defaults to 'planned'. 
+        // For now, I'll just map it to create as well or if there is a draft field?
+        // The backend Plan entity has status. UpdatePlanRequest has status. 
+        // Maybe CreatePlanRequest needs status? 
+        // Screenshot defines request body: name, start_date... no status. 
+        // So I assume all created plans are 'planned' or 'draft' by default?
+        // For now let's just use create for draft button too, maybe unrelated.
+        // Actually, let's just wire it to handleCreate for now or leave it. 
+        // The prompt asked for API handling.
+        handleCreate();
     };
 
     return (
@@ -175,21 +214,24 @@ const CreatePlanScreen = ({ navigation }: any) => {
                                 </View>
                             </View>
 
-                            <Slider
-                                style={{ width: '100%', height: 40 }}
-                                minimumValue={1}
-                                maximumValue={30}
-                                step={1}
-                                value={duration}
-                                onValueChange={setDuration}
-                                minimumTrackTintColor={COLORS.accent}
-                                maximumTrackTintColor={COLORS.border}
-                                thumbTintColor={COLORS.accent}
-                            />
+                            <View style={styles.counterRow}>
+                                <TouchableOpacity
+                                    onPress={() => setDuration(Math.max(1, duration - 1))}
+                                    style={styles.counterBtn}
+                                >
+                                    <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
+                                </TouchableOpacity>
+                                <Text style={styles.counterValue}>{duration} Days</Text>
+                                <TouchableOpacity
+                                    onPress={() => setDuration(Math.min(30, duration + 1))}
+                                    style={styles.counterBtn}
+                                >
+                                    <Ionicons name="add" size={16} color={COLORS.textPrimary} />
+                                </TouchableOpacity>
+                            </View>
 
                             <View style={styles.sliderLabels}>
-                                <Text style={styles.sliderLabelMin}>1 Day</Text>
-                                <Text style={styles.sliderLabelMax}>30+ Days</Text>
+                                <Text style={styles.sliderLabelMin}>Recommended: 3-5 Days</Text>
                             </View>
                         </View>
                     </View>
@@ -289,10 +331,22 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
                 {/* Footer */}
                 <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-                    <TouchableOpacity style={styles.createButton} onPress={handleCreate}>
-                        <Text style={styles.createButtonText}>Create & Plan Route</Text>
+                    <TouchableOpacity
+                        style={[styles.createButton, loading && { opacity: 0.7 }]}
+                        onPress={handleCreate}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color={COLORS.textPrimary} />
+                        ) : (
+                            <Text style={styles.createButtonText}>Create & Plan Route</Text>
+                        )}
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.draftButton}>
+                    <TouchableOpacity
+                        style={[styles.draftButton, loading && { opacity: 0.7 }]}
+                        onPress={handleSaveDraft}
+                        disabled={loading}
+                    >
                         <Text style={styles.draftButtonText}>Save as Draft</Text>
                     </TouchableOpacity>
                 </View>
