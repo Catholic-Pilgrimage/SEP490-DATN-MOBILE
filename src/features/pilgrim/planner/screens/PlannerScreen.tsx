@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
     Animated,
@@ -74,6 +74,9 @@ export const PlannerScreen = ({ navigation }: any) => {
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
 
+    const scrollRef = useRef(null);
+    useScrollToTop(scrollRef);
+
     // Header Animations
     const headerHeight = 60 + insets.top; // Compact header height
 
@@ -127,6 +130,7 @@ export const PlannerScreen = ({ navigation }: any) => {
 
             {/* Main Content */}
             <Animated.ScrollView
+                ref={scrollRef}
                 contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
                 showsVerticalScrollIndicator={false}
                 onScroll={Animated.event(

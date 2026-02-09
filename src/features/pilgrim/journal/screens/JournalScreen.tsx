@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Dimensions,
@@ -28,6 +28,9 @@ export const JournalScreen = () => {
     const insets = useSafeAreaInsets();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(true);
+
+    const scrollRef = useRef(null);
+    useScrollToTop(scrollRef);
 
     const fetchJournals = async () => {
         try {
@@ -188,6 +191,7 @@ export const JournalScreen = () => {
                 </View>
             ) : (
                 <FlatList
+                    ref={scrollRef}
                     data={journals}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
