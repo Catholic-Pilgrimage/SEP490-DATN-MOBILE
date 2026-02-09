@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     Animated,
     Dimensions,
@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
+import { JournalEntry } from '../../../../types/pilgrim/journal.types';
 
 const { width, height } = Dimensions.get('window');
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
@@ -55,11 +57,51 @@ const MOCK_ENTRY = {
 };
 
 export default function JournalDetailScreen() {
-    const navigation = useNavigation();
-    const route = useRoute();
+    const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { journalId } = route.params || {};
     const insets = useSafeAreaInsets();
     const scrollY = new Animated.Value(0);
     const [activeSlide, setActiveSlide] = useState(0);
+
+    const [journal, setJournal] = useState<JournalEntry | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch Journal Detail
+    useEffect(() => {
+        if (!journalId) return;
+        fetchJournalDetail();
+    }, [journalId]);
+
+    const fetchJournalDetail = async () => {
+        try {
+            setLoading(true);
+            const response = await pilgrimJournalApi.getJournalDetail(journalId);
+            if (response.success && response.data) {
+                setJournal(response.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch journal detail", error);
+            // Optionally show alert
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        try {
+            await pilgrimJournalApi.deleteJournal(journalId);
+            navigation.goBack();
+        } catch (error) {
+            console.error("Failed to delete journal", error);
+        }
+    };
+
+    const handleEdit = () => {
+        if (journal) {
+            navigation.navigate('CreateJournal', { journalId: journal.id });
+        }
+    };
 
     // Animation values
     const headerOpacity = scrollY.interpolate({
@@ -80,10 +122,37 @@ export default function JournalDetailScreen() {
         extrapolate: 'clamp',
     });
 
+    if (loading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <StatusBar barStyle="dark-content" />
+                <Text style={{ color: COLORS.textSecondary }}>Loading...</Text>
+            </View>
+        );
+    }
+
+    if (!journal) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <StatusBar barStyle="dark-content" />
+                <Text>Journal not found</Text>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+                    <Text style={{ color: COLORS.accent }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const images = journal.image_url || [];
+    // If no images, use a placeholder or handle gracefully
+    // For now, we'll assume at least one or use a placeholder if empty for the hero
+    const heroImageUri = images.length > 0 ? images[0] : 'https://via.placeholder.com/400x300';
+
     const renderPagination = () => {
+        if (images.length <= 1) return null;
         return (
             <View style={styles.paginationContainer}>
-                {MOCK_ENTRY.images.map((_, i) => (
+                {images.map((_, i) => (
                     <View
                         key={i}
                         style={[
@@ -94,6 +163,17 @@ export default function JournalDetailScreen() {
                 ))}
             </View>
         );
+    };
+
+    // Helper to format date
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('vi-VN', { year: 'numeric', month: 'short', day: 'numeric' });
+    };
+
+    const formatTime = (dateString: string) => {
+        const date = new Date(dateString);
+        return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     };
 
     return (
@@ -124,7 +204,7 @@ export default function JournalDetailScreen() {
                 }
             ]}>
                 <View style={styles.stickyHeaderContent}>
-                    <Text style={styles.stickyHeaderTitle} numberOfLines={1}>{MOCK_ENTRY.title}</Text>
+                    <Text style={styles.stickyHeaderTitle} numberOfLines={1}>{journal.title}</Text>
                 </View>
             </Animated.View>
 
@@ -149,7 +229,7 @@ export default function JournalDetailScreen() {
                         }
                     ]}>
                         <Image
-                            source={{ uri: MOCK_ENTRY.images[0] }}
+                            source={{ uri: heroImageUri }}
                             style={styles.heroImage}
                             resizeMode="cover"
                         />
@@ -161,11 +241,13 @@ export default function JournalDetailScreen() {
 
                     {/* Hero Content Overlay */}
                     <View style={[styles.heroContent, { paddingBottom: 40 }]}>
-                        <View style={styles.locationBadge}>
-                            <MaterialIcons name="location-on" size={14} color={COLORS.accent} />
-                            <Text style={styles.locationText}>{MOCK_ENTRY.location}</Text>
-                        </View>
-                        <Text style={styles.heroTitle}>{MOCK_ENTRY.title}</Text>
+                        {journal.site && (
+                            <View style={styles.locationBadge}>
+                                <MaterialIcons name="location-on" size={14} color={COLORS.accent} />
+                                <Text style={styles.locationText}>{journal.site.name}</Text>
+                            </View>
+                        )}
+                        <Text style={styles.heroTitle}>{journal.title}</Text>
                     </View>
 
                     {renderPagination()}
@@ -176,15 +258,18 @@ export default function JournalDetailScreen() {
                     {/* Author Info */}
                     <View style={styles.authorSection}>
                         <View style={styles.authorInfo}>
-                            <Image source={{ uri: MOCK_ENTRY.author.avatar }} style={styles.authorAvatar} />
+                            <Image
+                                source={{ uri: journal.author?.avatar_url || 'https://via.placeholder.com/50' }}
+                                style={styles.authorAvatar}
+                            />
                             <View>
-                                <Text style={styles.authorName}>{MOCK_ENTRY.author.name}</Text>
-                                <Text style={styles.authorLevel}>{MOCK_ENTRY.author.level}</Text>
+                                <Text style={styles.authorName}>{journal.author?.full_name}</Text>
+                                <Text style={styles.authorLevel}>Pilgrim</Text>
                             </View>
                         </View>
                         <View style={styles.dateInfo}>
-                            <Text style={styles.dateText}>{MOCK_ENTRY.date}</Text>
-                            <Text style={styles.timeText}>{MOCK_ENTRY.time}</Text>
+                            <Text style={styles.dateText}>{formatDate(journal.created_at)}</Text>
+                            <Text style={styles.timeText}>{formatTime(journal.created_at)}</Text>
                         </View>
                     </View>
 
@@ -192,40 +277,32 @@ export default function JournalDetailScreen() {
 
                     {/* Article Body */}
                     <View style={styles.articleBody}>
-                        <Text style={styles.paragraph}>{MOCK_ENTRY.content[0]}</Text>
-                        <Text style={styles.paragraph}>{MOCK_ENTRY.content[1]}</Text>
-
-                        {/* Quote Block */}
-                        <View style={styles.quoteBlock}>
-                            <MaterialIcons name="format-quote" size={40} color="rgba(236,182,19,0.3)" style={styles.quoteIcon} />
-                            <Text style={styles.quoteText}>{MOCK_ENTRY.quote.text}</Text>
-                            <Text style={styles.quoteSource}>— {MOCK_ENTRY.quote.source}</Text>
-                        </View>
-
-                        <Text style={styles.paragraph}>{MOCK_ENTRY.content[2]}</Text>
-                        <Text style={styles.paragraph}>{MOCK_ENTRY.content[3]}</Text>
+                        {/* Simple content render for now */}
+                        <Text style={styles.paragraph}>{journal.content}</Text>
                     </View>
 
-                    {/* Audio Player Card */}
-                    <View style={styles.audioCard}>
-                        <View style={styles.audioHeader}>
-                            <Text style={styles.audioTitleLabel}>VOICE NOTE</Text>
-                        </View>
-                        <View style={styles.audioContent}>
-                            <TouchableOpacity style={styles.playButton}>
-                                <MaterialIcons name="play-arrow" size={28} color={COLORS.textPrimary} />
-                            </TouchableOpacity>
-                            <View style={styles.audioInfo}>
-                                <View style={styles.audioMeta}>
-                                    <Text style={styles.audioTrackTitle} numberOfLines={1}>{MOCK_ENTRY.audio.title}</Text>
-                                    <Text style={styles.audioDuration}>{MOCK_ENTRY.audio.current} / {MOCK_ENTRY.audio.duration}</Text>
-                                </View>
-                                <View style={styles.progressBarBg}>
-                                    <View style={[styles.progressBarFill, { width: `${MOCK_ENTRY.audio.progress * 100}%` }]} />
+                    {/* Audio Player Card - Only if audio_url exists */}
+                    {journal.audio_url && (
+                        <View style={styles.audioCard}>
+                            <View style={styles.audioHeader}>
+                                <Text style={styles.audioTitleLabel}>VOICE NOTE</Text>
+                            </View>
+                            <View style={styles.audioContent}>
+                                <TouchableOpacity style={styles.playButton}>
+                                    <MaterialIcons name="play-arrow" size={28} color={COLORS.textPrimary} />
+                                </TouchableOpacity>
+                                <View style={styles.audioInfo}>
+                                    <View style={styles.audioMeta}>
+                                        <Text style={styles.audioTrackTitle} numberOfLines={1}>Audio Recording</Text>
+                                        <Text style={styles.audioDuration}>--:--</Text>
+                                    </View>
+                                    <View style={styles.progressBarBg}>
+                                        <View style={[styles.progressBarFill, { width: `0%` }]} />
+                                    </View>
                                 </View>
                             </View>
                         </View>
-                    </View>
+                    )}
                 </View>
             </Animated.ScrollView>
 
@@ -234,13 +311,13 @@ export default function JournalDetailScreen() {
                 <View style={styles.bottomBarContent}>
                     {/* Edit/Delete Actions */}
                     <View style={styles.leftActions}>
-                        <TouchableOpacity style={styles.actionItem}>
+                        <TouchableOpacity style={styles.actionItem} onPress={handleEdit}>
                             <View style={styles.actionIconCircle}>
                                 <MaterialIcons name="edit-note" size={22} color={COLORS.textSecondary} />
                             </View>
                             <Text style={styles.actionLabel}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionItem}>
+                        <TouchableOpacity style={styles.actionItem} onPress={handleDelete}>
                             <View style={[styles.actionIconCircle, styles.deleteAction]}>
                                 <MaterialIcons name="delete-outline" size={22} color={COLORS.danger} />
                             </View>
@@ -251,7 +328,7 @@ export default function JournalDetailScreen() {
                     {/* Share Button */}
                     <TouchableOpacity style={styles.shareButton}>
                         <MaterialIcons name="ios-share" size={20} color={COLORS.textPrimary} />
-                        <Text style={styles.shareButtonText}>Share Reflection</Text>
+                        <Text style={styles.shareButtonText}>Share</Text>
                     </TouchableOpacity>
                 </View>
             </View>
