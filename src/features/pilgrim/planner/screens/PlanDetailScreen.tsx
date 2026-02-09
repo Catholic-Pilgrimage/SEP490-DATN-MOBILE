@@ -17,6 +17,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useSites } from '../../../../hooks/useSites';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
+import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
+import { SiteSummary } from '../../../../types/pilgrim';
 import { PlanEntity, PlanItem } from '../../../../types/pilgrim/planner.types';
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -29,6 +31,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const [isAddModalVisible, setIsAddModalVisible] = useState(false);
     const [selectedDay, setSelectedDay] = useState<number>(1);
     const { sites, isLoading: isLoadingSites, fetchSites } = useSites();
+    const [favorites, setFavorites] = useState<SiteSummary[]>([]);
+    const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
+    const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
     const [addingItem, setAddingItem] = useState(false);
 
     useEffect(() => {
@@ -37,9 +42,39 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     useEffect(() => {
         if (isAddModalVisible) {
-            fetchSites({ limit: 20 });
+            if (activeTab === 'all') {
+                fetchSites({ limit: 20 });
+            } else {
+                fetchFavorites();
+            }
         }
-    }, [isAddModalVisible]);
+    }, [isAddModalVisible, activeTab]);
+
+    const fetchFavorites = async () => {
+        try {
+            setIsLoadingFavorites(true);
+            const response = await pilgrimSiteApi.getFavorites({ limit: 50 }); // Fetch more for selection
+            if (response.success && response.data?.sites) {
+                // Map FavoriteSite (snake_case) to SiteSummary (camelCase) for consistency
+                const mappedFavorites: SiteSummary[] = response.data.sites.map((site) => ({
+                    id: site.id,
+                    name: site.name,
+                    address: site.address,
+                    coverImage: site.cover_image,
+                    rating: 0, // Not in FavoriteSite, default
+                    reviewCount: 0, // Not in FavoriteSite, default
+                    isFavorite: true,
+                    type: site.type,
+                    region: site.region,
+                }));
+                setFavorites(mappedFavorites);
+            }
+        } catch (error) {
+            console.error('Fetch favorites error:', error);
+        } finally {
+            setIsLoadingFavorites(false);
+        }
+    };
 
     const loadPlan = async () => {
         try {
@@ -327,11 +362,28 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                             <Text style={styles.modalClose}>Close</Text>
                         </TouchableOpacity>
                     </View>
-                    {isLoadingSites ? (
+
+                    {/* Tabs */}
+                    <View style={styles.tabContainer}>
+                        <TouchableOpacity
+                            style={[styles.tabButton, activeTab === 'all' && styles.activeTabButton]}
+                            onPress={() => setActiveTab('all')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'all' && styles.activeTabText]}>All Sites</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.tabButton, activeTab === 'favorites' && styles.activeTabButton]}
+                            onPress={() => setActiveTab('favorites')}
+                        >
+                            <Text style={[styles.tabText, activeTab === 'favorites' && styles.activeTabText]}>My Favorites</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {isLoadingSites || isLoadingFavorites ? (
                         <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 20 }} />
                     ) : (
                         <FlatList
-                            data={sites}
+                            data={activeTab === 'all' ? sites : favorites}
                             keyExtractor={(item) => item.id}
                             contentContainerStyle={{ padding: 16 }}
                             renderItem={({ item }) => (
@@ -680,6 +732,32 @@ const styles = StyleSheet.create({
     siteItemAddress: {
         fontSize: 12,
         color: COLORS.textSecondary,
+    },
+    tabContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+        marginBottom: 8,
+    },
+    tabButton: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    activeTabButton: {
+        borderBottomColor: COLORS.primary,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.textTertiary,
+    },
+    activeTabText: {
+        color: COLORS.primary,
     },
 });
 

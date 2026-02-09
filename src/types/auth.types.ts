@@ -1,6 +1,7 @@
 // Authentication type definitions
 
 import { UpdateProfileRequest, User } from "./user.types";
+export { UpdateProfileRequest, User };
 
 // User roles and interface imported from other files
 
