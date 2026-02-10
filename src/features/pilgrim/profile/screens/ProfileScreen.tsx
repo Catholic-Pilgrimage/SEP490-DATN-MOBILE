@@ -63,7 +63,7 @@ const MenuItem = ({
                 <Ionicons
                     name={icon}
                     size={20}
-                    color={danger ? PREMIUM_COLORS.error : PREMIUM_COLORS.gold}
+                    color={danger ? PREMIUM_COLORS.error : PREMIUM_COLORS.goldDark}
                 />
             </View>
             <Text style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}>
@@ -213,14 +213,34 @@ const ProfileScreen = () => {
             >
                 <View style={styles.profileHeader}>
                     {/* Avatar */}
-                    <View style={styles.avatarContainer}>
+                    {/* Avatar - Clickable to Edit */}
+                    <TouchableOpacity
+                        style={styles.avatarContainer}
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('EditProfile')}
+                        disabled={!isAuthenticated}
+                    >
                         <LinearGradient
                             colors={[PREMIUM_COLORS.gold, PREMIUM_COLORS.goldDark]}
                             style={styles.avatarBorder}
                         >
                             <View style={styles.avatarInner}>
-                                {isAuthenticated && user?.avatar ? (
-                                    <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                                {isAuthenticated ? (
+                                    user?.avatar ? (
+                                        <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+                                    ) : (
+                                        <View style={[styles.avatarImage, { backgroundColor: PREMIUM_COLORS.gold, justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={{ fontSize: 32, fontWeight: 'bold', color: PREMIUM_COLORS.cream }}>
+                                                {(() => {
+                                                    const name = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Pilgrim');
+                                                    const parts = name.trim().split(' ');
+                                                    if (parts.length === 1 && parts[0].length > 1) return parts[0].substring(0, 2).toUpperCase();
+                                                    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+                                                    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+                                                })()}
+                                            </Text>
+                                        </View>
+                                    )
                                 ) : (
                                     <View style={[styles.avatarImage, { backgroundColor: PREMIUM_COLORS.goldLight, justifyContent: 'center', alignItems: 'center' }]}>
                                         <MaterialIcons name="person" size={40} color={PREMIUM_COLORS.goldDark} />
@@ -228,13 +248,7 @@ const ProfileScreen = () => {
                                 )}
                             </View>
                         </LinearGradient>
-
-                        {isAuthenticated && (
-                            <TouchableOpacity style={styles.editAvatarButton}>
-                                <MaterialIcons name="camera-alt" size={14} color="#fff" />
-                            </TouchableOpacity>
-                        )}
-                    </View>
+                    </TouchableOpacity>
 
                     <Text style={styles.profileName}>
                         {isGuest ? 'Khách hành hương' : user?.fullName || 'Người hành hương'}
@@ -395,20 +409,6 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    editAvatarButton: {
-        position: 'absolute',
-        right: 0,
-        bottom: 0,
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: PREMIUM_COLORS.gold,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderColor: PREMIUM_COLORS.cream,
-        ...SHADOWS.small,
-    },
     profileName: {
         fontSize: 22,
         fontWeight: '700',
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 10,
-        backgroundColor: `${PREMIUM_COLORS.gold}15`,
+        backgroundColor: PREMIUM_COLORS.goldLight,
         alignItems: 'center',
         justifyContent: 'center',
     },

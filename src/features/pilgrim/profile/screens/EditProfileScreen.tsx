@@ -85,9 +85,7 @@ const InfoRow = ({
                 )}
             </View>
         </View>
-        {editable && !isEditing && (
-            <Ionicons name="create-outline" size={18} color={PREMIUM_COLORS.textMuted} />
-        )}
+        {/* Pencil icon removed for cleaner batch edit UX */}
     </View>
 );
 
