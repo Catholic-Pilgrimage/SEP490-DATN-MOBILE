@@ -1,1 +1,7 @@
-// Placeholder for community screens index
+
+import CommunityScreen from './CommunityScreen';
+
+export {
+    CommunityScreen
+};
+

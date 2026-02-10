@@ -5,6 +5,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY } from '../constants/theme.constants';
+import { CommunityScreen } from '../features/pilgrim/community/screens';
 import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
 import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
 import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
@@ -13,6 +14,7 @@ import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScre
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
+
 
 const Tab = createBottomTabNavigator();
 const ExploreStack = createNativeStackNavigator();
@@ -120,11 +122,12 @@ const ProfileStackNavigator = () => (
   </ProfileStack.Navigator>
 );
 
-const LocationScreen = () => (
-  <View style={styles.placeholder}>
-    <Text style={styles.placeholderText}>Vi tri</Text>
+const CommunityStackNavigator = () => (
+  <View style={{ flex: 1 }}>
+    <CommunityScreen />
   </View>
 );
+
 
 const BottomTabNavigator = () => {
   const { t } = useTranslation();
@@ -161,8 +164,8 @@ const BottomTabNavigator = () => {
               // Map "Lich trinh" to "schedule" key which exists in translation
               label = t('navigation.schedule');
               break;
-            case 'Vi tri':
-              label = t('navigation.location', { defaultValue: 'Vị trí' });
+            case 'Cong dong':
+              label = t('navigation.community', { defaultValue: 'Cộng đồng' });
               break;
             case 'Ho so':
               label = t('navigation.profile');
@@ -183,8 +186,8 @@ const BottomTabNavigator = () => {
             case 'Lich trinh':
               iconName = focused ? 'calendar' : 'calendar-outline';
               break;
-            case 'Vi tri':
-              iconName = focused ? 'location' : 'location-outline';
+            case 'Cong dong':
+              iconName = focused ? 'people' : 'people-outline';
               break;
             case 'Ho so':
               iconName = focused ? 'person' : 'person-outline';
@@ -198,7 +201,7 @@ const BottomTabNavigator = () => {
       <Tab.Screen name="Hanh huong" component={ExploreTab} />
       <Tab.Screen name="Nhat ky" component={JournalStackNavigator} />
       <Tab.Screen name="Lich trinh" component={PlannerStackNavigator} />
-      <Tab.Screen name="Vi tri" component={LocationScreen} />
+      <Tab.Screen name="Cong dong" component={CommunityStackNavigator} />
       <Tab.Screen name="Ho so" component={ProfileStackNavigator} />
     </Tab.Navigator >
   );
