@@ -162,7 +162,8 @@ export const GUIDE_ENDPOINTS = {
   SOS: {
     LIST: `${API_BASE}/sos/site/list`,
     DETAIL: (id: string) => `${API_BASE}/sos/site/${id}`,
-    UPDATE: (id: string) => `${API_BASE}/sos/site/${id}`,
+    ASSIGN: (id: string) => `${API_BASE}/sos/${id}/assign`,
+    RESOLVE: (id: string) => `${API_BASE}/sos/${id}/resolve`,
   },
 
   // Local Guide Media - Media management for assigned site
