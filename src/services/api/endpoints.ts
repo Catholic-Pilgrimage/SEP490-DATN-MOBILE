@@ -77,6 +77,14 @@ export const PILGRIM_ENDPOINTS = {
     DELETE_MESSAGE: (id: string, messageId: string) => `${API_BASE}/planners/${id}/messages/${messageId}`,
   },
 
+  // SOS - Emergency request
+  SOS: {
+    CREATE: `${API_BASE}/sos`,
+    LIST: `${API_BASE}/sos`,
+    DETAIL: (id: string) => `${API_BASE}/sos/${id}`,
+    CANCEL: (id: string) => `${API_BASE}/sos/${id}`,
+  },
+
   // Journal - Spiritual journals
   JOURNAL: {
     LIST: `${API_BASE}/journals`,
