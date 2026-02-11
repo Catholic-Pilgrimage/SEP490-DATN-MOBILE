@@ -97,6 +97,37 @@ export interface ReorderPlanItemsResponse {
   items: PlanItem[];
 }
 
+export interface MessageSender {
+  id: string;
+  full_name: string;
+  avatar_url: string;
+}
+
+export interface PlannerMessage {
+  id: string;
+  message_type: "text" | "image";
+  content: string;
+  image_url: string;
+  sender: MessageSender;
+  created_at: string;
+  planner_id: string;
+  user_id: string;
+  user: MessageSender;
+}
+
+export interface GetPlanMessagesResponse {
+  messages: PlannerMessage[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+export interface UploadMessageImageResponse {
+  image_url: string;
+}
+
 // ============================================
 // API REQUEST TYPES
 // ============================================
@@ -137,6 +168,12 @@ export interface AISuggestionRequest {
     latitude: number;
     longitude: number;
   };
+}
+
+export interface SendPlanMessageRequest {
+  message_type: "text" | "image";
+  content: string;
+  image_url?: string;
 }
 
 // ============================================
