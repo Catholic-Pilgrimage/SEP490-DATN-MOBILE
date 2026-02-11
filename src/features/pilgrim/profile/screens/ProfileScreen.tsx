@@ -159,6 +159,7 @@ const ProfileScreen = () => {
             showBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount.toString()) : undefined
         },
         { icon: 'bookmark', label: 'Đã lưu', requireAuth: true, route: 'FavoriteSites' },
+        { icon: 'hand-left-outline', label: 'Lịch sử Hỗ trợ', requireAuth: true, route: 'SOSHistory' },
         { icon: 'time-outline', label: 'Lịch sử hành hương', requireAuth: true, route: 'History' },
         { icon: 'settings-outline', label: 'Cài đặt', requireAuth: false, route: 'Settings' },
         { icon: 'help-circle-outline', label: 'Trợ giúp', requireAuth: false, route: 'Help' },
@@ -183,7 +184,7 @@ const ProfileScreen = () => {
             return;
         }
 
-        if (item.route === 'FavoriteSites' || item.route === 'EditProfile') {
+        if (item.route === 'FavoriteSites' || item.route === 'EditProfile' || item.route === 'SOSHistory') {
             navigation.navigate(item.route);
         } else {
             console.log(`Navigate to ${item.route}`);

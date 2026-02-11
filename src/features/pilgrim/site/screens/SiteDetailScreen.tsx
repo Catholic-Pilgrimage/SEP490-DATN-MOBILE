@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useSiteDetail, useSiteEvents, useSiteMassSchedules, useSiteMedia, useSiteNearbyPlaces } from '../../../../hooks/useSites';
 import { DayOfWeek } from '../../../../types';
-import { NearbyPlaceCard, QuickActionButton } from '../components';
+import { NearbyPlaceCard, QuickActionButton, SOSModal } from '../components';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_HEIGHT = Dimensions.get('window').height * 0.45;
@@ -28,6 +28,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isSOSModalVisible, setSOSModalVisible] = useState(false);
 
   // -- Fetch Data Hooks --
   const {
@@ -262,6 +263,11 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <QuickActionButton icon="globe-outline" label="Website" />
             )}
             <QuickActionButton icon="gift-outline" label="Ủng hộ" />
+            <QuickActionButton
+              icon="alert-circle-outline"
+              label="Hỗ trợ"
+              onPress={() => setSOSModalVisible(true)}
+            />
           </View>
 
           {/* Key Information Card - Only show provided info */}
@@ -534,6 +540,21 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
+
+      {/* SOS Modal */}
+      {site && (
+        <SOSModal
+          visible={isSOSModalVisible}
+          onClose={() => setSOSModalVisible(false)}
+          siteId={site.id}
+          siteName={site.name}
+          siteLocation={
+            (site.latitude && site.longitude)
+              ? { latitude: site.latitude, longitude: site.longitude }
+              : undefined
+          }
+        />
+      )}
     </View>
   );
 };
