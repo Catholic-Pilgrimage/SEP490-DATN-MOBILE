@@ -1,13 +1,14 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { CommonActions, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
     Platform,
+    RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -20,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SHADOWS } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useNotifications } from '../../../../hooks/useNotifications';
+import { useUserQuery } from '../../../../hooks/useUserQuery';
 import { NotificationModal } from '../../explore/components/NotificationModal';
 
 // Premium color palette (Adapted from Local Guide Profile)
@@ -93,9 +95,23 @@ const SectionHeader = ({ title }: { title: string }) => (
 const ProfileScreen = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
-    const { user, isGuest, isAuthenticated, logout, exitGuestMode } = useAuth();
+    const { user: contextUser, isGuest, isAuthenticated, logout, exitGuestMode } = useAuth();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+
+    // React Query for real-time profile updates
+    const { data: queryUser, refetch, isRefetching } = useUserQuery();
+    // Prefer query data over context data for display
+    const user = queryUser || contextUser;
+
+    // Refetch on focus (when returning to this screen)
+    useFocusEffect(
+        useCallback(() => {
+            if (isAuthenticated) {
+                refetch();
+            }
+        }, [isAuthenticated, refetch])
+    );
 
     const scrollRef = useRef(null);
     useScrollToTop(scrollRef);
@@ -210,6 +226,9 @@ const ProfileScreen = () => {
                 ref={scrollRef}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[PREMIUM_COLORS.goldDark]} />
+                }
             >
                 <View style={styles.profileHeader}>
                     {/* Avatar */}
@@ -259,24 +278,7 @@ const ProfileScreen = () => {
                 </View>
 
                 {/* Guest Login Banner */}
-                {isGuest && (
-                    <TouchableOpacity
-                        style={styles.loginBanner}
-                        onPress={handleLogin}
-                        activeOpacity={0.8}
-                    >
-                        <View style={styles.loginIconContainer}>
-                            <Ionicons name="log-in" size={24} color={PREMIUM_COLORS.gold} />
-                        </View>
-                        <View style={styles.loginBannerContent}>
-                            <Text style={styles.loginBannerTitle}>Đăng nhập ngay</Text>
-                            <Text style={styles.loginBannerSubtitle}>
-                                Lưu địa điểm & lên lịch trình
-                            </Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={24} color={PREMIUM_COLORS.gold} />
-                    </TouchableOpacity>
-                )}
+
 
                 {/* Stats Card */}
                 <View style={styles.statsCard}>
@@ -326,27 +328,26 @@ const ProfileScreen = () => {
                 </View>
 
                 {/* Login or Logout Button */}
-                {isGuest ? (
-                    // Already showing banner at top, but maybe a button here too? 
-                    // Guide style uses banner or main button. Let's stick to the banner or a simple button.
-                    null
-                ) : (
-                    <TouchableOpacity
-                        style={[styles.signOutButton, isLoggingOut && styles.signOutButtonDisabled]}
-                        onPress={handleLogout}
-                        disabled={isLoggingOut}
-                        activeOpacity={0.8}
-                    >
-                        {isLoggingOut ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                            <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
-                        )}
-                        <Text style={styles.signOutText}>
-                            {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
-                        </Text>
-                    </TouchableOpacity>
-                )}
+                {/* Login or Logout Button */}
+                <TouchableOpacity
+                    style={[styles.signOutButton, isLoggingOut && styles.signOutButtonDisabled]}
+                    onPress={isGuest ? handleLogin : handleLogout}
+                    disabled={isLoggingOut}
+                    activeOpacity={0.8}
+                >
+                    {isLoggingOut ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                        <Ionicons
+                            name={isGuest ? "log-in-outline" : "log-out-outline"}
+                            size={20}
+                            color="#FFFFFF"
+                        />
+                    )}
+                    <Text style={styles.signOutText}>
+                        {isGuest ? "Đăng nhập / Đăng ký" : (isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất")}
+                    </Text>
+                </TouchableOpacity>
 
                 <Text style={styles.versionText}>Phiên bản 1.0.0</Text>
             </ScrollView>
