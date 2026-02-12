@@ -4,7 +4,8 @@
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -28,6 +29,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { getMedia } from "../../../../services/api/guide/mediaApi";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
+import { GUIDE_KEYS } from "../../constants/queryKeys";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_GAP = GUIDE_SPACING.sm;
@@ -115,7 +117,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   onClose,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
-  
+
   React.useEffect(() => {
     if (visible) {
       setSelectedFilter(activeFilter);
@@ -142,7 +144,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
               </View>
-              
+
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
                 <Text style={styles.bottomSheetTitle}>Lọc media</Text>
@@ -150,7 +152,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Filter Options */}
               <View style={styles.filterOptionsContainer}>
                 {STATUS_FILTERS.map((filter) => {
@@ -191,7 +193,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   );
                 })}
               </View>
-              
+
               {/* Apply Button */}
               <View style={styles.bottomSheetFooter}>
                 <TouchableOpacity
@@ -376,69 +378,39 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({ item, onPress }) => {
 // ============================================
 
 export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress }) => {
-  const [mediaList, setMediaList] = useState<MediaItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  // IMPORTANT: All hooks must be called at the top, before any conditional returns
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-  const fetchMedia = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      const params: any = {
-        is_active: true, // Only fetch active (non-deleted) media
-      };
+  const {
+    data: mediaList = [],
+    isLoading: loading,
+    isRefetching: refreshing,
+    refetch,
+  } = useQuery({
+    queryKey: GUIDE_KEYS.media({ type: typeFilter, status: statusFilter, is_active: true }),
+    queryFn: async () => {
+      const params: any = { is_active: true };
       if (typeFilter !== "all") params.type = typeFilter;
       if (statusFilter !== "all") params.status = statusFilter;
 
       const response = await getMedia(params);
-      if (response?.success && response?.data) {
-        const mediaData = response.data.data;
-        if (Array.isArray(mediaData)) {
-          setMediaList(mediaData);
-        } else {
-          console.warn("Invalid media data format:", mediaData);
-          setMediaList([]);
-        }
-      } else {
-        console.warn("API response unsuccessful or missing data:", response);
-        if (!isRefresh) {
-          setMediaList([]);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching media:", error);
-      if (!isRefresh) {
-        setMediaList([]);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [typeFilter, statusFilter]);
+      if (!response?.success) throw new Error(response?.message || 'Failed to fetch media');
+      return response.data?.data || [];
+    },
+    staleTime: 1000 * 30,
+  });
 
-  // Initial fetch when filter changes
-  useEffect(() => {
-    fetchMedia();
-  }, [fetchMedia]);
-
-  // Refresh data when screen comes into focus (after edit/delete)
+  // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      fetchMedia(true);
-    }, [fetchMedia])
+      refetch();
+    }, [refetch])
   );
 
   const handleRefresh = useCallback(() => {
-    fetchMedia(true);
-  }, [fetchMedia]);
+    refetch();
+  }, [refetch]);
 
   const renderItem = useCallback(
     ({ item }: { item: MediaItem }) => (
@@ -452,15 +424,15 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
   // Group media by date (like Photos app)
   const groupMediaByDate = useCallback((items: MediaItem[]) => {
     const groups: Record<string, MediaItem[]> = {};
-    
+
     items.forEach((item) => {
       const date = new Date(item.created_at);
       const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       let dateKey: string;
-      
+
       if (date.toDateString() === today.toDateString()) {
         dateKey = "Hôm nay";
       } else if (date.toDateString() === yesterday.toDateString()) {
@@ -472,20 +444,20 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
         const day = date.getDate();
         const month = date.getMonth() + 1;
         const year = date.getFullYear();
-        
+
         if (year === today.getFullYear()) {
           dateKey = `${dayName}, ${day} tháng ${month}`;
         } else {
           dateKey = `${dayName}, ${day} tháng ${month}, ${year}`;
         }
       }
-      
+
       if (!groups[dateKey]) {
         groups[dateKey] = [];
       }
       groups[dateKey].push(item);
     });
-    
+
     // Convert to SectionList format, sorted by most recent first
     return Object.entries(groups)
       .map(([title, data]) => ({ title, data }))
@@ -537,7 +509,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
             />
           ))}
         </View>
-        
+
         {/* Status Filter Trigger */}
         <FilterTrigger
           activeFilter={statusFilter}
@@ -637,7 +609,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: GUIDE_SPACING.sm,
   },
-  
+
   // Filter Trigger Button
   filterTriggerButton: {
     flexDirection: "row",

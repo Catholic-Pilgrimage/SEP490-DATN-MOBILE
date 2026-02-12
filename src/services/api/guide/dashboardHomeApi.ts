@@ -16,12 +16,11 @@ import { ApiResponse } from "../../../types/api.types";
 import {
   DashboardOverview,
   DashboardStatistics,
-  NotificationItem,
   NotificationListResponse,
   SiteScheduleResponse,
   SiteScheduleShift,
   SOSListResponse,
-  SOSRequest,
+  SOSRequest
 } from "../../../types/guide";
 import apiClient from "../apiClient";
 import { GUIDE_ENDPOINTS, SHARED_ENDPOINTS } from "../endpoints";
@@ -141,7 +140,7 @@ export const updateSOSStatus = async (
   notes?: string
 ): Promise<ApiResponse<SOSRequest>> => {
   const response = await apiClient.put<ApiResponse<SOSRequest>>(
-    GUIDE_ENDPOINTS.SOS.UPDATE(id),
+    GUIDE_ENDPOINTS.SOS.DETAIL(id),
     { status, notes }
   );
   return response.data;
@@ -182,16 +181,16 @@ const dashboardApi = {
   // Statistics
   getOverview,
   getStatistics,
-  
+
   // Site Schedule (Active Shift)
   getSiteSchedule,
-  
+
   // SOS
   getSOSRequests,
   getPendingSOSCount,
   getSOSDetail,
   updateSOSStatus,
-  
+
   // Notifications
   getNotifications,
   getUnreadNotificationCount,

@@ -59,6 +59,51 @@ export interface NearbySite extends SiteSummary {
   distance: number;
 }
 
+// Favorites
+export interface FavoriteResponseData {
+  site_id: string;
+  site_name: string;
+}
+
+export interface FavoriteResponse {
+  success: boolean;
+  message: string;
+  data: FavoriteResponseData;
+}
+
+export interface FavoriteSite {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  address: string;
+  province: string;
+  district: string;
+  region: SiteRegion;
+  type: SiteType;
+  patron_saint: string;
+  cover_image: string;
+  opening_hours: { open?: string; close?: string } | Record<string, never>;
+  latitude: number;
+  longitude: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface GetFavoritesResponse {
+  success: boolean;
+  message: string;
+  data: {
+    sites: FavoriteSite[];
+    pagination: {
+      page: number;
+      limit: number;
+      totalItems?: number;
+      totalPages?: number;
+    };
+  };
+}
+
 export interface FeaturedSite extends SiteSummary {
   description: string;
   featuredReason?: string;

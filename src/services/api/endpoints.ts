@@ -72,6 +72,17 @@ export const PILGRIM_ENDPOINTS = {
     ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
     DELETE_ITEM: (planId: string, itemId: string) => `${API_BASE}/planners/${planId}/items/${itemId}`,
     REORDER_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/reorder`,
+    MESSAGES: (id: string) => `${API_BASE}/planners/${id}/messages`,
+    UPLOAD_MESSAGE_IMAGE: (id: string) => `${API_BASE}/planners/${id}/messages/upload-image`,
+    DELETE_MESSAGE: (id: string, messageId: string) => `${API_BASE}/planners/${id}/messages/${messageId}`,
+  },
+
+  // SOS - Emergency request
+  SOS: {
+    CREATE: `${API_BASE}/sos`,
+    LIST: `${API_BASE}/sos`,
+    DETAIL: (id: string) => `${API_BASE}/sos/${id}`,
+    CANCEL: (id: string) => `${API_BASE}/sos/${id}`,
   },
 
   // Journal - Spiritual journals
@@ -144,14 +155,15 @@ export const GUIDE_ENDPOINTS = {
     RESTORE: (id: string) => `${API_BASE}/local-guide/schedules/${id}/restore`,
   },
 
-  // @deprecated Use LOCAL_GUIDE_MASS_SCHEDULES instead
-  LOCAL_GUIDE_SCHEDULES: `${API_BASE}/local-guide/schedules`,
+
+
 
   // SOS Support - Pending support requests
   SOS: {
     LIST: `${API_BASE}/sos/site/list`,
     DETAIL: (id: string) => `${API_BASE}/sos/site/${id}`,
-    UPDATE: (id: string) => `${API_BASE}/sos/site/${id}`,
+    ASSIGN: (id: string) => `${API_BASE}/sos/${id}/assign`,
+    RESOLVE: (id: string) => `${API_BASE}/sos/${id}/resolve`,
   },
 
   // Local Guide Media - Media management for assigned site

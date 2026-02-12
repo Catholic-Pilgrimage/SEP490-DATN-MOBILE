@@ -5,6 +5,8 @@
 import { ApiResponse, PaginatedResponse, PaginationParams } from '../../../types/api.types';
 import {
   CreateReviewRequest,
+  FavoriteResponse,
+  GetFavoritesResponse,
   GetSiteEventsParams,
   GetSiteMassSchedulesParams,
   GetSiteMediaParams,
@@ -45,18 +47,33 @@ export const getNearbySites = async (params: NearbySitesParams): Promise<ApiResp
 };
 
 // Favorites (auth required)
-export const getFavorites = async (params?: PaginationParams): Promise<PaginatedResponse<SiteSummary>> => {
-  const response = await apiClient.get<PaginatedResponse<SiteSummary>>(PILGRIM_ENDPOINTS.SITES.FAVORITES, { params });
+/**
+ * Get list of favorite sites for the current user
+ * @param params Pagination parameters
+ * @returns Promise with list of favorite sites and pagination info
+ */
+export const getFavorites = async (params?: PaginationParams): Promise<GetFavoritesResponse> => {
+  const response = await apiClient.get<GetFavoritesResponse>(PILGRIM_ENDPOINTS.SITES.FAVORITES, { params });
   return response.data;
 };
 
-export const addFavorite = async (siteId: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(PILGRIM_ENDPOINTS.SITES.ADD_FAVORITE(siteId));
+/**
+ * Add a site to favorites
+ * @param siteId ID of the site to add
+ * @returns Promise with operation result and site info
+ */
+export const addFavorite = async (siteId: string): Promise<FavoriteResponse> => {
+  const response = await apiClient.post<FavoriteResponse>(PILGRIM_ENDPOINTS.SITES.ADD_FAVORITE(siteId));
   return response.data;
 };
 
-export const removeFavorite = async (siteId: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.delete<ApiResponse<void>>(PILGRIM_ENDPOINTS.SITES.REMOVE_FAVORITE(siteId));
+/**
+ * Remove a site from favorites
+ * @param siteId ID of the site to remove
+ * @returns Promise with operation result and site info
+ */
+export const removeFavorite = async (siteId: string): Promise<FavoriteResponse> => {
+  const response = await apiClient.delete<FavoriteResponse>(PILGRIM_ENDPOINTS.SITES.REMOVE_FAVORITE(siteId));
   return response.data;
 };
 

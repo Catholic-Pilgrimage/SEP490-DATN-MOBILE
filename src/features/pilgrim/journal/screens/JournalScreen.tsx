@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     FlatList,
     Image,
@@ -15,69 +16,50 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
+import { JournalEntry } from '../../../../types/pilgrim/journal.types';
 
 const { width } = Dimensions.get('window');
-
-// Mock Data from user request
-const JOURNAL_ENTRIES = [
-    {
-        id: '1',
-        title: 'Prayer at Notre Dame Cathedral',
-        content:
-            "Today I felt a profound sense of peace standing before the altar. The light filtering through the stained glass reminded me of God's grace touching our lives in colorful, unexpected ways.",
-        location: 'Vương cung thánh đường, TP.HCM',
-        date: 'Just now',
-        type: 'public',
-        images: [
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuDl9BXuzMcrYYLlSby2hQlA1Txg2aAAOVwnUDtPpwEOpB6bjITNyvRTWiG_VgmvMKdou9jvyKEf46BSducxw2F2xk4x8-MqZBFkRxpNspF80W9S2fUSt1J0E5jQU2cFLIG0426iW5TKnO2SelOxF0jmxueZ5LwT2jZhFMRvdV5tdaO8MZrItZ9Y00NOAaTWdDoO5oc-eTWTJ5mH-GxArA5ZimyOyhaP10qq24hbL8p_MvYVwZ_gjlx7eBNb2Hu0dKOSFt6R_8pUXRg',
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuB2A-RUrIoccHey0psvfKDfJIabxJFG7n9bD2BWhUHKjCcKODzSqnycroybrThr_q7Or-cQ-raMq4cG6-3WRBWWyPYISDqWi66boslDZGgsx8UQm9fbD_tqeAj89qcPRO6Eja94gx_y5MaSzWFHT3RTK7D394VRVznFCW8PTJSfd-D5ROPK2RrCR9_3S4d-MzaWbR45FGm1N0ViTcJ-KBk3mpu8NoZ-RQIKQmKIWh3Iqx5JQnEi5u4s_fMStqV15qtHEGzSt86iHbw',
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuBNBOnBUMM4cspuLSV1Wy2iEG3GvJuf6UzdfqSZp-LI996kOcX2XBW61U_QCDX51LotmWgBifZeZHRFJsM4Jmhu7Fg5cA9DPJfYEsO-A5IK5cgz4SD6GbL-r3QuYmn4d2NbdxED97c_pLvhv6m6PGWuAshReCMvUv5B1P5Su7oZAvGXWWVwu6BDvpyQi7Nuc5SZzdnLBReWMhMskIOKAcPsOmgzdKfvHlgm5ydFyVTfXqRvZmzPbSSfATlACV-gD_dVEL0jpoWW1BI',
-        ],
-        likes: 24,
-        comments: 5,
-        user: {
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBwmrXE68W9FYl0dHKb0V60lfiQduW3LZSVfanHQDabvJ7zo8CFjjD6zKQX9xKS80CSFyZafR0fp6L3rmH8rEum21AEVW8DdIiXXQopto2PgR25aLaVjxBQzErSOvXE4Yg7xDrtYAqwtyP9lUE70ukHEgjx7-4xdkI7TBOeCR8Lq-_kW0oKcJzhZU3jxDavhLWDDgC5EJxbhDB5wNcVTcjdFYtkf6FhW5Y5zGzeirBeeSViKXBQfOvtoRW6YW6KNYLzAYFI4-wC-84',
-        },
-    },
-    {
-        id: '2',
-        title: 'Asking for guidance on my new path',
-        content:
-            'I came here with a heavy heart, unsure of the decisions I need to make regarding my career and family. The silence of the shrine offered a momentary clarity...',
-        quote: 'Be still, and know that I am God.',
-        location: 'La Vang Holy Shrine, Quảng Trị',
-        date: '2 days ago',
-        type: 'private',
-        user: {
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBWUM4JcHs8uTf1VmQjS20uS9QHCWjKHM4huTDLktQ32zDX3JTlQUh8eyDt16azwLsWrR3NiumCtoqJO9uZrr_HW4jXijtHJ7zJjIZqrLHqI6Mq7qxTrbT9SDlI0NZg2YJpDIBkydLiCI4P948a5F7NtRnG3XivIpb6W5D9qkeW5atGB17dV2cstoxDM8O7zI_HyCycZdZ9AFY3jusXJn0t1eBwA0mIpVdlTRzUlR5gOTvFjNTJgRKLnUTjoclXxE0hOpjwvo1daFU',
-        },
-    },
-    {
-        id: '3',
-        title: 'Evening Mass',
-        content: 'A beautiful ceremony to end the week. The choir was angelic.',
-        location: "St. Joseph's Cathedral, Hanoi",
-        date: 'Oct 24, 2023',
-        type: 'public',
-        user: {
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD-5tD2NtN10xKIDBrH7YxafM_-Q3LKTnv0_KRzo2kTc2ymFGKE5cr7-INI7Bk-nYy5tyiitFNNMYsz9KD5XANfrdh0dHCF4NUpADl6bla-gUaQAvNd3pc_g9g6Y5qBJTUmYbTpISF-l_HR8JrpwBJR8OrT5xOEHm04mU3MvccrOq9TXSEC47Xsint3Tg-f9pbS2X0o7o_1E-n7tFeI1ZwvrNt-oUkDjI-POOkyjnQnTgnnaXO1Jyfk4y1195qjJfcbr1AUluZQB6k',
-        },
-    },
-];
 
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 
 export const JournalScreen = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
+    const [journals, setJournals] = useState<JournalEntry[]>([]);
+    const [loading, setLoading] = useState(true);
 
-    const renderItem = ({ item }: { item: any }) => {
-        const isPrivate = item.type === 'private';
+    const scrollRef = useRef(null);
+    useScrollToTop(scrollRef);
+
+    const fetchJournals = async () => {
+        try {
+            setLoading(true);
+            const response = await pilgrimJournalApi.getMyJournals();
+            if (response.data && response.data.journals) {
+                setJournals(response.data.journals);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchJournals();
+        }, [])
+    );
+
+    const renderItem = ({ item }: { item: JournalEntry }) => {
+        const isPrivate = item.privacy === 'private';
+        const images = item.image_url || [];
 
         return (
             <TouchableOpacity
                 activeOpacity={0.9}
-                onPress={() => navigation.navigate('JournalDetailScreen', { entryId: item.id })}
+                onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}
                 style={[styles.card, isPrivate && styles.cardPrivate]}
             >
                 {isPrivate && (
@@ -89,16 +71,21 @@ export const JournalScreen = () => {
                 {/* Header: Avatar & Location */}
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarContainer}>
-                        <Image source={{ uri: item.user.avatar }} style={styles.avatar} />
+                        <Image
+                            source={{ uri: item.author?.avatar_url || 'https://via.placeholder.com/50' }}
+                            style={styles.avatar}
+                        />
                     </View>
                     <View style={styles.headerInfo}>
                         <View style={styles.locationRow}>
                             <MaterialIcons name="location-on" size={14} color={COLORS.accent} />
                             <Text style={styles.locationText} numberOfLines={1}>
-                                {item.location}
+                                {item.site?.name || 'Unknown Location'}
                             </Text>
                         </View>
-                        <Text style={styles.dateText}>{item.date}</Text>
+                        <Text style={styles.dateText}>
+                            {new Date(item.created_at).toLocaleDateString()}
+                        </Text>
                     </View>
                     <View
                         style={[
@@ -128,24 +115,17 @@ export const JournalScreen = () => {
                     <Text style={styles.cardBody} numberOfLines={3}>
                         {item.content}
                     </Text>
-
-                    {item.quote && (
-                        <View style={styles.quoteContainer}>
-                            <MaterialIcons name="format-quote" size={32} color={COLORS.textTertiary} />
-                            <Text style={styles.quoteText}>"{item.quote}"</Text>
-                        </View>
-                    )}
                 </View>
 
                 {/* Images Grid */}
-                {item.images && item.images.length > 0 && (
+                {images.length > 0 && (
                     <View style={styles.imageGrid}>
                         <View style={styles.mainImageContainer}>
-                            <Image source={{ uri: item.images[0] }} style={styles.mainImage} />
+                            <Image source={{ uri: images[0] }} style={styles.mainImage} />
                         </View>
-                        {item.images.length > 1 && (
+                        {images.length > 1 && (
                             <View style={styles.sideImagesContainer}>
-                                {item.images.slice(1).map((img: string, idx: number) => (
+                                {images.slice(1, 3).map((img, idx) => (
                                     <View key={idx} style={styles.sideImageWrapper}>
                                         <Image source={{ uri: img }} style={styles.sideImage} />
                                     </View>
@@ -155,20 +135,20 @@ export const JournalScreen = () => {
                     </View>
                 )}
 
-                {/* Footer Actions (Public Only or if desired) */}
+                {/* Footer Actions */}
                 {!isPrivate && (
                     <View style={styles.cardFooter}>
                         <View style={styles.socialActions}>
                             <TouchableOpacity style={styles.actionButton}>
                                 <MaterialIcons name="favorite-border" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>{item.likes || 0}</Text>
+                                <Text style={styles.actionText}>0</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.actionButton}>
                                 <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>{item.comments || 0}</Text>
+                                <Text style={styles.actionText}>0</Text>
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { entryId: item.id })}>
+                        <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
                             <Text style={styles.readMoreText}>Read More</Text>
                         </TouchableOpacity>
                     </View>
@@ -205,14 +185,26 @@ export const JournalScreen = () => {
                 </View>
             </View>
 
-            <FlatList
-                data={JOURNAL_ENTRIES}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                ListFooterComponent={<View style={{ height: 100 }} />}
-            />
+            {loading ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={COLORS.accent} />
+                </View>
+            ) : (
+                <FlatList
+                    ref={scrollRef}
+                    data={journals}
+                    renderItem={renderItem}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    ListFooterComponent={<View style={{ height: 100 }} />}
+                    ListEmptyComponent={
+                        <View style={{ alignItems: 'center', marginTop: 50 }}>
+                            <Text style={{ color: COLORS.textSecondary }}>Chưa có nhật ký nào</Text>
+                        </View>
+                    }
+                />
+            )}
 
             {/* FAB */}
             <TouchableOpacity

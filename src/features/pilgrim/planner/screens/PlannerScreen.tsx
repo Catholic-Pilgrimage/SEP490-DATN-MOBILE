@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
     Animated,
@@ -37,21 +37,16 @@ export const PlannerScreen = ({ navigation }: any) => {
             if (response.success && response.data?.planners) {
                 // Map API Entity to UI Model
                 const mappedPlans: PlanUI[] = response.data.planners.map((entity: PlanEntity) => {
-                    // Calculate end date based on duration
-                    const start = new Date(entity.start_date);
-                    const end = new Date(start);
-                    end.setDate(start.getDate() + (entity.number_of_days || 1));
-
                     return {
                         id: entity.id,
                         title: entity.name,
                         startDate: entity.start_date,
-                        endDate: end.toISOString().split('T')[0],
+                        endDate: entity.end_date || entity.start_date, // Fallback if end_date missing
                         status: (entity.status as any) || 'planned',
-                        stopCount: 0, // Not provided in list API yet
+                        stopCount: 0,
                         participantCount: entity.number_of_people,
-                        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe', // Placeholder or randomize
-                        isShared: entity.is_public,
+                        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
+                        isShared: !!entity.share_token, // Check share_token for shared status
                         transportation: [entity.transportation as TransportationType],
                     };
                 });
@@ -73,6 +68,9 @@ export const PlannerScreen = ({ navigation }: any) => {
 
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
+
+    const scrollRef = useRef(null);
+    useScrollToTop(scrollRef);
 
     // Header Animations
     const headerHeight = 60 + insets.top; // Compact header height
@@ -127,6 +125,7 @@ export const PlannerScreen = ({ navigation }: any) => {
 
             {/* Main Content */}
             <Animated.ScrollView
+                ref={scrollRef}
                 contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: 100 }]}
                 showsVerticalScrollIndicator={false}
                 onScroll={Animated.event(

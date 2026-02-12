@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import { CommonActions, useScrollToTop } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Dimensions,
     ImageBackground,
@@ -76,7 +78,8 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         fetchSites,
         fetchMore,
         hasMore,
-        isFetchingMore
+        isFetchingMore,
+        toggleFavorite
     } = useSites({
         filters: {
             region: selectedRegion,
@@ -90,6 +93,10 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
 
+    // Scroll to top logic
+    const scrollRef = useRef(null);
+    useScrollToTop(scrollRef);
+
     const handleRegionChange = (regionId: string) => {
         setSelectedRegionId(regionId);
         const region = REGIONS.find(r => r.id === regionId)?.value;
@@ -102,7 +109,31 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     const handleFavoriteToggle = async (siteId: string) => {
-        console.log('Toggle favorite for:', siteId);
+        if (!isAuthenticated || isGuest) {
+            Alert.alert(
+                'Yêu cầu đăng nhập',
+                'Vui lòng đăng nhập để lưu địa điểm yêu thích.',
+                [
+                    { text: 'Để sau', style: 'cancel' },
+                    {
+                        text: 'Đăng nhập',
+                        onPress: () => navigation.dispatch(
+                            CommonActions.reset({
+                                index: 0,
+                                routes: [{ name: 'Auth' }],
+                            })
+                        )
+                    },
+                ]
+            );
+            return;
+        }
+
+        const site = sites.find(s => s.id === siteId);
+        if (site) {
+            // Optimistic update handled by hook
+            toggleFavorite(siteId, site.isFavorite);
+        }
     };
 
     // Derived Animations
@@ -317,6 +348,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* --- MAIN SCROLLVIEW --- */}
             <Animated.ScrollView
+                ref={scrollRef}
                 style={styles.scrollView}
                 contentContainerStyle={{
                     paddingTop: HEADER_HEIGHT + 20, // More breathing room

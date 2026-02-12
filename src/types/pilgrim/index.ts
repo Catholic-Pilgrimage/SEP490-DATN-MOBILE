@@ -20,3 +20,6 @@ export * from "./community.types";
 
 // Common types
 export * from "../common.types";
+
+// SOS types
+export * from "./sos.types";

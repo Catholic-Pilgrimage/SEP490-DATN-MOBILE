@@ -1,7 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import React, { useState } from 'react';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
+    Alert,
     Dimensions,
     Image,
     KeyboardAvoidingView,
@@ -16,29 +18,146 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
+import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
+import { PlanItem } from '../../../../types/pilgrim/planner.types';
 
 const { width } = Dimensions.get('window');
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 
 export default function CreateJournalScreen() {
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
+    const route = useRoute<any>();
+    const { journalId, plannerItemId: paramPlannerItemId } = route.params || {};
     const insets = useSafeAreaInsets();
 
+    // State
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [location, setLocation] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(false);
+    const [existingImages, setExistingImages] = useState<string[]>([]);
 
-    const recentLocations = [
-        'Nhà thờ Đức Bà',
-        'La Vang',
-        'Tà Pao'
-    ];
+    // Planner Item Logic
+    const [selectedPlannerItemId, setSelectedPlannerItemId] = useState<string | null>(paramPlannerItemId || null);
+    const [recentPlanItems, setRecentPlanItems] = useState<PlanItem[]>([]);
 
-    const images = [
-        { id: '1', uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCy5N4_Y7wU_vdLqU6_Tvac6l-hMwCO_mHKsQ4whgrYr8fiECiMO-A05I963Xlo2cqVt0v8E_C_Q0Dov9drYtRhLw8uYnpfbNhfvwzaTU4qiMy-5ATRaDBk8_3LyOVJI7beycuiSjmS74e07h1AwgOD7wsiurOnEZ4uNY-JZHHBHuQowzEBbaYnG_wopQgeIET5t1F5pXcRMrRvDRY82nBPeHwdOBJzq9XM8MA4vDWHYI9DvLkH-eRAM-Cl991B_FmBPT9BLCeZis4' },
-        { id: '2', uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD5Y7TaGgul_0xwhHy32Qqyw9g74mD-JuQ0b5PwSCI62NrYfI4qhaF_FGyJFtc2fVatePLnMrKkGeYCOEVbPx99UNituFmxzRWOFFAODiKVOJ1PIswh0woOxaSeZfNmUcgiz7sMwera0GcB5e6lS4MN9DNTB7eg8X345VmePNZjcnzyc8lJ6UqX6k7XV7WBN6_FT6p-IkiCHEZ8C1kcnG8sCfOng827Yw9uDFs1sHg7xdCmDlHUAAvr5QqKd9wgRGVfH4r4lKQjNg0' },
-        { id: '3', uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAFiZa9C0N0Hp4WoPkCHRXFzyfDWTlEqZ0_MbYHxCFYCswGNziVB3P1qyomDTByRlex8XQDeRjzS_SM2uxKWVXWQwy1cgQcGWXPSW08CH6-iY7GaJvuuUY6HWTChMT6P1FVEpF8nliAKEB4ELKDi5ItdN_rXlCeh2wR-7gcqlc6hjcIkrem7JJD2k3HxYw-LunRj3EtLXOHMuIx1bx0TgqhYKJgoLBMFLmqPT07gVRTP7Hb4qDBYViVLLzcYzYxkWLUaqEWjGmBow4' },
-    ];
+    useEffect(() => {
+        fetchRecentPlanItems();
+        if (journalId) fetchJournalDetails();
+    }, [journalId]);
+
+    const fetchRecentPlanItems = async () => {
+        try {
+            const response = await pilgrimPlannerApi.getPlans();
+            if (response.data && response.data.planners) {
+                const items: PlanItem[] = [];
+                response.data.planners.forEach(plan => {
+                    if (plan.items_by_day) {
+                        Object.values(plan.items_by_day).forEach((dayItems: PlanItem[]) => {
+                            if (Array.isArray(dayItems)) items.push(...dayItems);
+                        });
+                    }
+                });
+                setRecentPlanItems(items.slice(0, 10)); // Top 10 recent
+
+                if (paramPlannerItemId) {
+                    const found = items.find(i => i.id === paramPlannerItemId);
+                    if (found && found.site) setLocation(found.site.name);
+                }
+            }
+        } catch (error) {
+            console.error("Failed to fetch plan items", error);
+        }
+    };
+
+    const handleSelectLocation = (item: PlanItem) => {
+        setLocation(item.site.name);
+        setSelectedPlannerItemId(item.id);
+    };
+
+    const fetchJournalDetails = async () => {
+        try {
+            setInitialLoading(true);
+            const response = await pilgrimJournalApi.getJournalDetail(journalId);
+            if (response.success && response.data) {
+                const data = response.data;
+                setTitle(data.title);
+                setContent(data.content);
+                if (data.site) {
+                    setLocation(data.site.name);
+                }
+                if (data.image_url) {
+                    setExistingImages(data.image_url);
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert('Error', 'Failed to load journal details');
+            navigation.goBack();
+        } finally {
+            setInitialLoading(false);
+        }
+    };
+
+    const handleSave = async (privacy: 'private' | 'public') => {
+        if (!title.trim() || !content.trim()) {
+            Alert.alert('Missing Information', 'Please enter a title and content');
+            return;
+        }
+
+        // Validate Planner Item ID for creation (Backend requirement)
+        if (!journalId && !selectedPlannerItemId) {
+            Alert.alert('Yêu cầu địa điểm', 'Vui lòng chọn một địa điểm từ kế hoạch của bạn để viết nhật ký.');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            if (journalId) {
+                // UPDATE
+                await pilgrimJournalApi.updateJournal(journalId, {
+                    title,
+                    content,
+                    privacy,
+                    // images: newImages // If we had image picker
+                });
+                Alert.alert("Success", "Journal updated successfully");
+            } else {
+                // CREATE
+                const createData: any = {
+                    title,
+                    content,
+                    privacy,
+                };
+                if (selectedPlannerItemId) {
+                    createData.planner_item_id = selectedPlannerItemId;
+                }
+
+                await pilgrimJournalApi.createJournal(createData);
+                Alert.alert("Success", "Journal created successfully");
+            }
+            navigation.goBack();
+        } catch (error: any) {
+            console.error(error);
+            Alert.alert("Error", error?.message || "Failed to save journal");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Mock images for UI if empty
+    const displayImages = existingImages.length > 0 ? existingImages.map(uri => ({ id: uri, uri })) : [];
+
+    if (initialLoading) {
+        return (
+            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <StatusBar barStyle="dark-content" />
+                <ActivityIndicator size="large" color={COLORS.accent} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.container}>
@@ -53,7 +172,7 @@ export default function CreateJournalScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Viết nhật ký tâm linh</Text>
+                <Text style={styles.headerTitle}>{journalId ? 'Cập nhật nhật ký' : 'Viết nhật ký tâm linh'}</Text>
 
                 <TouchableOpacity style={styles.iconButton}>
                     <MaterialIcons name="bookmark-border" size={24} color={COLORS.accent} />
@@ -73,17 +192,41 @@ export default function CreateJournalScreen() {
                         <Text style={styles.label}>Địa điểm hành hương</Text>
                         <TouchableOpacity style={styles.locationInput}>
                             <MaterialIcons name="location-on" size={20} color={COLORS.textSecondary} style={styles.locationIcon} />
-                            <Text style={styles.locationPlaceholder}>Bạn đã hành hương tại đâu?</Text>
+                            <Text style={[styles.locationPlaceholder, location ? { color: COLORS.textPrimary } : {}]}>
+                                {location || "Chọn từ kế hoạch của bạn"}
+                            </Text>
                             <MaterialIcons name="expand-more" size={24} color={COLORS.textSecondary} style={styles.chevronIcon} />
                         </TouchableOpacity>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipContainer}>
-                            {recentLocations.map((loc, index) => (
-                                <TouchableOpacity key={index} style={styles.chip}>
-                                    <MaterialIcons name="history" size={16} color={COLORS.textSecondary} />
-                                    <Text style={styles.chipText}>{loc}</Text>
-                                </TouchableOpacity>
-                            ))}
+                            {recentPlanItems.length > 0 ? (
+                                recentPlanItems.map((item, index) => (
+                                    <TouchableOpacity
+                                        key={index}
+                                        style={[
+                                            styles.chip,
+                                            selectedPlannerItemId === item.id && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                                        ]}
+                                        onPress={() => handleSelectLocation(item)}
+                                    >
+                                        <MaterialIcons
+                                            name="history"
+                                            size={16}
+                                            color={selectedPlannerItemId === item.id ? COLORS.white : COLORS.textSecondary}
+                                        />
+                                        <Text style={[
+                                            styles.chipText,
+                                            selectedPlannerItemId === item.id && { color: COLORS.white }
+                                        ]}>
+                                            {item.site.name}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))
+                            ) : (
+                                <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', padding: 10 }}>
+                                    Không có địa điểm nào trong kế hoạch gần đây
+                                </Text>
+                            )}
                         </ScrollView>
                     </View>
 
@@ -149,8 +292,8 @@ export default function CreateJournalScreen() {
                                 <Text style={styles.addMediaText}>Thêm</Text>
                             </TouchableOpacity>
 
-                            {images.map((img) => (
-                                <View key={img.id} style={styles.mediaItem}>
+                            {displayImages.map((img, index) => (
+                                <View key={index} style={styles.mediaItem}>
                                     <Image source={{ uri: img.uri }} style={styles.mediaImage} />
                                     <TouchableOpacity style={styles.removeMediaBtn}>
                                         <MaterialIcons name="close" size={14} color="#fff" />
@@ -174,16 +317,18 @@ export default function CreateJournalScreen() {
                 <View style={styles.footerContent}>
                     <TouchableOpacity
                         style={styles.btnSecondary}
-                        onPress={() => navigation.goBack()}
+                        onPress={() => handleSave('private')}
+                        disabled={loading}
                     >
-                        <Text style={styles.btnSecondaryText}>Lưu riêng tư</Text>
+                        <Text style={styles.btnSecondaryText}>{loading ? "Đang lưu..." : "Lưu riêng tư"}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.btnPrimary}
-                        onPress={() => navigation.goBack()}
+                        onPress={() => handleSave('public')}
+                        disabled={loading}
                     >
-                        <Text style={styles.btnPrimaryText}>Đăng công khai</Text>
+                        <Text style={styles.btnPrimaryText}>{loading ? "Đang đăng..." : "Đăng công khai"}</Text>
                     </TouchableOpacity>
                 </View>
             </View>

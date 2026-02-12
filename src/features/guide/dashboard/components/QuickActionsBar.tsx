@@ -84,7 +84,7 @@ const ActionButton: React.FC<{
         ]}>
           <Ionicons
             name={action.icon}
-            size={26}
+            size={22}
             color={iconColor}
           />
 
@@ -148,17 +148,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingLeft: getSpacing(GUIDE_SPACING.lg),
-    paddingRight: getSpacing(GUIDE_SPACING.sm), // Less padding on right to hint more content
-    gap: SACRED_SPACING.lg,
+    paddingRight: getSpacing(GUIDE_SPACING.lg), // Equal padding, 5th item peeks naturally
+    gap: SACRED_SPACING.md,
   },
   actionButton: {
     alignItems: "center",
-    width: 72,
+    width: 68,
   },
   // Neumorphic style icon container
   iconContainer: {
-    width: 56,
-    height: 56,
+    width: 48,
+    height: 48,
     borderRadius: SACRED_RADIUS.lg,
     backgroundColor: SACRED_COLORS.cream,
     justifyContent: "center",
@@ -184,10 +184,10 @@ const styles = StyleSheet.create({
     backgroundColor: SACRED_COLORS.dangerBg,
   },
   actionLabel: {
-    fontSize: getFontSize(11),
+    fontSize: getFontSize(10),
     fontWeight: "600",
     color: SACRED_COLORS.charcoal,
-    marginTop: 8,
+    marginTop: 6,
     textAlign: "center",
   },
   actionLabelDanger: {

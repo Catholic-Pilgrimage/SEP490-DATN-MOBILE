@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useSiteDetail, useSiteEvents, useSiteMassSchedules, useSiteMedia, useSiteNearbyPlaces } from '../../../../hooks/useSites';
 import { DayOfWeek } from '../../../../types';
-import { EventCard, NearbyPlaceCard, QuickActionButton } from '../components';
+import { NearbyPlaceCard, QuickActionButton, SOSModal } from '../components';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_HEIGHT = Dimensions.get('window').height * 0.45;
@@ -28,6 +28,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isSOSModalVisible, setSOSModalVisible] = useState(false);
 
   // -- Fetch Data Hooks --
   const {
@@ -78,7 +79,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
   // Format mass schedules for display
   const formattedSchedules = useMemo(() => {
-    if (!schedules || schedules.length === 0) return [];
+    if (!schedules || schedules.length === 0) return { sunday: undefined, others: [] };
 
     // Helper to format days (e.g., [0] -> "Chúa Nhật", [1,2,3,4,5,6] -> "Ngày thường")
     const formatDays = (days: DayOfWeek[]) => {
@@ -109,10 +110,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     });
 
     // Convert to array
-    return Array.from(grouped.entries()).map(([day, times]) => ({
+    const result = Array.from(grouped.entries()).map(([day, times]) => ({
       day,
       times: times.sort()
     }));
+
+    return {
+      sunday: result.find(s => s.day === 'Chúa Nhật' || s.day === 'CN'),
+      others: result.filter(s => s.day !== 'Chúa Nhật' && s.day !== 'CN')
+    };
   }, [schedules]);
 
   // Combine site images and media gallery for hero section slider
@@ -257,6 +263,11 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <QuickActionButton icon="globe-outline" label="Website" />
             )}
             <QuickActionButton icon="gift-outline" label="Ủng hộ" />
+            <QuickActionButton
+              icon="alert-circle-outline"
+              label="Hỗ trợ"
+              onPress={() => setSOSModalVisible(true)}
+            />
           </View>
 
           {/* Key Information Card - Only show provided info */}
@@ -352,42 +363,62 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           )}
 
           {/* Mass Schedule */}
+          {/* Mass Schedule - Premium Redesign */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Lịch Thánh Lễ</Text>
-            {formattedSchedules.length > 0 ? (
-              <View style={styles.scheduleCard}>
-                {formattedSchedules.map((schedule, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.scheduleRow,
-                      index % 2 === 1 && styles.scheduleRowAlt,
-                      index === formattedSchedules.length - 1 && styles.scheduleRowLast,
-                    ]}
-                  >
-                    <Text style={[
-                      styles.scheduleDay,
-                      schedule.day === 'Chúa Nhật' && styles.scheduleDayHighlight,
-                    ]}>
-                      {schedule.day}
-                    </Text>
-                    <View style={styles.scheduleTimes}>
-                      {schedule.times.map((time, timeIndex) => (
-                        <Text
-                          key={timeIndex}
-                          style={[
-                            styles.scheduleTime,
-                            timeIndex === 0 && schedule.day === 'Chúa Nhật' && styles.scheduleTimeHighlight,
-                          ]}
-                        >
-                          {time}
-                        </Text>
+            <View style={styles.sectionHeaderRow}>
+              <View style={styles.sectionIconContainer}>
+                <Ionicons name="calendar" size={24} color={COLORS.white} />
+              </View>
+              <Text style={styles.sectionTitlePremium}>Lịch Phụng Vụ</Text>
+            </View>
+
+            {(formattedSchedules.sunday || formattedSchedules.others.length > 0) ? (
+              <View style={styles.premiumScheduleWrapper}>
+                {/* Sunday Special Card */}
+                {formattedSchedules.sunday && (
+                  <View style={styles.sundayCard}>
+                    <LinearGradient
+                      colors={[COLORS.accent, '#f5d35a']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.sundayHeader}
+                    >
+                      <Ionicons name="sunny" size={20} color={COLORS.primary} />
+                      <Text style={styles.sundayTitle}>Chúa Nhật / Lễ Trọng</Text>
+                    </LinearGradient>
+                    <View style={styles.sundayTimesContainer}>
+                      {formattedSchedules.sunday.times.map((time, index) => (
+                        <View key={index} style={styles.sundayTimeChip}>
+                          <Text style={styles.sundayTimeText}>{time}</Text>
+                        </View>
                       ))}
                     </View>
                   </View>
-                ))}
+                )}
+
+                {/* Weekdays Grid */}
+                {formattedSchedules.others.length > 0 && (
+                  <View style={styles.weekdayContainer}>
+                    {formattedSchedules.others.map((schedule: any, index: number) => (
+                      <View key={index} style={styles.weekdayRow}>
+                        <View style={styles.weekdayLabelContainer}>
+                          <Text style={styles.weekdayLabel}>{schedule.day}</Text>
+                        </View>
+                        <View style={styles.weekdayTimesScroll}>
+                          {schedule.times.map((time: string, tIndex: number) => (
+                            <View key={tIndex} style={styles.weekdayTimeChip}>
+                              <Text style={styles.weekdayTimeText}>{time}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
                 <TouchableOpacity style={styles.viewFullScheduleButton}>
-                  <Text style={styles.viewFullScheduleText}>XEM LỊCH ĐẦY ĐỦ</Text>
+                  <Text style={styles.viewFullScheduleText}>XEM CHI TIẾT LỊCH LỄ</Text>
+                  <Ionicons name="arrow-forward" size={16} color={COLORS.accent} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -397,21 +428,65 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             )}
           </View>
 
-          {/* Upcoming Events */}
+          {/* Upcoming Events - Premium Carousel Redesign */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sự kiện sắp tới</Text>
-            {events && events.length > 0 ? (
-              <View style={styles.eventsContainer}>
-                {events.map((event) => (
-                  <EventCard
-                    key={event.id}
-                    image={event.banner_url || site.coverImage}
-                    date={event.start_date} // You might want to format this date
-                    title={event.name}
-                    description={event.description || ''}
-                  />
-                ))}
+            <View style={styles.sectionHeaderRow}>
+              <View style={[styles.sectionIconContainer, { backgroundColor: COLORS.accent }]}>
+                <Ionicons name="ticket" size={24} color={COLORS.white} />
               </View>
+              <Text style={styles.sectionTitlePremium}>Sự kiện sắp tới</Text>
+            </View>
+
+            {events && events.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.eventsScrollContent}
+                decelerationRate="fast"
+                snapToInterval={280 + SPACING.md}
+              >
+                {events.map((event) => {
+                  // Clean date parsing for display
+                  const eventDate = new Date(event.start_date);
+                  const day = eventDate.getDate();
+                  const month = eventDate.getMonth() + 1;
+
+                  return (
+                    <TouchableOpacity
+                      key={event.id}
+                      style={styles.largeEventCard}
+                      activeOpacity={0.9}
+                    >
+                      <Image
+                        source={{ uri: event.banner_url || site.coverImage }}
+                        style={styles.eventCardImage}
+                        resizeMode="cover"
+                      />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.8)']}
+                        style={styles.eventCardOverlay}
+                      />
+
+                      {/* Date Badge */}
+                      <View style={styles.eventDateBadge}>
+                        <Text style={styles.eventDateDay}>{day}</Text>
+                        <Text style={styles.eventDateMonth}>THG {month}</Text>
+                      </View>
+
+                      {/* Content */}
+                      <View style={styles.eventCardContent}>
+                        <Text style={styles.eventCardTitle} numberOfLines={2}>{event.name}</Text>
+                        <View style={styles.eventCardFooter}>
+                          <Ionicons name="location-outline" size={14} color={COLORS.accent} />
+                          <Text style={styles.eventCardLocation} numberOfLines={1}>
+                            {site.name}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>Chưa có sự kiện sắp tới.</Text>
@@ -465,6 +540,21 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           <View style={{ height: 40 }} />
         </View>
       </ScrollView>
+
+      {/* SOS Modal */}
+      {site && (
+        <SOSModal
+          visible={isSOSModalVisible}
+          onClose={() => setSOSModalVisible(false)}
+          siteId={site.id}
+          siteName={site.name}
+          siteLocation={
+            (site.latitude && site.longitude)
+              ? { latitude: site.latitude, longitude: site.longitude }
+              : undefined
+          }
+        />
+      )}
     </View>
   );
 };
@@ -753,62 +843,206 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.5)',
   },
 
-  // Schedule
-  scheduleCard: {
+  // Premium Section styles
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  sectionIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sectionTitlePremium: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: '800', // Extra bold
+    color: COLORS.primary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+
+  // Premium Schedule Styles
+  premiumScheduleWrapper: {
     backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.lg,
-    overflow: 'hidden',
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.md,
+    ...SHADOWS.medium,
     borderWidth: 1,
     borderColor: COLORS.borderLight,
   },
-  scheduleRow: {
+  sundayCard: {
+    backgroundColor: COLORS.surface0,
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(236, 182, 19, 0.3)', // Light accent border
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
+  },
+  sundayHeader: {
     flexDirection: 'row',
+    padding: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  sundayTitle: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: 'bold',
+    color: COLORS.primary,
+    textTransform: 'uppercase',
+  },
+  sundayTimesContainer: {
     padding: SPACING.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  sundayTimeChip: {
+    backgroundColor: COLORS.primary, // Contrast with white bg
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: BORDER_RADIUS.md,
+    ...SHADOWS.small,
+  },
+  sundayTimeText: {
+    color: COLORS.accent, // Gold text on Navy bg
+    fontWeight: 'bold',
+    fontSize: TYPOGRAPHY.fontSize.md,
+  },
+
+  // Weekday styles
+  weekdayContainer: {
+    gap: 12,
+  },
+  weekdayRow: {
+    flexDirection: 'column',
+    gap: 8,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.borderLight,
   },
-  scheduleRowAlt: {
-    backgroundColor: COLORS.background,
-  },
-  scheduleRowLast: {
-    borderBottomWidth: 0,
-  },
-  scheduleDay: {
-    width: 100,
-    fontSize: TYPOGRAPHY.fontSize.md,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
-  },
-  scheduleDayHighlight: {
-    color: COLORS.accent,
-  },
-  scheduleTimes: {
-    flex: 1,
-    gap: 4,
-  },
-  scheduleTime: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    color: COLORS.textSecondary,
-  },
-  scheduleTimeHighlight: {
-    fontWeight: TYPOGRAPHY.fontWeight.medium,
-    color: COLORS.textPrimary,
-  },
-  viewFullScheduleButton: {
-    backgroundColor: 'rgba(201, 165, 114, 0.1)',
-    padding: SPACING.sm,
+  weekdayLabelContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  viewFullScheduleText: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.accent,
-    letterSpacing: 0.5,
+  weekdayLabel: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+  weekdayTimesScroll: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  weekdayTimeChip: {
+    backgroundColor: COLORS.surface1, // Slightly off-white
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BORDER_RADIUS.sm,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  weekdayTimeText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textPrimary,
+    fontWeight: '600',
   },
 
-  // Events
-  eventsContainer: {
-    gap: SPACING.sm,
+  viewFullScheduleButton: {
+    marginTop: SPACING.sm,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    gap: 8,
+  },
+  viewFullScheduleText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: 'bold',
+    color: COLORS.accent,
+    letterSpacing: 1,
+  },
+
+  // Premium Events Styles
+  eventsScrollContent: {
+    paddingRight: SPACING.lg,
+    gap: SPACING.md,
+  },
+  largeEventCard: {
+    width: 280,
+    height: 180,
+    borderRadius: BORDER_RADIUS.lg,
+    backgroundColor: COLORS.primary, // Fallback
+    overflow: 'hidden',
+    position: 'relative',
+    ...SHADOWS.medium,
+    marginRight: 4, // for shadow
+  },
+  eventCardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  eventCardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  eventDateBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: 6,
+    alignItems: 'center',
+    minWidth: 50,
+    ...SHADOWS.small,
+  },
+  eventDateDay: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: '900',
+    color: COLORS.primary,
+    lineHeight: 24,
+  },
+  eventDateMonth: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+  },
+  eventCardContent: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+  },
+  eventCardTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: 'bold',
+    color: COLORS.white,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  eventCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  eventCardLocation: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.accent,
+    fontWeight: '600',
+    flex: 1,
   },
 
   // Map

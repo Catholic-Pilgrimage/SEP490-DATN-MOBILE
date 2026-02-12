@@ -76,14 +76,19 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
         try {
             setLoading(true);
+            // Calculate end date based on duration
+            const startDateObj = new Date(selectedDate);
+            const endDateObj = new Date(startDateObj);
+            endDateObj.setDate(startDateObj.getDate() + duration);
+            const endDateStr = endDateObj.toISOString().split('T')[0];
+
+            // Payload construction
             const payload: CreatePlanRequest = {
                 name,
                 start_date: selectedDate,
-                number_of_days: duration,
+                end_date: endDateStr,
                 number_of_people: peopleCount,
                 transportation,
-                budget_level: budget,
-                is_public: !isPrivate,
             };
 
             const response = await pilgrimPlannerApi.createPlan(payload);

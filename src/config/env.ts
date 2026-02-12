@@ -3,13 +3,9 @@
  * 
  * Reads from .env file with EXPO_PUBLIC_ prefix
  * Includes fallback values to ensure build doesn't fail
+ * 
+ * Note: API_CONFIG (BASE_URL, TIMEOUT) is defined in api.config.ts
  */
-
-// API Configuration
-export const API_CONFIG = {
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://sep490-datn-backend.onrender.com',
-  TIMEOUT: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || '60000', 10),
-};
 
 // Vietmap API Configuration
 // Console: https://maps.vietmap.vn/console

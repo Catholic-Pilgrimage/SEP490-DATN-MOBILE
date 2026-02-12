@@ -18,6 +18,20 @@ import {
     SiteSummary,
 } from '../types/pilgrim';
 
+// Helper: Map snake_case API response to camelCase SiteSummary
+const mapSiteResponse = (site: any): SiteSummary => ({
+    id: site.id,
+    name: site.name,
+    address: site.address,
+    coverImage: site.cover_image || site.coverImage || '',
+    rating: site.rating || 0,
+    reviewCount: site.review_count || site.reviewCount || 0,
+    distance: site.distance,
+    isFavorite: site.is_favorite || site.isFavorite || false,
+    type: site.type,
+    region: site.region,
+});
+
 // ===== useSites =====
 
 interface UseSitesOptions {
@@ -49,24 +63,10 @@ export function useSites(options: UseSitesOptions = {}) {
         try {
             const response = await pilgrimSiteApi.getSites(newFilters);
             if (isMounted.current && response.success && response.data) {
-                let siteData = (response.data as any).data || response.data.items || [];
+                const rawData = (response.data as any).data || response.data.items || [];
                 const pagination = (response.data as any).pagination;
+                const siteData = rawData.map(mapSiteResponse);
 
-                // Map snake_case API fields to camelCase
-                siteData = siteData.map((site: any) => ({
-                    id: site.id,
-                    name: site.name,
-                    address: site.address,
-                    coverImage: site.cover_image || site.coverImage || '',
-                    rating: site.rating || 0,
-                    reviewCount: site.review_count || site.reviewCount || 0,
-                    distance: site.distance,
-                    isFavorite: site.is_favorite || site.isFavorite || false,
-                    type: site.type,
-                    region: site.region,
-                }));
-
-                console.log('[useSites] Mapped first site:', siteData[0]);
                 setSites(siteData);
                 if (pagination) {
                     setPage(pagination.page);
@@ -92,22 +92,9 @@ export function useSites(options: UseSitesOptions = {}) {
         try {
             const response = await pilgrimSiteApi.getSites({ ...currentFilters.current, page: page + 1 });
             if (isMounted.current && response.success && response.data) {
-                let siteData = (response.data as any).data || response.data.items || [];
+                const rawData = (response.data as any).data || response.data.items || [];
                 const pagination = (response.data as any).pagination;
-
-                // Map snake_case API fields to camelCase
-                siteData = siteData.map((site: any) => ({
-                    id: site.id,
-                    name: site.name,
-                    address: site.address,
-                    coverImage: site.cover_image || site.coverImage || '',
-                    rating: site.rating || 0,
-                    reviewCount: site.review_count || site.reviewCount || 0,
-                    distance: site.distance,
-                    isFavorite: site.is_favorite || site.isFavorite || false,
-                    type: site.type,
-                    region: site.region,
-                }));
+                const siteData = rawData.map(mapSiteResponse);
 
                 setSites(prev => [...prev, ...siteData]);
                 if (pagination) {
@@ -128,7 +115,31 @@ export function useSites(options: UseSitesOptions = {}) {
     useEffect(() => { if (autoFetch) fetchSites(filters); }, [autoFetch]); // eslint-disable-line
     useEffect(() => () => { isMounted.current = false; }, []);
 
-    return { sites, isLoading, isFetchingMore, error, hasMore, fetchSites, fetchMore, refetch, reset };
+    const toggleFavorite = useCallback(async (siteId: string, isCurrentFavorite: boolean) => {
+        // Optimistic update
+        setSites(prev => prev.map(site =>
+            site.id === siteId ? { ...site, isFavorite: !isCurrentFavorite } : site
+        ));
+
+        try {
+            if (isCurrentFavorite) {
+                await pilgrimSiteApi.removeFavorite(siteId);
+            } else {
+                await pilgrimSiteApi.addFavorite(siteId);
+            }
+        } catch (err: any) {
+            // Revert on error
+            setSites(prev => prev.map(site =>
+                site.id === siteId ? { ...site, isFavorite: isCurrentFavorite } : site
+            ));
+            if (isMounted.current) {
+                const msg = err.message || 'Lỗi cập nhật yêu thích';
+                onError?.(msg);
+            }
+        }
+    }, [onError]);
+
+    return { sites, isLoading, isFetchingMore, error, hasMore, fetchSites, fetchMore, refetch, reset, toggleFavorite };
 }
 
 // ===== useSiteDetail =====
@@ -189,7 +200,31 @@ export function useSiteDetail(siteId?: string, options: UseSiteDetailOptions = {
     useEffect(() => { if (autoFetch && siteId) fetchDetail(siteId); }, [autoFetch, siteId]); // eslint-disable-line
     useEffect(() => () => { isMounted.current = false; }, []);
 
-    return { site, isLoading, error, fetchDetail, refetch, reset };
+    const toggleFavorite = useCallback(async () => {
+        if (!site) return;
+
+        const isCurrentFavorite = site.isFavorite;
+
+        // Optimistic update
+        setSite(prev => prev ? { ...prev, isFavorite: !isCurrentFavorite } : null);
+
+        try {
+            if (isCurrentFavorite) {
+                await pilgrimSiteApi.removeFavorite(site.id);
+            } else {
+                await pilgrimSiteApi.addFavorite(site.id);
+            }
+        } catch (err: any) {
+            // Revert on error
+            setSite(prev => prev ? { ...prev, isFavorite: isCurrentFavorite } : null);
+            if (isMounted.current) {
+                const msg = err.message || 'Lỗi cập nhật yêu thích';
+                onError?.(msg);
+            }
+        }
+    }, [site, onError]);
+
+    return { site, isLoading, error, fetchDetail, refetch, reset, toggleFavorite };
 }
 
 // ===== useSiteMedia =====

@@ -15,14 +15,20 @@ export const SACRED_COLORS = {
   goldLight: '#DFC09A',      // Light gold for highlights
   goldShimmer: '#E8D5B0',    // For shimmer effects
   goldMuted: '#B8A070',      // Muted gold for secondary elements
-  
+
+  // ===== VARIANT 3 (Bright) =====
+  goldBright: '#f2b90d',     // Variant 3 Primary Gold
+  backgroundVariantLight: '#f8f8f5',
+  backgroundVariantDark: '#221e10',
+
+
   // ===== EARTH TONES (Analogous) =====
   bronze: '#8B7355',         // Bronze/incense - Holy color
   bronzeLight: '#A8917A',
   sienna: '#A0522D',         // Earthy sienna
   terracotta: '#CC5500',     // Warm terracotta (subtle)
   walnut: '#5D4037',         // Deep walnut brown
-  
+
   // ===== CREAM/IVORY FAMILY =====
   cream: '#FDF8F0',          // Primary background
   creamDark: '#F5EFE3',      // Slightly darker cream
@@ -30,13 +36,13 @@ export const SACRED_COLORS = {
   parchment: '#FAF7F2',      // Vintage paper feel
   linen: '#FCF9F5',          // Soft linen white
   alabaster: '#EDEAE3',      // Alabaster stone color
-  
+
   // ===== DARK/CHARCOAL FAMILY =====
   charcoal: '#1A1A1A',       // Primary dark text
   charcoalLight: '#2D2D2D',  // Lighter charcoal
   slate: '#4A4A4A',          // Medium dark
   graphite: '#6B6B6B',       // Subtle text
-  
+
   // ===== SACRED ACCENT COLORS (Muted) =====
   wine: '#722F37',           // Deep wine red (cathedral)
   wineLight: 'rgba(114, 47, 55, 0.08)',
@@ -45,28 +51,28 @@ export const SACRED_COLORS = {
   navyLight: '#2C3E58',
   violet: '#5B4E8C',         // Mary's violet (muted)
   violetLight: 'rgba(91, 78, 140, 0.08)',
-  
+
   // ===== FUNCTIONAL COLORS (Muted versions) =====
   success: '#4A7C59',        // Muted forest green
   successLight: 'rgba(74, 124, 89, 0.1)',
   successBg: '#E8F0EB',
-  
+
   danger: '#8B3A3A',         // Muted crimson
   dangerLight: 'rgba(139, 58, 58, 0.1)',
   dangerBg: '#F5EBEB',
-  
+
   warning: '#A67C52',        // Muted amber/bronze
   warningLight: 'rgba(166, 124, 82, 0.1)',
   warningBg: '#F5F0E8',
-  
+
   info: '#4A6B8A',           // Muted steel blue
   infoLight: 'rgba(74, 107, 138, 0.1)',
   infoBg: '#EBF0F5',
-  
+
   // ===== LIVE/REALTIME INDICATOR =====
   live: '#6B8E6B',           // Muted sage green for live
   liveGlow: 'rgba(107, 142, 107, 0.3)',
-  
+
   // ===== OVERLAY & GLASS EFFECTS =====
   overlay: 'rgba(26, 26, 26, 0.4)',
   overlayLight: 'rgba(26, 26, 26, 0.2)',
@@ -74,12 +80,12 @@ export const SACRED_COLORS = {
   glassWhite: 'rgba(255, 255, 255, 0.85)',
   glassCream: 'rgba(253, 248, 240, 0.9)',
   glassGold: 'rgba(201, 165, 114, 0.08)',
-  
+
   // ===== BORDER COLORS =====
   border: '#E5E1D8',
   borderLight: '#F0EDE5',
   borderGold: 'rgba(201, 165, 114, 0.3)',
-  
+
   // ===== GRADIENT PRESETS =====
   gradients: {
     goldVertical: ['#C9A572', '#A88A5E'],
@@ -100,7 +106,7 @@ export const SACRED_TYPOGRAPHY = {
     body: 'System',         // For body text
     caption: 'System',      // For small text
   },
-  
+
   // Sacred-optimized font sizes
   fontSize: {
     micro: 9,
@@ -116,7 +122,7 @@ export const SACRED_TYPOGRAPHY = {
     hero: 32,
     giant: 40,
   },
-  
+
   // Letter spacing for sacred feel
   letterSpacing: {
     compressed: -0.5,
@@ -128,7 +134,7 @@ export const SACRED_TYPOGRAPHY = {
     sacred: 2.0,      // For CATEGORY labels
     expansive: 3.0,   // For special emphasis
   },
-  
+
   // Line heights
   lineHeight: {
     tight: 1.15,

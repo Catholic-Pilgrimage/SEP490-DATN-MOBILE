@@ -6,11 +6,11 @@
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -21,7 +21,7 @@ import {
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
 import {
   GUIDE_BORDER_RADIUS,
@@ -32,6 +32,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { deleteEvent, getEvents } from "../../../../services/api/guide/eventApi";
 import { EventItem, EventStatus } from "../../../../types/guide";
+import { GUIDE_KEYS } from "../../constants/queryKeys";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -83,7 +84,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   onClose,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
-  
+
   // Reset selection when opened
   React.useEffect(() => {
     if (visible) {
@@ -113,7 +114,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
               </View>
-              
+
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
                 <Text style={styles.bottomSheetTitle}>Lọc sự kiện</Text>
@@ -121,7 +122,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Filter Options */}
               <View style={styles.filterOptionsContainer}>
                 {STATUS_FILTERS.map((filter) => {
@@ -162,7 +163,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   );
                 })}
               </View>
-              
+
               {/* Apply Button */}
               <View style={styles.bottomSheetFooter}>
                 <TouchableOpacity
@@ -267,7 +268,7 @@ interface EventCardProps {
 const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false);
   const canEdit = event.status === "pending" || event.status === "rejected";
-  
+
   // Format date display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -322,7 +323,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
             {event.name}
           </Text>
           {canEdit && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.menuButton}
               onPress={handleMenuPress}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -420,83 +421,54 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onCreatePress, statusFilter }) 
 // ============================================
 
 export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePress }) => {
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  // IMPORTANT: All hooks must be called at the top, before any conditional returns
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchEvents = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-
-      const params: any = {
-        is_active: true,
-      };
+  const {
+    data: events = [],
+    isLoading: loading,
+    isRefetching: refreshing,
+    refetch,
+  } = useQuery({
+    queryKey: GUIDE_KEYS.events({ status: statusFilter, is_active: true }),
+    queryFn: async () => {
+      const params: any = { is_active: true };
       if (statusFilter !== "all") {
         params.status = statusFilter;
       }
-
       const response = await getEvents(params);
-      
-      // Safe check for response structure
-      if (response?.success && response?.data) {
-        const eventData = response.data.data;
-        if (Array.isArray(eventData)) {
-          setEvents(eventData);
-        } else {
-          console.warn("Invalid event data format:", eventData);
-          setEvents([]);
-        }
-      } else {
-        console.warn("API response unsuccessful or missing data:", response);
-        setEvents([]);
-      }
-    } catch (error) {
-      console.error("Error fetching events:", error);
-      // Keep existing events on error during refresh, clear on initial load
-      if (!isRefresh) {
-        setEvents([]);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [statusFilter]);
+      if (!response?.success) throw new Error(response?.message || 'Failed to fetch events');
+      return response.data?.data || [];
+    },
+    staleTime: 1000 * 30, // 30 seconds stale
+  });
 
-  // Fetch when filter changes or on focus
-  // Use ref to track if initial load happened
-  const hasInitiallyLoaded = React.useRef(false);
-
-  // Refresh on focus (handles both initial load and re-focus)
+  // Refetch on focus to ensure data is fresh
   useFocusEffect(
     useCallback(() => {
-      if (hasInitiallyLoaded.current) {
-        // Already loaded, just refresh
-        fetchEvents(true);
-      } else {
-        // Initial load
-        fetchEvents(false);
-        hasInitiallyLoaded.current = true;
-      }
-    }, [fetchEvents])
+      refetch();
+    }, [refetch])
   );
 
-  // Re-fetch when filter changes (but not on initial mount)
-  React.useEffect(() => {
-    if (hasInitiallyLoaded.current) {
-      fetchEvents(false);
-    }
-  }, [statusFilter]);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const result = await deleteEvent(id);
+      if (!result?.success) throw new Error(result?.message || 'Failed to delete');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
+      Alert.alert("Thành công", "Đã xóa sự kiện");
+    },
+    onError: (error: any) => {
+      Alert.alert("Lỗi", error.message || "Không thể xóa sự kiện");
+    },
+  });
 
   const handleRefresh = useCallback(() => {
-    fetchEvents(true);
-  }, [fetchEvents]);
+    refetch();
+  }, [refetch]);
 
   const handleDelete = useCallback((event: EventItem) => {
     if (event.status === "approved") {
@@ -512,23 +484,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
         {
           text: "Xóa",
           style: "destructive",
-          onPress: async () => {
-            try {
-              const result = await deleteEvent(event.id);
-              if (result?.success) {
-                Alert.alert("Thành công", "Đã xóa sự kiện");
-                fetchEvents(true);
-              } else {
-                Alert.alert("Lỗi", result?.message || "Không thể xóa sự kiện");
-              }
-            } catch (error: any) {
-              Alert.alert("Lỗi", error.message || "Không thể xóa sự kiện");
-            }
-          },
+          onPress: () => deleteMutation.mutate(event.id),
         },
       ]
     );
-  }, [fetchEvents]);
+  }, [deleteMutation]);
 
   const renderEventItem = useCallback(({ item }: { item: EventItem }) => (
     <EventCard

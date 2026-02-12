@@ -1,1 +1,0 @@
-// Routes/Screen names constants

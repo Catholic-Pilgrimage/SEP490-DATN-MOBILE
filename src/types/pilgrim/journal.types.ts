@@ -88,7 +88,7 @@ export interface JournalSummary extends JournalEntry { } // Assuming summary has
 export interface CreateJournalRequest {
   title: string;
   content: string;
-  planner_item_id: string; // Required
+  planner_item_id?: string; // Optional if not part of a plan
   privacy?: JournalVisibility;
   images?: string[]; // Local URIs to upload
   audio?: string; // Local URI to upload

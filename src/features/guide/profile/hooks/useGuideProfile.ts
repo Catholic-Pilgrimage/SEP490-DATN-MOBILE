@@ -119,7 +119,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       const mediaTotal = mediaResponse?.data?.pagination?.totalItems || 0;
       // Reviews count - placeholder for future API integration
       const reviewsTotal = 0;
-      
+
       setStats({
         eventsCount: eventsTotal,
         mediaCount: mediaTotal,

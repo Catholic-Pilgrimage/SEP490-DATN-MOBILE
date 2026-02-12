@@ -18,18 +18,18 @@
 
 import { ApiResponse } from "../../../types/api.types";
 import {
-    ChangePasswordRequest,
-    ForgotPasswordRequest,
-    LoginRequest,
-    LoginResponse,
-    ProfileResponse,
-    RefreshTokenRequest,
-    RefreshTokenResponse,
-    RegisterRequest,
-    RegisterResponse,
-    ResetPasswordRequest,
-    UpdateProfileRequest,
-    VerifyEmailRequest,
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  LoginRequest,
+  LoginResponse,
+  ProfileResponse,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
+  RegisterRequest,
+  RegisterResponse,
+  ResetPasswordRequest,
+  UpdateProfileRequest,
+  VerifyEmailRequest,
 } from "../../../types/auth.types";
 import apiClient from "../apiClient";
 import { AUTH_ENDPOINTS } from "../endpoints";
@@ -84,6 +84,43 @@ export const refreshToken = async (
   return response.data;
 };
 
+// Helper to map snake_case API response to camelCase User object
+const mapUserResponse = (data: any): any => {
+  if (!data) return null;
+  return {
+    id: data.id,
+    email: data.email,
+    fullName: data.full_name || data.fullName, // Handle both just in case
+    role: data.role,
+    avatar: data.avatar_url || data.avatar,
+    phone: data.phone,
+    address: data.address,
+    bio: data.bio,
+    isVerified: !!data.verified_at || data.isVerified,
+    isActive: data.status === 'active' || data.isActive,
+    createdAt: data.created_at || data.createdAt,
+    updatedAt: data.updated_at || data.updatedAt,
+    dateOfBirth: data.date_of_birth || data.dateOfBirth,
+    gender: data.gender,
+    nationality: data.nationality,
+    language: data.language,
+  };
+};
+
+// Helper to map camelCase UpdateProfileRequest to snake_case for API
+const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
+  const mapped: any = {};
+  if (data.fullName !== undefined) mapped.full_name = data.fullName;
+  if (data.phone !== undefined) mapped.phone = data.phone;
+  if (data.address !== undefined) mapped.address = data.address;
+  if (data.bio !== undefined) mapped.bio = data.bio;
+  if (data.avatar !== undefined) mapped.avatar_url = data.avatar;
+  if (data.dateOfBirth !== undefined) mapped.date_of_birth = data.dateOfBirth;
+  if (data.gender !== undefined) mapped.gender = data.gender;
+  if (data.nationality !== undefined) mapped.nationality = data.nationality;
+  return mapped;
+};
+
 /**
  * Get auth profile
  */
@@ -91,6 +128,12 @@ export const getProfile = async (): Promise<ProfileResponse> => {
   const response = await apiClient.get<ProfileResponse>(
     AUTH_ENDPOINTS.PROFILE,
   );
+
+  if (response.data && response.data.data) {
+    // Map the inner data object
+    response.data.data = mapUserResponse(response.data.data);
+  }
+
   return response.data;
 };
 
@@ -100,10 +143,16 @@ export const getProfile = async (): Promise<ProfileResponse> => {
 export const updateProfile = async (
   data: UpdateProfileRequest,
 ): Promise<ProfileResponse> => {
+  const snakeCaseData = mapUpdateProfileRequest(data);
   const response = await apiClient.put<ProfileResponse>(
     AUTH_ENDPOINTS.PROFILE,
-    data,
+    snakeCaseData,
   );
+
+  if (response.data && response.data.data) {
+    response.data.data = mapUserResponse(response.data.data);
+  }
+
   return response.data;
 };
 

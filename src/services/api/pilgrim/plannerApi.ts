@@ -22,13 +22,17 @@ import {
   AddPlanItemResponse,
   AISuggestionRequest,
   CreatePlanRequest,
+  GetPlanMessagesResponse,
   GetPlansResponse,
   InviteParticipantRequest,
   PlanEntity,
+  PlannerMessage,
   PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
   ReorderPlanItemsRequest,
   ReorderPlanItemsResponse,
-  UpdatePlanRequest
+  SendPlanMessageRequest,
+  UpdatePlanRequest,
+  UploadMessageImageResponse
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -179,6 +183,76 @@ export const getParticipants = async (
   return response.data;
 };
 
+/**
+ * Get plan messages (chat)
+ */
+export const getPlanMessages = async (
+  planId: string,
+  params?: PaginationParams,
+): Promise<ApiResponse<GetPlanMessagesResponse>> => {
+  const response = await apiClient.get<ApiResponse<GetPlanMessagesResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.MESSAGES(planId),
+    { params },
+  );
+  return response.data;
+};
+
+/**
+ * Send message to plan (chat)
+ */
+export const sendPlanMessage = async (
+  planId: string,
+  data: SendPlanMessageRequest,
+): Promise<ApiResponse<PlannerMessage>> => {
+  const response = await apiClient.post<ApiResponse<PlannerMessage>>(
+    PILGRIM_ENDPOINTS.PLANNER.MESSAGES(planId),
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * Delete message from plan (chat)
+ */
+export const deletePlanMessage = async (
+  planId: string,
+  messageId: string,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.delete<ApiResponse<void>>(
+    PILGRIM_ENDPOINTS.PLANNER.DELETE_MESSAGE(planId, messageId),
+  );
+  return response.data;
+};
+
+/**
+ * Upload image for plan message (chat)
+ */
+export const uploadPlanMessageImage = async (
+  planId: string,
+  imageFile: any, // Expecting { uri, name, type } or similar
+): Promise<ApiResponse<UploadMessageImageResponse>> => {
+  const formData = new FormData();
+  formData.append("image", {
+    uri: imageFile.uri,
+    name: imageFile.name || "image.jpg",
+    type: imageFile.type || "image/jpeg",
+  } as any);
+
+  const response = await apiClient.post<ApiResponse<UploadMessageImageResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.UPLOAD_MESSAGE_IMAGE(planId),
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+      transformRequest: (data, headers) => {
+        return formData; // Crucial for some axios adapters to not mess up FormData
+      },
+    }
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -195,6 +269,10 @@ const pilgrimPlannerApi = {
   addPlanItem,
   deletePlanItem,
   reorderPlanItems,
+  getPlanMessages,
+  sendPlanMessage,
+  deletePlanMessage,
+  uploadPlanMessageImage,
 };
 
 export default pilgrimPlannerApi;

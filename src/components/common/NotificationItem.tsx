@@ -7,13 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import type {
-    Notification
+  Notification
 } from "../../services/api/shared/notificationApi";
 import {
-    getNotificationColor,
-    getNotificationIcon,
-    isNegativeNotification,
-    isPositiveNotification,
+  getNotificationColor,
+  getNotificationIcon,
+  isNegativeNotification,
+  isPositiveNotification,
 } from "../../services/api/shared/notificationApi";
 
 interface NotificationItemProps {
@@ -54,7 +54,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
           {notification.title}
         </Text>
         <Text style={styles.body} numberOfLines={2}>
-          {notification.body}
+          {notification.message}
         </Text>
         <Text style={styles.time}>
           {formatNotificationTime(notification.createdAt)}

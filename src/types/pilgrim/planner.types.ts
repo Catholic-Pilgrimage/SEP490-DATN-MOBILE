@@ -7,51 +7,29 @@
 // ENUMS / UNION TYPES
 // ============================================
 
-/**
- * Plan status
- */
-export type PlanStatus =
-  | "draft"
-  | "planned"
-  | "ongoing"
-  | "completed"
-  | "cancelled";
+export type PlanStatus = "draft" | "planned" | "ongoing" | "completed" | "cancelled";
 
-/**
- * Backend Plan Entity (matches API response)
- */
-export interface PlanEntity {
+export type TransportationType = "car" | "bus" | "train" | "plane" | "walk" | "other";
+
+// ============================================
+// SUB-ENTITIES
+// ============================================
+
+export interface PlanOwner {
   id: string;
-  user_id: string;
-  name: string;
-  start_date: string;
-  number_of_days: number;
-  number_of_people: number;
-  transportation: string;
-  budget_level: string;
-  status: string;
-  is_public: boolean;
-  share_token: string;
-  share_role: string;
-  owner: {
-    id: string;
-    full_name: string;
-    email: string;
-    avatar_url: string;
-  };
-  created_at: string;
-  updated_at: string;
-  items_by_day?: Record<string, PlanItem[]>;
+  full_name: string;
+  email: string;
+  avatar_url: string;
 }
 
 export interface PlanItem {
   id: string;
-  uuid?: string; // Sometimes ID might be passed as uuid or id? keeping generic
+  uuid?: string;
   planner_id?: string;
   site_id?: string;
   day_number?: number;
   order_index?: number;
-  note?: string; // API uses 'note'
+  note?: string;
   site: {
     id?: string;
     name: string;
@@ -65,87 +43,6 @@ export interface PlanItem {
   departure_time?: string;
 }
 
-export interface AddPlanItemRequest {
-  site_id: string;
-  day_number: number;
-  note?: string;
-}
-
-export interface AddPlanItemResponse {
-  item: PlanItem;
-}
-
-export interface ReorderPlanItemsRequest {
-  day_number: number;
-  item_ids: string[];
-}
-
-export interface ReorderPlanItemsResponse {
-  items: PlanItem[];
-}
-
-export interface GetPlansResponse {
-  planners: PlanEntity[];
-  pagination: {
-    page: number
-    limit: number;
-    totalItems?: number; // backend might use different key, but for now assuming standard
-    totalPages?: number;
-  };
-}
-
-/**
- * Transportation type
- */
-export type TransportationType =
-  | "car"
-  | "bus"
-  | "train"
-  | "plane"
-  | "walk"
-  | "other";
-
-// ============================================
-// RESPONSE TYPES
-// ============================================
-
-/**
- * Plan stop/destination
- */
-export interface PlanStop {
-  id: string;
-  siteId: string;
-  siteName: string;
-  siteImage: string;
-  order: number;
-  arrivalTime?: string;
-  departureTime?: string;
-  notes?: string;
-}
-
-/**
- * Trip plan
- */
-export interface TripPlan {
-  id: string;
-  title: string;
-  description?: string;
-  startDate: string;
-  endDate: string;
-  status: PlanStatus;
-  stops: PlanStop[];
-  transportation?: TransportationType;
-  estimatedBudget?: number;
-  notes?: string;
-  isShared: boolean;
-  participants: PlanParticipant[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Plan participant
- */
 export interface PlanParticipant {
   id: string;
   userId: string;
@@ -155,9 +52,134 @@ export interface PlanParticipant {
   joinedAt: string;
 }
 
-/**
- * Plan summary (for lists)
- */
+// ============================================
+// API RESPONSE ENTITIES
+// ============================================
+
+// Matches GET /api/planners item
+export interface PlanEntity {
+  id: string;
+  user_id: string;
+  name: string;
+  start_date: string;
+  end_date?: string;
+  number_of_people: number;
+  transportation: string;
+  status: string;
+  share_token: string;
+  qr_code_url: string;
+  owner?: PlanOwner;
+  created_at: string;
+  updated_at: string;
+
+  // Detailed fields (optional in list)
+  items?: PlanItem[];
+  items_by_day?: Record<string, PlanItem[]>;
+  number_of_days?: number;
+  is_public?: boolean; // inferred from usage
+}
+
+export interface GetPlansResponse {
+  planners: PlanEntity[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AddPlanItemResponse {
+  item: PlanItem;
+}
+
+export interface ReorderPlanItemsResponse {
+  items: PlanItem[];
+}
+
+export interface MessageSender {
+  id: string;
+  full_name: string;
+  avatar_url: string;
+}
+
+export interface PlannerMessage {
+  id: string;
+  message_type: "text" | "image";
+  content: string;
+  image_url: string;
+  sender: MessageSender;
+  created_at: string;
+  planner_id: string;
+  user_id: string;
+  user: MessageSender;
+}
+
+export interface GetPlanMessagesResponse {
+  messages: PlannerMessage[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+  };
+}
+
+export interface UploadMessageImageResponse {
+  image_url: string;
+}
+
+// ============================================
+// API REQUEST TYPES
+// ============================================
+
+export interface CreatePlanRequest {
+  name: string;
+  start_date: string;
+  end_date: string;
+  number_of_people: number;
+  transportation: string;
+}
+
+export interface UpdatePlanRequest extends Partial<CreatePlanRequest> {
+  status?: string;
+}
+
+export interface AddPlanItemRequest {
+  site_id: string;
+  day_number: number;
+  note?: string;
+}
+
+export interface ReorderPlanItemsRequest {
+  day_number: number;
+  item_ids: string[];
+}
+
+export interface InviteParticipantRequest {
+  userId: string;
+  role: "editor" | "viewer";
+}
+
+export interface AISuggestionRequest {
+  region?: string;
+  duration: number;
+  interests?: string[];
+  startLocation?: {
+    latitude: number;
+    longitude: number;
+  };
+}
+
+export interface SendPlanMessageRequest {
+  message_type: "text" | "image";
+  content: string;
+  image_url?: string;
+}
+
+// ============================================
+// UI / LEGACY TYPES
+// ============================================
+
 export interface PlanSummary {
   id: string;
   title: string;
@@ -169,60 +191,4 @@ export interface PlanSummary {
   participantCount: number;
   isShared?: boolean;
   transportation?: TransportationType[];
-}
-
-// ============================================
-// REQUEST TYPES
-// ============================================
-
-/**
- * Create plan request
- */
-export interface CreatePlanRequest {
-  name: string;
-  start_date: string;
-  number_of_days: number;
-  number_of_people: number;
-  transportation: string; // or TransportationType
-  budget_level: string; // 'low' | 'medium' | 'high'
-  is_public?: boolean;
-}
-
-/**
- * Update plan request
- */
-export interface UpdatePlanRequest extends Partial<CreatePlanRequest> {
-  status?: PlanStatus;
-}
-
-/**
- * Add stop request
- */
-export interface AddStopRequest {
-  siteId: string;
-  order?: number;
-  arrivalTime?: string;
-  departureTime?: string;
-  notes?: string;
-}
-
-/**
- * Invite participant request
- */
-export interface InviteParticipantRequest {
-  userId: string;
-  role: "editor" | "viewer";
-}
-
-/**
- * AI suggestion request
- */
-export interface AISuggestionRequest {
-  region?: string;
-  duration: number; // days
-  interests?: string[];
-  startLocation?: {
-    latitude: number;
-    longitude: number;
-  };
 }

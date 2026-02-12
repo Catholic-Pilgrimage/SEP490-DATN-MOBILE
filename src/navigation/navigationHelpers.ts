@@ -2,7 +2,7 @@
 // Centralized navigation logic to avoid duplication
 
 import { CommonActions, NavigationContainerRef } from '@react-navigation/native';
-import { UserRole } from '../types/auth.types';
+import { UserRole } from '../types/common.types';
 
 /**
  * Determine navigation destination based on auth state and user role
@@ -21,12 +21,12 @@ export function getNavigationDestination(
     // Authenticated user → Navigate based on role
     return userRole === 'local_guide' ? 'GuideMain' : 'Main';
   }
-  
+
   if (isGuest) {
     // Guest user → Pilgrim app with limited access
     return 'Main';
   }
-  
+
   // Not authenticated and not guest → Auth screen
   return 'Auth';
 }
@@ -46,7 +46,7 @@ export function navigateToAppropriateScreen(
   userRole?: UserRole
 ): void {
   const destination = getNavigationDestination(isAuthenticated, isGuest, userRole);
-  
+
   navigation.dispatch(
     CommonActions.reset({
       index: 0,

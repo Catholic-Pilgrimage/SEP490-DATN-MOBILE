@@ -394,10 +394,10 @@ const DashboardScreen: React.FC = () => {
           >
             <LinearGradient
               colors={[
+                "rgba(0, 0, 0, 0.7)",
                 "rgba(0, 0, 0, 0.6)",
-                "rgba(0, 0, 0, 0.55)",
-                "rgba(0, 0, 0, 0.4)",
                 "rgba(0, 0, 0, 0.5)",
+                "rgba(0, 0, 0, 0.55)",
                 "rgba(253, 248, 240, 0.95)",
                 PREMIUM_COLORS.cream
               ]}
@@ -665,8 +665,8 @@ const DashboardScreen: React.FC = () => {
                   <View style={styles.activityArrow}>
                     <Ionicons
                       name="chevron-forward"
-                      size={18}
-                      color={PREMIUM_COLORS.gold}
+                      size={20}
+                      color={PREMIUM_COLORS.goldDark}
                     />
                   </View>
                 </TouchableOpacity>
@@ -1208,12 +1208,14 @@ const styles = StyleSheet.create({
     color: GUIDE_COLORS.gray400,
   },
   activityArrow: {
-    width: moderateScale(32, 0.3),
-    height: moderateScale(32, 0.3),
-    borderRadius: moderateScale(16, 0.3),
-    backgroundColor: "rgba(212, 175, 55, 0.1)",
+    width: moderateScale(36, 0.3),
+    height: moderateScale(36, 0.3),
+    borderRadius: moderateScale(18, 0.3),
+    backgroundColor: "rgba(212, 175, 55, 0.18)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.25)",
   },
 
   // Empty State

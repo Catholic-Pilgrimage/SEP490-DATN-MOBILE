@@ -64,6 +64,7 @@ export interface ActiveShiftInfo {
 // The MassScheduleItem below is kept for backward compatibility with dashboard utils
 
 import type { MassSchedule } from './mass-schedule.types';
+import type { SOSStatus } from './sos.types';
 
 /**
  * @deprecated Use MassSchedule from mass-schedule.types.ts instead
@@ -74,11 +75,6 @@ export type MassScheduleItem = MassSchedule;
 // ============================================
 // SOS SUPPORT
 // ============================================
-
-/**
- * SOS request status
- */
-export type SOSStatus = 'pending' | 'in_progress' | 'resolved' | 'cancelled';
 
 /**
  * SOS request priority
