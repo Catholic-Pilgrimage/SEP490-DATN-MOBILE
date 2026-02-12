@@ -3,6 +3,7 @@
     "name": "CatholicPilgrimApp",
     "slug": "CatholicPilgrimApp",
     "version": "1.0.0",
+    "owner": "catholic-pilgrimage-guide",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "pilgrimapp",
