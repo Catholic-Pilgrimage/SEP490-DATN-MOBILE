@@ -32,3 +32,9 @@ export * from "./interaction.types";
 
 // News types
 export * from "./news.types";
+
+// SOS types
+export * from "./sos.types";
+
+// Common types (re-export for convenience)
+export { DayOfWeek } from "../common.types";

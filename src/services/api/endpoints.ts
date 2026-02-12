@@ -155,8 +155,8 @@ export const GUIDE_ENDPOINTS = {
     RESTORE: (id: string) => `${API_BASE}/local-guide/schedules/${id}/restore`,
   },
 
-  // @deprecated Use LOCAL_GUIDE_MASS_SCHEDULES instead
-  LOCAL_GUIDE_SCHEDULES: `${API_BASE}/local-guide/schedules`,
+
+
 
   // SOS Support - Pending support requests
   SOS: {

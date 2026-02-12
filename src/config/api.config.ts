@@ -3,21 +3,6 @@
 export const API_CONFIG = {
   // Base URL for the API (from environment variable or default)
   BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://sep490-datn-backend.onrender.com',
-  
-  // API endpoints
-  ENDPOINTS: {
-    // Auth endpoints
-    AUTH: {
-      LOGIN: '/api/auth/login',
-      REGISTER: '/api/auth/register',
-      LOGOUT: '/api/auth/logout',
-      REFRESH_TOKEN: '/api/auth/refresh-token',
-      PROFILE: '/api/auth/profile',
-      CHANGE_PASSWORD: '/api/auth/change-password',
-      FORGOT_PASSWORD: '/api/auth/forgot-password',
-      RESET_PASSWORD: '/api/auth/reset-password',
-    },
-  },
 
   // Request timeout in milliseconds (from environment variable or default 60s)
   TIMEOUT: Number(process.env.EXPO_PUBLIC_API_TIMEOUT) || 60000,

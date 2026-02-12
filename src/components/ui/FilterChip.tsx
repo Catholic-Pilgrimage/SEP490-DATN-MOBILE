@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { BORDER_RADIUS, COLORS, SPACING, TYPOGRAPHY } from '../../constants/theme.constants';
-import { responsive, moderateScale, getSpacing } from '../../utils/responsive';
+import { getSpacing, responsive } from '../../utils/responsive';
 
 interface FilterChipProps {
   label: string;
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
       default: TYPOGRAPHY.fontSize.md,
     }),
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textChampagne,
+    color: COLORS.textPrimary,
     letterSpacing: 0.3,
   },
   textSelected: {

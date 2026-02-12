@@ -187,7 +187,6 @@ const ProfileScreen = () => {
         if (item.route === 'FavoriteSites' || item.route === 'EditProfile' || item.route === 'SOSHistory') {
             navigation.navigate(item.route);
         } else {
-            console.log(`Navigate to ${item.route}`);
             Alert.alert("Thông báo", "Tính năng đang phát triển");
         }
     };

@@ -10,6 +10,7 @@ import axios, {
 import { API_CONFIG, ERROR_MESSAGES, HTTP_STATUS } from '../../config/api.config';
 import { AUTH_STORAGE_KEYS } from '../../types/auth.types';
 import { secureStorage } from '../storage/secureStorage';
+import { AUTH_ENDPOINTS } from './endpoints';
 
 // Extended config to track retry attempts
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -123,7 +124,7 @@ apiClient.interceptors.response.use(
         }
 
         const response = await axios.post(
-          `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.AUTH.REFRESH_TOKEN}`,
+          `${API_CONFIG.BASE_URL}${AUTH_ENDPOINTS.REFRESH_TOKEN}`,
           { refreshToken }
         );
 
