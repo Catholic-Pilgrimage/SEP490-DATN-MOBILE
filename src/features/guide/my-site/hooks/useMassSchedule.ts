@@ -21,13 +21,13 @@ import {
   updateMassSchedule,
 } from "../../../../services/api/guide/massScheduleApi";
 
+import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import {
   CreateMassScheduleRequest,
   MassSchedule,
   MassScheduleStatus,
   UpdateMassScheduleRequest,
 } from "../../../../types/guide";
-import { GUIDE_KEYS } from "../../constants/queryKeys";
 
 // ============================================
 // TYPES

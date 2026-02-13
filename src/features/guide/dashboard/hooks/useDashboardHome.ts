@@ -16,6 +16,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
+import { GUIDE_KEYS } from '../../../../constants/queryKeys';
 import { dashboardHomeApi, guideEventApi, guideMediaApi, guideSiteApi, massScheduleApi } from '../../../../services/api/guide';
 import {
   ActiveShiftInfo,
@@ -35,7 +36,6 @@ import {
   getSOSInfo,
   getTodayOverview,
 } from '../utils/dashboardHomeUtils';
-import { DASHBOARD_KEYS } from './dashboardKeys';
 
 // ============================================
 // TYPES
@@ -138,7 +138,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
 
   // Queries
   const siteQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.siteInfo(),
+    queryKey: GUIDE_KEYS.dashboard.siteInfo(),
     queryFn: async () => {
       const response = await guideSiteApi.getAssignedSite();
       if (!response?.success) throw new Error(response?.message || 'Failed to load site info');
@@ -147,7 +147,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const activeShiftQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.activeShift(weekStart),
+    queryKey: GUIDE_KEYS.dashboard.activeShift(weekStart),
     queryFn: async () => {
       const response = await dashboardHomeApi.getSiteSchedule(weekStart);
       if (!response?.success) throw new Error(response?.message || 'Failed to load shift info');
@@ -156,7 +156,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const todayOverviewQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.todayOverview(),
+    queryKey: GUIDE_KEYS.dashboard.todayOverview(),
     queryFn: async () => {
       const [eventsRes, schedulesRes] = await Promise.all([
         guideEventApi.getEvents({ status: 'approved', is_active: true }),
@@ -170,7 +170,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const sosQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.sosInfo(),
+    queryKey: GUIDE_KEYS.dashboard.sosInfo(),
     queryFn: async () => {
       const response = await dashboardHomeApi.getSOSRequests({ status: 'pending', limit: 5 });
       if (!response?.success) throw new Error(response?.message || 'Failed to load SOS info');
@@ -183,7 +183,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const recentActivityQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.recentActivity(),
+    queryKey: GUIDE_KEYS.dashboard.recentActivity(),
     queryFn: async () => {
       const [mediaRes, eventsRes] = await Promise.all([
         guideMediaApi.getMedia({ limit: 3 }),
@@ -197,7 +197,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const notificationsQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.notifications(),
+    queryKey: GUIDE_KEYS.dashboard.notifications(),
     queryFn: async () => {
       const response = await dashboardHomeApi.getNotifications(5);
       if (!response?.success) throw new Error('Failed to load notifications');
@@ -210,7 +210,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   });
 
   const pendingCountsQuery = useQuery({
-    queryKey: DASHBOARD_KEYS.pendingCounts(),
+    queryKey: GUIDE_KEYS.dashboard.pendingCounts(),
     queryFn: async () => {
       const [mediaRes, eventsRes, schedulesRes] = await Promise.all([
         guideMediaApi.getMedia({ status: 'pending', limit: 1 }),
@@ -347,30 +347,30 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   // ============================================
 
   const refresh = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.all });
+    await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.all() });
   }, [queryClient]);
 
   const refreshSection = useCallback(async (section: keyof DashboardHomeLoadingState) => {
     switch (section) {
       case 'siteInfo':
-        await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.siteInfo() });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.siteInfo() });
         break;
       case 'activeShift':
         // Note: this invalidates all activeShift queries regardless of weekStart
         // Ideally we pass specific weekStart, but invalidating broad key works
-        await queryClient.invalidateQueries({ queryKey: ['dashboard', 'activeShift'] });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.activeShift(weekStart) });
         break;
       case 'todayOverview':
-        await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.todayOverview() });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.todayOverview() });
         break;
       case 'sosInfo':
-        await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.sosInfo() });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.sosInfo() });
         break;
       case 'recentActivity':
-        await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.recentActivity() });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.recentActivity() });
         break;
       case 'notifications':
-        await queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.notifications() });
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.notifications() });
         break;
     }
   }, [queryClient]);
