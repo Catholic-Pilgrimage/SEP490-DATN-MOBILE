@@ -1,18 +1,10 @@
-/**
- * QuickActionsBar Component
- * Horizontal scrollable quick actions - Sacred Premium design
- * Features:
- * - Monochrome gold color palette
- * - Neumorphism style on cream background
- * - Clean icons without colorful backgrounds
- * - Subtle press animations
- */
+
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   Animated,
+  Dimensions,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -37,15 +29,20 @@ const ACTION_IDS = {
   postNews: "post-news",
   schedule: "add-schedule",
   upload: "upload-media",
-  goLive: "go-live",
   sosLog: "sos-log",
 } as const;
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// Calculate width for 4 items with padding and gap
+// Padding: GUIDE_SPACING.md * 2 (left/right)
+// Gap: SACRED_SPACING.md * 3 (between 4 items)
+const TOTAL_PADDING = (getSpacing(GUIDE_SPACING.md) * 2) + (SACRED_SPACING.md * 3);
+const ITEM_WIDTH = (SCREEN_WIDTH - TOTAL_PADDING) / 4;
 
 const getDefaultActions = (t: (key: string) => string): QuickAction[] => [
   { id: ACTION_IDS.postNews, icon: "newspaper", label: t("quickActions.postNews") },
   { id: ACTION_IDS.schedule, icon: "calendar", label: t("quickActions.schedule") },
   { id: ACTION_IDS.upload, icon: "cloud-upload", label: t("quickActions.upload") },
-  { id: ACTION_IDS.goLive, icon: "videocam", label: t("quickActions.goLive") },
   { id: ACTION_IDS.sosLog, icon: "alert-circle", label: t("quickActions.sosLog"), isDanger: true },
 ];
 
@@ -71,7 +68,7 @@ const ActionButton: React.FC<{
   return (
     <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
       <TouchableOpacity
-        style={styles.actionButton}
+        style={[styles.actionButton, { width: ITEM_WIDTH }]}
         onPress={onPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -122,12 +119,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
   const displayActions = actions || defaultActions;
   return (
     <View style={styles.container}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        decelerationRate="fast"
-      >
+      <View style={styles.actionsContainer}>
         {displayActions.map((action) => (
           <ActionButton
             key={action.id}
@@ -136,7 +128,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
             badgeCount={badges[action.id]}
           />
         ))}
-      </ScrollView>
+      </View>
     </View>
   );
 };
@@ -146,16 +138,15 @@ const styles = StyleSheet.create({
     marginTop: -getSpacing(GUIDE_SPACING.xxl) * 1.5,
     zIndex: 10,
   },
-  scrollContent: {
-    paddingLeft: getSpacing(GUIDE_SPACING.lg),
-    paddingRight: getSpacing(GUIDE_SPACING.lg), // Equal padding, 5th item peeks naturally
+  actionsContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
     gap: SACRED_SPACING.md,
   },
   actionButton: {
     alignItems: "center",
-    width: 68,
   },
-  // Neumorphic style icon container
   iconContainer: {
     width: 48,
     height: 48,
@@ -163,8 +154,7 @@ const styles = StyleSheet.create({
     backgroundColor: SACRED_COLORS.cream,
     justifyContent: "center",
     alignItems: "center",
-    overflow: "visible", // Allow badge to overflow
-    // Neumorphism shadow
+    overflow: "visible",
     ...Platform.select({
       ios: {
         shadowColor: SACRED_COLORS.charcoal,

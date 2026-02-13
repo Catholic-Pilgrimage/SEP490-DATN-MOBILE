@@ -1,1 +1,3 @@
-export { default as SupportScreen } from './SupportScreen';
+export * from './SOSDetailScreen';
+export * from './SOSListScreen';
+

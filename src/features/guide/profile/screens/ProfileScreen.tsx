@@ -179,6 +179,10 @@ const ProfileScreen: React.FC = () => {
     Alert.alert("Thông báo", "Tính năng đang phát triển");
   }, []);
 
+  const handleSOSList = useCallback(() => {
+    (navigation as any).navigate("SOSList");
+  }, [navigation]);
+
   const handleSettings = useCallback(() => {
     // TODO: Navigate to Settings screen
     Alert.alert("Thông báo", "Tính năng đang phát triển");
@@ -290,7 +294,7 @@ const ProfileScreen: React.FC = () => {
           {/* Name & Role */}
           <Text style={styles.profileName}>{displayName}</Text>
           <Text style={styles.profileRole}>{displayRole}</Text>
-          
+
           {/* Assigned Site */}
           <View style={styles.siteTag}>
             <MaterialIcons name="church" size={14} color={PREMIUM_COLORS.gold} />
@@ -299,10 +303,10 @@ const ProfileScreen: React.FC = () => {
         </View>
 
         {/* Stats Card */}
-        <StatsCard 
-          events={stats.eventsCount} 
-          media={stats.mediaCount} 
-          reviews={stats.reviewsCount} 
+        <StatsCard
+          events={stats.eventsCount}
+          media={stats.mediaCount}
+          reviews={stats.reviewsCount}
         />
 
         {/* Account Section */}
@@ -328,6 +332,12 @@ const ProfileScreen: React.FC = () => {
             icon="calendar-outline"
             label="Lịch trình & Ca trực"
             onPress={handleSchedule}
+          />
+          <MenuItem
+            icon="alert-circle-outline"
+            label="Hỗ trợ khẩn cấp (SOS)"
+            onPress={handleSOSList}
+            showBadge={stats.sosPendingCount > 0 ? stats.sosPendingCount.toString() : undefined}
             isLast
           />
         </View>

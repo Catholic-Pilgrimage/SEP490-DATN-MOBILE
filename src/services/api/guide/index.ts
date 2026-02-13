@@ -26,12 +26,15 @@ export { default as guideEventApi } from "./eventApi";
 export * from "./dashboardHomeApi";
 export { default as dashboardApi } from "./dashboardHomeApi";
 // Backward compatibility aliases
-export { default as guideDashboardApi } from "./dashboardHomeApi";
-export { default as dashboardHomeApi } from "./dashboardHomeApi";
+export { default as dashboardHomeApi, default as guideDashboardApi } from "./dashboardHomeApi";
 
 // Mass Schedule API (Lịch lễ)
 export * from "./massScheduleApi";
 export { default as massScheduleApi } from "./massScheduleApi";
+
+// SOS API
+export * from "./sosApi";
+export { default as guideSOSApi } from "./sosApi";
 
 // Combined Guide API (for backward compatibility)
 import dashboardApi from "./dashboardHomeApi";
