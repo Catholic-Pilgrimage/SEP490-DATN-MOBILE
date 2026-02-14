@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { guideSiteApi } from "../../../../services/api";
+import { guideSiteApi } from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 import { getSiteOpenStatus } from "../../../../utils/dateUtils";
 

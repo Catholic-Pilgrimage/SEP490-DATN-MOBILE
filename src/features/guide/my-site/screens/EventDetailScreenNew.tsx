@@ -17,7 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,13 +41,13 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
+import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import {
   createEvent,
   deleteEvent,
   updateEvent,
-} from "../../../../services/api/guide/eventApi";
-import { EventItem, EventStatus } from "../../../../types/guide";
-import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
+} from "../../../../services/api/guide";
+import { EventStatus } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -244,7 +244,7 @@ export const EventDetailScreen: React.FC = () => {
   // Mode management
   const isCreateMode = !passedEvent; // Creating new event
   const canBeEdited = passedEvent?.status === "pending" || passedEvent?.status === "rejected";
-  
+
   // isEditing: true when creating new OR when user clicked Edit button
   const [isEditing, setIsEditing] = useState(isCreateMode);
 

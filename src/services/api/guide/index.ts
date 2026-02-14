@@ -36,12 +36,18 @@ export { default as massScheduleApi } from "./massScheduleApi";
 export * from "./sosApi";
 export { default as guideSOSApi } from "./sosApi";
 
+// Shift Submission API
+export * from "./shiftSubmissionApi";
+export { default as shiftSubmissionApi } from "./shiftSubmissionApi";
+
 // Combined Guide API (for backward compatibility)
 import dashboardApi from "./dashboardHomeApi";
 import guideEventApi from "./eventApi";
 import massScheduleApi from "./massScheduleApi";
 import guideMediaApi from "./mediaApi";
+import shiftSubmissionApi from "./shiftSubmissionApi";
 import guideSiteApi from "./siteApi";
+import guideSOSApi from "./sosApi";
 
 const guideApis = {
   site: guideSiteApi,
@@ -49,6 +55,8 @@ const guideApis = {
   event: guideEventApi,
   dashboard: dashboardApi,
   massSchedule: massScheduleApi,
+  shiftSubmission: shiftSubmissionApi,
+  sos: guideSOSApi,
 };
 
 export default guideApis;

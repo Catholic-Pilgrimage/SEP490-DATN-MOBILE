@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
-import guideSOSApi from '../../../../services/api/guide/sosApi';
+import { guideSOSApi } from '../../../../services/api/guide';
 import { GuideSOSListParams, ResolveSOSRequest } from '../../../../types/guide/sos.types';
 
 export const useGuideSOSList = (params?: GuideSOSListParams) => {

@@ -19,7 +19,7 @@ import {
   getMassSchedules,
   restoreMassSchedule,
   updateMassSchedule,
-} from "../../../../services/api/guide/massScheduleApi";
+} from "../../../../services/api/guide";
 
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import {

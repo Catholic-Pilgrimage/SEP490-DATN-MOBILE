@@ -28,7 +28,7 @@ import {
   GUIDE_TYPOGRAPHY
 } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
-import { deleteMedia, updateMedia } from "../../../../services/api/guide/mediaApi";
+import { deleteMedia, updateMedia } from "../../../../services/api/guide";
 import { MediaStatus } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

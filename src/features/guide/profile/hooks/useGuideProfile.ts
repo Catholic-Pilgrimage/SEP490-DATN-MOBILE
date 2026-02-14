@@ -5,8 +5,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { authApi, guideSiteApi, guideSOSApi } from "../../../../services/api";
-import { guideEventApi, guideMediaApi } from "../../../../services/api/guide";
+import { authApi } from "../../../../services/api";
+import { guideEventApi, guideMediaApi, guideSiteApi, guideSOSApi } from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 
 // ============================================

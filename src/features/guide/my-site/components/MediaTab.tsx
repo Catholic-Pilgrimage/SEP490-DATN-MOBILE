@@ -28,7 +28,7 @@ import {
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
-import { getMedia } from "../../../../services/api/guide/mediaApi";
+import { getMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

@@ -36,7 +36,7 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
-import { uploadMedia, uploadMediaWithYouTube } from "../../../../services/api/guide/mediaApi";
+import { uploadMedia, uploadMediaWithYouTube } from "../../../../services/api/guide";
 import { MediaType } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -151,7 +151,7 @@ export const MediaUploadScreen: React.FC = () => {
   // ============================================
   // IMAGE COMPRESSION
   // ============================================
-  
+
   /**
    * Compress image using expo-image-manipulator
    * - Resize to max dimensions
@@ -164,7 +164,7 @@ export const MediaUploadScreen: React.FC = () => {
     type: MediaType
   ): Promise<CompressedImage> => {
     const config = COMPRESSION_CONFIG[type] || COMPRESSION_CONFIG.image;
-    
+
     // Manipulate image: resize and compress
     const manipulated = await ImageManipulator.manipulateAsync(
       uri,
@@ -211,8 +211,8 @@ export const MediaUploadScreen: React.FC = () => {
       setStep("select-file");
     } else {
       // Open image picker with new MediaType API (fixes deprecation warning)
-      const mediaTypes: ImagePicker.MediaType[] = type === "video" 
-        ? ["videos"] 
+      const mediaTypes: ImagePicker.MediaType[] = type === "video"
+        ? ["videos"]
         : ["images"];
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -225,7 +225,7 @@ export const MediaUploadScreen: React.FC = () => {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         setSelectedFile(asset);
-        
+
         // Compress image (not video)
         if (type !== "video") {
           setCompressing(true);
@@ -244,7 +244,7 @@ export const MediaUploadScreen: React.FC = () => {
             setCompressing(false);
           }
         }
-        
+
         setStep("preview");
       }
     }
@@ -280,7 +280,7 @@ export const MediaUploadScreen: React.FC = () => {
 
     try {
       const mediaType: MediaType = selectedType === "youtube" ? "video" : selectedType;
-      
+
       let result;
 
       if (selectedType === "youtube") {
@@ -293,8 +293,8 @@ export const MediaUploadScreen: React.FC = () => {
       } else {
         // File upload: Send as multipart/form-data
         // Use compressed image for images, original for video
-        const fileUri = (selectedType !== "video" && compressedImage) 
-          ? compressedImage.uri 
+        const fileUri = (selectedType !== "video" && compressedImage)
+          ? compressedImage.uri
           : selectedFile?.uri;
 
         if (!fileUri) {
@@ -302,12 +302,12 @@ export const MediaUploadScreen: React.FC = () => {
         }
 
         // Prepare file info for FormData
-        const fileName = selectedType !== "video" 
+        const fileName = selectedType !== "video"
           ? `image_${Date.now()}.jpg` // Compressed images are always JPEG
           : `video_${Date.now()}.mp4`;
 
-        const mimeType = selectedType !== "video" 
-          ? "image/jpeg" 
+        const mimeType = selectedType !== "video"
+          ? "image/jpeg"
           : "video/mp4";
 
         result = await uploadMedia({
@@ -402,8 +402,8 @@ export const MediaUploadScreen: React.FC = () => {
 
       case "preview":
         // Use compressed image for preview (if available), fallback to original
-        const thumbnailUrl = selectedType === "youtube" 
-          ? getYoutubeThumbnail(youtubeUrl) 
+        const thumbnailUrl = selectedType === "youtube"
+          ? getYoutubeThumbnail(youtubeUrl)
           : (compressedImage?.uri || selectedFile?.uri);
 
         return (
@@ -496,7 +496,7 @@ export const MediaUploadScreen: React.FC = () => {
             {/* Submit Button */}
             <TouchableOpacity
               style={[
-                styles.submitButton, 
+                styles.submitButton,
                 (uploading || compressing) && styles.submitButtonDisabled
               ]}
               onPress={handleSubmit}
