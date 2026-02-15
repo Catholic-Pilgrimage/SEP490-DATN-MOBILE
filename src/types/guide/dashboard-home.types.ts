@@ -23,16 +23,24 @@ export type ShiftStatus = 'pending' | 'approved' | 'rejected';
  * GET /api/local-guide/site-schedule?week_start_date=YYYY-MM-DD
  */
 export interface SiteScheduleShift {
-  id: string;
-  site_id: string;
-  guide_id: string;
-  day_of_week: number; // 0 = Sunday, 6 = Saturday
+  shift_id: string;
+  submission_id: string;
   start_time: string;  // HH:mm:ss
   end_time: string;    // HH:mm:ss
+  guide_name: string;
+  status: ShiftStatus; // pending, approved, etc.
   is_mine: boolean;
-  status: ShiftStatus;
-  created_at: string;
-  updated_at: string;
+  day_of_week?: number; // Optional, might be inferred from key
+}
+
+export type SiteScheduleMap = Record<string, SiteScheduleShift[]>;
+
+export interface SiteScheduleData {
+  week_start_date: string;
+  site_id: string;
+  site_name: string;
+  opening_hours: any; // Define structure if known
+  schedule: SiteScheduleMap;
 }
 
 /**
@@ -40,7 +48,7 @@ export interface SiteScheduleShift {
  */
 export interface SiteScheduleResponse {
   success: boolean;
-  data: SiteScheduleShift[];
+  data: SiteScheduleData;
   message?: string;
 }
 

@@ -10,8 +10,20 @@
  */
 
 import {
-  compareTimeStrings,
+  ActiveShiftInfo,
+  EventItem,
+  MassSchedule,
+  MediaItem,
+  RecentActivityItem,
+  RecentActivityType,
+  SiteScheduleShift,
+  SOSInfo,
+  SOSRequest,
+  TodayOverviewItem,
+} from '../../../../types/guide';
+import {
   compareDatesDesc,
+  compareTimeStrings,
   formatTimeDisplay,
   getCurrentDayOfWeek,
   getCurrentTimeInMinutes,
@@ -20,18 +32,6 @@ import {
   isTodayInDays,
   parseTimeToMinutes,
 } from '../../../../utils/dateUtils';
-import {
-  ActiveShiftInfo,
-  MassSchedule,
-  RecentActivityItem,
-  RecentActivityType,
-  SiteScheduleShift,
-  SOSInfo,
-  SOSRequest,
-  TodayOverviewItem,
-  EventItem,
-  MediaItem,
-} from '../../../../types/guide';
 
 // ============================================
 // ACTIVE SHIFT LOGIC
@@ -56,10 +56,12 @@ export const getActiveShift = (
   };
 
   if (!shifts || !Array.isArray(shifts) || shifts.length === 0) {
+    console.log('[DashboardUtils] getActiveShift - No shifts provided');
     return defaultInfo;
   }
 
   const today = getCurrentDayOfWeek();
+  console.log('[DashboardUtils] getActiveShift - Today Index (0-6):', today);
 
   // Find my approved shift for today
   const todayShift = shifts.find(
@@ -69,12 +71,16 @@ export const getActiveShift = (
       shift.day_of_week === today
   );
 
+  console.log('[DashboardUtils] getActiveShift - Found Today Shift:', JSON.stringify(todayShift, null, 2));
+
   if (!todayShift) {
+    console.log('[DashboardUtils] getActiveShift - No approved shift for today found');
     return defaultInfo;
   }
 
   // Check if currently within shift time
   const isOnDuty = isCurrentTimeInRange(todayShift.start_time, todayShift.end_time);
+  console.log(`[DashboardUtils] getActiveShift - Time Check: ${todayShift.start_time} - ${todayShift.end_time} | Is On Duty: ${isOnDuty}`);
 
   // Calculate remaining time if on duty
   let remainingTime: string | undefined;
@@ -89,13 +95,16 @@ export const getActiveShift = (
     }
   }
 
-  return {
+  const result = {
     isOnDuty,
     shift: todayShift,
     startTime: formatTimeDisplay(todayShift.start_time, true),
     endTime: formatTimeDisplay(todayShift.end_time, true),
     remainingTime,
   };
+
+  console.log('[DashboardUtils] getActiveShift - Final Result:', JSON.stringify(result, null, 2));
+  return result;
 };
 
 // ============================================
@@ -136,7 +145,7 @@ export const getTodayOverview = (
     todayEvents.forEach((event) => {
       const startMinutes = parseTimeToMinutes(event.start_time);
       const endMinutes = parseTimeToMinutes(event.end_time);
-      
+
       const isNow =
         startMinutes !== null &&
         endMinutes !== null &&
@@ -171,7 +180,7 @@ export const getTodayOverview = (
 
     todaySchedules.forEach((schedule) => {
       const scheduleMinutes = parseTimeToMinutes(schedule.time);
-      
+
       // For schedules, consider "NOW" if within 30 minutes window
       const isNow =
         scheduleMinutes !== null &&
@@ -268,7 +277,7 @@ const getMediaSubtitle = (media: MediaItem): string => {
     video: 'Video',
     panorama: 'Ảnh 360°',
   };
-  
+
   const statusLabels: Record<string, string> = {
     pending: '• Chờ duyệt',
     approved: '• Đã duyệt',
@@ -540,8 +549,8 @@ export const getActiveShiftDisplay = (
     badgeText: 'On Duty',
     badgeTextVi: 'Đang trực',
     timeRange,
-    remainingText: shiftInfo.remainingTime 
-      ? `Còn ${shiftInfo.remainingTime}` 
+    remainingText: shiftInfo.remainingTime
+      ? `Còn ${shiftInfo.remainingTime}`
       : '',
   };
 };

@@ -43,15 +43,14 @@ const PREMIUM_COLORS = {
 // Navigation type
 type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList, 'MySiteHome'>;
 
-// Types - Updated with 5 tabs (using Vietnamese for shorter labels)
-type TabType = "Sự kiện" | "Media" | "Lịch lễ" | "Ca trực" | "Địa điểm";
+// Types - Updated with 4 tabs (using Vietnamese for shorter labels)
+type TabType = "Sự kiện" | "Media" | "Lịch lễ" | "Địa điểm";
 
 // Tab icons mapping
 const TAB_ICONS: Record<TabType, keyof typeof MaterialIcons.glyphMap> = {
   "Sự kiện": "event",
   "Media": "photo-library",
   "Lịch lễ": "church",
-  "Ca trực": "schedule",
   "Địa điểm": "place",
 };
 
@@ -226,7 +225,7 @@ const MySiteScreen: React.FC = () => {
       {/* Pill Tabs - Premium Design */}
       <View style={styles.tabsWrapper}>
         <UnderlineTabs
-          tabs={["Sự kiện", "Media", "Lịch lễ", "Ca trực", "Địa điểm"]}
+          tabs={["Sự kiện", "Media", "Lịch lễ", "Địa điểm"]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
@@ -274,22 +273,7 @@ const MySiteScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
         >
 
-          {/* Shifts Section Placeholder */}
-          {activeTab === "Ca trực" && (
-            <View style={styles.placeholderSection}>
-              <MaterialIcons
-                name="schedule"
-                size={64}
-                color={GUIDE_COLORS.gray300}
-              />
-              <Text style={styles.placeholderText}>
-                Ca trực - Coming Soon
-              </Text>
-              <Text style={styles.placeholderSubtext}>
-                Quản lý lịch ca trực của bạn
-              </Text>
-            </View>
-          )}
+          {/* Shifts Section - REMOVED (Moved to Bottom Tab) */}
 
           {/* Bottom Spacing */}
           <View style={{ height: 120 }} />

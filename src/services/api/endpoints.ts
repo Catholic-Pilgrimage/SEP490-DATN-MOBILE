@@ -151,6 +151,9 @@ export const GUIDE_ENDPOINTS = {
     base: `${API_BASE}/local-guide/shift-submissions`,
     create: `${API_BASE}/local-guide/shift-submissions`,
     list: `${API_BASE}/local-guide/shift-submissions`,
+    delete: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
+    update: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
+    detail: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
   },
 
   // Local Guide Mass Schedule - Lịch lễ management

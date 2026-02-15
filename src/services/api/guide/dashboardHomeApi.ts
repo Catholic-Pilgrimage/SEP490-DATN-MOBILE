@@ -17,8 +17,8 @@ import {
   DashboardOverview,
   DashboardStatistics,
   NotificationListResponse,
+  SiteScheduleData,
   SiteScheduleResponse,
-  SiteScheduleShift,
   SOSListResponse,
   SOSRequest
 } from "../../../types/guide";
@@ -66,7 +66,7 @@ export const getStatistics = async (
  */
 export const getSiteSchedule = async (
   weekStartDate: string
-): Promise<ApiResponse<SiteScheduleShift[]>> => {
+): Promise<ApiResponse<SiteScheduleData>> => {
   const response = await apiClient.get<SiteScheduleResponse>(
     GUIDE_ENDPOINTS.LOCAL_GUIDE_SITE_SCHEDULE,
     { params: { week_start_date: weekStartDate } }

@@ -7,7 +7,7 @@
 // ENUMS / UNION TYPES
 // ============================================
 
-export type ShiftSubmissionStatus = "pending" | "approved" | "rejected";
+export type ShiftSubmissionStatus = "pending" | "approved" | "rejected" | "completed";
 
 export type ShiftSubmissionType = "new" | "update"; // Assuming 'update' based on context, though example showed 'new'
 
@@ -60,6 +60,14 @@ export interface CreateShiftSubmissionRequest {
     change_reason?: string;
 }
 
+export interface UpdateShiftSubmissionRequest {
+    shifts: {
+        day_of_week: number;
+        start_time: string;
+        end_time: string;
+    }[];
+}
+
 export interface GetShiftSubmissionsParams {
     status?: ShiftSubmissionStatus;
     week_start_date?: string;
@@ -81,4 +89,9 @@ export interface CreateShiftSubmissionResponse {
 export interface GetShiftSubmissionsResponse {
     success: boolean;
     data: ShiftSubmission[];
+}
+
+export interface GetShiftSubmissionDetailResponse {
+    success: boolean;
+    data: ShiftSubmission;
 }

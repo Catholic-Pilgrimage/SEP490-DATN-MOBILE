@@ -15,13 +15,13 @@
  */
 export const parseTimeToMinutes = (timeString: string | undefined | null): number | null => {
   if (!timeString) return null;
-  
+
   const parts = timeString.split(':').map(Number);
   if (parts.length < 2 || parts.some(isNaN)) return null;
-  
+
   const [hours, minutes] = parts;
   if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  
+
   return hours * 60 + minutes;
 };
 
@@ -45,16 +45,16 @@ export const isCurrentTimeInRange = (
 ): boolean => {
   const start = parseTimeToMinutes(startTime);
   const end = parseTimeToMinutes(endTime);
-  
+
   if (start === null || end === null) return false;
-  
+
   const current = getCurrentTimeInMinutes();
-  
+
   // Handle overnight ranges (e.g., 22:00 - 06:00)
   if (end < start) {
     return current >= start || current <= end;
   }
-  
+
   return current >= start && current <= end;
 };
 
@@ -66,16 +66,16 @@ export const formatTimeDisplay = (
   use24Hour = false
 ): string => {
   if (!timeString) return '--:--';
-  
+
   const parts = timeString.split(':').map(Number);
   if (parts.length < 2 || parts.some(isNaN)) return '--:--';
-  
+
   const [hours, minutes] = parts;
-  
+
   if (use24Hour) {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   }
-  
+
   const period = hours >= 12 ? 'PM' : 'AM';
   const displayHours = hours % 12 || 12;
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
@@ -115,7 +115,7 @@ export const isTodayInDays = (daysOfWeek: number[] | undefined | null): boolean 
 export const getDayName = (dayOfWeek: number, locale: 'en' | 'vi' = 'vi'): string => {
   const enDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const viDays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-  
+
   const days = locale === 'en' ? enDays : viDays;
   return days[dayOfWeek] || '';
 };
@@ -165,13 +165,16 @@ export const isDateInRange = (
 /**
  * Get start of current week (Monday)
  */
-export const getWeekStartDate = (): string => {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
+/**
+ * Get start of current week (Monday) or week of given date
+ */
+export const getWeekStartDate = (date?: Date): string => {
+  const targetDate = date ? new Date(date) : new Date();
+  const dayOfWeek = targetDate.getDay();
   // Adjust to get Monday (day 1). If Sunday (0), go back 6 days
   const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diff);
+  const monday = new Date(targetDate);
+  monday.setDate(targetDate.getDate() + diff);
   return formatDateToISO(monday);
 };
 
@@ -270,7 +273,7 @@ export const formatDateDisplay = (
   if (!dateString) return '';
 
   const date = new Date(dateString);
-  
+
   if (locale === 'vi') {
     return date.toLocaleDateString('vi-VN', {
       day: '2-digit',

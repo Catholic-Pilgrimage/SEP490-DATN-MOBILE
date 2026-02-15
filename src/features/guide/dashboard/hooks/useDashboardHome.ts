@@ -24,6 +24,7 @@ import {
   DashboardHomeErrorState,
   DashboardHomeLoadingState,
   PendingBadges,
+  SiteScheduleShift,
   SOSInfo
 } from '../../../../types/guide';
 import { getSiteOpenStatus, getWeekStartDate } from '../../../../utils/dateUtils';
@@ -151,7 +152,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     queryFn: async () => {
       const response = await dashboardHomeApi.getSiteSchedule(weekStart);
       if (!response?.success) throw new Error(response?.message || 'Failed to load shift info');
-      return response?.data || [];
+      return response?.data; // Returns SiteScheduleData
     },
   });
 
@@ -225,10 +226,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     },
   });
 
-  // ============================================
-  // DATA PROCESSING (MEMOIZED)
-  // ============================================
-
+  // Result of Missing processedSiteInfo restoration
   // Process site info with open/closed status
   const processedSiteInfo = useMemo(() => {
     const rawSite = siteQuery.data;
@@ -251,8 +249,23 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
 
   // Process active shift
   const processedActiveShift = useMemo(() => {
-    return getActiveShift(activeShiftQuery.data || []);
-  }, [activeShiftQuery.data]);
+    const rawData = activeShiftQuery.data;
+    console.log('[Dashboard] Active Shift Query - WeekStart:', weekStart);
+    console.log('[Dashboard] Active Shift Query - Raw Data:', JSON.stringify(rawData, null, 2));
+
+    let allShifts: SiteScheduleShift[] = [];
+
+    if (rawData?.schedule) {
+      Object.values(rawData.schedule).forEach((shifts) => {
+        if (Array.isArray(shifts)) {
+          allShifts = [...allShifts, ...shifts];
+        }
+      });
+    }
+
+    console.log('[Dashboard] All Processed Shifts:', JSON.stringify(allShifts, null, 2));
+    return getActiveShift(allShifts);
+  }, [activeShiftQuery.data, weekStart]);
 
   // Process today's overview
   const processedTodayOverview = useMemo(() => {

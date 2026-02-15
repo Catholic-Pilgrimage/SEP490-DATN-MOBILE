@@ -1,3 +1,4 @@
+
 export const USER_KEYS = {
     profile: ['user', 'profile'] as const,
 };
@@ -23,5 +24,10 @@ export const GUIDE_KEYS = {
         all: () => [...GUIDE_KEYS.all, 'sos'] as const,
         list: (params?: any) => [...GUIDE_KEYS.all, 'sos', 'list', params] as const,
         detail: (id: string) => [...GUIDE_KEYS.all, 'sos', 'detail', id] as const,
+    },
+    shiftSubmissions: {
+        all: ['guide', 'shift-submissions'] as const,
+        list: (filters?: any) => [...['guide', 'shift-submissions'], 'list', filters] as const,
+        detail: (id: string) => [...['guide', 'shift-submissions'], 'detail', id] as const,
     },
 };
