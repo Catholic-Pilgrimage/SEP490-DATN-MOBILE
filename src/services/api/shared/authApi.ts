@@ -162,9 +162,14 @@ export const updateProfile = async (
 export const changePassword = async (
   data: ChangePasswordRequest,
 ): Promise<ApiResponse<void>> => {
+  const payload = {
+    current_password: data.currentPassword,
+    new_password: data.newPassword,
+    confirm_password: data.confirmPassword,
+  };
   const response = await apiClient.put<ApiResponse<void>>(
     AUTH_ENDPOINTS.CHANGE_PASSWORD,
-    data,
+    payload,
   );
   return response.data;
 };
@@ -188,9 +193,15 @@ export const forgotPassword = async (
 export const resetPassword = async (
   data: ResetPasswordRequest,
 ): Promise<ApiResponse<void>> => {
+  const payload = {
+    email: data.email,
+    otp: data.otp,
+    new_password: data.newPassword,
+    confirm_password: data.confirmPassword,
+  };
   const response = await apiClient.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.RESET_PASSWORD,
-    data,
+    payload,
   );
   return response.data;
 };

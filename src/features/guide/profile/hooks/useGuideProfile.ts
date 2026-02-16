@@ -3,6 +3,7 @@
  * Custom hook for fetching and managing the Local Guide's profile information
  * Uses GET /api/auth/profile API
  */
+import { UpdateProfileRequest } from "../../../../types/user.types";
 
 import { useCallback, useEffect, useState } from "react";
 import { authApi } from "../../../../services/api";
@@ -52,6 +53,7 @@ export interface UseGuideProfileResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<void>;
   isVerified: boolean;
 }
 
@@ -147,6 +149,23 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     }
   }, []);
 
+  const updateProfile = useCallback(async (data: UpdateProfileRequest) => {
+    try {
+      setLoading(true);
+      const response = await authApi.updateProfile(data);
+      if (response.success) {
+        await fetchProfile(); // Reload data after update
+      } else {
+        throw new Error(response.message || 'Failed to update profile');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchProfile]);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -160,6 +179,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     loading,
     error,
     refetch: fetchProfile,
+    updateProfile,
     isVerified,
   };
 };
