@@ -2,9 +2,11 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
 import SplashScreen from '../features/auth/screens/SplashScreen';
 import { PersonalInfoScreen } from '../features/guide/profile/screens';
 import { SOSDetailScreen, SOSListScreen } from '../features/guide/support/screens';
+import SettingsScreen from '../features/shared/settings/screens/SettingsScreen';
 import { AuthNavigator } from './AuthNavigator';
 import { GuideNavigator } from './GuideNavigator';
 import { PilgrimNavigator } from './PilgrimNavigator';
@@ -19,6 +21,8 @@ export type RootStackParamList = {
   // Guide Support Screens
   SOSList: undefined;
   SOSDetail: { id: string };
+  ChangePassword: undefined;
+  Settings: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -78,6 +82,21 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="SOSDetail"
           component={SOSDetailScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="ChangePassword"
+          component={ChangePasswordScreen}
+          options={{
+            animation: 'slide_from_right',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
           options={{
             animation: 'slide_from_right',
           }}

@@ -184,19 +184,10 @@ const ProfileScreen: React.FC = () => {
   }, [navigation]);
 
   const handleSettings = useCallback(() => {
-    // TODO: Navigate to Settings screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
+    (navigation as any).navigate("Settings");
+  }, [navigation]);
 
-  const handleHelp = useCallback(() => {
-    // TODO: Navigate to Help screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
 
-  const handleAbout = useCallback(() => {
-    // TODO: Navigate to About screen
-    Alert.alert("Về chúng tôi", "Nazareth Guild v1.4.2\n\nỨng dụng hỗ trợ hướng dẫn viên hành hương");
-  }, []);
 
   const handleSignOut = useCallback(() => {
     Alert.alert(
@@ -349,16 +340,6 @@ const ProfileScreen: React.FC = () => {
             icon="settings-outline"
             label="Cài đặt"
             onPress={handleSettings}
-          />
-          <MenuItem
-            icon="help-circle-outline"
-            label="Trợ giúp"
-            onPress={handleHelp}
-          />
-          <MenuItem
-            icon="information-circle-outline"
-            label="Về chúng tôi"
-            onPress={handleAbout}
             isLast
           />
         </View>
