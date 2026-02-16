@@ -112,12 +112,13 @@ export const AvailableShiftsTab: React.FC = () => {
                 if (!alreadyExists) {
                     // Start time formatting
                     combined.push({
-                        id: myShift.id,
+                        shift_id: myShift.id,
+                        submission_id: myShift.submission_id,
                         start_time: myShift.start_time,
                         end_time: myShift.end_time,
                         guide_name: "Bạn", // Fallback name
                         is_mine: true,
-                        status: "active",
+                        status: "approved",
                         guide_avatar: undefined // Optional
                     });
                 }
@@ -131,7 +132,7 @@ export const AvailableShiftsTab: React.FC = () => {
     const renderShiftItem = (shift: SiteScheduleShift, index: number) => {
         const isMine = shift.is_mine;
         return (
-            <View key={`${shift.id}-${index}`} style={[styles.shiftCard, isMine ? styles.myShiftCard : styles.otherShiftCard]}>
+            <View key={`${shift.shift_id}-${index}`} style={[styles.shiftCard, isMine ? styles.myShiftCard : styles.otherShiftCard]}>
                 <View style={styles.shiftTimeContainer}>
                     <View style={[styles.timeDot, isMine ? { backgroundColor: '#B45309' } : { backgroundColor: GUIDE_COLORS.textSecondary }]} />
                     <Text style={[styles.shiftTimeText, isMine && styles.myShiftText]}>
@@ -218,7 +219,7 @@ export const AvailableShiftsTab: React.FC = () => {
                     ) : (
                         <View style={styles.emptyState}>
                             <View style={styles.emptyIconBg}>
-                                <MaterialIcons name="event-busy" size={40} color={GUIDE_COLORS.textNote} />
+                                <MaterialIcons name="event-busy" size={40} color={GUIDE_COLORS.textSecondary} />
                             </View>
                             <Text style={styles.emptyText}>Chưa có lịch trực nào trong ngày này</Text>
                         </View>

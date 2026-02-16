@@ -31,6 +31,7 @@ export interface SiteScheduleShift {
   status: ShiftStatus; // pending, approved, etc.
   is_mine: boolean;
   day_of_week?: number; // Optional, might be inferred from key
+  guide_avatar?: string; // Optional avatar url
 }
 
 export type SiteScheduleMap = Record<string, SiteScheduleShift[]>;
