@@ -10,7 +10,8 @@ export const useGuideSOSList = (params?: GuideSOSListParams) => {
             const response = await guideSOSApi.getGuideSOSList(params);
             return response.data;
         },
-        refetchInterval: 10000, // Poll every 10 seconds for "realtime" feel
+        refetchInterval: 30000, // Poll every 30 seconds for SOS updates
+        refetchIntervalInBackground: false, // Stop polling when app is in background
     });
 };
 
@@ -21,7 +22,8 @@ export const useGuideSOSDetail = (id: string) => {
             const response = await guideSOSApi.getGuideSOSDetail(id);
             return response.data;
         },
-        refetchInterval: 5000, // Poll detail faster
+        refetchInterval: 15000, // Poll detail every 15 seconds
+        refetchIntervalInBackground: false,
         enabled: !!id,
     });
 };

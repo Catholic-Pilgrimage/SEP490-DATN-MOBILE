@@ -23,3 +23,6 @@ export * from "../common.types";
 
 // SOS types
 export * from "./sos.types";
+
+// Verification types
+export * from "./verification.types";

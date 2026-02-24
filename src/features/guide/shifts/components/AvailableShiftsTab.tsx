@@ -1,242 +1,280 @@
 
-import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
+import { StyleSheet, View } from 'react-native';
+import { GUIDE_COLORS } from '../../../../constants/guide.constants';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
-import { dashboardApi, getShiftSubmissions } from '../../../../services/api/guide';
+import { dashboardApi, getShiftSubmissions, guideEventApi } from '../../../../services/api/guide';
 import { SiteScheduleShift } from '../../../../types/guide/dashboard-home.types';
+import { EventItem } from '../../../../types/guide/event.types';
 import { formatDateToISO, getWeekStartDate } from '../../../../utils/dateUtils';
+import { DayDetailSheet } from './DayDetailSheet';
+import { DayData, MonthCalendar } from './MonthCalendar';
 import { ShiftRegistrationModal } from './ShiftRegistrationModal';
 
 export const AvailableShiftsTab: React.FC = () => {
+    const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
+    const [isDetailVisible, setDetailVisible] = useState(false);
     const [isRegisterModalVisible, setRegisterModalVisible] = useState(false);
 
     // Calculate week start based on the currently selected date
-    // weekStart is already YYYY-MM-DD
     const weekStart = useMemo(() => getWeekStartDate(selectedDate), [selectedDate]);
 
-    // Query 1: Site Schedule (Everyone)
-    const { data: scheduleResponse, isLoading, refetch: refetchSchedule, isRefetching: isRefetchingSchedule } = useQuery({
-        queryKey: GUIDE_KEYS.dashboard.activeShift(weekStart),
-        queryFn: () => dashboardApi.getSiteSchedule(weekStart),
-        refetchInterval: 10000,
+    // All week starts for the visible month (covers all days shown in calendar)
+    const monthWeekStarts = useMemo(() => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+
+        const starts = new Set<string>();
+        let d = new Date(firstDay);
+        const dayOfWeek = d.getDay();
+        const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        d.setDate(d.getDate() + offset);
+
+        while (d <= lastDay || d <= new Date(year, month + 1, 6)) {
+            starts.add(getWeekStartDate(d));
+            d.setDate(d.getDate() + 7);
+        }
+
+        return Array.from(starts);
+    }, [currentMonth]);
+
+    // ============================================
+    // QUERIES
+    // ============================================
+
+    // Query 1: Site Schedules — fetch ALL weeks in the visible month
+    const scheduleQueries = useQueries({
+        queries: monthWeekStarts.map(ws => ({
+            queryKey: GUIDE_KEYS.dashboard.activeShift(ws),
+            queryFn: () => dashboardApi.getSiteSchedule(ws),
+            staleTime: 5 * 60 * 1000, // Cache 5 mins to avoid redundant calls
+        })),
     });
 
-    // Query 2: My Approved Submissions (Backup to ensure my shifts are visible)
-    const { data: mySubmissionsResponse, refetch: refetchSubmissions, isRefetching: isRefetchingSubmissions } = useQuery({
-        queryKey: GUIDE_KEYS.shiftSubmissions.list({ week_start_date: weekStart }),
-        queryFn: () => getShiftSubmissions({ week_start_date: weekStart }),
-        refetchInterval: 10000,
+    const isScheduleLoading = scheduleQueries.some(q => q.isLoading);
+
+    // Query 2: My Submissions — fetch ALL (no week filter)
+    const { data: mySubmissionsResponse, refetch: refetchSubmissions } = useQuery({
+        queryKey: GUIDE_KEYS.shiftSubmissions.list({ scope: 'all_weeks' }),
+        queryFn: async () => {
+            const res = await getShiftSubmissions();
+            // Ensure we never return undefined (React Query requirement)
+            return res ?? { success: true, data: [] };
+        },
     });
 
-    const isRefetching = isRefetchingSchedule || isRefetchingSubmissions;
-
-    const refetchAll = () => {
-        refetchSchedule();
-        refetchSubmissions();
-    };
+    // Query 3: Events (approved & active)
+    const { data: eventsResponse, refetch: refetchEvents } = useQuery({
+        queryKey: GUIDE_KEYS.events({ status: 'approved', is_active: true }),
+        queryFn: () => guideEventApi.getEvents({ status: 'approved', is_active: true, limit: 50 }),
+    });
 
     useFocusEffect(
         useCallback(() => {
-            refetchAll();
-        }, [refetchSchedule, refetchSubmissions])
+            scheduleQueries.forEach(q => q.refetch());
+            refetchSubmissions();
+            refetchEvents();
+        }, [refetchSubmissions, refetchEvents])
     );
 
-    // Helper to change week
-    const changeWeek = (offset: number) => {
-        const newDate = new Date(selectedDate);
-        newDate.setDate(newDate.getDate() + (offset * 7));
-        setSelectedDate(newDate);
-    };
+    // ============================================
+    // MERGE ALL SCHEDULE DATA INTO A SINGLE MAP
+    // ============================================
 
-    // Generate days of the week
-    const weekDays = useMemo(() => {
-        const start = new Date(weekStart);
-        const days = [];
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start);
-            d.setDate(start.getDate() + i);
-            days.push(d);
-        }
-        return days;
-    }, [weekStart]);
+    const mergedScheduleMap = useMemo<Record<string, SiteScheduleShift[]>>(() => {
+        const merged: Record<string, SiteScheduleShift[]> = {};
 
-    // Format week range for header
-    const weekRangeText = useMemo(() => {
-        if (weekDays.length === 0) return '';
-        const start = weekDays[0];
-        const end = weekDays[6];
-        return `Tháng ${start.getMonth() + 1}, ${start.getFullYear()}`;
-    }, [weekDays]);
+        scheduleQueries.forEach(q => {
+            const scheduleMap = q.data?.data?.schedule;
+            if (scheduleMap) {
+                Object.entries(scheduleMap).forEach(([dateKey, shifts]) => {
+                    if (Array.isArray(shifts)) {
+                        if (!merged[dateKey]) {
+                            merged[dateKey] = [];
+                        }
+                        // Merge shifts, avoiding duplicates by shift_id
+                        shifts.forEach(shift => {
+                            const exists = merged[dateKey].some(
+                                s => s.shift_id === shift.shift_id
+                            );
+                            if (!exists) {
+                                merged[dateKey].push(shift);
+                            }
+                        });
+                    }
+                });
+            }
+        });
 
-    const getDayNameShort = (date: Date) => {
-        const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-        return days[date.getDay()];
-    };
+        return merged;
+    }, [scheduleQueries.map(q => q.data)]);
 
-    const isSameDay = (d1: Date, d2: Date) => {
-        return d1.getFullYear() === d2.getFullYear() &&
-            d1.getMonth() === d2.getMonth() &&
-            d1.getDate() === d2.getDate();
-    };
+    // ============================================
+    // BUILD DAY DATA MAP FOR CALENDAR
+    // ============================================
 
-    // MERGE LOGIC: Combine Site Schedule with My Approved Shifts
-    const allShifts = useMemo(() => {
-        const selectedDateKey = formatDateToISO(selectedDate);
-        // Start with server schedule
-        const serverShifts = scheduleResponse?.data?.schedule?.[selectedDateKey] || [];
+    const dayDataMap = useMemo<Record<string, DayData>>(() => {
+        const map: Record<string, DayData> = {};
+
+        // --- Process ALL shifts from merged schedule ---
+        Object.entries(mergedScheduleMap).forEach(([dateKey, shifts]) => {
+            if (shifts.length > 0) {
+                map[dateKey] = {
+                    shiftCount: shifts.length,
+                    hasMyShift: shifts.some(s => s.is_mine),
+                    eventNames: [],
+                };
+            }
+        });
+
+        // --- Process my approved submissions ---
+        const submissions = mySubmissionsResponse?.data || [];
+        submissions.forEach(sub => {
+            if (sub.status === 'approved' && sub.shifts) {
+                sub.shifts.forEach(shift => {
+                    const ws = new Date(sub.week_start_date);
+                    const currentDay = ws.getDay();
+                    let diff = shift.day_of_week - currentDay;
+                    if (diff < 0) diff += 7;
+                    const shiftDate = new Date(ws);
+                    shiftDate.setDate(ws.getDate() + diff);
+                    const dateKey = formatDateToISO(shiftDate);
+
+                    if (!map[dateKey]) {
+                        map[dateKey] = { shiftCount: 1, hasMyShift: true, eventNames: [] };
+                    } else {
+                        map[dateKey].hasMyShift = true;
+                    }
+                });
+            }
+        });
+
+        // --- Process events ---
+        const events: EventItem[] = eventsResponse?.data?.data || [];
+        events.forEach(event => {
+            if (!event.start_date) return;
+
+            const startDate = event.start_date;
+            const endDate = event.end_date || startDate;
+
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateKey = formatDateToISO(d);
+                if (!map[dateKey]) {
+                    map[dateKey] = { shiftCount: 0, hasMyShift: false, eventNames: [] };
+                }
+                if (!map[dateKey].eventNames.includes(event.name)) {
+                    map[dateKey].eventNames.push(event.name);
+                }
+            }
+        });
+
+        return map;
+    }, [mergedScheduleMap, mySubmissionsResponse, eventsResponse]);
+
+    // ============================================
+    // GET SHIFTS FOR SELECTED DAY (for detail sheet)
+    // ============================================
+
+    const selectedDayShifts = useMemo<SiteScheduleShift[]>(() => {
+        const dateKey = formatDateToISO(selectedDate);
+        const serverShifts = mergedScheduleMap[dateKey] || [];
         const combined = [...serverShifts];
 
-        // Find my APPROVED submission for this week
-        const myApprovedSubmission = mySubmissionsResponse?.data?.find(
-            s => s.status === 'approved' && s.week_start_date === weekStart
-        );
+        // Merge approved submissions not already in server data
+        const submissions = mySubmissionsResponse?.data || [];
+        const ws = getWeekStartDate(selectedDate);
+        const approvedSub = submissions.find(s => s.status === 'approved' && s.week_start_date === ws);
 
-        if (myApprovedSubmission && myApprovedSubmission.shifts) {
-            // Filter shifts for the CURRENT selected day (0-6)
-            const currentDayOfWeek = selectedDate.getDay();
-            const myDailyShifts = myApprovedSubmission.shifts.filter(s => s.day_of_week === currentDayOfWeek);
+        if (approvedSub?.shifts) {
+            const dow = selectedDate.getDay();
+            const myDailyShifts = approvedSub.shifts.filter(s => s.day_of_week === dow);
 
             myDailyShifts.forEach(myShift => {
-                // Check if this shift is ALREADY in the server list (avoid duplicates)
-                // We match by start time (roughly) and ownership
-                const alreadyExists = combined.some(existing =>
-                    existing.is_mine &&
-                    existing.start_time.substring(0, 5) === myShift.start_time.substring(0, 5)
+                const alreadyExists = combined.some(
+                    existing =>
+                        existing.is_mine &&
+                        existing.start_time.substring(0, 5) === myShift.start_time.substring(0, 5)
                 );
 
                 if (!alreadyExists) {
-                    // Start time formatting
                     combined.push({
                         shift_id: myShift.id,
                         submission_id: myShift.submission_id,
                         start_time: myShift.start_time,
                         end_time: myShift.end_time,
-                        guide_name: "Bạn", // Fallback name
+                        guide_name: 'Bạn',
                         is_mine: true,
-                        status: "approved",
-                        guide_avatar: undefined // Optional
+                        status: 'approved',
+                        guide_avatar: undefined,
                     });
                 }
             });
         }
 
-        // Sort by start time
         return combined.sort((a, b) => a.start_time.localeCompare(b.start_time));
-    }, [selectedDate, scheduleResponse, mySubmissionsResponse, weekStart]);
+    }, [selectedDate, mergedScheduleMap, mySubmissionsResponse]);
 
-    const renderShiftItem = (shift: SiteScheduleShift, index: number) => {
-        const isMine = shift.is_mine;
-        return (
-            <View key={`${shift.shift_id}-${index}`} style={[styles.shiftCard, isMine ? styles.myShiftCard : styles.otherShiftCard]}>
-                <View style={styles.shiftTimeContainer}>
-                    <View style={[styles.timeDot, isMine ? { backgroundColor: '#B45309' } : { backgroundColor: GUIDE_COLORS.textSecondary }]} />
-                    <Text style={[styles.shiftTimeText, isMine && styles.myShiftText]}>
-                        {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
-                    </Text>
-                </View>
-                <View style={styles.dividerVertical} />
-                <View style={styles.guideInfo}>
-                    <Text style={[styles.guideName, isMine && styles.myShiftText]}>
-                        {isMine ? 'Bạn' : shift.guide_name}
-                    </Text>
-                    <View style={[styles.roleTag, isMine && styles.myRoleTag]}>
-                        <Text style={[styles.roleTagText, isMine && styles.myRoleTagText]}>
-                            {isMine ? 'Guide (Bạn)' : 'Guide'}
-                        </Text>
-                    </View>
-                </View>
-            </View>
-        );
+    // Get events for selected day (for detail sheet)
+    const selectedDayEvents = useMemo<EventItem[]>(() => {
+        const dateKey = formatDateToISO(selectedDate);
+        const events: EventItem[] = eventsResponse?.data?.data || [];
+        return events.filter(e => {
+            const start = e.start_date;
+            const end = e.end_date || start;
+            return dateKey >= start && dateKey <= end;
+        });
+    }, [selectedDate, eventsResponse]);
+
+    // ============================================
+    // HANDLERS
+    // ============================================
+
+    const handleChangeMonth = (offset: number) => {
+        setCurrentMonth(prev => {
+            const newMonth = new Date(prev);
+            newMonth.setMonth(newMonth.getMonth() + offset);
+            return newMonth;
+        });
+    };
+
+    const handleSelectDate = (date: Date) => {
+        setSelectedDate(date);
+        setDetailVisible(true);
     };
 
     return (
         <View style={styles.container}>
-            {/* Header with Month/Year and Week Nav */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => changeWeek(-1)} style={styles.navButton}>
-                    <MaterialIcons name="chevron-left" size={28} color={GUIDE_COLORS.textPrimary} />
-                </TouchableOpacity>
-                <Text style={styles.weekTitle}>{weekRangeText}</Text>
-                <TouchableOpacity onPress={() => changeWeek(1)} style={styles.navButton}>
-                    <MaterialIcons name="chevron-right" size={28} color={GUIDE_COLORS.textPrimary} />
-                </TouchableOpacity>
-            </View>
+            <MonthCalendar
+                currentMonth={currentMonth}
+                selectedDate={selectedDate}
+                dayDataMap={dayDataMap}
+                onSelectDate={handleSelectDate}
+                onChangeMonth={handleChangeMonth}
+            />
 
-            {/* Horizontal Day Strip */}
-            <View style={styles.dateStripContainer}>
-                {weekDays.map((date, index) => {
-                    const isSelected = isSameDay(date, selectedDate);
-                    const isToday = isSameDay(date, new Date());
+            {/* Day Detail Bottom Sheet */}
+            <DayDetailSheet
+                visible={isDetailVisible}
+                date={selectedDate}
+                shifts={selectedDayShifts}
+                events={selectedDayEvents}
+                isLoading={isScheduleLoading}
+                onClose={() => setDetailVisible(false)}
+                onRegister={() => {
+                    setDetailVisible(false);
+                    setRegisterModalVisible(true);
+                }}
+            />
 
-                    return (
-                        <TouchableOpacity
-                            key={index}
-                            style={[
-                                styles.dateStripItem,
-                                isSelected && styles.dateStripItemActive,
-                                isToday && !isSelected && styles.dateStripItemToday
-                            ]}
-                            onPress={() => setSelectedDate(date)}
-                        >
-                            <Text style={[styles.dateStripDay, isSelected && styles.dateStripTextActive]}>
-                                {getDayNameShort(date)}
-                            </Text>
-                            <View style={[styles.dateNumberContainer, isSelected && styles.dateNumberContainerActive]}>
-                                <Text style={[styles.dateStripDate, isSelected && styles.dateStripTextActive]}>
-                                    {date.getDate()}
-                                </Text>
-                            </View>
-                            {isToday && <View style={styles.todayIndicator} />}
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
-
-            {isLoading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-                </View>
-            ) : (
-                <ScrollView
-                    style={styles.scrollContainer}
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                    refreshControl={
-                        <RefreshControl refreshing={isRefetching} onRefresh={refetchAll} colors={[GUIDE_COLORS.primary]} />
-                    }
-                >
-                    <Text style={styles.sectionTitle}>
-                        Lịch trực ngày {selectedDate.getDate()}/{selectedDate.getMonth() + 1}
-                    </Text>
-
-                    {allShifts.length > 0 ? (
-                        allShifts.map((shift, idx) => renderShiftItem(shift, idx))
-                    ) : (
-                        <View style={styles.emptyState}>
-                            <View style={styles.emptyIconBg}>
-                                <MaterialIcons name="event-busy" size={40} color={GUIDE_COLORS.textSecondary} />
-                            </View>
-                            <Text style={styles.emptyText}>Chưa có lịch trực nào trong ngày này</Text>
-                        </View>
-                    )}
-                </ScrollView>
-            )}
-
-            {/* FAB */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => setRegisterModalVisible(true)}
-                activeOpacity={0.9}
-            >
-                <MaterialIcons name="add" size={24} color={GUIDE_COLORS.textDark} />
-                <Text style={styles.fabText}>Đăng ký ca tuần</Text>
-            </TouchableOpacity>
-
+            {/* Registration Modal */}
             <ShiftRegistrationModal
                 visible={isRegisterModalVisible}
                 onClose={() => setRegisterModalVisible(false)}
@@ -249,214 +287,6 @@ export const AvailableShiftsTab: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F8F9FA', // Lighter background
+        backgroundColor: GUIDE_COLORS.background,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: GUIDE_SPACING.md,
-        paddingVertical: 12,
-        backgroundColor: GUIDE_COLORS.surface,
-    },
-    navButton: {
-        padding: 4,
-        backgroundColor: GUIDE_COLORS.gray100,
-        borderRadius: 8,
-    },
-    weekTitle: {
-        fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-        fontWeight: 'bold',
-        color: GUIDE_COLORS.textPrimary,
-    },
-    // Date Strip
-    dateStripContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        backgroundColor: GUIDE_COLORS.surface,
-        paddingBottom: 16,
-        paddingTop: 4,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-        ...GUIDE_SHADOWS.sm,
-        zIndex: 1,
-    },
-    dateStripItem: {
-        alignItems: 'center',
-        paddingVertical: 6,
-        width: 44,
-        borderRadius: 22,
-    },
-    dateStripItemActive: {
-        // backgroundColor: GUIDE_COLORS.primary, // Using primary color for selection
-    },
-    dateStripItemToday: {
-        backgroundColor: GUIDE_COLORS.gray100,
-    },
-    dateStripDay: {
-        fontSize: 12,
-        color: GUIDE_COLORS.textSecondary,
-        marginBottom: 4,
-        fontWeight: '600',
-    },
-    dateNumberContainer: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'transparent',
-    },
-    dateNumberContainerActive: {
-        backgroundColor: GUIDE_COLORS.primary,
-        ...GUIDE_SHADOWS.sm,
-    },
-    dateStripDate: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: GUIDE_COLORS.textPrimary,
-    },
-    dateStripTextActive: {
-        color: GUIDE_COLORS.textDark, // Contrast text for active state
-    },
-    todayIndicator: {
-        width: 4,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: GUIDE_COLORS.primary,
-        marginTop: 4,
-    },
-    // Content
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scrollContainer: {
-        flex: 1,
-        marginTop: 12,
-    },
-    scrollContent: {
-        padding: GUIDE_SPACING.md,
-        paddingBottom: 100,
-    },
-    sectionTitle: {
-        fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-        fontWeight: 'bold',
-        color: GUIDE_COLORS.textSecondary,
-        marginBottom: 12,
-        marginLeft: 4,
-    },
-    // Shift Card
-    shiftCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderRadius: 16,
-        backgroundColor: GUIDE_COLORS.surface,
-        marginBottom: 12,
-        ...GUIDE_SHADOWS.sm,
-    },
-    myShiftCard: {
-        backgroundColor: '#FFFBEB',
-        borderWidth: 1,
-        borderColor: GUIDE_COLORS.primary,
-    },
-    otherShiftCard: {
-        backgroundColor: GUIDE_COLORS.surface,
-    },
-    shiftTimeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        width: 100,
-        gap: 8,
-    },
-    timeDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    shiftTimeText: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: GUIDE_COLORS.textPrimary,
-    },
-    dividerVertical: {
-        width: 1,
-        height: '80%',
-        backgroundColor: GUIDE_COLORS.borderLight,
-        marginHorizontal: 12,
-    },
-    guideInfo: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    guideName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: GUIDE_COLORS.textPrimary,
-    },
-    roleTag: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        backgroundColor: GUIDE_COLORS.gray100,
-        borderRadius: 4,
-    },
-    roleTagText: {
-        fontSize: 10,
-        color: GUIDE_COLORS.textSecondary,
-        fontWeight: '600',
-    },
-    myRoleTag: {
-        backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    },
-    myRoleTagText: {
-        color: '#B45309',
-    },
-    myShiftText: {
-        color: '#92400E',
-    },
-    // Empty State
-    emptyState: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 40,
-        opacity: 0.7,
-    },
-    emptyIconBg: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: GUIDE_COLORS.gray100,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-    },
-    emptyText: {
-        fontSize: 15,
-        color: GUIDE_COLORS.textSecondary,
-    },
-    // FAB
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 24,
-        backgroundColor: GUIDE_COLORS.primary,
-        borderRadius: 24,
-        height: 48,
-        paddingHorizontal: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        ...GUIDE_SHADOWS.md,
-        gap: 8,
-        elevation: 6,
-    },
-    fabText: {
-        fontSize: 14,
-        fontWeight: 'bold',
-        color: GUIDE_COLORS.textDark,
-    }
 });

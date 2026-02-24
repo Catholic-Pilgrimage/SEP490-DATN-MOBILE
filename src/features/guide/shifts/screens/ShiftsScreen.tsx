@@ -1,8 +1,9 @@
 
+import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GUIDE_COLORS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
+import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 import { AvailableShiftsTab } from '../components/AvailableShiftsTab';
 import { MyShiftsTab } from '../components/MyShiftsTab';
 
@@ -16,7 +17,15 @@ export const ShiftsScreen: React.FC = () => {
 
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Lịch làm việc</Text>
+                <View style={styles.headerTop}>
+                    <View>
+                        <Text style={styles.headerTitle}>Lịch làm việc</Text>
+                        <Text style={styles.headerSubtitle}>Quản lý ca trực & đăng ký</Text>
+                    </View>
+                    <View style={styles.headerIcon}>
+                        <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
+                    </View>
+                </View>
             </View>
 
             {/* Segmented Control */}
@@ -27,6 +36,11 @@ export const ShiftsScreen: React.FC = () => {
                         onPress={() => setActiveTab('find')}
                         activeOpacity={0.9}
                     >
+                        <MaterialIcons
+                            name="date-range"
+                            size={16}
+                            color={activeTab === 'find' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
+                        />
                         <Text style={[styles.segmentText, activeTab === 'find' && styles.segmentTextActive]}>
                             Lịch toàn Site
                         </Text>
@@ -37,6 +51,11 @@ export const ShiftsScreen: React.FC = () => {
                         onPress={() => setActiveTab('my')}
                         activeOpacity={0.9}
                     >
+                        <MaterialIcons
+                            name="assignment"
+                            size={16}
+                            color={activeTab === 'my' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
+                        />
                         <Text style={[styles.segmentText, activeTab === 'my' && styles.segmentTextActive]}>
                             Đăng ký của tôi
                         </Text>
@@ -63,36 +82,52 @@ const styles = StyleSheet.create({
         paddingTop: GUIDE_SPACING.sm,
         backgroundColor: GUIDE_COLORS.background,
     },
+    headerTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
     headerTitle: {
         fontSize: 28,
-        fontWeight: '800', // Extra bold for impact
+        fontWeight: '800',
         color: GUIDE_COLORS.textPrimary,
         letterSpacing: -0.5,
     },
+    headerSubtitle: {
+        fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+        color: GUIDE_COLORS.textSecondary,
+        marginTop: 2,
+    },
+    headerIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: GUIDE_COLORS.primaryMuted,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     segmentContainer: {
         paddingHorizontal: GUIDE_SPACING.lg,
-        paddingBottom: GUIDE_SPACING.md,
+        paddingBottom: GUIDE_SPACING.sm,
     },
     segmentWrapper: {
         flexDirection: 'row',
-        backgroundColor: GUIDE_COLORS.gray100, // Light gray track
-        borderRadius: 12,
+        backgroundColor: GUIDE_COLORS.gray100,
+        borderRadius: 14,
         padding: 4,
     },
     segmentBtn: {
         flex: 1,
-        paddingVertical: 8,
-        borderRadius: 10,
+        flexDirection: 'row',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: 12,
         alignItems: 'center',
         justifyContent: 'center',
     },
     segmentBtnActive: {
-        backgroundColor: GUIDE_COLORS.surface, // White card effect
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
+        backgroundColor: GUIDE_COLORS.surface,
+        ...GUIDE_SHADOWS.sm,
     },
     segmentText: {
         fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
@@ -105,6 +140,5 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
-
     }
 });

@@ -126,6 +126,15 @@ export const PILGRIM_ENDPOINTS = {
     RECOMMENDED: `${API_BASE}/explore/recommended`,
     EVENTS: `${API_BASE}/explore/events`,
   },
+
+  // Verification - Guest and Pilgrim to Local Guide verification
+  VERIFICATION: {
+    GUEST_REQUEST: `${API_BASE}/verification/guest-request`,
+    PILGRIM_REQUEST: `${API_BASE}/verification-requests`,
+    MY_REQUEST: `${API_BASE}/verification-requests/me`,
+    GUEST_TRANSITION: `${API_BASE}/verification/transition`,
+    PILGRIM_TRANSITION: `${API_BASE}/verification-requests/transition`,
+  },
 } as const;
 
 /**
