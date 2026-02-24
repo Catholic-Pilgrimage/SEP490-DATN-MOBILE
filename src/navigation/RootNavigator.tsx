@@ -5,6 +5,7 @@ import React from 'react';
 import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
 import SplashScreen from '../features/auth/screens/SplashScreen';
 import { PersonalInfoScreen } from '../features/guide/profile/screens';
+import SiteManagementScreen from '../features/guide/site-management/screens/SiteManagementScreen';
 import { SOSDetailScreen, SOSListScreen } from '../features/guide/support/screens';
 import SettingsScreen from '../features/shared/settings/screens/SettingsScreen';
 import { AuthNavigator } from './AuthNavigator';
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   GuideMain: undefined;
   // Guide Profile Screens
   PersonalInfo: undefined;
+  SiteManagement: undefined;
   // Guide Support Screens
   SOSList: undefined;
   SOSDetail: { id: string };
@@ -67,6 +69,13 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="PersonalInfo"
           component={PersonalInfoScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="SiteManagement"
+          component={SiteManagementScreen}
           options={{
             animation: 'slide_from_right',
           }}
