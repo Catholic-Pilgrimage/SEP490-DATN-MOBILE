@@ -19,7 +19,6 @@ export const MyShiftsTab: React.FC = () => {
     const { data: response, isLoading, refetch } = useQuery({
         queryKey: GUIDE_KEYS.shiftSubmissions.all,
         queryFn: () => getShiftSubmissions(),
-        refetchInterval: 5000, // Poll every 5 seconds for "real-time" updates
     });
 
     useFocusEffect(
