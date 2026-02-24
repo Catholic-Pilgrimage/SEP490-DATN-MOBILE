@@ -3,10 +3,11 @@
  * Custom hook for fetching and managing the Local Guide's profile information
  * Uses GET /api/auth/profile API
  */
+import { UpdateProfileRequest } from "../../../../types/user.types";
 
 import { useCallback, useEffect, useState } from "react";
-import { authApi, guideSiteApi } from "../../../../services/api";
-import { guideEventApi, guideMediaApi } from "../../../../services/api/guide";
+import { authApi } from "../../../../services/api";
+import { guideEventApi, guideMediaApi, guideSiteApi, guideSOSApi } from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 
 // ============================================
@@ -40,7 +41,10 @@ export interface GuideProfileStats {
   eventsCount: number;
   mediaCount: number;
   reviewsCount: number;
+  sosPendingCount: number;
 }
+
+
 
 export interface UseGuideProfileResult {
   profile: GuideProfileData | null;
@@ -49,6 +53,7 @@ export interface UseGuideProfileResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<void>;
   isVerified: boolean;
 }
 
@@ -68,6 +73,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     eventsCount: 0,
     mediaCount: 0,
     reviewsCount: 0,
+    sosPendingCount: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,11 +84,12 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       setError(null);
 
       // Fetch profile, site, and stats in parallel
-      const [profileResponse, siteResponse, eventsResponse, mediaResponse] = await Promise.all([
+      const [profileResponse, siteResponse, eventsResponse, mediaResponse, sosResponse] = await Promise.all([
         authApi.getProfile(),
         guideSiteApi.getAssignedSite().catch(() => null), // Don't fail if site not assigned
         guideEventApi.getEvents({ limit: 1 }).catch(() => null), // Get total count
         guideMediaApi.getMedia({ limit: 1 }).catch(() => null), // Get total count
+        guideSOSApi.getGuideSOSList({ status: 'pending', limit: 1 }).catch(() => null), // Get pending SOS count
       ]);
 
       if (profileResponse?.success && profileResponse?.data) {
@@ -117,6 +124,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       // Handle stats from pagination totalItems
       const eventsTotal = eventsResponse?.data?.pagination?.totalItems || 0;
       const mediaTotal = mediaResponse?.data?.pagination?.totalItems || 0;
+      const sosPending = sosResponse?.data?.pagination?.totalItems || 0;
       // Reviews count - placeholder for future API integration
       const reviewsTotal = 0;
 
@@ -124,6 +132,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
         eventsCount: eventsTotal,
         mediaCount: mediaTotal,
         reviewsCount: reviewsTotal,
+        sosPendingCount: sosPending,
       });
     } catch (err: any) {
       const status = err?.response?.status;
@@ -140,6 +149,23 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     }
   }, []);
 
+  const updateProfile = useCallback(async (data: UpdateProfileRequest) => {
+    try {
+      setLoading(true);
+      const response = await authApi.updateProfile(data);
+      if (response.success) {
+        await fetchProfile(); // Reload data after update
+      } else {
+        throw new Error(response.message || 'Failed to update profile');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchProfile]);
+
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
@@ -153,6 +179,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     loading,
     error,
     refetch: fetchProfile,
+    updateProfile,
     isVerified,
   };
 };

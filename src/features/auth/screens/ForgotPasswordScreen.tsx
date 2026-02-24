@@ -4,6 +4,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -15,6 +17,7 @@ import {
   View
 } from 'react-native';
 import { SHADOWS } from '../../../constants/theme.constants';
+import authApi from '../../../services/api/shared/authApi';
 
 // Forgot Password screen colors matching the design system
 const FORGOT_COLORS = {
@@ -46,28 +49,82 @@ const ForgotPasswordScreen = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSendOTP = () => {
-    // TODO: Send OTP logic
-    setCurrentStep('otp');
-    startResendTimer();
+  const handleSendOTP = async () => {
+    if (!email) {
+      Alert.alert('Lỗi', 'Vui lòng nhập email');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await authApi.forgotPassword({ email });
+      setCurrentStep('otp');
+      startResendTimer();
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleVerifyOTP = () => {
-    // TODO: Verify OTP logic
     const otpCode = otp.join('');
+    if (otpCode.length < 6) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ mã xác thực 6 số');
+      return;
+    }
+    // Since we don't have a standalone verify-otp endpoint for password reset flow shown in the requirements,
+    // we proceed to the next step to bundle OTP with the new password.
     setCurrentStep('newPassword');
   };
 
-  const handleResetPassword = () => {
-    // TODO: Reset password logic
-    setCurrentStep('success');
+  const handleResetPassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
+      return;
+    }
+
+    // Basic validation
+    if (newPassword.length < 8) {
+      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await authApi.resetPassword({
+        email,
+        otp: otp.join(''),
+        newPassword,
+        confirmPassword,
+      });
+      setCurrentStep('success');
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleResendOTP = () => {
+  const handleResendOTP = async () => {
     if (resendTimer === 0) {
-      // TODO: Resend OTP logic
-      startResendTimer();
+      setIsSubmitting(true);
+      try {
+        await authApi.forgotPassword({ email });
+        startResendTimer();
+        Alert.alert('Thành công', 'Đã gửi lại mã xác thực');
+      } catch (error: any) {
+        Alert.alert('Lỗi', error.message || 'Không thể gửi lại mã OTP');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -185,12 +242,19 @@ const ForgotPasswordScreen = () => {
       </View>
 
       <TouchableOpacity
-        style={styles.primaryButton}
+        style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
         onPress={handleSendOTP}
         activeOpacity={0.9}
+        disabled={isSubmitting}
       >
-        <Text style={styles.primaryButtonText}>Gửi mã xác thực</Text>
-        <MaterialIcons name="arrow-forward" size={20} color={FORGOT_COLORS.buttonTextDark} />
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color={FORGOT_COLORS.buttonTextDark} />
+        ) : (
+          <>
+            <Text style={styles.primaryButtonText}>Gửi mã xác thực</Text>
+            <MaterialIcons name="arrow-forward" size={20} color={FORGOT_COLORS.buttonTextDark} />
+          </>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -392,12 +456,19 @@ const ForgotPasswordScreen = () => {
       </View>
 
       <TouchableOpacity
-        style={styles.primaryButton}
+        style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
         onPress={handleResetPassword}
         activeOpacity={0.9}
+        disabled={isSubmitting}
       >
-        <Text style={styles.primaryButtonText}>Đặt lại mật khẩu</Text>
-        <MaterialIcons name="arrow-forward" size={20} color={FORGOT_COLORS.buttonTextDark} />
+        {isSubmitting ? (
+          <ActivityIndicator size="small" color={FORGOT_COLORS.buttonTextDark} />
+        ) : (
+          <>
+            <Text style={styles.primaryButtonText}>Đặt lại mật khẩu</Text>
+            <MaterialIcons name="arrow-forward" size={20} color={FORGOT_COLORS.buttonTextDark} />
+          </>
+        )}
       </TouchableOpacity>
     </View>
   );

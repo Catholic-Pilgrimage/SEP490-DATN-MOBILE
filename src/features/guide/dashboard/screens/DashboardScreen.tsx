@@ -334,7 +334,22 @@ const DashboardScreen: React.FC = () => {
   };
 
   const handleQuickAction = (actionId: string) => {
-    // TODO: Navigate to respective screens based on actionId
+    switch (actionId) {
+      case "sos-log":
+        navigation.navigate("SOSList");
+        break;
+      case "post-news":
+        // navigation.navigate("PostNews");
+        break;
+      case "add-schedule":
+        // navigation.navigate("AddSchedule");
+        break;
+      case "upload-media":
+        // navigation.navigate("UploadMedia");
+        break;
+      default:
+        console.warn(`Unhandled quick action: ${actionId}`);
+    }
   };
 
   const handleTaskPress = (taskId: string) => {

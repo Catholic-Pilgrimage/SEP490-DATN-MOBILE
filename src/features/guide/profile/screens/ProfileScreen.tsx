@@ -179,20 +179,15 @@ const ProfileScreen: React.FC = () => {
     Alert.alert("Thông báo", "Tính năng đang phát triển");
   }, []);
 
+  const handleSOSList = useCallback(() => {
+    (navigation as any).navigate("SOSList");
+  }, [navigation]);
+
   const handleSettings = useCallback(() => {
-    // TODO: Navigate to Settings screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
+    (navigation as any).navigate("Settings");
+  }, [navigation]);
 
-  const handleHelp = useCallback(() => {
-    // TODO: Navigate to Help screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
 
-  const handleAbout = useCallback(() => {
-    // TODO: Navigate to About screen
-    Alert.alert("Về chúng tôi", "Nazareth Guild v1.4.2\n\nỨng dụng hỗ trợ hướng dẫn viên hành hương");
-  }, []);
 
   const handleSignOut = useCallback(() => {
     Alert.alert(
@@ -290,7 +285,7 @@ const ProfileScreen: React.FC = () => {
           {/* Name & Role */}
           <Text style={styles.profileName}>{displayName}</Text>
           <Text style={styles.profileRole}>{displayRole}</Text>
-          
+
           {/* Assigned Site */}
           <View style={styles.siteTag}>
             <MaterialIcons name="church" size={14} color={PREMIUM_COLORS.gold} />
@@ -299,10 +294,10 @@ const ProfileScreen: React.FC = () => {
         </View>
 
         {/* Stats Card */}
-        <StatsCard 
-          events={stats.eventsCount} 
-          media={stats.mediaCount} 
-          reviews={stats.reviewsCount} 
+        <StatsCard
+          events={stats.eventsCount}
+          media={stats.mediaCount}
+          reviews={stats.reviewsCount}
         />
 
         {/* Account Section */}
@@ -328,6 +323,12 @@ const ProfileScreen: React.FC = () => {
             icon="calendar-outline"
             label="Lịch trình & Ca trực"
             onPress={handleSchedule}
+          />
+          <MenuItem
+            icon="alert-circle-outline"
+            label="Hỗ trợ khẩn cấp (SOS)"
+            onPress={handleSOSList}
+            showBadge={stats.sosPendingCount > 0 ? stats.sosPendingCount.toString() : undefined}
             isLast
           />
         </View>
@@ -339,16 +340,6 @@ const ProfileScreen: React.FC = () => {
             icon="settings-outline"
             label="Cài đặt"
             onPress={handleSettings}
-          />
-          <MenuItem
-            icon="help-circle-outline"
-            label="Trợ giúp"
-            onPress={handleHelp}
-          />
-          <MenuItem
-            icon="information-circle-outline"
-            label="Về chúng tôi"
-            onPress={handleAbout}
             isLast
           />
         </View>

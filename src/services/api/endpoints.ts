@@ -146,6 +146,16 @@ export const GUIDE_ENDPOINTS = {
   // Local Guide Site Schedule - Weekly schedule for assigned site
   LOCAL_GUIDE_SITE_SCHEDULE: `${API_BASE}/local-guide/site-schedule`,
 
+  // Local Guide Shift Submissions - Đăng ký lịch làm việc
+  SHIFT_SUBMISSIONS: {
+    base: `${API_BASE}/local-guide/shift-submissions`,
+    create: `${API_BASE}/local-guide/shift-submissions`,
+    list: `${API_BASE}/local-guide/shift-submissions`,
+    delete: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
+    update: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
+    detail: (id: string) => `${API_BASE}/local-guide/shift-submissions/${id}`,
+  },
+
   // Local Guide Mass Schedule - Lịch lễ management
   LOCAL_GUIDE_MASS_SCHEDULES: {
     LIST: `${API_BASE}/local-guide/schedules`,

@@ -116,7 +116,7 @@ const Section: React.FC<SectionProps> = ({ title, children }) => (
 const PersonalInfoScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { profile, site, loading, refetch, isVerified } = useGuideProfile();
+  const { profile, site, loading, refetch, updateProfile, isVerified } = useGuideProfile();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -195,19 +195,24 @@ const PersonalInfoScreen: React.FC = () => {
   const handleSave = useCallback(async () => {
     try {
       setIsSaving(true);
-      // TODO: Call API to update profile
-      // await authApi.updateProfile(formData);
 
-      // For now, just show success message
+      const updateData = {
+        full_name: formData.full_name,
+        phone: formData.phone,
+        date_of_birth: formData.date_of_birth,
+      };
+
+      await updateProfile(updateData);
+
       Alert.alert("Thành công", "Thông tin đã được cập nhật");
       setIsEditing(false);
       await refetch();
-    } catch (error) {
-      Alert.alert("Lỗi", "Không thể cập nhật thông tin. Vui lòng thử lại.");
+    } catch (error: any) {
+      Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin. Vui lòng thử lại.");
     } finally {
       setIsSaving(false);
     }
-  }, [formData, refetch]);
+  }, [formData, updateProfile, refetch]);
 
   const updateFormField = useCallback(
     (field: keyof typeof formData) => (value: string) => {

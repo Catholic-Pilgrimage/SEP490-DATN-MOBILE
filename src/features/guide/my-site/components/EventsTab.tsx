@@ -30,9 +30,9 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
-import { deleteEvent, getEvents } from "../../../../services/api/guide/eventApi";
+import { GUIDE_KEYS } from "../../../../constants/queryKeys";
+import { deleteEvent, getEvents } from "../../../../services/api/guide";
 import { EventItem, EventStatus } from "../../../../types/guide";
-import { GUIDE_KEYS } from "../../constants/queryKeys";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

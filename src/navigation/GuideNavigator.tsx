@@ -10,12 +10,14 @@ import {
   GUIDE_SHADOWS
 } from "../constants/guide.constants";
 import { DashboardScreen } from "../features/guide/dashboard/screens";
-import { MySiteNavigator } from "./MySiteNavigator";
 import { ProfileScreen } from "../features/guide/profile/screens";
+import { ShiftsScreen } from "../features/guide/shifts/screens/ShiftsScreen";
+import { MySiteNavigator } from "./MySiteNavigator";
 
 export type GuideTabParamList = {
   Dashboard: undefined;
   MySite: undefined;
+  Shifts: undefined;
   Profile: undefined;
 };
 
@@ -96,6 +98,15 @@ export const GuideNavigator = () => {
         options={{
           tabBarIcon: ({ focused }) => (
             <TabIcon name="church" focused={focused} label="My Site" />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Shifts"
+        component={ShiftsScreen}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="calendar-today" focused={focused} label="Lịch" />
           ),
         }}
       />

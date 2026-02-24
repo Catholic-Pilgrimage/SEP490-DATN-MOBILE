@@ -178,8 +178,6 @@ const ProfileScreen = () => {
         { icon: 'hand-left-outline', label: 'Lịch sử Hỗ trợ', requireAuth: true, route: 'SOSHistory' },
         { icon: 'time-outline', label: 'Lịch sử hành hương', requireAuth: true, route: 'History' },
         { icon: 'settings-outline', label: 'Cài đặt', requireAuth: false, route: 'Settings' },
-        { icon: 'help-circle-outline', label: 'Trợ giúp', requireAuth: false, route: 'Help' },
-        { icon: 'information-circle-outline', label: 'Về chúng tôi', requireAuth: false, route: 'About' },
     ];
 
     const handleMenuPress = (item: typeof menuItems[0]) => {
@@ -200,7 +198,7 @@ const ProfileScreen = () => {
             return;
         }
 
-        if (item.route === 'FavoriteSites' || item.route === 'EditProfile' || item.route === 'SOSHistory') {
+        if (item.route === 'FavoriteSites' || item.route === 'EditProfile' || item.route === 'SOSHistory' || item.route === 'Settings') {
             navigation.navigate(item.route);
         } else {
             Alert.alert("Thông báo", "Tính năng đang phát triển");
