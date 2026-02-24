@@ -1,6 +1,7 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useRef, useState } from "react";
 import {
   Animated,
@@ -21,8 +22,10 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
+import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import { useResponsive } from "../../../../hooks/useResponsive";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
+import guideSiteApi from "../../../../services/api/guide/siteApi";
 import { EventItem, MediaItem } from "../../../../types/guide";
 import { EventsTab, LocationsTab, SchedulesTab } from "../components";
 import MediaTab from "../components/MediaTab";
@@ -54,11 +57,7 @@ const TAB_ICONS: Record<TabType, keyof typeof MaterialIcons.glyphMap> = {
   "Địa điểm": "place",
 };
 
-// Mock data
-const MOCK_SITE = {
-  name: "Basilica of St. Francis",
-  location: "Assisi, Italy",
-};
+
 
 // Premium Underline Tab Component
 interface UnderlineTabsProps {
@@ -121,11 +120,21 @@ const MySiteScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>("Sự kiện");
   const { spacing, fontSize, iconSize } = useResponsive();
   const fabScale = useRef(new Animated.Value(1)).current;
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
-  const handleBack = useCallback(() => {
-    navigation.goBack();
-  }, [navigation]);
+  // Fetch assigned site info from API
+  const { data: siteData, isLoading: isSiteLoading } = useQuery({
+    queryKey: GUIDE_KEYS.dashboard.siteInfo(),
+    queryFn: async () => {
+      const response = await guideSiteApi.getAssignedSite();
+      if (!response?.success) throw new Error(response?.message || 'Failed');
+      return response.data;
+    },
+  });
+
+  const siteName = siteData?.name || 'Đang tải...';
+  const siteAddress = siteData?.address
+    ? `${siteData.district ? siteData.district + ', ' : ''}${siteData.province || siteData.address}`
+    : 'Chưa có địa chỉ';
 
   // FAB animation
   const handleFabPressIn = () => {
@@ -187,38 +196,18 @@ const MySiteScreen: React.FC = () => {
         />
       </View>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <MaterialIcons
-            name="arrow-back-ios"
-            size={20}
-            color={GUIDE_COLORS.textPrimary}
-          />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Site Management</Text>
-        <TouchableOpacity
-          style={styles.moreButton}
-          onPress={() => setShowMoreMenu(!showMoreMenu)}
-        >
-          <Ionicons
-            name="ellipsis-horizontal"
-            size={22}
-            color={GUIDE_COLORS.gray500}
-          />
-        </TouchableOpacity>
-      </View>
+
 
       {/* Site Title - Always visible */}
       <View style={styles.siteHeaderFixed}>
-        <Text style={styles.siteTitle}>{MOCK_SITE.name}</Text>
+        <Text style={styles.siteTitle}>{siteName}</Text>
         <View style={styles.siteLocation}>
           <MaterialIcons
             name="location-on"
             size={16}
             color={GUIDE_COLORS.primary}
           />
-          <Text style={styles.siteLocationText}>{MOCK_SITE.location}</Text>
+          <Text style={styles.siteLocationText}>{siteAddress}</Text>
         </View>
       </View>
 
@@ -328,39 +317,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: GUIDE_SPACING.lg,
   },
 
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
-    backgroundColor: PREMIUM_COLORS.cream,
-    zIndex: 10,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: PREMIUM_COLORS.charcoal,
-    flex: 1,
-    textAlign: "center",
-    letterSpacing: 0.5,
-  },
-  headerSpacer: {
-    width: 40,
-  },
+
 
   // Site Header
   siteHeaderFixed: {
     paddingHorizontal: GUIDE_SPACING.lg,
-    paddingBottom: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.md,
   },
   siteTitle: {
     fontSize: 26,
@@ -465,14 +428,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "700",
   },
-  moreButton: {
-    width: 40,
-    height: 40,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: PREMIUM_COLORS.warmGray,
-  },
+
 
   // Placeholder Section
   placeholderSection: {
