@@ -33,6 +33,12 @@
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
         "POST_NOTIFICATIONS"
       ],
       "edgeToEdgeEnabled": true,
@@ -59,6 +65,12 @@
       "eas": {
         "projectId": "e4b5e46a-3420-46d1-ac57-d1e6a1652bae"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e4b5e46a-3420-46d1-ac57-d1e6a1652bae"
     }
   }
 }
