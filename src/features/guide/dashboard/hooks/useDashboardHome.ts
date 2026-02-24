@@ -181,6 +181,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
       };
     },
     refetchInterval: 30000, // Autorefresh SOS every 30s
+    refetchIntervalInBackground: false,
   });
 
   const recentActivityQuery = useQuery({
@@ -208,6 +209,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
       };
     },
     refetchInterval: 60000, // Autorefresh notifications every 60s
+    refetchIntervalInBackground: false,
   });
 
   const pendingCountsQuery = useQuery({
@@ -250,8 +252,6 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   // Process active shift
   const processedActiveShift = useMemo(() => {
     const rawData = activeShiftQuery.data;
-    console.log('[Dashboard] Active Shift Query - WeekStart:', weekStart);
-    console.log('[Dashboard] Active Shift Query - Raw Data:', JSON.stringify(rawData, null, 2));
 
     let allShifts: SiteScheduleShift[] = [];
 
@@ -263,7 +263,6 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
       });
     }
 
-    console.log('[Dashboard] All Processed Shifts:', JSON.stringify(allShifts, null, 2));
     return getActiveShift(allShifts);
   }, [activeShiftQuery.data, weekStart]);
 

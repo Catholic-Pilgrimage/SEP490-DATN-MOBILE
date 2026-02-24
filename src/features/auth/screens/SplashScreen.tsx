@@ -1,28 +1,29 @@
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Dimensions,
-    ImageBackground,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View,
+  Dimensions,
+  ImageBackground,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import Animated, {
-    Easing,
-    interpolate,
-    SharedValue,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withRepeat,
-    withSequence,
-    withSpring,
-    withTiming,
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { useAuth } from '../../../contexts/AuthContext';
 import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
+import { dashboardHomeApi } from '../../../services/api/guide';
+import { pilgrimSiteApi } from '../../../services/api/pilgrim';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,15 +33,38 @@ const SPLASH_COLORS = {
   textLight: '#fff8e7',
   textDark: '#1a1a1a',
   overlay: 'rgba(0, 0, 0, 0.1)',
+  progressBg: 'rgba(255, 255, 255, 0.2)',
+  progressFill: '#cfaa3a',
+};
+
+// Minimum time the splash should be shown (ms)
+const MIN_SPLASH_DURATION = 2000;
+
+// Pre-fetch stages for progress tracking
+type LoadingStage = 'auth' | 'data' | 'complete';
+
+const STAGE_LABELS: Record<LoadingStage, string> = {
+  auth: 'Đang xác thực...',
+  data: 'Đang tải dữ liệu...',
+  complete: 'Sẵn sàng!',
 };
 
 const SplashScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { isLoading, isAuthenticated, isGuest, user } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated, isGuest, user } = useAuth();
   const [isReady, setIsReady] = useState(false);
   const [animationsComplete, setAnimationsComplete] = useState(false);
+  const [dataPreFetched, setDataPreFetched] = useState(false);
+  const [currentStage, setCurrentStage] = useState<LoadingStage>('auth');
+  const hasNavigated = useRef(false);
+  const hasStartedPreFetch = useRef(false);
+  const mountTime = useRef(Date.now());
 
-  // Animation values - start with small values to avoid 0 multiplication issues
+  // Use refs to always have the latest auth values for navigation
+  const authRef = useRef({ isAuthenticated, isGuest, role: user?.role });
+  authRef.current = { isAuthenticated, isGuest, role: user?.role };
+
+  // Animation values
   const logoScale = useSharedValue(0.01);
   const logoOpacity = useSharedValue(0);
   const logoRotate = useSharedValue(0);
@@ -54,35 +78,98 @@ const SplashScreen = () => {
   const shimmerPosition = useSharedValue(-1);
   const pulseScale = useSharedValue(1);
   const particlesOpacity = useSharedValue(0);
-  const dotsOpacity = useSharedValue(0);
+  const progressWidth = useSharedValue(0);
+  const stageOpacity = useSharedValue(1);
 
   // Navigate based on auth state and user role
+  // Uses refs to always read the latest auth state, avoiding stale closures
   const navigateToScreen = useCallback(() => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    const { isAuthenticated: auth, isGuest: guest, role } = authRef.current;
     navigateToAppropriateScreen(
       navigation,
-      isAuthenticated,
-      isGuest,
-      user?.role
+      auth,
+      guest,
+      role
     );
-  }, [navigation, isAuthenticated, isGuest, user?.role]);
+  }, [navigation]);
+
+  // Pre-fetch data based on user role
+  // Reads from authRef to get the latest auth state at call time
+  const preFetchData = useCallback(async () => {
+    setCurrentStage('data');
+    stageOpacity.value = withSequence(
+      withTiming(0, { duration: 150 }),
+      withTiming(1, { duration: 150 })
+    );
+    // Animate progress to 70%
+    progressWidth.value = withTiming(70, { duration: 800, easing: Easing.out(Easing.ease) });
+
+    try {
+      const { isAuthenticated: auth, role } = authRef.current;
+      if (auth && role === 'local_guide') {
+        // Guide: pre-fetch dashboard data
+        await Promise.allSettled([
+          dashboardHomeApi.getOverview(),
+          dashboardHomeApi.getPendingSOSCount(),
+        ]);
+      } else if (auth || authRef.current.isGuest) {
+        // Pilgrim / Guest: pre-fetch sites list
+        await Promise.allSettled([
+          pilgrimSiteApi.getSites({ page: 1, limit: 10 }),
+        ]);
+      }
+      // If not authenticated and not guest → skip pre-fetch, just navigate to Auth
+    } catch {
+      // Silent fail - data will be fetched by the screens themselves
+      console.log('⚠️ Pre-fetch failed silently, screens will fetch on mount');
+    }
+
+    // Animate progress to 100%
+    progressWidth.value = withTiming(100, { duration: 400, easing: Easing.out(Easing.ease) });
+    setCurrentStage('complete');
+    stageOpacity.value = withSequence(
+      withTiming(0, { duration: 150 }),
+      withTiming(1, { duration: 150 })
+    );
+    setDataPreFetched(true);
+  }, []);
 
   // Start animations when ready
   useEffect(() => {
-    // Small delay to ensure component is mounted
     const mountTimer = setTimeout(() => {
       setIsReady(true);
     }, 100);
-
     return () => clearTimeout(mountTimer);
   }, []);
 
-  // Handle navigation when both animations and auth check are complete
+  // Start pre-fetching when auth check is complete (only once)
   useEffect(() => {
-    if (animationsComplete && !isLoading) {
-      navigateToScreen();
+    if (!isAuthLoading && !hasStartedPreFetch.current) {
+      hasStartedPreFetch.current = true;
+      // Auth is done, start pre-fetching data
+      progressWidth.value = withTiming(30, { duration: 500, easing: Easing.out(Easing.ease) });
+      preFetchData();
     }
-  }, [animationsComplete, isLoading, navigateToScreen]);
+  }, [isAuthLoading, preFetchData]);
 
+  // Handle navigation when everything is ready
+  useEffect(() => {
+    if (animationsComplete && dataPreFetched && !isAuthLoading) {
+      // Ensure minimum splash duration for smooth UX
+      const elapsed = Date.now() - mountTime.current;
+      const remaining = Math.max(0, MIN_SPLASH_DURATION - elapsed);
+
+      const timer = setTimeout(() => {
+        navigateToScreen();
+      }, remaining);
+
+      return () => clearTimeout(timer);
+    }
+  }, [animationsComplete, dataPreFetched, isAuthLoading, navigateToScreen]);
+
+  // Start animations
   useEffect(() => {
     if (!isReady) return;
 
@@ -92,9 +179,6 @@ const SplashScreen = () => {
       withSpring(1.15, { damping: 8, stiffness: 100 }),
       withSpring(1, { damping: 12, stiffness: 100 })
     );
-
-    // Dots fade in
-    dotsOpacity.value = withDelay(500, withTiming(1, { duration: 500 }));
 
     // Subtle rotation for elegance
     logoRotate.value = withSequence(
@@ -178,8 +262,10 @@ const SplashScreen = () => {
     // Subtitle animation
     subtitleOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
 
-    // Mark animations as complete after minimum display time
-    // Reduced from 2500ms to 1500ms for faster app startup
+    // Progress bar initialization - start at 10%
+    progressWidth.value = withDelay(500, withTiming(10, { duration: 300 }));
+
+    // Mark animations as complete
     const timer = setTimeout(() => {
       setAnimationsComplete(true);
     }, 1500);
@@ -189,7 +275,6 @@ const SplashScreen = () => {
 
   // Animated styles
   const logoAnimatedStyle = useAnimatedStyle(() => {
-    // Ensure scale is never 0 to avoid invisible logo
     const scale = Math.max(0.01, logoScale.value) * pulseScale.value;
     return {
       opacity: logoOpacity.value,
@@ -232,6 +317,14 @@ const SplashScreen = () => {
 
   const particlesAnimatedStyle = useAnimatedStyle(() => ({
     opacity: particlesOpacity.value,
+  }));
+
+  const progressBarAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${progressWidth.value}%`,
+  }));
+
+  const stageTextAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: stageOpacity.value,
   }));
 
   // Floating particles
@@ -282,7 +375,7 @@ const SplashScreen = () => {
           <View style={styles.logoContainer}>
             {/* Rotating Ring */}
             <Animated.View style={[styles.outerRing, ringAnimatedStyle]} />
-            
+
             {/* Glow Effect Behind Logo */}
             <Animated.View style={[styles.glowEffect, glowAnimatedStyle]} />
             <Animated.View style={[styles.glowEffectInner, glowAnimatedStyle]} />
@@ -304,7 +397,9 @@ const SplashScreen = () => {
 
           {/* App Title */}
           <Animated.View style={[styles.titleContainer, titleAnimatedStyle]}>
-            <Text style={styles.title}>Hành Trình Đức Tin</Text>
+            <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>
+              Hành Trình Đức Tin
+            </Text>
           </Animated.View>
 
           {/* Subtitle */}
@@ -313,10 +408,20 @@ const SplashScreen = () => {
           </Animated.Text>
         </View>
 
-        {/* Loading Indicator */}
-        <Animated.View style={[styles.loadingContainer, { opacity: dotsOpacity }]}>
-          <LoadingDots />
-        </Animated.View>
+        {/* Loading Progress Section */}
+        <View style={styles.loadingSection}>
+          {/* Progress Bar */}
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarTrack}>
+              <Animated.View style={[styles.progressBarFill, progressBarAnimatedStyle]} />
+            </View>
+          </View>
+
+          {/* Loading Stage Text */}
+          <Animated.Text style={[styles.stageText, stageTextAnimatedStyle]}>
+            {STAGE_LABELS[currentStage]}
+          </Animated.Text>
+        </View>
       </ImageBackground>
     </View>
   );
@@ -384,53 +489,6 @@ const FloatingParticle = ({
         animatedStyle,
       ]}
     />
-  );
-};
-
-// Loading Dots Component
-const LoadingDots = () => {
-  const dot1Scale = useSharedValue(1);
-  const dot2Scale = useSharedValue(1);
-  const dot3Scale = useSharedValue(1);
-
-  useEffect(() => {
-    const animateDot = (dotScale: SharedValue<number>, delay: number) => {
-      dotScale.value = withDelay(
-        delay,
-        withRepeat(
-          withSequence(
-            withTiming(1.4, { duration: 400 }),
-            withTiming(1, { duration: 400 })
-          ),
-          -1,
-          true
-        )
-      );
-    };
-
-    animateDot(dot1Scale, 0);
-    animateDot(dot2Scale, 150);
-    animateDot(dot3Scale, 300);
-  }, []);
-
-  const dot1Style = useAnimatedStyle(() => ({
-    transform: [{ scale: dot1Scale.value }],
-  }));
-
-  const dot2Style = useAnimatedStyle(() => ({
-    transform: [{ scale: dot2Scale.value }],
-  }));
-
-  const dot3Style = useAnimatedStyle(() => ({
-    transform: [{ scale: dot3Scale.value }],
-  }));
-
-  return (
-    <View style={styles.dotsContainer}>
-      <Animated.View style={[styles.dot, dot1Style]} />
-      <Animated.View style={[styles.dot, dot2Style]} />
-      <Animated.View style={[styles.dot, dot3Style]} />
-    </View>
   );
 };
 
@@ -529,13 +587,16 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     marginBottom: 12,
+    width: '100%',
+    paddingHorizontal: 16,
   },
   title: {
     fontSize: 32,
     fontWeight: '700',
     color: SPLASH_COLORS.textLight,
     textAlign: 'center',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
+    lineHeight: 40,
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
@@ -550,22 +611,39 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  loadingContainer: {
+  // Loading progress section
+  loadingSection: {
     position: 'absolute',
     bottom: 80,
     left: 0,
     right: 0,
     alignItems: 'center',
+    paddingHorizontal: 60,
   },
-  dotsContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  progressBarContainer: {
+    width: '100%',
+    marginBottom: 12,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: SPLASH_COLORS.textLight,
+  progressBarTrack: {
+    height: 3,
+    backgroundColor: SPLASH_COLORS.progressBg,
+    borderRadius: 1.5,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: SPLASH_COLORS.progressFill,
+    borderRadius: 1.5,
+  },
+  stageText: {
+    fontSize: 13,
+    color: SPLASH_COLORS.textLight,
+    textAlign: 'center',
+    opacity: 0.8,
+    letterSpacing: 0.3,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
 
