@@ -53,7 +53,7 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
       {/* Left: Image Section */}
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: coverImage }}
+          source={{ uri: coverImage || 'https://via.placeholder.com/100?text=No+Image' }}
           style={styles.image}
         />
 

@@ -351,7 +351,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                 ref={scrollRef}
                 style={styles.scrollView}
                 contentContainerStyle={{
-                    paddingTop: HEADER_HEIGHT + 20, // More breathing room
+                    paddingTop: HEADER_HEIGHT + 5, // Moved up slightly
                     paddingBottom: 100
                 }}
                 showsVerticalScrollIndicator={false}
@@ -428,7 +428,18 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
                     ) : (
                         <>
-                            {sites.map(site => (
+                            <View style={styles.sectionHeaderRow}>
+                                <Text style={styles.sectionTitle}>Điểm đến linh thiêng</Text>
+                                <TouchableOpacity
+                                    onPress={() => navigation.navigate('AllSites')}
+                                    style={styles.seeMoreBtn}
+                                >
+                                    <Text style={styles.seeMoreText}>Xem thêm</Text>
+                                    <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {sites.slice(0, 10).map(site => (
                                 <SiteListCard
                                     key={site.id}
                                     id={site.id}
@@ -563,13 +574,13 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: COLORS.primary,
         fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
-        marginBottom: 4,
+        marginBottom: 2,
     },
     largeHeaderSubtitle: {
         fontSize: 15,
         color: COLORS.textSecondary,
         fontStyle: 'italic',
-        marginBottom: 16, // Reduced closer to search bar
+        marginBottom: 10, // Reduced closer to search bar
     },
     largesearchTrigger: {
         flexDirection: 'row',
@@ -591,6 +602,28 @@ const styles = StyleSheet.create({
     largeSearchPlaceHolder: {
         color: '#6B7280',
         fontSize: 15,
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1A1A1A',
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    },
+    seeMoreBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    seeMoreText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.primary,
     },
     sectionHeader: {
         fontSize: 20,
