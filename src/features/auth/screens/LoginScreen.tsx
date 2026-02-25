@@ -294,7 +294,7 @@ const LoginScreen = () => {
             {/* Title Section */}
             <View style={styles.titleContainer}>
               <Text style={styles.title}>{t("auth.welcomeBack")}</Text>
-              <Text style={styles.subtitle}>{t("auth.continueJourney")} 🙏</Text>
+              <Text style={styles.subtitle}>{t("auth.continueJourney")}</Text>
             </View>
 
             {/* Form Section */}

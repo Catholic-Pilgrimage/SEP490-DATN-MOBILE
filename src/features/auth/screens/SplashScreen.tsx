@@ -1,16 +1,12 @@
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import * as Updates from "expo-updates";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Dimensions,
   ImageBackground,
-  Modal,
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import Animated, {
@@ -46,7 +42,6 @@ const MIN_SPLASH_DURATION = 2000;
 
 // Pre-fetch stages for progress tracking
 type LoadingStage = "auth" | "data" | "complete";
-type UpdateState = "idle" | "available" | "downloading" | "error";
 
 const STAGE_LABELS: Record<LoadingStage, string> = {
   auth: "Đang xác thực...",
@@ -66,7 +61,6 @@ const SplashScreen = () => {
   const [animationsComplete, setAnimationsComplete] = useState(false);
   const [dataPreFetched, setDataPreFetched] = useState(false);
   const [currentStage, setCurrentStage] = useState<LoadingStage>("auth");
-  const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const hasNavigated = useRef(false);
   const hasStartedPreFetch = useRef(false);
   const mountTime = useRef(Date.now());
@@ -74,32 +68,6 @@ const SplashScreen = () => {
   // Use refs to always have the latest auth values for navigation
   const authRef = useRef({ isAuthenticated, isGuest, role: user?.role });
   authRef.current = { isAuthenticated, isGuest, role: user?.role };
-
-  // Check for OTA updates silently in background
-  useEffect(() => {
-    if (__DEV__ || !Updates.isEnabled) return;
-    Updates.checkForUpdateAsync()
-      .then((update) => {
-        if (update.isAvailable) {
-          setUpdateState("available");
-        }
-      })
-      .catch(() => {
-        /* silent fail */
-      });
-  }, []);
-
-  const handleUpdate = async () => {
-    setUpdateState("downloading");
-    try {
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    } catch {
-      setUpdateState("error");
-    }
-  };
-
-  const handleRetry = () => setUpdateState("available");
 
   // Animation values
   const logoScale = useSharedValue(0.01);
@@ -470,72 +438,6 @@ const SplashScreen = () => {
           </Animated.Text>
         </View>
       </ImageBackground>
-
-      {/* OTA Update Modal — hiện đè lên splash screen */}
-      <Modal
-        visible={
-          updateState === "available" ||
-          updateState === "downloading" ||
-          updateState === "error"
-        }
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {updateState === "downloading" ? (
-              <>
-                <ActivityIndicator
-                  size="large"
-                  color="#cfaa3a"
-                  style={styles.modalSpinner}
-                />
-                <Text style={styles.modalTitle}>Đang cập nhật...</Text>
-                <Text style={styles.modalSubtitle}>
-                  Vui lòng chờ, ứng dụng sẽ tự khởi động lại.
-                </Text>
-              </>
-            ) : updateState === "error" ? (
-              <>
-                <Text style={styles.modalEmoji}>⚠️</Text>
-                <Text style={styles.modalTitle}>Cập nhật thất bại</Text>
-                <Text style={styles.modalSubtitle}>
-                  Vui lòng kiểm tra kết nối và thử lại.
-                </Text>
-                <TouchableOpacity
-                  style={styles.modalPrimaryBtn}
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.modalPrimaryBtnText}>Thử lại</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.modalSecondaryBtn}
-                  onPress={() => setUpdateState("idle")}
-                >
-                  <Text style={styles.modalSecondaryBtnText}>Bỏ qua</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <Text style={styles.modalEmoji}>🎉</Text>
-                <Text style={styles.modalTitle}>Có bản cập nhật mới!</Text>
-                <Text style={styles.modalSubtitle}>
-                  Phiên bản mới đã sẵn sàng. Cập nhật ngay để trải nghiệm tốt
-                  nhất.
-                </Text>
-                <TouchableOpacity
-                  style={styles.modalPrimaryBtn}
-                  onPress={handleUpdate}
-                >
-                  <Text style={styles.modalPrimaryBtnText}>Cập nhật ngay</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 };
@@ -763,71 +665,6 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.2)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-  },
-  // OTA Update Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 28,
-  },
-  modalCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    paddingVertical: 32,
-    paddingHorizontal: 28,
-    width: "100%",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-  modalEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  modalSpinner: {
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1A1A2E",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: "#cfaa3a",
-    borderRadius: 12,
-    paddingVertical: 14,
-    width: "100%",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  modalPrimaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  modalSecondaryBtn: {
-    paddingVertical: 12,
-    width: "100%",
-    alignItems: "center",
-  },
-  modalSecondaryBtnText: {
-    color: "#999",
-    fontSize: 15,
-    fontWeight: "500",
   },
 });
 
