@@ -12,54 +12,56 @@ export const ShiftsScreen: React.FC = () => {
     const [activeTab, setActiveTab] = useState<'find' | 'my'>('find');
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <StatusBar barStyle="dark-content" backgroundColor={GUIDE_COLORS.background} />
+        <View style={styles.container}>
+            <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
+                <StatusBar barStyle="dark-content" backgroundColor={GUIDE_COLORS.surface} />
 
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerTop}>
-                    <View>
-                        <Text style={styles.headerTitle}>Lịch làm việc</Text>
-                        <Text style={styles.headerSubtitle}>Quản lý ca trực & đăng ký</Text>
-                    </View>
-                    <View style={styles.headerIcon}>
-                        <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
+                {/* Header */}
+                <View style={styles.header}>
+                    <View style={styles.headerTop}>
+                        <View>
+                            <Text style={styles.headerTitle}>Lịch làm việc</Text>
+                            <Text style={styles.headerSubtitle}>Quản lý ca trực & đăng ký</Text>
+                        </View>
+                        <View style={styles.headerIcon}>
+                            <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
+                        </View>
                     </View>
                 </View>
-            </View>
 
-            {/* Segmented Control */}
-            <View style={styles.segmentContainer}>
-                <View style={styles.segmentWrapper}>
-                    <TouchableOpacity
-                        style={[styles.segmentBtn, activeTab === 'find' && styles.segmentBtnActive]}
-                        onPress={() => setActiveTab('find')}
-                        activeOpacity={0.9}
-                    >
-                        <MaterialIcons
-                            name="date-range"
-                            size={16}
-                            color={activeTab === 'find' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
-                        />
-                        <Text style={[styles.segmentText, activeTab === 'find' && styles.segmentTextActive]}>
-                            Lịch toàn Site
-                        </Text>
-                    </TouchableOpacity>
+                {/* Segmented Control */}
+                <View style={styles.segmentContainer}>
+                    <View style={styles.segmentWrapper}>
+                        <TouchableOpacity
+                            style={[styles.segmentBtn, activeTab === 'find' && styles.segmentBtnActive]}
+                            onPress={() => setActiveTab('find')}
+                            activeOpacity={0.9}
+                        >
+                            <MaterialIcons
+                                name="date-range"
+                                size={16}
+                                color={activeTab === 'find' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
+                            />
+                            <Text style={[styles.segmentText, activeTab === 'find' && styles.segmentTextActive]}>
+                                Lịch toàn Site
+                            </Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.segmentBtn, activeTab === 'my' && styles.segmentBtnActive]}
-                        onPress={() => setActiveTab('my')}
-                        activeOpacity={0.9}
-                    >
-                        <MaterialIcons
-                            name="assignment"
-                            size={16}
-                            color={activeTab === 'my' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
-                        />
-                        <Text style={[styles.segmentText, activeTab === 'my' && styles.segmentTextActive]}>
-                            Đăng ký của tôi
-                        </Text>
-                    </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.segmentBtn, activeTab === 'my' && styles.segmentBtnActive]}
+                            onPress={() => setActiveTab('my')}
+                            activeOpacity={0.9}
+                        >
+                            <MaterialIcons
+                                name="assignment"
+                                size={16}
+                                color={activeTab === 'my' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
+                            />
+                            <Text style={[styles.segmentText, activeTab === 'my' && styles.segmentTextActive]}>
+                                Đăng ký của tôi
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
 
@@ -76,11 +78,18 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: GUIDE_COLORS.background,
     },
+    headerWrapper: {
+        backgroundColor: GUIDE_COLORS.surface,
+        paddingBottom: GUIDE_SPACING.md,
+        borderBottomLeftRadius: 24,
+        borderBottomRightRadius: 24,
+        ...GUIDE_SHADOWS.sm,
+        zIndex: 10,
+    },
     header: {
         paddingHorizontal: GUIDE_SPACING.lg,
         paddingBottom: GUIDE_SPACING.sm,
         paddingTop: GUIDE_SPACING.sm,
-        backgroundColor: GUIDE_COLORS.background,
     },
     headerTop: {
         flexDirection: 'row',
@@ -108,7 +117,7 @@ const styles = StyleSheet.create({
     },
     segmentContainer: {
         paddingHorizontal: GUIDE_SPACING.lg,
-        paddingBottom: GUIDE_SPACING.sm,
+        paddingTop: 4,
     },
     segmentWrapper: {
         flexDirection: 'row',
@@ -128,6 +137,9 @@ const styles = StyleSheet.create({
     segmentBtnActive: {
         backgroundColor: GUIDE_COLORS.surface,
         ...GUIDE_SHADOWS.sm,
+        shadowColor: GUIDE_COLORS.primary, // subtle color pop for the active shadow
+        shadowOpacity: 0.1,
+        elevation: 2,
     },
     segmentText: {
         fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
