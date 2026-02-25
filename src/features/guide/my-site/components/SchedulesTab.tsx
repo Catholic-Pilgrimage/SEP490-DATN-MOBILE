@@ -29,6 +29,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -57,27 +58,27 @@ const PREMIUM_COLORS = {
 };
 
 // Status config
-const STATUS_CONFIG: Record<MassScheduleStatus, { 
-  label: string; 
-  bgColor: string; 
+const STATUS_CONFIG: Record<MassScheduleStatus, {
+  label: string;
+  bgColor: string;
   textColor: string;
   icon: keyof typeof MaterialIcons.glyphMap;
 }> = {
-  pending: { 
-    label: "Chờ duyệt", 
-    bgColor: "#FEF3C7", 
+  pending: {
+    label: "Chờ duyệt",
+    bgColor: "#FEF3C7",
     textColor: "#D97706",
     icon: "schedule",
   },
-  approved: { 
-    label: "Đã duyệt", 
-    bgColor: "#D1FAE5", 
+  approved: {
+    label: "Đã duyệt",
+    bgColor: "#D1FAE5",
     textColor: "#059669",
     icon: "check-circle",
   },
-  rejected: { 
-    label: "Từ chối", 
-    bgColor: "#FEE2E2", 
+  rejected: {
+    label: "Từ chối",
+    bgColor: "#FEE2E2",
     textColor: "#DC2626",
     icon: "cancel",
   },
@@ -121,8 +122,9 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   onFilterChange,
   onClose,
 }) => {
+  const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
-  
+
   React.useEffect(() => {
     if (visible) {
       setSelectedFilter(activeFilter);
@@ -144,12 +146,12 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.bottomSheetOverlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.bottomSheetContainer}>
+            <View style={[styles.bottomSheetContainer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) }]}>
               {/* Handle Bar */}
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
               </View>
-              
+
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
                 <Text style={styles.bottomSheetTitle}>Lọc lịch lễ</Text>
@@ -157,7 +159,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
-              
+
               {/* Filter Options */}
               <View style={styles.filterOptionsContainer}>
                 {STATUS_FILTERS.map((filter) => {
@@ -198,7 +200,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   );
                 })}
               </View>
-              
+
               {/* Apply Button */}
               <View style={styles.bottomSheetFooter}>
                 <TouchableOpacity
@@ -228,33 +230,31 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) 
   const isFiltered = activeFilter !== "all";
 
   return (
-    <View style={styles.filterTriggerContainer}>
-      <TouchableOpacity
-        style={[
-          styles.filterTriggerButton,
-          isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
-        ]}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name="filter"
-          size={18}
-          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-        />
-        <Text style={[
-          styles.filterTriggerText,
-          isFiltered && { color: activeFilterInfo?.color },
-        ]}>
-          {isFiltered ? activeFilterInfo?.label : "Lọc"}
-        </Text>
-        <Ionicons
-          name="chevron-down"
-          size={16}
-          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-        />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={[
+        styles.filterTriggerButton,
+        isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name="filter"
+        size={14}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+      <Text style={[
+        styles.filterTriggerText,
+        isFiltered && { color: activeFilterInfo?.color },
+      ]}>
+        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+      </Text>
+      <Ionicons
+        name="chevron-down"
+        size={14}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+    </TouchableOpacity>
   );
 };
 
@@ -292,13 +292,13 @@ interface DayChipProps {
 const DayChip: React.FC<DayChipProps> = ({ day, size = "normal", selected, onPress }) => {
   const dayInfo = DAYS_MAP.find(d => d.value === day) || DAYS_MAP[0];
   const isSmall = size === "small";
-  
+
   const chipStyle = [
     styles.dayChip,
     isSmall && styles.dayChipSmall,
     selected && { backgroundColor: PREMIUM_COLORS.goldLight, borderColor: PREMIUM_COLORS.gold },
   ];
-  
+
   const textStyle = [
     styles.dayChipText,
     isSmall && styles.dayChipTextSmall,
@@ -334,7 +334,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
   const [showMenu, setShowMenu] = useState(false);
   const canEdit = schedule.status !== "approved";
   const isRejected = schedule.status === "rejected";
-  
+
   // Format time HH:MM:SS → HH:MM
   const formatTime = (timeStr: string) => {
     if (!timeStr) return "";
@@ -380,7 +380,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
     <View style={styles.scheduleCard}>
       {/* Decorative left border */}
       <View style={[styles.cardLeftBorder, { backgroundColor: STATUS_CONFIG[schedule.status].textColor }]} />
-      
+
       <View style={styles.cardContent}>
         {/* Header: Time + Status */}
         <View style={styles.cardHeader}>
@@ -432,7 +432,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
               <Text style={styles.dateText}>{formatDate(schedule.created_at)}</Text>
             </View>
           </View>
-          
+
           {/* Actions (only for pending/rejected) */}
           {canEdit && (
             <View style={styles.actionsRow}>
@@ -531,11 +531,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    
+
     if (formData.days_of_week.length === 0) {
       newErrors.days_of_week = "Vui lòng chọn ít nhất 1 ngày";
     }
-    
+
     if (!formData.time) {
       newErrors.time = "Vui lòng nhập giờ";
     } else if (!/^\d{2}:\d{2}$/.test(formData.time)) {
@@ -546,11 +546,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
         newErrors.time = "Giờ không hợp lệ";
       }
     }
-    
+
     if (formData.note && formData.note.length > 500) {
       newErrors.note = "Ghi chú tối đa 500 ký tự";
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -831,11 +831,15 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
 
   return (
     <View style={styles.container}>
-      {/* Filter Trigger Button */}
-      <FilterTrigger
-        activeFilter={statusFilter}
-        onPress={() => setShowFilterSheet(true)}
-      />
+      {/* Header Row */}
+      <View style={styles.headerRow}>
+        <Text style={styles.sectionTitle}>Danh sách lịch lễ</Text>
+        {/* Filter Trigger Button */}
+        <FilterTrigger
+          activeFilter={statusFilter}
+          onPress={() => setShowFilterSheet(true)}
+        />
+      </View>
 
       {/* Filter Bottom Sheet */}
       <FilterBottomSheet
@@ -927,27 +931,39 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  
-  // Filter Trigger Button
-  filterTriggerContainer: {
+
+  // Header Row
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+
+  // Filter Trigger Button
   filterTriggerButton: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    gap: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: GUIDE_COLORS.borderLight,
-    ...GUIDE_SHADOWS.sm,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+      android: { elevation: 2 },
+    }),
   },
   filterTriggerText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: GUIDE_COLORS.textSecondary,
   },
@@ -962,7 +978,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
   },
   handleBarContainer: {
     alignItems: "center",
@@ -1039,6 +1054,7 @@ const styles = StyleSheet.create({
   bottomSheetFooter: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.md,
   },
   applyButton: {
     backgroundColor: PREMIUM_COLORS.gold,

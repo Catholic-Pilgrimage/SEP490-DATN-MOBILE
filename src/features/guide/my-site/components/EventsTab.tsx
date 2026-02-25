@@ -23,6 +23,7 @@ import {
   TouchableWithoutFeedback,
   View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -83,6 +84,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   onFilterChange,
   onClose,
 }) => {
+  const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
 
   // Reset selection when opened
@@ -109,7 +111,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.bottomSheetOverlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.bottomSheetContainer}>
+            <View style={[styles.bottomSheetContainer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) }]}>
               {/* Handle Bar */}
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
@@ -193,33 +195,31 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) 
   const isFiltered = activeFilter !== "all";
 
   return (
-    <View style={styles.filterTriggerContainer}>
-      <TouchableOpacity
-        style={[
-          styles.filterTriggerButton,
-          isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
-        ]}
-        onPress={onPress}
-        activeOpacity={0.7}
-      >
-        <Ionicons
-          name="filter"
-          size={18}
-          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-        />
-        <Text style={[
-          styles.filterTriggerText,
-          isFiltered && { color: activeFilterInfo?.color },
-        ]}>
-          {isFiltered ? activeFilterInfo?.label : "Lọc"}
-        </Text>
-        <Ionicons
-          name="chevron-down"
-          size={16}
-          color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-        />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={[
+        styles.filterTriggerButton,
+        isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Ionicons
+        name="filter"
+        size={14}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+      <Text style={[
+        styles.filterTriggerText,
+        isFiltered && { color: activeFilterInfo?.color },
+      ]}>
+        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+      </Text>
+      <Ionicons
+        name="chevron-down"
+        size={14}
+        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+      />
+    </TouchableOpacity>
   );
 };
 
@@ -508,11 +508,15 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
 
   return (
     <View style={styles.container}>
-      {/* Filter Trigger Button */}
-      <FilterTrigger
-        activeFilter={statusFilter}
-        onPress={() => setShowFilterSheet(true)}
-      />
+      {/* Header Row */}
+      <View style={styles.headerRow}>
+        <Text style={styles.sectionTitle}>Danh sách sự kiện</Text>
+        {/* Filter Trigger Button */}
+        <FilterTrigger
+          activeFilter={statusFilter}
+          onPress={() => setShowFilterSheet(true)}
+        />
+      </View>
 
       {/* Filter Bottom Sheet */}
       <FilterBottomSheet
@@ -561,26 +565,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Filter Trigger Button
-  filterTriggerContainer: {
-    paddingHorizontal: GUIDE_SPACING.lg,
+  // Header Row
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+
+  // Filter Trigger Button
   filterTriggerButton: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
-    gap: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: GUIDE_COLORS.borderLight,
-    ...GUIDE_SHADOWS.sm,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+      android: { elevation: 2 },
+    }),
   },
   filterTriggerText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: GUIDE_COLORS.textSecondary,
   },
@@ -595,7 +611,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
   },
   handleBarContainer: {
     alignItems: "center",
@@ -672,6 +687,7 @@ const styles = StyleSheet.create({
   bottomSheetFooter: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.md,
   },
   applyButton: {
     backgroundColor: PREMIUM_COLORS.gold,
@@ -688,7 +704,7 @@ const styles = StyleSheet.create({
 
   // List
   listContent: {
-    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingHorizontal: GUIDE_SPACING.md,
     paddingBottom: 120,
   },
 

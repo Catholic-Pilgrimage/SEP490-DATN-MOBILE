@@ -20,6 +20,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -76,28 +77,7 @@ const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor
   { key: "rejected", label: "Từ chối", color: GUIDE_COLORS.error, bgColor: "#FFEBEE", icon: "cancel", description: "Media bị từ chối" },
 ];
 
-interface TypeFilterChipProps {
-  filter: typeof TYPE_FILTERS[0];
-  isActive: boolean;
-  onPress: () => void;
-}
 
-const TypeFilterChip: React.FC<TypeFilterChipProps> = ({ filter, isActive, onPress }) => (
-  <TouchableOpacity
-    style={[styles.typeChip, isActive && styles.typeChipActive]}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <MaterialIcons
-      name={filter.icon}
-      size={16}
-      color={isActive ? GUIDE_COLORS.surface : GUIDE_COLORS.textMuted}
-    />
-    <Text style={[styles.typeChipText, isActive && styles.typeChipTextActive]}>
-      {filter.label}
-    </Text>
-  </TouchableOpacity>
-);
 
 // ============================================
 // FILTER BOTTOM SHEET (Gold Standard)
@@ -105,27 +85,32 @@ const TypeFilterChip: React.FC<TypeFilterChipProps> = ({ filter, isActive, onPre
 
 interface FilterBottomSheetProps {
   visible: boolean;
-  activeFilter: StatusFilter;
-  onFilterChange: (filter: StatusFilter) => void;
+  activeStatusFilter: StatusFilter;
+  activeTypeFilter: TypeFilter;
+  onFilterChange: (status: StatusFilter, type: TypeFilter) => void;
   onClose: () => void;
 }
 
 const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   visible,
-  activeFilter,
+  activeStatusFilter,
+  activeTypeFilter,
   onFilterChange,
   onClose,
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
+  const insets = useSafeAreaInsets();
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>(activeStatusFilter);
+  const [selectedType, setSelectedType] = useState<TypeFilter>(activeTypeFilter);
 
   React.useEffect(() => {
     if (visible) {
-      setSelectedFilter(activeFilter);
+      setSelectedStatus(activeStatusFilter);
+      setSelectedType(activeTypeFilter);
     }
-  }, [visible, activeFilter]);
+  }, [visible, activeStatusFilter, activeTypeFilter]);
 
   const handleApply = () => {
-    onFilterChange(selectedFilter);
+    onFilterChange(selectedStatus, selectedType);
     onClose();
   };
 
@@ -139,7 +124,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.bottomSheetOverlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.bottomSheetContainer}>
+            <View style={[styles.bottomSheetContainer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) }]}>
               {/* Handle Bar */}
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
@@ -153,45 +138,81 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Filter Options */}
-              <View style={styles.filterOptionsContainer}>
-                {STATUS_FILTERS.map((filter) => {
-                  const isSelected = selectedFilter === filter.key;
-                  return (
-                    <TouchableOpacity
-                      key={filter.key}
-                      style={[
-                        styles.filterOption,
-                        isSelected && { backgroundColor: filter.bgColor, borderColor: filter.color },
-                      ]}
-                      onPress={() => setSelectedFilter(filter.key)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.filterOptionLeft}>
-                        <View style={[styles.filterIconContainer, { backgroundColor: filter.bgColor }]}>
-                          {filter.icon ? (
-                            <MaterialIcons name={filter.icon} size={20} color={filter.color} />
-                          ) : (
-                            <MaterialIcons name="apps" size={20} color={filter.color} />
-                          )}
+              {/* Type Options */}
+              <View style={styles.filterSectionContainer}>
+                <Text style={styles.filterSectionTitle}>Loại media</Text>
+                <View style={styles.typeGridContainer}>
+                  {TYPE_FILTERS.map((type) => {
+                    const isSelected = selectedType === type.key;
+                    return (
+                      <TouchableOpacity
+                        key={type.key}
+                        style={[
+                          styles.typeGridItem,
+                          isSelected && styles.typeGridItemActive,
+                        ]}
+                        onPress={() => setSelectedType(type.key)}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialIcons
+                          name={type.icon}
+                          size={20}
+                          color={isSelected ? PREMIUM_COLORS.gold : GUIDE_COLORS.textSecondary}
+                        />
+                        <Text style={[
+                          styles.typeGridItemText,
+                          isSelected && styles.typeGridItemTextActive
+                        ]}>
+                          {type.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Status Options */}
+              <View style={styles.filterSectionContainer}>
+                <Text style={styles.filterSectionTitle}>Trạng thái</Text>
+                <View style={styles.filterOptionsContainer}>
+                  {STATUS_FILTERS.map((filter) => {
+                    const isSelected = selectedStatus === filter.key;
+                    return (
+                      <TouchableOpacity
+                        key={filter.key}
+                        style={[
+                          styles.filterOption,
+                          isSelected && { backgroundColor: filter.bgColor, borderColor: filter.color },
+                        ]}
+                        onPress={() => setSelectedStatus(filter.key)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.filterOptionLeft}>
+                          <View style={[styles.filterIconContainer, { backgroundColor: filter.bgColor }]}>
+                            {filter.icon ? (
+                              <MaterialIcons name={filter.icon} size={20} color={filter.color} />
+                            ) : (
+                              <MaterialIcons name="apps" size={20} color={filter.color} />
+                            )}
+                          </View>
+                          <View style={styles.filterOptionText}>
+                            <Text style={[styles.filterOptionLabel, { color: isSelected ? filter.color : GUIDE_COLORS.textPrimary }]}>
+                              {filter.label}
+                            </Text>
+                            {filter.description && (
+                              <Text style={styles.filterOptionDescription}>{filter.description}</Text>
+                            )}
+                          </View>
                         </View>
-                        <View style={styles.filterOptionText}>
-                          <Text style={[styles.filterOptionLabel, { color: isSelected ? filter.color : GUIDE_COLORS.textPrimary }]}>
-                            {filter.label}
-                          </Text>
-                          {filter.description && (
-                            <Text style={styles.filterOptionDescription}>{filter.description}</Text>
-                          )}
-                        </View>
-                      </View>
-                      {isSelected && (
-                        <View style={[styles.checkCircle, { backgroundColor: filter.color }]}>
-                          <Ionicons name="checkmark" size={16} color="#FFF" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+                        {isSelected && (
+                          <View style={[styles.checkCircle, { backgroundColor: filter.color }]}>
+                            <Ionicons name="checkmark" size={16} color="#FFF" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               {/* Apply Button */}
@@ -214,38 +235,35 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
 // Filter Trigger Button
 interface FilterTriggerProps {
-  activeFilter: StatusFilter;
+  hasFilters: boolean;
   onPress: () => void;
 }
 
-const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) => {
-  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
-  const isFiltered = activeFilter !== "all";
-
+const FilterTrigger: React.FC<FilterTriggerProps> = ({ hasFilters, onPress }) => {
   return (
     <TouchableOpacity
       style={[
         styles.filterTriggerButton,
-        isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
+        hasFilters && { backgroundColor: PREMIUM_COLORS.brownLight, borderColor: PREMIUM_COLORS.brown },
       ]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <Ionicons
         name="filter"
-        size={18}
-        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+        size={14}
+        color={hasFilters ? PREMIUM_COLORS.brown : GUIDE_COLORS.textSecondary}
       />
       <Text style={[
         styles.filterTriggerText,
-        isFiltered && { color: activeFilterInfo?.color },
+        hasFilters && { color: PREMIUM_COLORS.brown },
       ]}>
-        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+        {hasFilters ? "Đã lọc" : "Bộ lọc"}
       </Text>
       <Ionicons
         name="chevron-down"
-        size={16}
-        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
+        size={14}
+        color={hasFilters ? PREMIUM_COLORS.brown : GUIDE_COLORS.textSecondary}
       />
     </TouchableOpacity>
   );
@@ -497,22 +515,11 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
 
   return (
     <View style={styles.container}>
-      {/* Filter Row: Type Filters + Status Filter Trigger */}
-      <View style={styles.filterRow}>
-        <View style={styles.typeFilters}>
-          {TYPE_FILTERS.map((filter) => (
-            <TypeFilterChip
-              key={filter.key}
-              filter={filter}
-              isActive={typeFilter === filter.key}
-              onPress={() => setTypeFilter(filter.key)}
-            />
-          ))}
-        </View>
-
-        {/* Status Filter Trigger */}
+      {/* Header Row */}
+      <View style={styles.headerRow}>
+        <Text style={styles.sectionTitleMain}>Thư viện media</Text>
         <FilterTrigger
-          activeFilter={statusFilter}
+          hasFilters={statusFilter !== "all" || typeFilter !== "all"}
           onPress={() => setShowFilterSheet(true)}
         />
       </View>
@@ -520,8 +527,12 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
       {/* Filter Bottom Sheet */}
       <FilterBottomSheet
         visible={showFilterSheet}
-        activeFilter={statusFilter}
-        onFilterChange={setStatusFilter}
+        activeStatusFilter={statusFilter}
+        activeTypeFilter={typeFilter}
+        onFilterChange={(status, type) => {
+          setStatusFilter(status);
+          setTypeFilter(type);
+        }}
         onClose={() => setShowFilterSheet(false)}
       />
 
@@ -573,54 +584,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Filter Section
-  filterSection: {
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  typeFilters: {
-    flexDirection: "row",
-    gap: GUIDE_SPACING.sm,
-  },
-  typeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    paddingVertical: GUIDE_SPACING.sm,
-    paddingHorizontal: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.gray100,
-  },
-  typeChipActive: {
-    backgroundColor: GUIDE_COLORS.primary,
-  },
-  typeChipText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textMuted,
-  },
-  typeChipTextActive: {
-    color: GUIDE_COLORS.surface,
-  },
-
-  // Filter Row
-  filterRow: {
+  // Header Row
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.sm,
+  },
+  sectionTitleMain: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
   },
 
   // Filter Trigger Button
   filterTriggerButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: GUIDE_COLORS.borderLight,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
+      android: { elevation: 2 },
+    }),
   },
   filterTriggerText: {
     fontSize: 13,
@@ -638,7 +630,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
   },
   handleBarContainer: {
     alignItems: "center",
@@ -667,9 +658,49 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: GUIDE_SPACING.xs,
   },
+  filterSectionContainer: {
+    marginBottom: GUIDE_SPACING.lg,
+  },
+  filterSectionTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GUIDE_COLORS.gray400,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: GUIDE_SPACING.md,
+    paddingHorizontal: GUIDE_SPACING.lg,
+  },
+  typeGridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.lg,
+  },
+  typeGridItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.xs,
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: 10,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    backgroundColor: GUIDE_COLORS.gray100,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray100,
+  },
+  typeGridItemActive: {
+    backgroundColor: PREMIUM_COLORS.goldLight + '20',
+    borderColor: PREMIUM_COLORS.gold,
+  },
+  typeGridItemText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+  typeGridItemTextActive: {
+    color: PREMIUM_COLORS.goldDark,
+  },
   filterOptionsContainer: {
     paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
     gap: GUIDE_SPACING.sm,
   },
   filterOption: {
@@ -715,6 +746,7 @@ const styles = StyleSheet.create({
   bottomSheetFooter: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.md,
   },
   applyButton: {
     backgroundColor: PREMIUM_COLORS.gold,

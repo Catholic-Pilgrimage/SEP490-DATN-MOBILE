@@ -170,8 +170,8 @@ const ProfileScreen: React.FC = () => {
   }, []);
 
   const handleMySite = useCallback(() => {
-    // Navigate to My Site screen
-    (navigation as any).navigate("MySite");
+    // Navigate to SiteManagement screen to display full info with edit option
+    (navigation as any).navigate("SiteManagement");
   }, [navigation]);
 
   const handleSchedule = useCallback(() => {

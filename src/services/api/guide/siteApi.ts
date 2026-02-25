@@ -35,12 +35,29 @@ export const getAssignedSite = async (): Promise<
   return response.data;
 };
 
+/**
+ * Update assigned site info for the local guide
+ *
+ * @param data Site data to update
+ * @returns Updated site info
+ */
+export const updateAssignedSite = async (
+  data: Partial<LocalGuideSite>
+): Promise<ApiResponse<LocalGuideSite>> => {
+  const response = await apiClient.put<ApiResponse<LocalGuideSite>>(
+    GUIDE_ENDPOINTS.LOCAL_GUIDE_SITE,
+    data
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
 
 const guideSiteApi = {
   getAssignedSite,
+  updateAssignedSite,
 };
 
 export default guideSiteApi;
