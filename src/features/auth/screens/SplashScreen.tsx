@@ -1,14 +1,18 @@
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import * as Updates from "expo-updates";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   ImageBackground,
+  Modal,
   StatusBar,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
-} from 'react-native';
+} from "react-native";
 import Animated, {
   Easing,
   interpolate,
@@ -18,44 +22,51 @@ import Animated, {
   withRepeat,
   withSequence,
   withSpring,
-  withTiming
-} from 'react-native-reanimated';
-import { useAuth } from '../../../contexts/AuthContext';
-import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
-import { dashboardHomeApi } from '../../../services/api/guide';
-import { pilgrimSiteApi } from '../../../services/api/pilgrim';
+  withTiming,
+} from "react-native-reanimated";
+import { useAuth } from "../../../contexts/AuthContext";
+import { navigateToAppropriateScreen } from "../../../navigation/navigationHelpers";
+import { dashboardHomeApi } from "../../../services/api/guide";
+import { pilgrimSiteApi } from "../../../services/api/pilgrim";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 const SPLASH_COLORS = {
-  primary: '#cfaa3a',
-  primaryLight: '#e6c85a',
-  textLight: '#fff8e7',
-  textDark: '#1a1a1a',
-  overlay: 'rgba(0, 0, 0, 0.1)',
-  progressBg: 'rgba(255, 255, 255, 0.2)',
-  progressFill: '#cfaa3a',
+  primary: "#cfaa3a",
+  primaryLight: "#e6c85a",
+  textLight: "#fff8e7",
+  textDark: "#1a1a1a",
+  overlay: "rgba(0, 0, 0, 0.1)",
+  progressBg: "rgba(255, 255, 255, 0.2)",
+  progressFill: "#cfaa3a",
 };
 
 // Minimum time the splash should be shown (ms)
 const MIN_SPLASH_DURATION = 2000;
 
 // Pre-fetch stages for progress tracking
-type LoadingStage = 'auth' | 'data' | 'complete';
+type LoadingStage = "auth" | "data" | "complete";
+type UpdateState = "idle" | "available" | "downloading" | "error";
 
 const STAGE_LABELS: Record<LoadingStage, string> = {
-  auth: 'Đang xác thực...',
-  data: 'Đang tải dữ liệu...',
-  complete: 'Sẵn sàng!',
+  auth: "Đang xác thực...",
+  data: "Đang tải dữ liệu...",
+  complete: "Sẵn sàng!",
 };
 
 const SplashScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  const { isLoading: isAuthLoading, isAuthenticated, isGuest, user } = useAuth();
+  const {
+    isLoading: isAuthLoading,
+    isAuthenticated,
+    isGuest,
+    user,
+  } = useAuth();
   const [isReady, setIsReady] = useState(false);
   const [animationsComplete, setAnimationsComplete] = useState(false);
   const [dataPreFetched, setDataPreFetched] = useState(false);
-  const [currentStage, setCurrentStage] = useState<LoadingStage>('auth');
+  const [currentStage, setCurrentStage] = useState<LoadingStage>("auth");
+  const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const hasNavigated = useRef(false);
   const hasStartedPreFetch = useRef(false);
   const mountTime = useRef(Date.now());
@@ -63,6 +74,32 @@ const SplashScreen = () => {
   // Use refs to always have the latest auth values for navigation
   const authRef = useRef({ isAuthenticated, isGuest, role: user?.role });
   authRef.current = { isAuthenticated, isGuest, role: user?.role };
+
+  // Check for OTA updates silently in background
+  useEffect(() => {
+    if (__DEV__ || !Updates.isEnabled) return;
+    Updates.checkForUpdateAsync()
+      .then((update) => {
+        if (update.isAvailable) {
+          setUpdateState("available");
+        }
+      })
+      .catch(() => {
+        /* silent fail */
+      });
+  }, []);
+
+  const handleUpdate = async () => {
+    setUpdateState("downloading");
+    try {
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch {
+      setUpdateState("error");
+    }
+  };
+
+  const handleRetry = () => setUpdateState("available");
 
   // Animation values
   const logoScale = useSharedValue(0.01);
@@ -87,28 +124,26 @@ const SplashScreen = () => {
     if (hasNavigated.current) return;
     hasNavigated.current = true;
     const { isAuthenticated: auth, isGuest: guest, role } = authRef.current;
-    navigateToAppropriateScreen(
-      navigation,
-      auth,
-      guest,
-      role
-    );
+    navigateToAppropriateScreen(navigation, auth, guest, role);
   }, [navigation]);
 
   // Pre-fetch data based on user role
   // Reads from authRef to get the latest auth state at call time
   const preFetchData = useCallback(async () => {
-    setCurrentStage('data');
+    setCurrentStage("data");
     stageOpacity.value = withSequence(
       withTiming(0, { duration: 150 }),
-      withTiming(1, { duration: 150 })
+      withTiming(1, { duration: 150 }),
     );
     // Animate progress to 70%
-    progressWidth.value = withTiming(70, { duration: 800, easing: Easing.out(Easing.ease) });
+    progressWidth.value = withTiming(70, {
+      duration: 800,
+      easing: Easing.out(Easing.ease),
+    });
 
     try {
       const { isAuthenticated: auth, role } = authRef.current;
-      if (auth && role === 'local_guide') {
+      if (auth && role === "local_guide") {
         // Guide: pre-fetch dashboard data
         await Promise.allSettled([
           dashboardHomeApi.getOverview(),
@@ -123,15 +158,18 @@ const SplashScreen = () => {
       // If not authenticated and not guest → skip pre-fetch, just navigate to Auth
     } catch {
       // Silent fail - data will be fetched by the screens themselves
-      console.log('⚠️ Pre-fetch failed silently, screens will fetch on mount');
+      console.log("⚠️ Pre-fetch failed silently, screens will fetch on mount");
     }
 
     // Animate progress to 100%
-    progressWidth.value = withTiming(100, { duration: 400, easing: Easing.out(Easing.ease) });
-    setCurrentStage('complete');
+    progressWidth.value = withTiming(100, {
+      duration: 400,
+      easing: Easing.out(Easing.ease),
+    });
+    setCurrentStage("complete");
     stageOpacity.value = withSequence(
       withTiming(0, { duration: 150 }),
-      withTiming(1, { duration: 150 })
+      withTiming(1, { duration: 150 }),
     );
     setDataPreFetched(true);
   }, []);
@@ -149,7 +187,10 @@ const SplashScreen = () => {
     if (!isAuthLoading && !hasStartedPreFetch.current) {
       hasStartedPreFetch.current = true;
       // Auth is done, start pre-fetching data
-      progressWidth.value = withTiming(30, { duration: 500, easing: Easing.out(Easing.ease) });
+      progressWidth.value = withTiming(30, {
+        duration: 500,
+        easing: Easing.out(Easing.ease),
+      });
       preFetchData();
     }
   }, [isAuthLoading, preFetchData]);
@@ -177,14 +218,14 @@ const SplashScreen = () => {
     logoOpacity.value = withTiming(1, { duration: 800 });
     logoScale.value = withSequence(
       withSpring(1.15, { damping: 8, stiffness: 100 }),
-      withSpring(1, { damping: 12, stiffness: 100 })
+      withSpring(1, { damping: 12, stiffness: 100 }),
     );
 
     // Subtle rotation for elegance
     logoRotate.value = withSequence(
       withTiming(-3, { duration: 400 }),
       withTiming(3, { duration: 400 }),
-      withTiming(0, { duration: 300 })
+      withTiming(0, { duration: 300 }),
     );
 
     // Glow effect
@@ -195,12 +236,12 @@ const SplashScreen = () => {
         withRepeat(
           withSequence(
             withTiming(0.4, { duration: 1500 }),
-            withTiming(0.8, { duration: 1500 })
+            withTiming(0.8, { duration: 1500 }),
           ),
           -1,
-          true
-        )
-      )
+          true,
+        ),
+      ),
     );
 
     glowScale.value = withDelay(
@@ -208,11 +249,11 @@ const SplashScreen = () => {
       withRepeat(
         withSequence(
           withTiming(1.3, { duration: 1500 }),
-          withTiming(1, { duration: 1500 })
+          withTiming(1, { duration: 1500 }),
         ),
         -1,
-        true
-      )
+        true,
+      ),
     );
 
     // Pulse effect for logo
@@ -220,12 +261,15 @@ const SplashScreen = () => {
       1000,
       withRepeat(
         withSequence(
-          withTiming(1.05, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) })
+          withTiming(1.05, {
+            duration: 1000,
+            easing: Easing.inOut(Easing.ease),
+          }),
+          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
         ),
         -1,
-        true
-      )
+        true,
+      ),
     );
 
     // Shimmer effect
@@ -234,8 +278,8 @@ const SplashScreen = () => {
       withRepeat(
         withTiming(1, { duration: 2000, easing: Easing.linear }),
         -1,
-        false
-      )
+        false,
+      ),
     );
 
     // Ring rotation
@@ -245,8 +289,8 @@ const SplashScreen = () => {
       withRepeat(
         withTiming(360, { duration: 20000, easing: Easing.linear }),
         -1,
-        false
-      )
+        false,
+      ),
     );
 
     // Particles fade in
@@ -256,7 +300,7 @@ const SplashScreen = () => {
     titleOpacity.value = withDelay(800, withTiming(1, { duration: 600 }));
     titleTranslateY.value = withDelay(
       800,
-      withSpring(0, { damping: 12, stiffness: 100 })
+      withSpring(0, { damping: 12, stiffness: 100 }),
     );
 
     // Subtitle animation
@@ -278,10 +322,7 @@ const SplashScreen = () => {
     const scale = Math.max(0.01, logoScale.value) * pulseScale.value;
     return {
       opacity: logoOpacity.value,
-      transform: [
-        { scale },
-        { rotate: `${logoRotate.value}deg` },
-      ],
+      transform: [{ scale }, { rotate: `${logoRotate.value}deg` }],
     };
   });
 
@@ -305,11 +346,7 @@ const SplashScreen = () => {
   }));
 
   const shimmerAnimatedStyle = useAnimatedStyle(() => {
-    const translateX = interpolate(
-      shimmerPosition.value,
-      [-1, 1],
-      [-200, 200]
-    );
+    const translateX = interpolate(shimmerPosition.value, [-1, 1], [-200, 200]);
     return {
       transform: [{ translateX }],
     };
@@ -345,7 +382,7 @@ const SplashScreen = () => {
           top={top}
           delay={delay}
           duration={duration}
-        />
+        />,
       );
     }
     return particles;
@@ -353,11 +390,15 @@ const SplashScreen = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle="light-content" />
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle="light-content"
+      />
 
       {/* Background Image */}
       <ImageBackground
-        source={require('../../../../assets/images/bglogo.png')}
+        source={require("../../../../assets/images/bglogo.png")}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
@@ -365,7 +406,9 @@ const SplashScreen = () => {
         <View style={styles.overlay} />
 
         {/* Floating Particles */}
-        <Animated.View style={[styles.particlesContainer, particlesAnimatedStyle]}>
+        <Animated.View
+          style={[styles.particlesContainer, particlesAnimatedStyle]}
+        >
           {renderParticles()}
         </Animated.View>
 
@@ -378,12 +421,14 @@ const SplashScreen = () => {
 
             {/* Glow Effect Behind Logo */}
             <Animated.View style={[styles.glowEffect, glowAnimatedStyle]} />
-            <Animated.View style={[styles.glowEffectInner, glowAnimatedStyle]} />
+            <Animated.View
+              style={[styles.glowEffectInner, glowAnimatedStyle]}
+            />
 
             {/* Logo Image */}
             <Animated.View style={[styles.logoWrapper, logoAnimatedStyle]}>
               <Animated.Image
-                source={require('../../../../assets/images/logo.png')}
+                source={require("../../../../assets/images/logo.png")}
                 style={styles.logo}
                 resizeMode="contain"
               />
@@ -413,7 +458,9 @@ const SplashScreen = () => {
           {/* Progress Bar */}
           <View style={styles.progressBarContainer}>
             <View style={styles.progressBarTrack}>
-              <Animated.View style={[styles.progressBarFill, progressBarAnimatedStyle]} />
+              <Animated.View
+                style={[styles.progressBarFill, progressBarAnimatedStyle]}
+              />
             </View>
           </View>
 
@@ -423,6 +470,72 @@ const SplashScreen = () => {
           </Animated.Text>
         </View>
       </ImageBackground>
+
+      {/* OTA Update Modal — hiện đè lên splash screen */}
+      <Modal
+        visible={
+          updateState === "available" ||
+          updateState === "downloading" ||
+          updateState === "error"
+        }
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {updateState === "downloading" ? (
+              <>
+                <ActivityIndicator
+                  size="large"
+                  color="#cfaa3a"
+                  style={styles.modalSpinner}
+                />
+                <Text style={styles.modalTitle}>Đang cập nhật...</Text>
+                <Text style={styles.modalSubtitle}>
+                  Vui lòng chờ, ứng dụng sẽ tự khởi động lại.
+                </Text>
+              </>
+            ) : updateState === "error" ? (
+              <>
+                <Text style={styles.modalEmoji}>⚠️</Text>
+                <Text style={styles.modalTitle}>Cập nhật thất bại</Text>
+                <Text style={styles.modalSubtitle}>
+                  Vui lòng kiểm tra kết nối và thử lại.
+                </Text>
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={handleRetry}
+                >
+                  <Text style={styles.modalPrimaryBtnText}>Thử lại</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalSecondaryBtn}
+                  onPress={() => setUpdateState("idle")}
+                >
+                  <Text style={styles.modalSecondaryBtnText}>Bỏ qua</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modalEmoji}>🎉</Text>
+                <Text style={styles.modalTitle}>Có bản cập nhật mới!</Text>
+                <Text style={styles.modalSubtitle}>
+                  Phiên bản mới đã sẵn sàng. Cập nhật ngay để trải nghiệm tốt
+                  nhất.
+                </Text>
+                <TouchableOpacity
+                  style={styles.modalPrimaryBtn}
+                  onPress={handleUpdate}
+                >
+                  <Text style={styles.modalPrimaryBtnText}>Cập nhật ngay</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -449,12 +562,18 @@ const FloatingParticle = ({
       delay,
       withRepeat(
         withSequence(
-          withTiming(-50, { duration: duration / 2, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0, { duration: duration / 2, easing: Easing.inOut(Easing.ease) })
+          withTiming(-50, {
+            duration: duration / 2,
+            easing: Easing.inOut(Easing.ease),
+          }),
+          withTiming(0, {
+            duration: duration / 2,
+            easing: Easing.inOut(Easing.ease),
+          }),
         ),
         -1,
-        true
-      )
+        true,
+      ),
     );
 
     opacity.value = withDelay(
@@ -462,11 +581,11 @@ const FloatingParticle = ({
       withRepeat(
         withSequence(
           withTiming(0.8, { duration: duration / 2 }),
-          withTiming(0.2, { duration: duration / 2 })
+          withTiming(0.2, { duration: duration / 2 }),
         ),
         -1,
-        true
-      )
+        true,
+      ),
     );
   }, []);
 
@@ -498,8 +617,8 @@ const styles = StyleSheet.create({
   },
   backgroundImage: {
     flex: 1,
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -509,60 +628,60 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   particle: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.6)',
-    shadowColor: '#fff',
+    position: "absolute",
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    shadowColor: "#fff",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 4,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 40,
   },
   logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 40,
   },
   outerRing: {
-    position: 'absolute',
+    position: "absolute",
     width: 280,
     height: 280,
     borderRadius: 140,
     borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    borderStyle: 'dashed',
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    borderStyle: "dashed",
   },
   glowEffect: {
-    position: 'absolute',
+    position: "absolute",
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: "rgba(255, 255, 255, 0.3)",
   },
   glowEffectInner: {
-    position: 'absolute',
+    position: "absolute",
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderColor: "rgba(255, 255, 255, 0.4)",
   },
   logoWrapper: {
     width: 160,
     height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     borderRadius: 80,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -571,79 +690,144 @@ const styles = StyleSheet.create({
   logo: {
     width: 120,
     height: 120,
-    tintColor: '#8B6914',
+    tintColor: "#8B6914",
   },
   shimmerContainer: {
     ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   shimmer: {
     width: 60,
-    height: '150%',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    transform: [{ skewX: '-20deg' }],
-    position: 'absolute',
+    height: "150%",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    transform: [{ skewX: "-20deg" }],
+    position: "absolute",
     top: -20,
   },
   titleContainer: {
     marginBottom: 12,
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 16,
   },
   title: {
     fontSize: 32,
-    fontWeight: '700',
+    fontWeight: "700",
     color: SPLASH_COLORS.textLight,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: 0.5,
     lineHeight: 40,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 16,
     color: SPLASH_COLORS.textLight,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.9,
     letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   // Loading progress section
   loadingSection: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 80,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
     paddingHorizontal: 60,
   },
   progressBarContainer: {
-    width: '100%',
+    width: "100%",
     marginBottom: 12,
   },
   progressBarTrack: {
     height: 3,
     backgroundColor: SPLASH_COLORS.progressBg,
     borderRadius: 1.5,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressBarFill: {
-    height: '100%',
+    height: "100%",
     backgroundColor: SPLASH_COLORS.progressFill,
     borderRadius: 1.5,
   },
   stageText: {
     fontSize: 13,
     color: SPLASH_COLORS.textLight,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.8,
     letterSpacing: 0.3,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+  },
+  // OTA Update Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 28,
+  },
+  modalCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    width: "100%",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  modalEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  modalSpinner: {
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1A1A2E",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalPrimaryBtn: {
+    backgroundColor: "#cfaa3a",
+    borderRadius: 12,
+    paddingVertical: 14,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  modalPrimaryBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  modalSecondaryBtn: {
+    paddingVertical: 12,
+    width: "100%",
+    alignItems: "center",
+  },
+  modalSecondaryBtnText: {
+    color: "#999",
+    fontSize: 15,
+    fontWeight: "500",
   },
 });
 
