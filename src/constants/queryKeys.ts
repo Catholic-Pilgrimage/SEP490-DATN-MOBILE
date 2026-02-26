@@ -31,3 +31,20 @@ export const GUIDE_KEYS = {
         detail: (id: string) => [...['guide', 'shift-submissions'], 'detail', id] as const,
     },
 };
+
+export const VERIFICATION_KEYS = {
+    all: ['verification'] as const,
+    myRequest: () => [...VERIFICATION_KEYS.all, 'myRequest'] as const,
+};
+
+export const FAVORITE_KEYS = {
+    all: ['favorites'] as const,
+    ids: () => [...FAVORITE_KEYS.all, 'ids'] as const,
+    list: (params?: any) => [...FAVORITE_KEYS.all, 'list', params] as const,
+};
+
+export const SITE_KEYS = {
+    all: ['sites'] as const,
+    list: (params?: any) => [...SITE_KEYS.all, 'list', params] as const,
+    detail: (id: string) => [...SITE_KEYS.all, 'detail', id] as const,
+};

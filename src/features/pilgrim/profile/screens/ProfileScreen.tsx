@@ -174,7 +174,7 @@ const ProfileScreen = () => {
             route: 'Notifications',
             showBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount.toString()) : undefined
         },
-        { icon: 'bookmark', label: 'Đã lưu', requireAuth: true, route: 'FavoriteSites' },
+        { icon: 'heart', label: 'Yêu thích', requireAuth: true, route: 'FavoriteSites' },
         { icon: 'hand-left-outline', label: 'Lịch sử Hỗ trợ', requireAuth: true, route: 'SOSHistory' },
         { icon: 'time-outline', label: 'Lịch sử hành hương', requireAuth: true, route: 'History' },
         { icon: 'settings-outline', label: 'Cài đặt', requireAuth: false, route: 'Settings' },
@@ -287,7 +287,7 @@ const ProfileScreen = () => {
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>
                         <Text style={styles.statNumber}>0</Text>
-                        <Text style={styles.statLabel}>Đã lưu</Text>
+                        <Text style={styles.statLabel}>Yêu thích</Text>
                     </View>
                     <View style={styles.statDivider} />
                     <View style={styles.statItem}>

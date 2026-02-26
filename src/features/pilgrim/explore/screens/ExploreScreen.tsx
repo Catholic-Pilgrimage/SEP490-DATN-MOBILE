@@ -22,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useFavorites } from '../../../../hooks/useFavorites';
 import { useNotifications } from '../../../../hooks/useNotifications';
 import { useSites } from '../../../../hooks/useSites';
 import notificationService from '../../../../services/notification/notificationService';
@@ -79,7 +80,6 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         fetchMore,
         hasMore,
         isFetchingMore,
-        toggleFavorite
     } = useSites({
         filters: {
             region: selectedRegion,
@@ -89,6 +89,9 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         },
         autoFetch: true
     });
+
+    // Centralized favorites
+    const { isFavorite, toggleFavorite } = useFavorites();
 
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -108,7 +111,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         fetchSites({ region: selectedRegion, query: searchText });
     };
 
-    const handleFavoriteToggle = async (siteId: string) => {
+    const handleFavoriteToggle = (siteId: string) => {
         if (!isAuthenticated || isGuest) {
             Alert.alert(
                 'Yêu cầu đăng nhập',
@@ -128,12 +131,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
             );
             return;
         }
-
-        const site = sites.find(s => s.id === siteId);
-        if (site) {
-            // Optimistic update handled by hook
-            toggleFavorite(siteId, site.isFavorite);
-        }
+        toggleFavorite(siteId);
     };
 
     // Derived Animations
@@ -449,7 +447,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     region={site.region}
                                     coverImage={site.coverImage}
                                     reviewCount={site.reviewCount}
-                                    isFavorite={site.isFavorite} // Assuming API returns this
+                                    isFavorite={isFavorite(site.id)}
                                     onPress={() => navigation.navigate('SiteDetail', { siteId: site.id })}
                                     onFavoritePress={() => handleFavoriteToggle(site.id)}
                                 />
