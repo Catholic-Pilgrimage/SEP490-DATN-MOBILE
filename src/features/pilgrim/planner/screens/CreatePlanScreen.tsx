@@ -1,636 +1,914 @@
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Ionicons } from "@expo/vector-icons";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Alert, Dimensions,
-    FlatList,
+    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
-    Switch,
     Text,
     TextInput,
     TouchableOpacity,
-    View
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
-import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
-import { CreatePlanRequest } from '../../../../types/pilgrim/planner.types';
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
+} from "../../../../constants/theme.constants";
+import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
 
-const { width } = Dimensions.get('window');
-
-// Mock Data for Date Strip (Sept 2024 for example, but effectively we want to generate valid dates)
-const DAYS_IN_MONTH = 31;
-const START_DAY_OFFSET = 0; // Starts sunday
-
-const generateDays = () => {
-    // Just a simple generation of 18 days for demo
-    const days = [];
-    const today = new Date();
-    // Start from today - 2 days
-    const start = new Date();
-    start.setDate(today.getDate() - 2);
-
-    for (let i = 0; i < 21; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
-        days.push({
-            date: d.getDate(),
-            dayName: d.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0),
-            fullDate: d.toISOString().split('T')[0],
-            isToday: d.getDate() === today.getDate() && d.getMonth() === today.getMonth(),
-        });
-    }
-    return days;
+// Helper functions for calendar
+const getDaysInMonth = (year: number, month: number) => {
+  return new Date(year, month + 1, 0).getDate();
 };
 
-const DAYS = generateDays();
+const getFirstDayOfMonth = (year: number, month: number) => {
+  return new Date(year, month, 1).getDay();
+};
+
+const generateCalendarDays = (year: number, month: number) => {
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const days: (number | null)[] = [];
+
+  // Add empty cells for days before the first day of month
+  for (let i = 0; i < firstDay; i++) {
+    days.push(null);
+  }
+
+  // Add actual days
+  for (let i = 1; i <= daysInMonth; i++) {
+    days.push(i);
+  }
+
+  return days;
+};
 
 const CreatePlanScreen = ({ navigation }: any) => {
-    const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
-    // Form State
-    const [name, setName] = useState('');
-    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-    const [duration, setDuration] = useState(3); // Default 3 days
-    const [budget, setBudget] = useState<'low' | 'medium' | 'high'>('medium');
-    const [isPrivate, setIsPrivate] = useState(true);
+  // Form State
+  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState<string>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1); // Start from tomorrow
+    return tomorrow.toISOString().split("T")[0];
+  });
+  const [endDate, setEndDate] = useState<string>(() => {
+    const end = new Date();
+    end.setDate(end.getDate() + 4); // Tomorrow + 3 days
+    return end.toISOString().split("T")[0];
+  });
 
-    // Extra fields to satisfy API
-    const [peopleCount, setPeopleCount] = useState(1);
-    const [transportation, setTransportation] = useState('bus'); // Default bus
+  // Date picker modal states
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
+  // Calendar navigation states
+  const [startCalendarDate, setStartCalendarDate] = useState(
+    () => new Date(startDate),
+  );
+  const [endCalendarDate, setEndCalendarDate] = useState(
+    () => new Date(endDate),
+  );
 
-    const [loading, setLoading] = useState(false);
+  // Extra fields to satisfy API
+  const [peopleCount, setPeopleCount] = useState(1);
+  const [transportation, setTransportation] = useState("bus"); // Default bus
 
-    const handleCreate = async () => {
-        if (!name.trim()) {
-            Alert.alert(t('common.error'), t('planner.nameRequired', { defaultValue: 'Please enter a name for your plan' }));
-            return;
-        }
+  const [loading, setLoading] = useState(false);
 
-        try {
-            setLoading(true);
-            // Calculate end date based on duration
-            const startDateObj = new Date(selectedDate);
-            const endDateObj = new Date(startDateObj);
-            endDateObj.setDate(startDateObj.getDate() + duration);
-            const endDateStr = endDateObj.toISOString().split('T')[0];
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      Alert.alert(
+        t("common.error"),
+        t("planner.nameRequired", {
+          defaultValue: "Please enter a name for your plan",
+        }),
+      );
+      return;
+    }
 
-            // Payload construction
-            const payload: CreatePlanRequest = {
-                name,
-                start_date: selectedDate,
-                end_date: endDateStr,
-                number_of_people: peopleCount,
-                transportation,
-            };
+    try {
+      setLoading(true);
+      // Validate dates
+      if (new Date(startDate) >= new Date(endDate)) {
+        Alert.alert(t("common.error"), "End date must be after start date");
+        setLoading(false);
+        return;
+      }
 
-            const response = await pilgrimPlannerApi.createPlan(payload);
+      // Payload construction
+      const payload: CreatePlanRequest = {
+        name,
+        start_date: startDate,
+        end_date: endDate,
+        number_of_people: peopleCount,
+        transportation,
+      };
 
-            if (response.success) {
-                // Success
-                Alert.alert(t('common.success'), t('planner.createSuccess', { defaultValue: 'Plan created successfully!' }));
-                navigation.goBack();
-            } else {
-                throw new Error(response.message || 'Failed to create plan');
-            }
-        } catch (error: any) {
-            console.error('Create plan error:', error);
-            Alert.alert(t('common.error'), error.message || t('planner.createError', { defaultValue: 'Could not create plan. Please try again.' }));
-        } finally {
-            setLoading(false);
-        }
-    };
+      const response = await pilgrimPlannerApi.createPlan(payload);
 
-    const handleSaveDraft = async () => {
-        // Similar to create but maybe different status if API supported it, 
-        // currently API doesn't seem to have status in CreatePlanRequest based on types,
-        // but maybe it defaults to 'planned'. 
-        // For now, I'll just map it to create as well or if there is a draft field?
-        // The backend Plan entity has status. UpdatePlanRequest has status. 
-        // Maybe CreatePlanRequest needs status? 
-        // Screenshot defines request body: name, start_date... no status. 
-        // So I assume all created plans are 'planned' or 'draft' by default?
-        // For now let's just use create for draft button too, maybe unrelated.
-        // Actually, let's just wire it to handleCreate for now or leave it. 
-        // The prompt asked for API handling.
-        handleCreate();
-    };
+      if (response.success) {
+        // Success
+        Alert.alert(
+          t("common.success"),
+          t("planner.createSuccess", {
+            defaultValue: "Plan created successfully!",
+          }),
+        );
+        navigation.goBack();
+      } else {
+        throw new Error(response.message || "Failed to create plan");
+      }
+    } catch (error: any) {
+      console.error("Create plan error:", error);
+      Alert.alert(
+        t("common.error"),
+        error.message ||
+          t("planner.createError", {
+            defaultValue: "Could not create plan. Please try again.",
+          }),
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    return (
-        <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
+      <View style={styles.container}>
+        <StatusBar barStyle="dark-content" />
+
+        {/* Background Pattern */}
+        <View style={styles.backgroundPattern} pointerEvents="none" />
+
+        {/* Header */}
+        <View style={[styles.header, { marginTop: insets.top }]}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.cancelText}>
+              {t("common.cancel", { defaultValue: "Cancel" })}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>New Pilgrimage</Text>
+          <View style={{ width: 60 }} />
+        </View>
+
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
         >
-            <View style={styles.container}>
-                <StatusBar barStyle="dark-content" />
+          {/* Section 1: Name */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Name your Journey</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Camino de Santiago 2024"
+              placeholderTextColor={COLORS.textSecondary}
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
 
-                {/* Background Pattern */}
-                <View style={styles.backgroundPattern} pointerEvents="none" />
+          {/* Section 2: Start Date Picker */}
+          <View style={styles.section}>
+            <Text style={styles.label}>Start Date</Text>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => setShowStartPicker(!showStartPicker)}
+            >
+              <View style={styles.dateDisplayRow}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={24}
+                  color={COLORS.accent}
+                />
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={styles.dateDisplayLabel}>Selected Date</Text>
+                  <Text style={styles.dateDisplayValue}>
+                    {new Date(startDate).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={showStartPicker ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={COLORS.textSecondary}
+                  style={{ marginLeft: "auto" }}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
 
-                {/* Header */}
-                <View style={[styles.header, { marginTop: insets.top }]}>
-                    <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={() => navigation.goBack()}
-                    >
-                        <Text style={styles.cancelText}>{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>New Pilgrimage</Text>
-                    <View style={{ width: 60 }} />
+          {showStartPicker && (
+            <View style={[styles.section, styles.calendarContainer]}>
+              <View style={styles.calendarCard}>
+                {/* Month Navigation */}
+                <View style={styles.calendarHeader}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newDate = new Date(startCalendarDate);
+                      newDate.setMonth(newDate.getMonth() - 1);
+                      setStartCalendarDate(newDate);
+                    }}
+                    style={styles.calendarNavButton}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={24}
+                      color={COLORS.textPrimary}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarMonthText}>
+                    {startCalendarDate.toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newDate = new Date(startCalendarDate);
+                      newDate.setMonth(newDate.getMonth() + 1);
+                      setStartCalendarDate(newDate);
+                    }}
+                    style={styles.calendarNavButton}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={COLORS.textPrimary}
+                    />
+                  </TouchableOpacity>
                 </View>
 
-                <ScrollView
-                    contentContainerStyle={styles.content}
-                    showsVerticalScrollIndicator={false}
-                >
-                    {/* Section 1: Name */}
-                    <View style={styles.section}>
-                        <Text style={styles.label}>Name your Journey</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g., Camino de Santiago 2024"
-                            placeholderTextColor={COLORS.textSecondary}
-                            value={name}
-                            onChangeText={setName}
-                        />
-                    </View>
-
-                    {/* Section 2: Date Picker Strip */}
-                    <View style={styles.section}>
-                        <View style={styles.card}>
-                            <View style={styles.monthHeader}>
-                                <TouchableOpacity style={styles.iconButtonSmall}><Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} /></TouchableOpacity>
-                                <Text style={styles.monthText}>{new Date(selectedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
-                                <TouchableOpacity style={styles.iconButtonSmall}><Ionicons name="chevron-forward" size={20} color={COLORS.textPrimary} /></TouchableOpacity>
-                            </View>
-
-                            <View style={styles.daysRow}>
-                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
-                                    <Text key={i} style={styles.dayHeader}>{d}</Text>
-                                ))}
-                            </View>
-
-                            <FlatList
-                                horizontal
-                                data={DAYS}
-                                keyExtractor={(item) => item.fullDate}
-                                scrollEnabled={true}
-                                contentContainerStyle={{ paddingHorizontal: 4 }} // Align roughly
-                                showsHorizontalScrollIndicator={false}
-                                renderItem={({ item }) => {
-                                    const isSelected = item.fullDate === selectedDate;
-                                    return (
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.dayButton,
-                                                isSelected && styles.dayButtonSelected
-                                            ]}
-                                            onPress={() => setSelectedDate(item.fullDate)}
-                                        >
-                                            <Text style={[
-                                                styles.dayDate,
-                                                isSelected && styles.dayDateSelected
-                                            ]}>
-                                                {item.date}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                }}
-                            />
-                        </View>
-                    </View>
-
-                    {/* Section 3: Duration Slider */}
-                    <View style={styles.section}>
-                        <View style={styles.card}>
-                            <View style={styles.sliderHeader}>
-                                <Text style={styles.label}>Duration</Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-                                    <Text style={styles.durationValue}>{duration}</Text>
-                                    <Text style={styles.durationUnit}> Days</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.counterRow}>
-                                <TouchableOpacity
-                                    onPress={() => setDuration(Math.max(1, duration - 1))}
-                                    style={styles.counterBtn}
-                                >
-                                    <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
-                                </TouchableOpacity>
-                                <Text style={styles.counterValue}>{duration} Days</Text>
-                                <TouchableOpacity
-                                    onPress={() => setDuration(Math.min(30, duration + 1))}
-                                    style={styles.counterBtn}
-                                >
-                                    <Ionicons name="add" size={16} color={COLORS.textPrimary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.sliderLabels}>
-                                <Text style={styles.sliderLabelMin}>Recommended: 3-5 Days</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Section 4: Budget Level */}
-                    <View style={styles.section}>
-                        <Text style={styles.label}>Budget Level</Text>
-                        <View style={styles.budgetContainer}>
-                            {(['low', 'medium', 'high'] as const).map((level) => {
-                                const isSelected = budget === level;
-                                return (
-                                    <TouchableOpacity
-                                        key={level}
-                                        style={[
-                                            styles.budgetOption,
-                                            isSelected && styles.budgetOptionSelected
-                                        ]}
-                                        onPress={() => setBudget(level)}
-                                    >
-                                        <Text style={[
-                                            styles.budgetOptionText,
-                                            isSelected && styles.budgetOptionTextSelected
-                                        ]}>
-                                            {level.charAt(0).toUpperCase() + level.slice(1)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-
-                    {/* Section 5: Participants & Transport (API Requirement) */}
-                    <View style={[styles.section, { flexDirection: 'row', gap: 12 }]}>
-                        {/* People Counter */}
-                        <View style={[styles.card, { flex: 1, padding: 12 }]}>
-                            <Text style={styles.labelSmall}>Pilgrims</Text>
-                            <View style={styles.counterRow}>
-                                <TouchableOpacity
-                                    onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
-                                    style={styles.counterBtn}
-                                >
-                                    <Ionicons name="remove" size={16} color={COLORS.textPrimary} />
-                                </TouchableOpacity>
-                                <Text style={styles.counterValue}>{peopleCount}</Text>
-                                <TouchableOpacity
-                                    onPress={() => setPeopleCount(Math.min(50, peopleCount + 1))}
-                                    style={styles.counterBtn}
-                                >
-                                    <Ionicons name="add" size={16} color={COLORS.textPrimary} />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* Transport Selector (Simplified) */}
-                        <View style={[styles.card, { flex: 1, padding: 12 }]}>
-                            <Text style={styles.labelSmall}>Transport</Text>
-                            <View style={styles.transportRow}>
-                                {(['bus', 'car', 'walk'] as const).map((t) => (
-                                    <TouchableOpacity
-                                        key={t}
-                                        style={[
-                                            styles.transportIcon,
-                                            transportation === t && styles.transportIconSelected
-                                        ]}
-                                        onPress={() => setTransportation(t)}
-                                    >
-                                        <Ionicons
-                                            name={t === 'bus' ? 'bus' : t === 'car' ? 'car' : 'walk'}
-                                            size={20}
-                                            color={transportation === t ? COLORS.white : COLORS.textSecondary}
-                                        />
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Section 6: Privacy Toggle */}
-                    <View style={styles.section}>
-                        <View style={[styles.card, styles.privacyCard]}>
-                            <View>
-                                <Text style={styles.label}>Private Pilgrimage</Text>
-                                <Text style={styles.helperText}>Only visible to you</Text>
-                            </View>
-                            <Switch
-                                value={isPrivate}
-                                onValueChange={setIsPrivate}
-                                trackColor={{ false: COLORS.border, true: COLORS.accent }}
-                                thumbColor={COLORS.white}
-                            />
-                        </View>
-                    </View>
-
-                    <View style={{ height: 100 }} />
-
-                </ScrollView>
-
-                {/* Footer */}
-                <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-                    <TouchableOpacity
-                        style={[styles.createButton, loading && { opacity: 0.7 }]}
-                        onPress={handleCreate}
-                        disabled={loading}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color={COLORS.textPrimary} />
-                        ) : (
-                            <Text style={styles.createButtonText}>Create & Plan Route</Text>
-                        )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.draftButton, loading && { opacity: 0.7 }]}
-                        onPress={handleSaveDraft}
-                        disabled={loading}
-                    >
-                        <Text style={styles.draftButtonText}>Save as Draft</Text>
-                    </TouchableOpacity>
+                {/* Day Headers */}
+                <View style={styles.calendarDaysHeader}>
+                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                    <Text key={i} style={styles.calendarDayHeaderText}>
+                      {day}
+                    </Text>
+                  ))}
                 </View>
+
+                {/* Calendar Grid */}
+                <View style={styles.calendarGrid}>
+                  {generateCalendarDays(
+                    startCalendarDate.getFullYear(),
+                    startCalendarDate.getMonth(),
+                  ).map((day, index) => {
+                    if (day === null) {
+                      return null;
+                    }
+
+                    const dateStr = `${startCalendarDate.getFullYear()}-${String(
+                      startCalendarDate.getMonth() + 1,
+                    ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const isSelected = dateStr === startDate;
+                    const today = new Date().toISOString().split("T")[0];
+                    const isToday = dateStr === today;
+                    const isPast = new Date(dateStr) <= new Date(today);
+
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.calendarDay,
+                          isSelected && styles.calendarDaySelected,
+                          isToday && !isSelected && styles.calendarDayToday,
+                          isPast && styles.calendarDayDisabled,
+                        ]}
+                        onPress={() => {
+                          if (!isPast) {
+                            setStartDate(dateStr);
+                            setShowStartPicker(false);
+                          }
+                        }}
+                        disabled={isPast}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            isSelected && styles.calendarDayTextSelected,
+                            isToday &&
+                              !isSelected &&
+                              styles.calendarDayTextToday,
+                            isPast && styles.calendarDayTextDisabled,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
-        </KeyboardAvoidingView>
-    );
+          )}
+
+          {/* Section 3: End Date Picker */}
+          <View style={styles.section}>
+            <Text style={styles.label}>End Date</Text>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => setShowEndPicker(!showEndPicker)}
+            >
+              <View style={styles.dateDisplayRow}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={24}
+                  color={COLORS.accent}
+                />
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={styles.dateDisplayLabel}>Selected Date</Text>
+                  <Text style={styles.dateDisplayValue}>
+                    {new Date(endDate).toLocaleDateString("en-US", {
+                      weekday: "short",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={showEndPicker ? "chevron-up" : "chevron-down"}
+                  size={20}
+                  color={COLORS.textSecondary}
+                  style={{ marginLeft: "auto" }}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {showEndPicker && (
+            <View style={[styles.section, styles.calendarContainer]}>
+              <View style={styles.calendarCard}>
+                {/* Month Navigation */}
+                <View style={styles.calendarHeader}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newDate = new Date(endCalendarDate);
+                      newDate.setMonth(newDate.getMonth() - 1);
+                      setEndCalendarDate(newDate);
+                    }}
+                    style={styles.calendarNavButton}
+                  >
+                    <Ionicons
+                      name="chevron-back"
+                      size={24}
+                      color={COLORS.textPrimary}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.calendarMonthText}>
+                    {endCalendarDate.toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      const newDate = new Date(endCalendarDate);
+                      newDate.setMonth(newDate.getMonth() + 1);
+                      setEndCalendarDate(newDate);
+                    }}
+                    style={styles.calendarNavButton}
+                  >
+                    <Ionicons
+                      name="chevron-forward"
+                      size={24}
+                      color={COLORS.textPrimary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Day Headers */}
+                <View style={styles.calendarDaysHeader}>
+                  {["S", "M", "T", "W", "T", "F", "S"].map((day, i) => (
+                    <Text key={i} style={styles.calendarDayHeaderText}>
+                      {day}
+                    </Text>
+                  ))}
+                </View>
+
+                {/* Calendar Grid */}
+                <View style={styles.calendarGrid}>
+                  {generateCalendarDays(
+                    endCalendarDate.getFullYear(),
+                    endCalendarDate.getMonth(),
+                  ).map((day, index) => {
+                    if (day === null) {
+                      return null;
+                    }
+
+                    const dateStr = `${endCalendarDate.getFullYear()}-${String(
+                      endCalendarDate.getMonth() + 1,
+                    ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                    const isSelected = dateStr === endDate;
+                    const today = new Date().toISOString().split("T")[0];
+                    const isToday = dateStr === today;
+                    const isPast = new Date(dateStr) <= new Date(today);
+
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.calendarDay,
+                          isSelected && styles.calendarDaySelected,
+                          isToday && !isSelected && styles.calendarDayToday,
+                          isPast && styles.calendarDayDisabled,
+                        ]}
+                        onPress={() => {
+                          if (!isPast) {
+                            setEndDate(dateStr);
+                            setShowEndPicker(false);
+                          }
+                        }}
+                        disabled={isPast}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            isSelected && styles.calendarDayTextSelected,
+                            isToday &&
+                              !isSelected &&
+                              styles.calendarDayTextToday,
+                            isPast && styles.calendarDayTextDisabled,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Section 4: Participants & Transport (API Requirement) */}
+          <View style={[styles.section, { flexDirection: "row", gap: 12 }]}>
+            {/* People Counter */}
+            <View style={[styles.card, { flex: 1, padding: 12 }]}>
+              <Text style={styles.labelSmall}>Pilgrims</Text>
+              <View style={styles.counterRow}>
+                <TouchableOpacity
+                  onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
+                  style={styles.counterBtn}
+                >
+                  <Ionicons
+                    name="remove"
+                    size={16}
+                    color={COLORS.textPrimary}
+                  />
+                </TouchableOpacity>
+                <Text style={styles.counterValue}>{peopleCount}</Text>
+                <TouchableOpacity
+                  onPress={() => setPeopleCount(Math.min(50, peopleCount + 1))}
+                  style={styles.counterBtn}
+                >
+                  <Ionicons name="add" size={16} color={COLORS.textPrimary} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Transport Selector (Simplified) */}
+            <View style={[styles.card, { flex: 1, padding: 12 }]}>
+              <Text style={styles.labelSmall}>Transport</Text>
+              <View style={styles.transportRow}>
+                {(["bus", "car", "walk"] as const).map((t) => (
+                  <TouchableOpacity
+                    key={t}
+                    style={[
+                      styles.transportIcon,
+                      transportation === t && styles.transportIconSelected,
+                    ]}
+                    onPress={() => setTransportation(t)}
+                  >
+                    <Ionicons
+                      name={t === "bus" ? "bus" : t === "car" ? "car" : "walk"}
+                      size={20}
+                      color={
+                        transportation === t
+                          ? COLORS.white
+                          : COLORS.textSecondary
+                      }
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <View style={{ height: 100 }} />
+        </ScrollView>
+
+        {/* Footer */}
+        <View
+          style={[
+            styles.footer,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.createButton, loading && { opacity: 0.7 }]}
+            onPress={handleCreate}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.textPrimary} />
+            ) : (
+              <Text style={styles.createButtonText}>Create & Plan Route</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </KeyboardAvoidingView>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.backgroundSoft,
-    },
-    backgroundPattern: {
-        ...StyleSheet.absoluteFillObject,
-        opacity: 0.05,
-        backgroundColor: 'transparent',
-        // Add pattern styling/image here if available
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
-        backgroundColor: 'rgba(255,255,255,0.8)',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.05)',
-    },
-    headerTitle: {
-        fontSize: TYPOGRAPHY.fontSize.lg,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
-        fontFamily: TYPOGRAPHY.fontFamily.display,
-    },
-    cancelButton: {
-        padding: 8,
-        marginLeft: -8,
-    },
-    cancelText: {
-        fontSize: TYPOGRAPHY.fontSize.md,
-        color: COLORS.textSecondary,
-        fontWeight: '600',
-    },
-    content: {
-        padding: SPACING.lg,
-    },
-    section: {
-        marginBottom: SPACING.lg,
-    },
-    label: {
-        fontSize: TYPOGRAPHY.fontSize.md,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
-        marginBottom: SPACING.sm,
-    },
-    labelSmall: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
-        marginBottom: 8,
-    },
-    input: {
-        backgroundColor: COLORS.white,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: BORDER_RADIUS.md,
-        paddingHorizontal: SPACING.md,
-        height: 56,
-        fontSize: TYPOGRAPHY.fontSize.md,
-        color: COLORS.textPrimary,
-        ...SHADOWS.subtle,
-    },
-    card: {
-        backgroundColor: COLORS.white,
-        borderRadius: BORDER_RADIUS.xl,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        padding: SPACING.md,
-        ...SHADOWS.subtle,
-    },
-    // Calendar Styling
-    monthHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: SPACING.md,
-    },
-    monthText: {
-        fontSize: TYPOGRAPHY.fontSize.md,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
-    },
-    iconButtonSmall: {
-        padding: 4,
-    },
-    daysRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: SPACING.sm,
-        paddingHorizontal: 12, // Align roughly with day buttons
-    },
-    dayHeader: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        color: COLORS.textTertiary,
-        width: 36,
-        textAlign: 'center',
-    },
-    dayButton: {
-        width: 36,
-        height: 36,
-        borderRadius: BORDER_RADIUS.full,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginHorizontal: 3, // Spacing
-    },
-    dayButtonSelected: {
-        backgroundColor: COLORS.accent,
-        shadowColor: COLORS.accent,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    dayDate: {
-        fontSize: 14,
-        color: COLORS.textPrimary,
-    },
-    dayDateSelected: {
-        color: COLORS.white, // Or contrast color
-        fontWeight: 'bold',
-    },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSoft,
+  },
+  backgroundPattern: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.05,
+    backgroundColor: "transparent",
+    // Add pattern styling/image here if available
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: "rgba(255,255,255,0.8)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  headerTitle: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    fontFamily: TYPOGRAPHY.fontFamily.display,
+  },
+  cancelButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  cancelText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textSecondary,
+    fontWeight: "600",
+  },
+  content: {
+    padding: SPACING.lg,
+  },
+  section: {
+    marginBottom: SPACING.lg,
+  },
+  label: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  labelSmall: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    height: 56,
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textPrimary,
+    ...SHADOWS.subtle,
+  },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.md,
+    ...SHADOWS.subtle,
+  },
+  // Date Display Styling
+  dateDisplayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: SPACING.xs,
+  },
+  dateDisplayLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  dateDisplayValue: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  // Calendar Styling
+  monthHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  monthText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  iconButtonSmall: {
+    padding: 4,
+  },
+  daysRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: SPACING.sm,
+    paddingHorizontal: 12, // Align roughly with day buttons
+  },
+  dayHeader: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: COLORS.textTertiary,
+    width: 36,
+    textAlign: "center",
+  },
+  dayButton: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.full,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 3, // Spacing
+  },
+  dayButtonSelected: {
+    backgroundColor: COLORS.accent,
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dayDate: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  dayDateSelected: {
+    color: COLORS.white, // Or contrast color
+    fontWeight: "bold",
+  },
 
-    // Slider Styling
-    sliderHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: SPACING.sm,
-    },
-    durationValue: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: COLORS.accent,
-    },
-    durationUnit: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: COLORS.textSecondary,
-    },
-    sliderLabels: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 4,
-    },
-    sliderLabelMin: { fontSize: 12, color: COLORS.textTertiary },
-    sliderLabelMax: { fontSize: 12, color: COLORS.textTertiary },
+  // Slider Styling
+  sliderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: SPACING.sm,
+  },
+  durationValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.accent,
+  },
+  durationUnit: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.textSecondary,
+  },
+  sliderLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  sliderLabelMin: { fontSize: 12, color: COLORS.textTertiary },
+  sliderLabelMax: { fontSize: 12, color: COLORS.textTertiary },
 
-    // Budget Styling
-    budgetContainer: {
-        flexDirection: 'row',
-        backgroundColor: 'rgba(0,0,0,0.03)', // Light gray bg
-        padding: 4,
-        borderRadius: BORDER_RADIUS.lg,
-    },
-    budgetOption: {
-        flex: 1,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderRadius: BORDER_RADIUS.md,
-    },
-    budgetOptionSelected: {
-        backgroundColor: COLORS.white,
-        shadowColor: 'black',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 1 },
-        shadowRadius: 2,
-        elevation: 1,
-    },
-    budgetOptionText: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: COLORS.textSecondary,
-    },
-    budgetOptionTextSelected: {
-        color: COLORS.textPrimary,
-        fontWeight: '600',
-    },
+  // Budget Styling
+  budgetContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.03)", // Light gray bg
+    padding: 4,
+    borderRadius: BORDER_RADIUS.lg,
+  },
+  budgetOption: {
+    flex: 1,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: BORDER_RADIUS.md,
+  },
+  budgetOptionSelected: {
+    backgroundColor: COLORS.white,
+    shadowColor: "black",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  budgetOptionText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.textSecondary,
+  },
+  budgetOptionTextSelected: {
+    color: COLORS.textPrimary,
+    fontWeight: "600",
+  },
 
-    // Counter & Transport
-    counterRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: COLORS.background,
-        borderRadius: BORDER_RADIUS.md,
-        padding: 4,
-    },
-    counterBtn: {
-        width: 32,
-        height: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: COLORS.white,
-        borderRadius: BORDER_RADIUS.sm,
-        ...SHADOWS.subtle,
-    },
-    counterValue: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: COLORS.textPrimary,
-    },
-    transportRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    transportIcon: {
-        width: 36,
-        height: 36,
-        borderRadius: BORDER_RADIUS.full,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: COLORS.background,
-    },
-    transportIconSelected: {
-        backgroundColor: COLORS.accent,
-    },
+  // Counter & Transport
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    padding: 4,
+  },
+  counterBtn: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.sm,
+    ...SHADOWS.subtle,
+  },
+  counterValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  transportRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  transportIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.full,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+  },
+  transportIconSelected: {
+    backgroundColor: COLORS.accent,
+  },
 
-    // Privacy
-    privacyCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    helperText: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-    },
+  // Full Calendar Styles
+  calendarContainer: {
+    marginTop: -SPACING.sm,
+  },
+  calendarCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: SPACING.lg,
+    ...SHADOWS.subtle,
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.lg,
+  },
+  calendarNavButton: {
+    padding: SPACING.xs,
+  },
+  calendarMonthText: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+  },
+  calendarDaysHeader: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: SPACING.sm,
+  },
+  calendarDayHeaderText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+    width: 40,
+    textAlign: "center",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  calendarDay: {
+    width: "14.28%", // 7 days in a week
+    aspectRatio: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: SPACING.xs,
+  },
+  calendarDaySelected: {
+    backgroundColor: COLORS.accent,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  calendarDayToday: {
+    borderWidth: 2,
+    borderColor: COLORS.accent,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  calendarDayText: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  calendarDayTextSelected: {
+    color: COLORS.white,
+    fontWeight: "bold",
+  },
+  calendarDayTextToday: {
+    color: COLORS.accent,
+    fontWeight: "600",
+  },
+  calendarDayDisabled: {
+    opacity: 0.3,
+  },
+  calendarDayTextDisabled: {
+    color: COLORS.textTertiary,
+  },
 
-    // Footer
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: SPACING.md,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        gap: SPACING.md,
-    },
-    createButton: {
-        backgroundColor: COLORS.accent,
-        height: 48,
-        borderRadius: BORDER_RADIUS.lg,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...SHADOWS.medium,
-    },
-    createButtonText: {
-        color: COLORS.textPrimary, // Mockup has dark text on yellow
-        fontSize: 16,
-        fontWeight: 'bold',
-    },
-    draftButton: {
-        backgroundColor: 'transparent',
-        height: 48,
-        borderRadius: BORDER_RADIUS.lg,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    draftButtonText: {
-        color: COLORS.textSecondary,
-        fontSize: 16,
-        fontWeight: '600',
-    },
+  // Privacy
+  privacyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  helperText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+
+  // Footer
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    gap: SPACING.md,
+  },
+  createButton: {
+    backgroundColor: COLORS.accent,
+    height: 48,
+    borderRadius: BORDER_RADIUS.lg,
+    justifyContent: "center",
+    alignItems: "center",
+    ...SHADOWS.medium,
+  },
+  createButtonText: {
+    color: COLORS.textPrimary, // Mockup has dark text on yellow
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  draftButton: {
+    backgroundColor: "transparent",
+    height: 48,
+    borderRadius: BORDER_RADIUS.lg,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  draftButtonText: {
+    color: COLORS.textSecondary,
+    fontSize: 16,
+    fontWeight: "600",
+  },
 });
 
 export default CreatePlanScreen;
