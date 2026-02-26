@@ -2,6 +2,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -66,6 +67,7 @@ const TabIcon = ({ name, focused, label, hasNotification }: TabIconProps) => {
 };
 
 export const GuideNavigator = () => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -88,7 +90,7 @@ export const GuideNavigator = () => {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="home" focused={focused} label="Home" />
+            <TabIcon name="home" focused={focused} label={t("navigation.home", { defaultValue: "Trang chủ" })} />
           ),
         }}
       />
@@ -97,7 +99,7 @@ export const GuideNavigator = () => {
         component={MySiteNavigator}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="church" focused={focused} label="My Site" />
+            <TabIcon name="church" focused={focused} label={t("navigation.mySite", { defaultValue: "Site của tôi" })} />
           ),
         }}
       />
@@ -106,7 +108,7 @@ export const GuideNavigator = () => {
         component={ShiftsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="calendar-today" focused={focused} label="Lịch" />
+            <TabIcon name="calendar-today" focused={focused} label={t("navigation.shifts", { defaultValue: "Lịch" })} />
           ),
         }}
       />
@@ -115,7 +117,7 @@ export const GuideNavigator = () => {
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="person-outline" focused={focused} label="Profile" />
+            <TabIcon name="person-outline" focused={focused} label={t("navigation.profile", { defaultValue: "Cá nhân" })} />
           ),
         }}
       />
