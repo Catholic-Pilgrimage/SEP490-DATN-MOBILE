@@ -7,9 +7,20 @@
 // ENUMS / UNION TYPES
 // ============================================
 
-export type PlanStatus = "draft" | "planned" | "ongoing" | "completed" | "cancelled";
+export type PlanStatus =
+  | "draft"
+  | "planned"
+  | "ongoing"
+  | "completed"
+  | "cancelled";
 
-export type TransportationType = "car" | "bus" | "train" | "plane" | "walk" | "other";
+export type TransportationType =
+  | "car"
+  | "bus"
+  | "train"
+  | "plane"
+  | "walk"
+  | "other";
 
 // ============================================
 // SUB-ENTITIES
@@ -41,6 +52,8 @@ export interface PlanItem {
   };
   arrival_time?: string;
   departure_time?: string;
+  estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
+  rest_duration?: string; // Format: text (e.g., "1 hour", "2 hours 30 minutes")
 }
 
 export interface PlanParticipant {
@@ -148,6 +161,8 @@ export interface AddPlanItemRequest {
   site_id: string;
   day_number: number;
   note?: string;
+  estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
+  rest_duration?: string; // Format: text (e.g., "1 hour", "30 minutes", "2 hours 30 minutes")
 }
 
 export interface ReorderPlanItemsRequest {
