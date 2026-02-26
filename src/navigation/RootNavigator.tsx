@@ -2,14 +2,18 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
+import { NotificationHandler } from '../components/NotificationHandler';
 import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
 import SplashScreen from '../features/auth/screens/SplashScreen';
 import { PersonalInfoScreen } from '../features/guide/profile/screens';
 import SiteManagementScreen from '../features/guide/site-management/screens/SiteManagementScreen';
 import { SOSDetailScreen, SOSListScreen } from '../features/guide/support/screens';
+import VerificationRequestScreen from '../features/pilgrim/profile/screens/VerificationRequestScreen';
+import NotificationsScreen from '../features/shared/notifications/screens/NotificationsScreen';
 import SettingsScreen from '../features/shared/settings/screens/SettingsScreen';
 import { AuthNavigator } from './AuthNavigator';
 import { GuideNavigator } from './GuideNavigator';
+import { navigationRef } from './navigationRef';
 import { PilgrimNavigator } from './PilgrimNavigator';
 
 export type RootStackParamList = {
@@ -25,13 +29,16 @@ export type RootStackParamList = {
   SOSDetail: { id: string };
   ChangePassword: undefined;
   Settings: undefined;
+  VerificationRequest: undefined;
+  Notifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator = () => {
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
+      <NotificationHandler />
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName="Splash"
@@ -106,6 +113,20 @@ export const RootNavigator = () => {
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="VerificationRequest"
+          component={VerificationRequestScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
           options={{
             animation: 'slide_from_right',
           }}
