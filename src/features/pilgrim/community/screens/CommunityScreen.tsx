@@ -14,7 +14,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { CreatePostBar } from '../components/CreatePostBar';
 
 // --- Constants & Types ---
@@ -107,6 +107,7 @@ const FeedCard = ({ children, style }: { children: React.ReactNode; style?: any 
     return (
         <View style={[styles.cardContainer, style]}>
             {children}
+            <View style={styles.postDivider} />
         </View>
     );
 };
@@ -158,37 +159,36 @@ const FeedItemActions = ({ stats }: { stats: FeedItem['stats'] }) => (
 );
 
 const TextFeedItem = ({ item }: { item: FeedItem }) => (
-    <FeedCard style={styles.cardMargin}>
+    <FeedCard>
         <View style={styles.paddingContent}>
             <FeedItemHeader user={item.user} location={item.location} />
             <View style={styles.textBody}>
                 <Text style={styles.bodyText}>{item.content.text}</Text>
             </View>
-            <View style={styles.divider} />
             <FeedItemActions stats={item.stats} />
         </View>
     </FeedCard>
 );
 
 const ImageFeedItem = ({ item }: { item: FeedItem }) => (
-    <FeedCard style={[styles.cardMargin, styles.overflowHidden]}>
-        {/* Standard User Header (Consistent with Text Posts) */}
-        <View style={{ paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, paddingBottom: SPACING.sm }}>
+    <FeedCard>
+        {/* User Header */}
+        <View style={styles.paddingContent}>
             <FeedItemHeader user={item.user} location={item.location} />
         </View>
 
-        {/* Image Section */}
+        {/* Full-width Image */}
         <View style={styles.imageContainer}>
             <Image source={{ uri: item.content.image }} style={styles.feedImage} />
         </View>
 
-        {/* Content Section */}
-        <View style={[styles.paddingContent, { paddingTop: 12 }]}>
+        {/* Content & Actions */}
+        <View style={styles.paddingContent}>
             {item.content.quote && (
                 <Text style={styles.quoteText}>{item.content.quote}</Text>
             )}
             <Text style={styles.bodyText}>{item.content.text}</Text>
-            <View style={styles.divider} />
+            <View style={{ height: SPACING.sm }} />
             <FeedItemActions stats={item.stats} />
         </View>
     </FeedCard>
@@ -274,12 +274,9 @@ export default function CommunityScreen() {
                 data={DEMO_DATA}
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id}
-                contentContainerStyle={[
-                    styles.listContent,
-                    { paddingBottom: 100, paddingTop: 10 }
-                ]}
+                contentContainerStyle={styles.listContent}
                 ListHeaderComponent={
-                    <View style={{ marginBottom: SPACING.lg }}>
+                    <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
                         <CreatePostBar
                             avatar={user?.avatar}
                             name={user?.fullName || 'Pilgrim'}
@@ -290,6 +287,7 @@ export default function CommunityScreen() {
                     </View>
                 }
                 showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => null}
             />
         </View>
     );
@@ -375,26 +373,20 @@ const styles = StyleSheet.create({
 
     // List
     listContent: {
-        padding: SPACING.lg,
-        gap: SPACING.lg,
+        paddingBottom: 100,
     },
 
-    // Cards
+    // Posts
     cardContainer: {
         backgroundColor: COLORS.backgroundCard,
-        borderRadius: BORDER_RADIUS.lg,
-        ...SHADOWS.subtle,
-        borderWidth: 1,
-        borderColor: COLORS.border,
     },
     paddingContent: {
-        padding: SPACING.lg,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
     },
-    cardMargin: {
-        // handled by list gap
-    },
-    overflowHidden: {
-        overflow: 'hidden',
+    postDivider: {
+        height: 8,
+        backgroundColor: COLORS.backgroundSoft,
     },
 
     // Feed Item Header
@@ -452,12 +444,12 @@ const styles = StyleSheet.create({
         fontWeight: '500',
     },
 
-    // Divider
+    // Divider (kept for backward compat but not used in main feed)
     divider: {
         height: 1,
         width: '100%',
         backgroundColor: COLORS.divider,
-        marginBottom: SPACING.md,
+        marginVertical: SPACING.sm,
     },
 
     // Actions
@@ -497,11 +489,10 @@ const styles = StyleSheet.create({
     },
 
 
-    // Image Card Specifics
+    // Image - Full width
     imageContainer: {
-        height: 220,
+        height: 280,
         width: '100%',
-        position: 'relative',
     },
     feedImage: {
         width: '100%',
