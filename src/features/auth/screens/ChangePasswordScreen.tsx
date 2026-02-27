@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -15,6 +14,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { SHADOWS } from '../../../constants/theme.constants';
 import authApi from '../../../services/api/shared/authApi';
 import { ChangePasswordRequest } from '../../../types/auth.types';
@@ -54,22 +54,22 @@ const ChangePasswordScreen = () => {
     const handleChangePassword = async () => {
         // Validate inputs
         if (!currentPassword || !newPassword || !confirmPassword) {
-            Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Vui lòng nhập đầy đủ thông tin' });
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            Alert.alert('Lỗi', 'Mật khẩu mới và xác nhận mật khẩu không khớp');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Mật khẩu mới và xác nhận mật khẩu không khớp' });
             return;
         }
 
         if (newPassword.length < 8) {
-            Alert.alert('Lỗi', 'Mật khẩu mới phải có ít nhất 8 ký tự');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Mật khẩu mới phải có ít nhất 8 ký tự' });
             return;
         }
 
         if (currentPassword === newPassword) {
-            Alert.alert('Lỗi', 'Mật khẩu mới phải khác mật khẩu hiện tại');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Mật khẩu mới phải khác mật khẩu hiện tại' });
             return;
         }
 
@@ -83,19 +83,15 @@ const ChangePasswordScreen = () => {
 
             await authApi.changePassword(request);
 
-            Alert.alert(
-                'Thành công',
-                'Đổi mật khẩu thành công',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => navigation.goBack(),
-                    },
-                ]
-            );
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: 'Đổi mật khẩu thành công'
+            });
+            navigation.goBack();
         } catch (error: any) {
             const errorMessage = error.message || 'Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại.';
-            Alert.alert('Lỗi', errorMessage);
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: errorMessage });
         } finally {
             setIsSubmitting(false);
         }

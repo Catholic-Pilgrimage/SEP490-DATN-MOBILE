@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { VERIFICATION_KEYS } from '../constants/queryKeys';
 import { useAuth } from '../contexts/AuthContext';
 import verificationApi from '../services/api/pilgrim/verificationApi';
@@ -41,46 +41,62 @@ export function useVerification() {
     const requestGuestVerificationMutation = useMutation({
         mutationFn: (payload: GuestVerificationRequestPayload) => verificationApi.requestGuestVerification(payload),
         onSuccess: () => {
-            Alert.alert("Thành công", "Đã gửi yêu cầu đăng ký làm Local Guide thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.");
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: 'Đã gửi yêu cầu đăng ký làm Local Guide thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.'
+            });
             queryClient.invalidateQueries({ queryKey: VERIFICATION_KEYS.all });
         },
         onError: (error: any) => {
             const message = error.response?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.';
-            Alert.alert("Lỗi", message);
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: message });
         }
     });
 
     const requestPilgrimVerificationMutation = useMutation({
         mutationFn: (payload: PilgrimVerificationRequestPayload) => verificationApi.requestPilgrimVerification(payload),
         onSuccess: () => {
-            Alert.alert("Thành công", "Đã gửi yêu cầu đăng ký làm Local Guide thành công. Vui lòng chờ phê duyệt.");
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: 'Đã gửi yêu cầu đăng ký làm Local Guide thành công. Vui lòng chờ phê duyệt.'
+            });
             queryClient.invalidateQueries({ queryKey: VERIFICATION_KEYS.all });
         },
         onError: (error: any) => {
             const message = error.response?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.';
-            Alert.alert("Lỗi", message);
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: message });
         }
     });
 
     const requestGuestTransitionMutation = useMutation({
         mutationFn: (payload: GuestTransitionRequestPayload) => verificationApi.requestGuestTransition(payload),
         onSuccess: () => {
-            Alert.alert("Thành công", "Đã gửi yêu cầu thay thế Quản lý thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.");
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: 'Đã gửi yêu cầu thay thế Quản lý thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.'
+            });
         },
         onError: (error: any) => {
             const message = error.response?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.';
-            Alert.alert("Lỗi", message);
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: message });
         }
     });
 
     const requestPilgrimTransitionMutation = useMutation({
         mutationFn: (payload: PilgrimTransitionRequestPayload) => verificationApi.requestPilgrimTransition(payload),
         onSuccess: () => {
-            Alert.alert("Thành công", "Đã gửi yêu cầu thay thế Quản lý thành công. Vui lòng chờ phê duyệt.");
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: 'Đã gửi yêu cầu thay thế Quản lý thành công. Vui lòng chờ phê duyệt.'
+            });
         },
         onError: (error: any) => {
             const message = error.response?.data?.message || 'Có lỗi xảy ra khi gửi yêu cầu. Vui lòng thử lại.';
-            Alert.alert("Lỗi", message);
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: message });
         }
     });
 

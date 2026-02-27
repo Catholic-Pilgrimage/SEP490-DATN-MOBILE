@@ -7,7 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Alert } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { FAVORITE_KEYS } from '../constants/queryKeys';
 import { useAuth } from '../contexts/AuthContext';
 import pilgrimSiteApi from '../services/api/pilgrim/siteApi';
@@ -78,7 +78,14 @@ export function useFavorites() {
             if (context?.previousIds) {
                 queryClient.setQueryData(FAVORITE_KEYS.ids(), context.previousIds);
             }
-            Alert.alert('Lỗi', 'Không thể cập nhật yêu thích. Vui lòng thử lại.');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không thể cập nhật yêu thích. Vui lòng thử lại.' });
+        },
+        onSuccess: (data) => {
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: data.newState ? 'Đã thêm vào danh sách yêu thích' : 'Đã bỏ khỏi danh sách yêu thích'
+            });
         },
         onSettled: () => {
             // Refetch to ensure consistency

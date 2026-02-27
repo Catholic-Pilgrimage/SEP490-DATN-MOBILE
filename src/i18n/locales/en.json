@@ -42,6 +42,8 @@
         "noAccount": "Don't have an account?",
         "registerNow": "Register Now",
         "continueAsGuest": "Continue as Guest",
+        "guestSuccess": "Continuing as guest",
+        "loginSuccess": "Login successful",
         "validation": {
             "emailRequired": "Please enter your email",
             "emailInvalid": "Invalid email format",

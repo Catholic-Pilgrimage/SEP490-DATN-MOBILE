@@ -2,7 +2,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import * as NativeSplashScreen from "expo-splash-screen";
 import React, { useCallback, useEffect, useState } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import Toast from 'react-native-toast-message';
 import { queryClient } from "./config/query-client";
+import { toastConfig } from './config/toast.config';
 import { AuthProvider } from "./contexts/AuthContext";
 import { useNotifications } from "./hooks/useNotifications";
 import "./i18n"; // Initialize i18n
@@ -36,6 +38,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <RootNavigator />
+          <Toast config={toastConfig} />
         </AuthProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
