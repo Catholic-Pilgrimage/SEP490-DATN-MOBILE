@@ -5,7 +5,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React from "react";
 import {
     ActivityIndicator,
-    Alert,
     Image,
     Linking,
     Platform,
@@ -14,9 +13,10 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from 'react-native-toast-message';
 import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { SACRED_COLORS } from "../../../../constants/sacred-theme.constants";
 import { getFontSize } from "../../../../utils/responsive";
@@ -43,18 +43,18 @@ export const SOSDetailScreen = () => {
     const handleAssign = async () => {
         try {
             await assignSOS(id);
-            Alert.alert("Thành công", "Đã nhận xử lý yêu cầu");
+            Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã nhận xử lý yêu cầu' });
         } catch (error: any) {
-            Alert.alert("Lỗi", error?.message || "Không thể nhận yêu cầu");
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: error?.message || 'Không thể nhận yêu cầu' });
         }
     };
 
     const handleResolve = async () => {
         try {
             await resolveSOS({ id, data: { notes: "Đã xử lý xong" } });
-            Alert.alert("Thành công", "Đã giải quyết yêu cầu");
+            Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã giải quyết yêu cầu' });
         } catch (error: any) {
-            Alert.alert("Lỗi", error?.message || "Không thể giải quyết yêu cầu");
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: error?.message || 'Không thể giải quyết yêu cầu' });
         }
     };
 

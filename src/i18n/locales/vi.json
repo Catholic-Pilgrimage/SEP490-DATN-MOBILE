@@ -42,6 +42,8 @@
         "noAccount": "Chưa có tài khoản?",
         "registerNow": "Đăng ký ngay",
         "continueAsGuest": "Tiếp tục với tư cách Khách",
+        "guestSuccess": "Đang tiếp tục với tư cách khách",
+        "loginSuccess": "Đăng nhập thành công",
         "validation": {
             "emailRequired": "Vui lòng nhập email",
             "emailInvalid": "Email không hợp lệ",

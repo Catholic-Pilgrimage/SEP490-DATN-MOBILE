@@ -5,7 +5,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   ImageBackground,
   Keyboard,
@@ -18,20 +17,21 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View,
-} from "react-native";
+  View
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
   withTiming,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { SHADOWS } from "../../../constants/theme.constants";
-import { useAuth } from "../../../contexts/AuthContext";
-import { useI18n } from "../../../hooks/useI18n";
-import { navigateToAppropriateScreen } from "../../../navigation/navigationHelpers";
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { SHADOWS } from '../../../constants/theme.constants';
+import { useAuth } from '../../../contexts/AuthContext';
+import { useI18n } from '../../../hooks/useI18n';
+import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
 
 // Background image
 const BG_IMAGE = require("../../../../assets/images/bg2.jpg");
@@ -185,16 +185,21 @@ const LoginScreen = () => {
         email: email.trim().toLowerCase(),
         password: password,
       });
+
+      Toast.show({
+        type: 'success',
+        text1: t('auth.loginSuccess'),
+      });
       // Navigation is handled by useEffect when isAuthenticated changes
     } catch (error: any) {
       triggerShakeAnimation();
 
       // Show error alert with specific message
-      Alert.alert(
-        t("auth.errors.loginFailed"),
-        error.message || t("auth.checkCredentials"),
-        [{ text: t("common.ok"), style: "default" }],
-      );
+      Toast.show({
+        type: 'error',
+        text1: t('auth.errors.loginFailed'),
+        text2: error.message || t('auth.checkCredentials')
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -211,9 +216,18 @@ const LoginScreen = () => {
   const handleGuestContinue = useCallback(async () => {
     try {
       await continueAsGuest();
+      Toast.show({
+        type: 'success',
+        text1: t('common.success'),
+        text2: t('auth.guestSuccess'),
+      });
       // Navigation is handled by useEffect when isGuest changes
     } catch (error) {
-      Alert.alert(t("common.error"), t("auth.errors.guestError"));
+      Toast.show({
+        type: 'error',
+        text1: t('common.error'),
+        text2: t('auth.errors.guestError')
+      });
     }
   }, [continueAsGuest]);
 

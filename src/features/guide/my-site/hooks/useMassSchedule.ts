@@ -12,7 +12,7 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
+import Toast from 'react-native-toast-message';
 import {
   createMassSchedule,
   deleteMassSchedule,
@@ -128,34 +128,36 @@ export const useMassSchedule = (): UseMassScheduleResult => {
     mutationFn: (data: CreateMassScheduleRequest) => createMassSchedule(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
-      Alert.alert("Thành công", "Đã tạo lịch lễ mới");
+      Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã tạo lịch lễ mới' });
     },
-    onError: (err: any) => Alert.alert("Lỗi", err.message || "Không thể tạo lịch lễ"),
+    onError: (err: any) => Toast.show({ type: 'error', text1: 'Lỗi', text2: err.message || 'Không thể tạo lịch lễ' }),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateMassScheduleRequest }) => updateMassSchedule(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
-      Alert.alert("Thành công", "Đã cập nhật lịch lễ");
+      Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã cập nhật lịch lễ' });
     },
-    onError: (err: any) => Alert.alert("Lỗi", err.message || "Không thể cập nhật lịch lễ"),
+    onError: (err: any) => Toast.show({ type: 'error', text1: 'Lỗi', text2: err.message || 'Không thể cập nhật lịch lễ' }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteMassSchedule(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
+      Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã xóa lịch lễ' });
     },
-    onError: (err: any) => Alert.alert("Lỗi", err.message || "Không thể xóa lịch lễ"),
+    onError: (err: any) => Toast.show({ type: 'error', text1: 'Lỗi', text2: err.message || 'Không thể xóa lịch lễ' }),
   });
 
   const restoreMutation = useMutation({
     mutationFn: (id: string) => restoreMassSchedule(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
+      Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã khôi phục lịch lễ' });
     },
-    onError: (err: any) => Alert.alert("Lỗi", err.message || "Không thể khôi phục lịch lễ"),
+    onError: (err: any) => Toast.show({ type: 'error', text1: 'Lỗi', text2: err.message || 'Không thể khôi phục lịch lễ' }),
   });
 
   // Actions Wrappers

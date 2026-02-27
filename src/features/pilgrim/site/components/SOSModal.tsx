@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -12,8 +11,9 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
 import { CreateSOSRequest } from '../../../../types/pilgrim';
@@ -66,12 +66,12 @@ export const SOSModal: React.FC<SOSModalProps> = ({
 
     const handleSubmit = async () => {
         if (!message.trim()) {
-            Alert.alert('Thông báo', 'Vui lòng chọn vấn đề hoặc nhập nội dung cần hỗ trợ.');
+            Toast.show({ type: 'info', text1: 'Thông báo', text2: 'Vui lòng chọn vấn đề hoặc nhập nội dung cần hỗ trợ.' });
             return;
         }
 
         if (!siteLocation) {
-            Alert.alert('Lỗi', 'Không xác định được vị trí của bạn.');
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không xác định được vị trí của bạn.' });
             return;
         }
 
@@ -87,16 +87,17 @@ export const SOSModal: React.FC<SOSModalProps> = ({
 
             await pilgrimSOSApi.createSOS(payload);
 
-            Alert.alert(
-                'Đã gửi yêu cầu',
-                'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.',
-                [{ text: 'OK', onPress: onClose }]
-            );
+            Toast.show({
+                type: 'success',
+                text1: 'Đã gửi yêu cầu',
+                text2: 'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.'
+            });
             setMessage('');
             setSelectedChipId(null);
+            onClose();
         } catch (error) {
             console.error('Failed to send SOS request:', error);
-            Alert.alert('Thất bại', 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.');
+            Toast.show({ type: 'error', text1: 'Thất bại', text2: 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.' });
         } finally {
             setIsLoading(false);
         }
