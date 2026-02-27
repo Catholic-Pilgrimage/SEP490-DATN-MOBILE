@@ -18,7 +18,8 @@ import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COLORS, SHADOWS } from '../../../../constants/theme.constants';
-import { useQuery } from '../../../../hooks/useApi';
+import { useQuery as useApiQuery } from '../../../../hooks/useApi';
+import { useFavorites } from '../../../../hooks/useFavorites';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import { FavoriteSite } from '../../../../types/pilgrim/site.types';
 
@@ -30,14 +31,17 @@ const FavoriteSitesScreen = () => {
     const insets = useSafeAreaInsets();
     const [favorites, setFavorites] = useState<FavoriteSite[]>([]);
 
+    // Centralized favorites hook for toggling
+    const { toggleFavorite } = useFavorites();
+
     const {
         data: responseData,
         isLoading,
         error,
         execute: fetchFavorites,
         refetch,
-    } = useQuery(
-        () => pilgrimSiteApi.getFavorites({ page: 1, limit: 100 }), // Fetching/Pagination simplified for now
+    } = useApiQuery(
+        () => pilgrimSiteApi.getFavorites({ page: 1, limit: 100 }),
         {
             autoFetch: false,
             onSuccess: (res) => {
@@ -64,15 +68,10 @@ const FavoriteSitesScreen = () => {
                     text: 'Xóa',
                     style: 'destructive',
                     onPress: async () => {
-                        try {
-                            // Optimistic update
-                            setFavorites((prev) => prev.filter((item) => item.id !== siteId));
-                            await pilgrimSiteApi.removeFavorite(siteId);
-                        } catch (error) {
-                            console.error('Failed to remove favorite:', error);
-                            // Revert if failed (could be better handled with robust state management)
-                            refetch();
-                        }
+                        // Optimistic: remove from local list
+                        setFavorites((prev) => prev.filter((item) => item.id !== siteId));
+                        // Use centralized toggle to update shared cache + call API
+                        toggleFavorite(siteId);
                     },
                 },
             ]
@@ -143,7 +142,7 @@ const FavoriteSitesScreen = () => {
             />
             <Text style={styles.emptyTitle}>Chưa có địa điểm yêu thích</Text>
             <Text style={styles.emptySubtitle}>
-                Lưu lại các địa điểm hành hương bạn quan tâm để dễ dàng truy cập sau này.
+                Nhấn vào biểu tượng ❤️ để thêm địa điểm hành hương vào danh sách yêu thích.
             </Text>
             <TouchableOpacity
                 style={styles.exploreButton}
@@ -163,7 +162,7 @@ const FavoriteSitesScreen = () => {
                 >
                     <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Địa điểm đã lưu</Text>
+                <Text style={styles.headerTitle}>Địa điểm yêu thích</Text>
                 <View style={styles.placeholderButton} />
             </View>
 

@@ -30,6 +30,8 @@ const mapSiteResponse = (site: any): SiteSummary => ({
     isFavorite: site.is_favorite || site.isFavorite || false,
     type: site.type,
     region: site.region,
+    latitude: site.latitude || 0,
+    longitude: site.longitude || 0,
 });
 
 // ===== useSites =====
