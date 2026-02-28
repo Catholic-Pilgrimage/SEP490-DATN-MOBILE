@@ -5,14 +5,14 @@
 // Core
 export { default as apiClient } from './apiClient';
 export {
-    AUTH_ENDPOINTS, ENDPOINTS, default as endpoints, GUIDE_ENDPOINTS, PILGRIM_ENDPOINTS, SHARED_ENDPOINTS, USER_ENDPOINTS
+    AUTH_ENDPOINTS, ENDPOINTS, GUIDE_ENDPOINTS, PILGRIM_ENDPOINTS, SHARED_ENDPOINTS, USER_ENDPOINTS, default as endpoints
 } from './endpoints';
 
 // Shared APIs
-export { authApi, notificationApi, default as sharedApis, userApi } from './shared';
+export { authApi, notificationApi, postApi, default as sharedApis, userApi } from './shared';
 
 // Guide APIs
-export { default as guideApis, guideDashboardApi, guideMediaApi, guideSiteApi, guideSOSApi } from './guide';
+export { default as guideApis, guideDashboardApi, guideMediaApi, guideSOSApi, guideSiteApi } from './guide';
 
 // Pilgrim APIs
 export {
