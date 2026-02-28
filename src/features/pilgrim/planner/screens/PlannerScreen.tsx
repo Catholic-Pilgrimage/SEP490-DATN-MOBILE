@@ -117,7 +117,7 @@ export const PlannerScreen = ({ navigation }: any) => {
                 }
             ]}>
                 <View style={styles.compactHeaderContent}>
-                    <Text style={styles.compactHeaderTitle}>{t('planner.myPlans', { defaultValue: 'My Pilgrimage' })}</Text>
+                    <Text style={styles.compactHeaderTitle}>{t('planner.myPlans', { defaultValue: 'Kế hoạch của tôi' })}</Text>
                 </View>
                 {/* Border Bottom Line */}
                 <View style={styles.compactHeaderBorder} />
@@ -146,7 +146,7 @@ export const PlannerScreen = ({ navigation }: any) => {
                     }
                 ]}>
                     <View>
-                        <Text style={styles.headerSubtitle}>{t('planner.myPlans', { defaultValue: 'MY PILGRIMAGE' })}</Text>
+                        <Text style={styles.headerSubtitle}>{t('planner.myPlans', { defaultValue: 'KẾ HOẠCH CỦA TÔI' })}</Text>
                         <Text style={styles.headerTitle}>
                             {t('planner.dashboardTitle')}
                         </Text>
@@ -190,8 +190,8 @@ export const PlannerScreen = ({ navigation }: any) => {
                             <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} style={{ position: 'absolute', bottom: -5, right: -5 }} />
                         </View>
                         <View style={styles.emptyTextContainer}>
-                            <Text style={styles.emptyTitle}>{t('planner.planNewJourney')}</Text>
-                            <Text style={styles.emptySubtitle}>{t('planner.startJourney')}</Text>
+                            <Text style={styles.emptyTitle}>{t('planner.planNewJourney', { defaultValue: 'Lên Kế Hoạch Chuyến Đi Mới' })}</Text>
+                            <Text style={styles.emptySubtitle}>{t('planner.startJourney', { defaultValue: 'Bắt đầu hành trình tâm linh tiếp theo của bạn.' })}</Text>
                         </View>
                     </TouchableOpacity>
                 )}

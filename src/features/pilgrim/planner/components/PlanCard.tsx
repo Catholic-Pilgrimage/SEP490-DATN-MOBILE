@@ -69,7 +69,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
         return (
             <View style={[styles.statusTag, { backgroundColor: '#E6FFFB', borderColor: '#87E8DE', borderWidth: 1 }]}>
                 <Ionicons name="checkmark-circle-outline" size={12} color="#13C2C2" style={{ marginRight: 4 }} />
-                <Text style={[styles.statusText, { color: '#13C2C2' }]}>{plan.status || 'Planned'}</Text>
+                <Text style={[styles.statusText, { color: '#13C2C2' }]}>{plan.status === 'planned' ? t('planner.statusPlanned', { defaultValue: 'Đã lên lịch' }) : plan.status || 'Đã lên lịch'}</Text>
             </View>
         );
     };

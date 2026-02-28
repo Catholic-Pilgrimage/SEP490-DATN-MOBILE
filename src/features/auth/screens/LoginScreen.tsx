@@ -349,7 +349,7 @@ const LoginScreen = () => {
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="nhap_email_cua_ban@example.com"
+                    placeholder="Nhập email của bạn"
                     placeholderTextColor={`${LOGIN_COLORS.textMuted}99`}
                     value={email}
                     onChangeText={handleEmailChange}

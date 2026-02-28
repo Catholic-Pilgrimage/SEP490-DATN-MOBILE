@@ -83,7 +83,7 @@ export default function CreatePostScreen() {
                     Toast.show({
                         type: 'success',
                         text1: 'Thành công',
-                        text2: 'Đã tạo bài viết.',
+                        text2: 'Đã tạo bài viết và chia sẻ đến mọi người.',
                     });
                     navigation.goBack();
                 },
