@@ -47,7 +47,8 @@
           "icon": "./assets/images/logo.png",
           "color": "#ffffff"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "reactCompiler": true

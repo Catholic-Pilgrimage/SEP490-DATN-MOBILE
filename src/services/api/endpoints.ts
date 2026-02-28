@@ -303,6 +303,15 @@ export const SHARED_ENDPOINTS = {
     IMAGE: `${API_BASE}/upload/image`,
     IMAGES: `${API_BASE}/upload/images`,
   },
+
+  // Posts
+  POSTS: {
+    BASE: `${API_BASE}/posts`,
+    DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
+    LIKE: (id: string) => `${API_BASE}/posts/${id}/like`,
+    COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
+    COMMENT_DETAIL: (id: string, commentId: string) => `${API_BASE}/posts/${id}/comments/${commentId}`,
+  },
 } as const;
 
 /**

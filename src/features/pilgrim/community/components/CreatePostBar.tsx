@@ -18,7 +18,7 @@ const getInitials = (name?: string) => {
 
 export const CreatePostBar: React.FC<CreatePostBarProps> = ({ avatar, name, onPress }) => {
     return (
-        <View style={styles.container}>
+        <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.container}>
             <View style={styles.row}>
                 {avatar ? (
                     <Image
@@ -31,18 +31,14 @@ export const CreatePostBar: React.FC<CreatePostBarProps> = ({ avatar, name, onPr
                     </View>
                 )}
 
-                <TouchableOpacity
-                    style={styles.inputContainer}
-                    onPress={onPress}
-                    activeOpacity={0.7}
-                >
+                <View style={styles.inputContainer}>
                     <Text style={styles.placeholderText}>Chia sẻ ơn phước hoặc lời cầu nguyện...</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButton}>
+                </View>
+                <View style={styles.iconButton}>
                     <Ionicons name="images-outline" size={24} color={COLORS.accent} />
-                </TouchableOpacity>
+                </View>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 };
 
@@ -53,8 +49,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: BORDER_RADIUS.lg,
         ...SHADOWS.subtle,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
     },
     row: {
         flexDirection: 'row',
@@ -82,12 +76,10 @@ const styles = StyleSheet.create({
     inputContainer: {
         flex: 1,
         height: 44,
-        backgroundColor: COLORS.surface0,
+        backgroundColor: '#F0F2F5',
         borderRadius: 22,
         justifyContent: 'center',
         paddingHorizontal: SPACING.md,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
     },
     placeholderText: {
         color: COLORS.textSecondary,

@@ -363,13 +363,13 @@ const RegisterScreen = () => {
             {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email <Text style={styles.required}>*</Text></Text>
-              {renderInput('mail-outline', 'nhap_email@example.com', email, setEmail, 'email', { keyboardType: 'email-address', autoCapitalize: 'none' })}
+              {renderInput('mail-outline', 'Nhập email của bạn', email, setEmail, 'email', { keyboardType: 'email-address', autoCapitalize: 'none' })}
             </View>
 
             {/* Phone */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Số điện thoại <Text style={styles.required}>*</Text></Text>
-              {renderInput('phone', '0912 345 678', phone, setPhone, 'phone', { keyboardType: 'phone-pad' })}
+              {renderInput('phone', 'Nhập số điện thoại của bạn', phone, setPhone, 'phone', { keyboardType: 'phone-pad' })}
             </View>
 
             {/* Date of Birth */}

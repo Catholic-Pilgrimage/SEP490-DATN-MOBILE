@@ -2,25 +2,25 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
@@ -100,9 +100,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
     try {
       setLoading(true);
-      // Validate dates
       if (new Date(startDate) >= new Date(endDate)) {
-        Alert.alert(t("common.error"), "End date must be after start date");
+        Alert.alert(t("common.error"), t("planner.dateError", { defaultValue: "Ngày kết thúc phải sau ngày bắt đầu" }));
         setLoading(false);
         return;
       }
@@ -128,16 +127,16 @@ const CreatePlanScreen = ({ navigation }: any) => {
         );
         navigation.goBack();
       } else {
-        throw new Error(response.message || "Failed to create plan");
+        throw new Error(response.message || t("planner.createFailed", { defaultValue: "Tạo kế hoạch thất bại" }));
       }
     } catch (error: any) {
       console.error("Create plan error:", error);
       Alert.alert(
         t("common.error"),
         error.message ||
-          t("planner.createError", {
-            defaultValue: "Could not create plan. Please try again.",
-          }),
+        t("planner.createError", {
+          defaultValue: "Không thể tạo kế hoạch. Vui lòng thử lại.",
+        }),
       );
     } finally {
       setLoading(false);
@@ -166,7 +165,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
               {t("common.cancel", { defaultValue: "Cancel" })}
             </Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Pilgrimage</Text>
+          <Text style={styles.headerTitle}>{t("planner.newPilgrimage", { defaultValue: "Lên kế hoạch Hành Hương" })}</Text>
           <View style={{ width: 60 }} />
         </View>
 
@@ -176,10 +175,10 @@ const CreatePlanScreen = ({ navigation }: any) => {
         >
           {/* Section 1: Name */}
           <View style={styles.section}>
-            <Text style={styles.label}>Name your Journey</Text>
+            <Text style={styles.label}>{t("planner.nameJourney", { defaultValue: "Tên chuyến đi" })}</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Camino de Santiago 2024"
+              placeholder={t("planner.namePlaceholder", { defaultValue: "Ví dụ: Hành hương Đức Mẹ La Vang 2024" })}
               placeholderTextColor={COLORS.textSecondary}
               value={name}
               onChangeText={setName}
@@ -188,7 +187,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Section 2: Start Date Picker */}
           <View style={styles.section}>
-            <Text style={styles.label}>Start Date</Text>
+            <Text style={styles.label}>{t("planner.startDate", { defaultValue: "Ngày bắt đầu" })}</Text>
             <TouchableOpacity
               style={styles.card}
               onPress={() => setShowStartPicker(!showStartPicker)}
@@ -200,9 +199,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   color={COLORS.accent}
                 />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>Selected Date</Text>
+                  <Text style={styles.dateDisplayLabel}>{t("planner.selectedDate", { defaultValue: "Ngày chọn" })}</Text>
                   <Text style={styles.dateDisplayValue}>
-                    {new Date(startDate).toLocaleDateString("en-US", {
+                    {new Date(startDate).toLocaleDateString("vi-VN", {
                       weekday: "short",
                       year: "numeric",
                       month: "long",
@@ -240,7 +239,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                     />
                   </TouchableOpacity>
                   <Text style={styles.calendarMonthText}>
-                    {startCalendarDate.toLocaleDateString("en-US", {
+                    {startCalendarDate.toLocaleDateString("vi-VN", {
                       month: "long",
                       year: "numeric",
                     })}
@@ -310,8 +309,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             styles.calendarDayText,
                             isSelected && styles.calendarDayTextSelected,
                             isToday &&
-                              !isSelected &&
-                              styles.calendarDayTextToday,
+                            !isSelected &&
+                            styles.calendarDayTextToday,
                             isPast && styles.calendarDayTextDisabled,
                           ]}
                         >
@@ -327,7 +326,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Section 3: End Date Picker */}
           <View style={styles.section}>
-            <Text style={styles.label}>End Date</Text>
+            <Text style={styles.label}>{t("planner.endDate", { defaultValue: "Ngày kết thúc" })}</Text>
             <TouchableOpacity
               style={styles.card}
               onPress={() => setShowEndPicker(!showEndPicker)}
@@ -339,9 +338,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   color={COLORS.accent}
                 />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>Selected Date</Text>
+                  <Text style={styles.dateDisplayLabel}>{t("planner.selectedDate", { defaultValue: "Ngày chọn" })}</Text>
                   <Text style={styles.dateDisplayValue}>
-                    {new Date(endDate).toLocaleDateString("en-US", {
+                    {new Date(endDate).toLocaleDateString("vi-VN", {
                       weekday: "short",
                       year: "numeric",
                       month: "long",
@@ -379,7 +378,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                     />
                   </TouchableOpacity>
                   <Text style={styles.calendarMonthText}>
-                    {endCalendarDate.toLocaleDateString("en-US", {
+                    {endCalendarDate.toLocaleDateString("vi-VN", {
                       month: "long",
                       year: "numeric",
                     })}
@@ -449,8 +448,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             styles.calendarDayText,
                             isSelected && styles.calendarDayTextSelected,
                             isToday &&
-                              !isSelected &&
-                              styles.calendarDayTextToday,
+                            !isSelected &&
+                            styles.calendarDayTextToday,
                             isPast && styles.calendarDayTextDisabled,
                           ]}
                         >
@@ -468,7 +467,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
           <View style={[styles.section, { flexDirection: "row", gap: 12 }]}>
             {/* People Counter */}
             <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>Pilgrims</Text>
+              <Text style={styles.labelSmall}>{t("planner.pilgrimsLabel", { defaultValue: "Số người" })}</Text>
               <View style={styles.counterRow}>
                 <TouchableOpacity
                   onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
@@ -492,7 +491,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
             {/* Transport Selector (Simplified) */}
             <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>Transport</Text>
+              <Text style={styles.labelSmall}>{t("planner.transportLabel", { defaultValue: "Phương tiện" })}</Text>
               <View style={styles.transportRow}>
                 {(["bus", "car", "walk"] as const).map((t) => (
                   <TouchableOpacity
@@ -536,7 +535,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
             {loading ? (
               <ActivityIndicator color={COLORS.textPrimary} />
             ) : (
-              <Text style={styles.createButtonText}>Create & Plan Route</Text>
+              <Text style={styles.createButtonText}>{t("planner.createPlanBtn", { defaultValue: "Tạo và Lên lịch trình" })}</Text>
             )}
           </TouchableOpacity>
         </View>
