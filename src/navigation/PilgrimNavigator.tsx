@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY } from '../constants/theme.constants';
-import { CommunityScreen } from '../features/pilgrim/community/screens';
+import { CommunityScreen, CreatePostScreen } from '../features/pilgrim/community/screens';
+import PostDetailScreen from '../features/pilgrim/community/screens/PostDetailScreen';
 import { AllSitesScreen, ExploreScreen } from '../features/pilgrim/explore/screens';
 import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
 import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
@@ -20,6 +21,7 @@ const Tab = createBottomTabNavigator();
 const ExploreStack = createNativeStackNavigator();
 const PlannerStack = createNativeStackNavigator();
 const JournalStack = createNativeStackNavigator();
+const CommunityStack = createNativeStackNavigator();
 
 const PROFILE_COLORS = {
   primary: '#cfaa3a',
@@ -127,9 +129,24 @@ const ProfileStackNavigator = () => (
 );
 
 const CommunityStackNavigator = () => (
-  <View style={{ flex: 1 }}>
-    <CommunityScreen />
-  </View>
+  <CommunityStack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: COLORS.background },
+      animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+    }}
+  >
+    <CommunityStack.Screen name="CommunityMain" component={CommunityScreen} />
+    <CommunityStack.Screen
+      name="CreatePost"
+      component={CreatePostScreen}
+      options={{ presentation: 'fullScreenModal' }}
+    />
+    <CommunityStack.Screen
+      name="PostDetail"
+      component={PostDetailScreen}
+    />
+  </CommunityStack.Navigator>
 );
 
 
