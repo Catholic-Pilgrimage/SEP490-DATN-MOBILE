@@ -192,6 +192,51 @@ export interface SendPlanMessageRequest {
 }
 
 // ============================================
+// CHECK-IN TYPES
+// ============================================
+
+export interface CheckInEntity {
+  id: string;
+  planner_item_id: string;
+  user_id: string;
+  site_id: string;
+  checked_in_at: string;
+  note?: string;
+  photos?: string[];
+  site?: {
+    id: string;
+    name: string;
+    image?: string;
+    address?: string;
+  };
+  planner?: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface GetCheckInsResponse {
+  check_ins: CheckInEntity[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface CheckInItemRequest {
+  latitude: number;
+  longitude: number;
+  note?: string;
+  photos?: string[];
+}
+
+export interface CheckInItemResponse {
+  check_in: CheckInEntity;
+}
+
+// ============================================
 // UI / LEGACY TYPES
 // ============================================
 

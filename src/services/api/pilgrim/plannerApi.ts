@@ -11,6 +11,8 @@
  * - POST   /api/plans/ai-suggest   - Get AI suggestions
  * - POST   /api/plans/:id/invite   - Invite participant
  * - GET    /api/plans/:id/participants - Get participants
+ * - GET    /api/checkins/me        - Get my check-ins
+ * - POST   /api/planner-items/:id/checkin - Check-in at planner item
  */
 
 import {
@@ -21,7 +23,10 @@ import {
   AddPlanItemRequest,
   AddPlanItemResponse,
   AISuggestionRequest,
+  CheckInItemRequest,
+  CheckInItemResponse,
   CreatePlanRequest,
+  GetCheckInsResponse,
   GetPlanMessagesResponse,
   GetPlansResponse,
   InviteParticipantRequest,
@@ -253,6 +258,33 @@ export const uploadPlanMessageImage = async (
   return response.data;
 };
 
+/**
+ * Get my check-ins
+ */
+export const getMyCheckIns = async (
+  params?: PaginationParams,
+): Promise<ApiResponse<GetCheckInsResponse>> => {
+  const response = await apiClient.get<ApiResponse<GetCheckInsResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.CHECKINS_ME,
+    { params },
+  );
+  return response.data;
+};
+
+/**
+ * Check-in at a planner item
+ */
+export const checkInPlanItem = async (
+  itemId: string,
+  data: CheckInItemRequest,
+): Promise<ApiResponse<CheckInItemResponse>> => {
+  const response = await apiClient.post<ApiResponse<CheckInItemResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.CHECKIN_ITEM(itemId),
+    data,
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -273,6 +305,8 @@ const pilgrimPlannerApi = {
   sendPlanMessage,
   deletePlanMessage,
   uploadPlanMessageImage,
+  getMyCheckIns,
+  checkInPlanItem,
 };
 
 export default pilgrimPlannerApi;
