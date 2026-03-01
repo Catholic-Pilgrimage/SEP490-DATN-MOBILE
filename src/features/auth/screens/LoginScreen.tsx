@@ -287,7 +287,10 @@ const LoginScreen = () => {
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: insets.top + 10 },
+              {
+                paddingTop: insets.top + 10,
+                paddingBottom: Math.max(insets.bottom + 20, 40)
+              },
             ]}
             showsVerticalScrollIndicator={false}
             bounces={false}
@@ -349,7 +352,7 @@ const LoginScreen = () => {
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="nhap_email_cua_ban@example.com"
+                    placeholder="Nhập email của bạn"
                     placeholderTextColor={`${LOGIN_COLORS.textMuted}99`}
                     value={email}
                     onChangeText={handleEmailChange}

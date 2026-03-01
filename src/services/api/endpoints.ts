@@ -288,6 +288,7 @@ export const SHARED_ENDPOINTS = {
     MARK_ALL_READ: `${API_BASE}/notifications/read-all`,
     DELETE: (id: string) => `${API_BASE}/notifications/${id}`,
     DELETE_ALL: `${API_BASE}/notifications`,
+    DELETE_READ: `${API_BASE}/notifications/read`,
     SETTINGS: `${API_BASE}/notifications/settings`,
     UPDATE_SETTINGS: `${API_BASE}/notifications/settings`,
     REGISTER_TOKEN: `${API_BASE}/notifications/token`,
@@ -304,6 +305,15 @@ export const SHARED_ENDPOINTS = {
   UPLOAD: {
     IMAGE: `${API_BASE}/upload/image`,
     IMAGES: `${API_BASE}/upload/images`,
+  },
+
+  // Posts
+  POSTS: {
+    BASE: `${API_BASE}/posts`,
+    DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
+    LIKE: (id: string) => `${API_BASE}/posts/${id}/like`,
+    COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
+    COMMENT_DETAIL: (id: string, commentId: string) => `${API_BASE}/posts/${id}/comments/${commentId}`,
   },
 } as const;
 

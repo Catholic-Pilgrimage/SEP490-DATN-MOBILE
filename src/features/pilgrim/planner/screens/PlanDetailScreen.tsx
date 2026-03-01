@@ -2,28 +2,29 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Slider from "@react-native-community/slider";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -35,6 +36,7 @@ import { PlanEntity, PlanItem, PlanParticipant } from "../../../../types/pilgrim
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
   const { planId } = route.params;
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,11 +121,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       if (response.success && response.data) {
         setPlan(response.data);
       } else {
-        Alert.alert("Error", response.message || "Could not load plan details");
+        Alert.alert(t("common.error"), response.message || t("planner.loadDetailError", { defaultValue: "Không thể tải chi tiết kế hoạch" }));
       }
     } catch (error) {
       console.error("Load plan detail error:", error);
-      Alert.alert("Error", "Failed to load plan details");
+      Alert.alert(t("common.error"), t("planner.loadDetailFailed", { defaultValue: "Tải chi tiết kế hoạch thất bại" }));
     } finally {
       setLoading(false);
     }
@@ -163,7 +165,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         userId: inviteEmail, // Backend expects userId, but we'll send email
         role: inviteRole,
       });
-      
+
       if (response.success) {
         Alert.alert("Success", "Invitation sent successfully");
         setInviteEmail("");
@@ -186,12 +188,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleDeletePlan = () => {
     Alert.alert(
-      "Delete Plan",
-      "Are you sure you want to delete this plan? This action cannot be undone.",
+      t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
+      t("planner.deleteConfirmMsg", { defaultValue: "Bạn có chắc chắn muốn xóa kế hoạch này? Hành động này không thể hoàn tác." }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -200,13 +202,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 navigation.goBack();
               } else {
                 Alert.alert(
-                  "Error",
-                  response.message || "Failed to delete plan",
+                  t("common.error"),
+                  response.message || t("planner.deleteFailed", { defaultValue: "Xóa kế hoạch thất bại" }),
                 );
               }
             } catch (error) {
               console.error("Delete plan error:", error);
-              Alert.alert("Error", "Failed to delete plan");
+              Alert.alert(t("common.error"), t("planner.deleteFailed", { defaultValue: "Xóa kế hoạch thất bại" }));
             }
           },
         },
@@ -216,12 +218,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleDeleteItem = (itemId: string) => {
     Alert.alert(
-      "Remove Item",
-      "Are you sure you want to remove this destination?",
+      t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
+      t("planner.removeItemConfirm", { defaultValue: "Bạn có chắc chắn muốn xóa địa điểm này khỏi lịch trình?" }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -234,13 +236,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 loadPlan(); // Reload to refresh
               } else {
                 Alert.alert(
-                  "Error",
-                  response.message || "Failed to remove item",
+                  t("common.error"),
+                  response.message || t("planner.removeItemFailed", { defaultValue: "Xóa địa điểm thất bại" }),
                 );
               }
             } catch (error: any) {
               console.error("Delete item error:", error);
-              Alert.alert("Error", error.message || "Failed to remove item");
+              Alert.alert(t("common.error"), error.message || t("planner.removeItemFailed", { defaultValue: "Xóa địa điểm thất bại" }));
             }
           },
         },
@@ -312,25 +314,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setSelectedSiteId(siteId);
     setCalculatingRoute(true);
     setRouteInfo("");
-    
+
     // Check if there are previous sites in the day
     const itemsForDay = plan?.items_by_day?.[selectedDay.toString()] || [];
-    
+
     if (itemsForDay.length > 0) {
       try {
         // Get the last site's ID
         const lastItem = itemsForDay[itemsForDay.length - 1];
         const lastSiteId = lastItem.site_id || lastItem.site?.id;
-        
+
         // Fetch both site details to get accurate coordinates
         const [lastSiteDetail, newSiteDetail] = await Promise.all([
           lastSiteId ? pilgrimSiteApi.getSiteDetail(lastSiteId) : null,
           pilgrimSiteApi.getSiteDetail(siteId),
         ]);
-        
+
         const lastSite = lastSiteDetail?.data;
         const newSite = newSiteDetail?.data;
-        
+
         // If both sites have coordinates, calculate route
         if (
           lastSite?.latitude &&
@@ -348,14 +350,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               longitude: newSite.longitude,
             },
           );
-          
+
           // Calculate arrival time based on last site's departure time or estimated time
           const lastSiteTime = lastItem.departure_time || lastItem.arrival_time || "10:00";
           const arrivalTime = vietmapService.calculateArrivalTime(
             lastSiteTime,
             routeResult.durationMinutes,
           );
-          
+
           setEstimatedTime(arrivalTime);
           setRouteInfo(
             `Khoảng cách: ${routeResult.distanceKm.toFixed(1)} km • Thời gian di chuyển: ${routeResult.durationText}`,
@@ -376,7 +378,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setEstimatedTime("10:00");
       setRouteInfo("Địa điểm đầu tiên trong ngày");
     }
-    
+
     setCalculatingRoute(false);
     setShowTimeInputModal(true);
   };
@@ -482,12 +484,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   if (!plan) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>Plan not found</Text>
+        <Text style={styles.errorText}>{t("planner.notFound", { defaultValue: "Không tìm thấy kế hoạch" })}</Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>{t("common.back", { defaultValue: "Quay lại" })}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -531,7 +533,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             >
               <Ionicons name="trash-outline" size={24} color="#FF6B6B" />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.navButton}
               onPress={handleOpenShareModal}
             >
@@ -547,7 +549,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         <View style={styles.headerContent}>
           <View style={styles.badgeContainer}>
             <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>{plan.status || "Planned"}</Text>
+              <Text style={styles.statusText}>{plan.status || t("planner.statusPlanned", { defaultValue: "Đã lên lịch" })}</Text>
             </View>
             {plan.is_public && (
               <View
@@ -562,7 +564,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="#fff"
                   style={{ marginRight: 4 }}
                 />
-                <Text style={styles.statusText}>Public</Text>
+                <Text style={styles.statusText}>{t("planner.modePublic", { defaultValue: "Công khai" })}</Text>
               </View>
             )}
           </View>
@@ -585,7 +587,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 size={16}
                 color="rgba(255,255,255,0.9)"
               />
-              <Text style={styles.metaText}>{plan.number_of_days} Days</Text>
+              <Text style={styles.metaText}>{plan.number_of_days} {t("planner.daysCount", { defaultValue: "Ngày" })}</Text>
             </View>
             <View style={styles.metaDivider} />
             <View style={styles.metaItem}>
@@ -595,7 +597,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 color="rgba(255,255,255,0.9)"
               />
               <Text style={styles.metaText}>
-                {plan.number_of_people} People
+                {plan.number_of_people} {t("planner.peopleCount", { defaultValue: "Người" })}
               </Text>
             </View>
           </View>
@@ -608,7 +610,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Itinerary Section */}
-        <Text style={styles.sectionTitle}>Itinerary</Text>
+        <Text style={styles.sectionTitle}>{t("planner.itinerary", { defaultValue: "Lịch trình" })}</Text>
 
         {sortedDays.length > 0 ? (
           sortedDays.map((dayKey) => {
@@ -617,7 +619,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               <View key={dayKey} style={styles.dayContainer}>
                 <View style={styles.dayHeader}>
                   <View style={styles.dayNumberContainer}>
-                    <Text style={styles.dayNumber}>Day {dayKey}</Text>
+                    <Text style={styles.dayNumber}>{t("planner.dayLabel", { defaultValue: "Ngày " })}{dayKey}</Text>
                   </View>
                   <View style={styles.dayLine} />
                 </View>
@@ -722,7 +724,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       onPress={() => openAddModal(Number(dayKey))}
                     >
                       <Ionicons name="add" size={16} color={COLORS.primary} />
-                      <Text style={styles.addSmallButtonText}>Add Stop</Text>
+                      <Text style={styles.addSmallButtonText}>{t("planner.addStop", { defaultValue: "Thêm điểm dừng" })}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -737,14 +739,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               color={COLORS.textTertiary}
             />
             <Text style={styles.emptyStateText}>
-              No items added to this plan yet.
+              {t("planner.emptyPlan", { defaultValue: "Chưa có địa điểm nào trong kế hoạch." })}
             </Text>
             <TouchableOpacity
               style={styles.addItemsButton}
               onPress={() => openAddModal(1)}
             >
               <Text style={styles.addItemsButtonText}>
-                Add Destination to Day 1
+                {t("planner.addFirstDest", { defaultValue: "Thêm địa điểm cho Ngày 1" })}
               </Text>
             </TouchableOpacity>
           </View>
@@ -758,7 +760,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           >
             <Ionicons name="add-circle-outline" size={24} color={COLORS.accent} />
             <Text style={styles.addNextDayButtonText}>
-              Thêm địa điểm cho Ngày {sortedDays.length + 1}
+              {t("planner.addDayDest", { defaultValue: "Thêm địa điểm cho Ngày " })}{sortedDays.length + 1}
             </Text>
           </TouchableOpacity>
         )}
@@ -775,9 +777,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Destination</Text>
+            <Text style={styles.modalTitle}>{t("planner.selectDest", { defaultValue: "Chọn địa điểm" })}</Text>
             <TouchableOpacity onPress={() => setIsAddModalVisible(false)}>
-              <Text style={styles.modalClose}>Close</Text>
+              <Text style={styles.modalClose}>{t("common.close", { defaultValue: "Đóng" })}</Text>
             </TouchableOpacity>
           </View>
 
@@ -796,7 +798,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   activeTab === "all" && styles.activeTabText,
                 ]}
               >
-                All Sites
+                {t("planner.allSites", { defaultValue: "Tất cả địa điểm" })}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -812,7 +814,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   activeTab === "favorites" && styles.activeTabText,
                 ]}
               >
-                My Favorites
+                {t("planner.myFavorites", { defaultValue: "Yêu thích của tôi" })}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1005,7 +1007,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-              
+
               {/* Role Selection */}
               <View style={styles.roleSelection}>
                 <TouchableOpacity
@@ -1029,7 +1031,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     Xem
                   </Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                   style={[
                     styles.roleButton,
@@ -1072,7 +1074,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             {/* Participants List */}
             <View style={styles.participantsSection}>
               <Text style={styles.shareSectionTitle}>Thành viên ({participants.length + (plan?.owner ? 1 : 0)})</Text>
-              
+
               {loadingParticipants ? (
                 <ActivityIndicator style={{ marginTop: 20 }} color={COLORS.primary} />
               ) : (
@@ -1099,7 +1101,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       </View>
                     </View>
                   )}
-                  
+
                   {/* Show other participants */}
                   {participants.length === 0 ? (
                     <Text style={styles.emptyParticipantsText}>
@@ -1124,8 +1126,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                             {participant.role === "owner"
                               ? "Chủ sở hữu"
                               : participant.role === "editor"
-                              ? "Chỉnh sửa"
-                              : "Xem"}
+                                ? "Chỉnh sửa"
+                                : "Xem"}
                           </Text>
                         </View>
                         {participant.role === "owner" && (
