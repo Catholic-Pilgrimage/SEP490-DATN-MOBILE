@@ -7,6 +7,7 @@ import updateLocale from 'dayjs/plugin/updateLocale';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Dimensions,
     Modal,
@@ -76,6 +77,7 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         markAllAsRead,
         deleteNotification,
         deleteAllNotifications,
+        deleteReadNotifications,
         error,
     } = useNotifications();
 
@@ -354,6 +356,23 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
                                 {unreadCount > 0 && (
                                     <TouchableOpacity onPress={markAllAsRead} style={styles.actionButton}>
                                         <Ionicons name="checkmark-done-circle-outline" size={26} color={COLORS.primary} />
+                                    </TouchableOpacity>
+                                )}
+                                {notifications.length > 0 && (
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            Alert.alert(
+                                                "Xóa thông báo",
+                                                "Bạn có chắc chắn muốn xóa tất cả thông báo đã đọc?",
+                                                [
+                                                    { text: "Bỏ qua", style: "cancel" },
+                                                    { text: "Xóa", style: "destructive", onPress: deleteReadNotifications }
+                                                ]
+                                            );
+                                        }}
+                                        style={styles.actionButton}
+                                    >
+                                        <Ionicons name="trash-bin-outline" size={24} color={COLORS.danger || '#f44336'} />
                                     </TouchableOpacity>
                                 )}
                             </View>
