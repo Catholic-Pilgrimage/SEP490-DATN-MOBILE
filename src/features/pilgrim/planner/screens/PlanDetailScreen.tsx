@@ -28,6 +28,7 @@ import {
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import { SiteSummary } from "../../../../types/pilgrim";
 import { PlanEntity, PlanItem, PlanParticipant } from "../../../../types/pilgrim/planner.types";
@@ -65,6 +66,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("viewer");
   const [inviting, setInviting] = useState(false);
+
+  // Check-in state
+  const [checkingInItemId, setCheckingInItemId] = useState<string | null>(null);
 
   useEffect(() => {
     loadPlan();
@@ -422,6 +426,51 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const handleCheckIn = async (itemId: string, siteName: string) => {
+    Alert.alert(
+      "Check-in",
+      `Bạn có muốn check-in tại ${siteName}?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Check-in",
+          onPress: async () => {
+            try {
+              setCheckingInItemId(itemId);
+              
+              // Get current location
+              const location = await locationService.getCurrentLocation();
+              
+              const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
+                latitude: location.latitude,
+                longitude: location.longitude,
+              });
+              
+              if (response.success) {
+                Alert.alert("Thành công", `Đã check-in tại ${siteName}!`);
+                loadPlan(); // Reload to update UI
+              } else {
+                Alert.alert("Lỗi", response.message || "Không thể check-in");
+              }
+            } catch (error: any) {
+              console.error("Check-in error:", error);
+              if (error.message?.includes("Location") || error.message?.includes("Geolocation")) {
+                Alert.alert(
+                  "Lỗi vị trí",
+                  "Không thể lấy vị trí của bạn. Vui lòng bật GPS và cho phép ứng dụng truy cập vị trí."
+                );
+              } else {
+                Alert.alert("Lỗi", error.message || "Không thể check-in");
+              }
+            } finally {
+              setCheckingInItemId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, styles.centerContent]}>
@@ -638,16 +687,33 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                               </Text>
                             )}
                           </View>
-                          <TouchableOpacity
-                            onPress={() => handleDeleteItem(item.id)}
-                            style={{ padding: 4 }}
-                          >
-                            <Ionicons
-                              name="trash-outline"
-                              size={18}
-                              color={COLORS.textTertiary}
-                            />
-                          </TouchableOpacity>
+                          <View style={styles.itemActions}>
+                            <TouchableOpacity
+                              onPress={() => handleCheckIn(item.id, item.site.name)}
+                              style={styles.checkInButton}
+                              disabled={checkingInItemId === item.id}
+                            >
+                              {checkingInItemId === item.id ? (
+                                <ActivityIndicator size="small" color={COLORS.accent} />
+                              ) : (
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={20}
+                                  color={COLORS.accent}
+                                />
+                              )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDeleteItem(item.id)}
+                              style={{ padding: 4 }}
+                            >
+                              <Ionicons
+                                name="trash-outline"
+                                size={18}
+                                color={COLORS.textTertiary}
+                              />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -1327,6 +1393,14 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontStyle: "italic",
     maxWidth: 100,
+  },
+  itemActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  checkInButton: {
+    padding: 4,
   },
   emptyState: {
     alignItems: "center",

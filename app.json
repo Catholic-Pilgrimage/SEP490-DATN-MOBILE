@@ -16,7 +16,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.PilgrimApp"
+      "bundleIdentifier": "com.anonymous.PilgrimApp",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites."
+      }
     },
     "android": {
       "adaptiveIcon": {
