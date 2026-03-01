@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -15,17 +16,16 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import Toast from 'react-native-toast-message';
 import { SHADOWS } from '../../../constants/theme.constants';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
-  validateRegisterForm,
   RegisterFormErrors,
   formatDateForApi,
   formatDateForDisplay,
   formatPhoneForApi,
+  validateRegisterForm,
 } from '../../../utils/validation';
 
 // Register screen colors matching the design system
@@ -47,7 +47,7 @@ const REGISTER_COLORS = {
 const RegisterScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { register, isLoading, error, clearError } = useAuth();
-  
+
   // Form states
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -62,7 +62,7 @@ const RegisterScreen = () => {
 
   // Focus states
   const [focusedField, setFocusedField] = useState<string | null>(null);
-  
+
   // Validation states
   const [validationErrors, setValidationErrors] = useState<RegisterFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,7 +86,7 @@ const RegisterScreen = () => {
         duration: 300,
         useNativeDriver: true,
       }).start();
-      
+
       // Shake animation
       Animated.sequence([
         Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
@@ -135,11 +135,12 @@ const RegisterScreen = () => {
         date_of_birth: formatDateForApi(dateOfBirth!),
       });
 
-      Alert.alert(
-        'Đăng ký thành công!',
-        'Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục.',
-        [{ text: 'Đăng nhập', onPress: () => navigation.goBack() }]
-      );
+      Toast.show({
+        type: 'success',
+        text1: 'Đăng ký thành công!',
+        text2: 'Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục.'
+      });
+      navigation.goBack();
     } catch {
       // Error is handled by AuthContext and displayed in error banner
     } finally {
@@ -150,11 +151,11 @@ const RegisterScreen = () => {
   const handleLogin = () => navigation.goBack();
 
   const handleTermsPress = () => {
-    Alert.alert('Điều khoản dịch vụ', 'Nội dung điều khoản dịch vụ sẽ được hiển thị ở đây.');
+    Toast.show({ type: 'info', text1: 'Điều khoản dịch vụ', text2: 'Nội dung điều khoản dịch vụ sẽ được hiển thị ở đây.' });
   };
 
   const handlePrivacyPress = () => {
-    Alert.alert('Chính sách bảo mật', 'Nội dung chính sách bảo mật sẽ được hiển thị ở đây.');
+    Toast.show({ type: 'info', text1: 'Chính sách bảo mật', text2: 'Nội dung chính sách bảo mật sẽ được hiển thị ở đây.' });
   };
 
   const handleDateChange = (_event: any, selectedDate?: Date) => {
@@ -175,7 +176,7 @@ const RegisterScreen = () => {
   };
 
   type FieldName = 'fullName' | 'email' | 'phone' | 'password' | 'confirmPassword' | 'dateOfBirth' | 'terms';
-  
+
   const renderInput = (
     icon: string,
     placeholder: string,
@@ -194,7 +195,7 @@ const RegisterScreen = () => {
     const isFocused = focusedField === fieldName;
     const errorMessage = validationErrors[fieldName];
     const hasError = !!errorMessage;
-    
+
     return (
       <View>
         <View style={[
@@ -202,10 +203,10 @@ const RegisterScreen = () => {
           isFocused && styles.inputWrapperFocused,
           hasError && styles.inputWrapperError,
         ]}>
-          <MaterialIcons 
-            name={icon as any} 
-            size={22} 
-            color={hasError ? REGISTER_COLORS.error : (isFocused ? REGISTER_COLORS.primary : REGISTER_COLORS.textMuted)} 
+          <MaterialIcons
+            name={icon as any}
+            size={22}
+            color={hasError ? REGISTER_COLORS.error : (isFocused ? REGISTER_COLORS.primary : REGISTER_COLORS.textMuted)}
             style={styles.inputIcon}
           />
           <TextInput
@@ -231,10 +232,10 @@ const RegisterScreen = () => {
               activeOpacity={0.7}
               disabled={isLoading || isSubmitting}
             >
-              <MaterialIcons 
-                name={options.showValue ? 'visibility' : 'visibility-off'} 
-                size={22} 
-                color={REGISTER_COLORS.textMuted} 
+              <MaterialIcons
+                name={options.showValue ? 'visibility' : 'visibility-off'}
+                size={22}
+                color={REGISTER_COLORS.textMuted}
               />
             </TouchableOpacity>
           )}
@@ -247,7 +248,7 @@ const RegisterScreen = () => {
   const renderDateInput = () => {
     const errorMessage = validationErrors.dateOfBirth;
     const hasError = !!errorMessage;
-    
+
     return (
       <View>
         <TouchableOpacity
@@ -259,10 +260,10 @@ const RegisterScreen = () => {
             styles.inputWrapper,
             hasError && styles.inputWrapperError,
           ]}>
-            <MaterialIcons 
-              name="calendar-today" 
-              size={22} 
-              color={hasError ? REGISTER_COLORS.error : REGISTER_COLORS.textMuted} 
+            <MaterialIcons
+              name="calendar-today"
+              size={22}
+              color={hasError ? REGISTER_COLORS.error : REGISTER_COLORS.textMuted}
               style={styles.inputIcon}
             />
             <Text style={[styles.dateText, !dateOfBirth && styles.datePlaceholder]}>
@@ -272,7 +273,7 @@ const RegisterScreen = () => {
           </View>
         </TouchableOpacity>
         {hasError && <Text style={styles.fieldError}>{errorMessage}</Text>}
-        
+
         {showDatePicker && Platform.OS === 'android' && (
           <DateTimePicker
             value={dateOfBirth || new Date(2000, 0, 1)}
@@ -292,7 +293,7 @@ const RegisterScreen = () => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={REGISTER_COLORS.backgroundLight} />
-      
+
       <LinearGradient
         colors={[REGISTER_COLORS.primaryLight, REGISTER_COLORS.backgroundLight, REGISTER_COLORS.backgroundLight]}
         style={styles.backgroundGradient}
@@ -405,7 +406,7 @@ const RegisterScreen = () => {
             </View>
 
             {/* Terms Checkbox */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.termsContainer}
               onPress={() => {
                 setAgreeTerms(!agreeTerms);
@@ -433,8 +434,8 @@ const RegisterScreen = () => {
             )}
 
             {/* Register Button */}
-            <TouchableOpacity 
-              style={[styles.registerButton, isDisabled && styles.registerButtonDisabled]} 
+            <TouchableOpacity
+              style={[styles.registerButton, isDisabled && styles.registerButtonDisabled]}
               onPress={handleRegister}
               activeOpacity={0.9}
               disabled={isDisabled}
@@ -459,16 +460,16 @@ const RegisterScreen = () => {
             {/* Social Buttons */}
             <View style={styles.socialContainer}>
               {['g-translate', 'facebook', 'apple'].map((icon, index) => (
-                <TouchableOpacity 
+                <TouchableOpacity
                   key={icon}
-                  style={styles.socialButton} 
+                  style={styles.socialButton}
                   activeOpacity={0.8}
                   disabled={isDisabled}
                 >
-                  <MaterialIcons 
-                    name={icon as any} 
-                    size={24} 
-                    color={index === 0 ? '#DB4437' : index === 1 ? '#4267B2' : '#000'} 
+                  <MaterialIcons
+                    name={icon as any}
+                    size={24}
+                    color={index === 0 ? '#DB4437' : index === 1 ? '#4267B2' : '#000'}
                   />
                 </TouchableOpacity>
               ))}

@@ -9,6 +9,7 @@ import React, {
   useMemo,
   useReducer,
 } from "react";
+import Toast from 'react-native-toast-message';
 import { authApi } from "../services/api";
 import notificationService from "../services/notification/notificationService";
 import { secureStorage } from "../services/storage/secureStorage";
@@ -36,15 +37,15 @@ const initialState: AuthState = {
 type AuthAction =
   | { type: "AUTH_LOADING" }
   | {
-      type: "AUTH_SUCCESS";
-      payload: { user: User; accessToken: string; refreshToken: string };
-    }
+    type: "AUTH_SUCCESS";
+    payload: { user: User; accessToken: string; refreshToken: string };
+  }
   | { type: "AUTH_ERROR"; payload: string }
   | { type: "AUTH_LOGOUT" }
   | {
-      type: "AUTH_RESTORE";
-      payload: { user: User; accessToken: string; refreshToken: string };
-    }
+    type: "AUTH_RESTORE";
+    payload: { user: User; accessToken: string; refreshToken: string };
+  }
   | { type: "AUTH_UPDATE_USER"; payload: User }
   | { type: "AUTH_CLEAR_ERROR" }
   | { type: "AUTH_SET_LOADING"; payload: boolean }
@@ -291,6 +292,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Thành công',
+        text2: 'Bạn đã đăng xuất khỏi hệ thống',
+      });
     } catch {
       // ✅ Try to revoke token even in error case (silent fail)
       if (pushToken) {
@@ -308,9 +315,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
           AUTH_STORAGE_KEYS.USER,
           AUTH_STORAGE_KEYS.IS_GUEST,
         ])
-        .catch(() => {});
+        .catch(() => { });
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
+
+      Toast.show({
+        type: 'success',
+        text1: 'Thành công',
+        text2: 'Bạn đã đăng xuất khỏi hệ thống',
+      });
     }
   }, [pushToken]);
 

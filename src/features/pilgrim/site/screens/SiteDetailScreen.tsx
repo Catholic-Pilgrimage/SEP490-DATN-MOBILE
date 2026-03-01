@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Image,
   RefreshControl,
@@ -15,6 +17,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useFavorites } from '../../../../hooks/useFavorites';
 import { useSiteDetail, useSiteEvents, useSiteMassSchedules, useSiteMedia, useSiteNearbyPlaces } from '../../../../hooks/useSites';
 import { DayOfWeek } from '../../../../types';
 import { NearbyPlaceCard, QuickActionButton, SOSModal } from '../components';
@@ -25,7 +29,7 @@ const HERO_HEIGHT = Dimensions.get('window').height * 0.45;
 export const SiteDetailScreen = ({ navigation, route }: any) => {
   const { siteId } = route.params || {};
   const insets = useSafeAreaInsets();
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const { isAuthenticated, isGuest } = useAuth();
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isSOSModalVisible, setSOSModalVisible] = useState(false);
@@ -34,8 +38,11 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const {
     site,
     isLoading: isLoadingDetail,
-    refetch: refetchDetail
+    refetch: refetchDetail,
   } = useSiteDetail(siteId, { autoFetch: true });
+
+  // Centralized favorites
+  const { isFavorite, toggleFavorite: toggleFav } = useFavorites();
 
   const {
     media,
@@ -73,7 +80,28 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
   const handleBack = () => navigation.goBack();
   const handleShare = () => { };
-  const handleBookmark = () => setIsBookmarked(!isBookmarked);
+  const handleBookmark = () => {
+    if (!isAuthenticated || isGuest) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để lưu địa điểm yêu thích.',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          {
+            text: 'Đăng nhập',
+            onPress: () => navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+              })
+            )
+          },
+        ]
+      );
+      return;
+    }
+    toggleFav(siteId);
+  };
 
   // -- Data Processing --
 
@@ -198,9 +226,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               </TouchableOpacity>
               <TouchableOpacity style={styles.heroButton} onPress={handleBookmark}>
                 <Ionicons
-                  name={isBookmarked ? "heart" : "heart-outline"}
+                  name={isFavorite(siteId) ? "heart" : "heart-outline"}
                   size={22}
-                  color={isBookmarked ? COLORS.danger : "#fff"}
+                  color={isFavorite(siteId) ? COLORS.danger : "#fff"}
                 />
               </TouchableOpacity>
             </View>

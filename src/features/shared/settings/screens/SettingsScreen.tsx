@@ -192,6 +192,11 @@ const SettingsScreen = () => {
                         }}
                     />
                     <SettingItem
+                        icon="briefcase-outline"
+                        label="Trở thành Local Guide"
+                        onPress={() => navigation.navigate('VerificationRequest')}
+                    />
+                    <SettingItem
                         icon="key-outline"
                         label="Đổi mật khẩu"
                         onPress={() => navigation.navigate('ChangePassword')}

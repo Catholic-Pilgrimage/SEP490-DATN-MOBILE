@@ -137,33 +137,23 @@ export const useNotifications = () => {
   };
 
   /**
-   * Setup notification listeners
+   * Setup notification listeners (foreground only)
+   * Navigation on tap is handled by NotificationHandler component
    */
   useEffect(() => {
-    // When notification received (foreground)
+    // When notification received (foreground) - refresh list
     const receivedSubscription =
       notificationService.addNotificationReceivedListener(
-        (notification: any) => {
-          console.log("Notification received:", notification);
-          // Refresh notifications
-          fetchNotifications();
+        (_notification: any) => {
+          // Refresh notifications list
+          fetchNotifications(true);
           // Update badge
           notificationService.setBadgeCount(unreadCount + 1);
         },
       );
 
-    // When user taps notification
-    const responseSubscription =
-      notificationService.addNotificationResponseListener((response: any) => {
-        console.log("Notification tapped:", response);
-        // Handle navigation based on notification data
-        const data = response.notification.request.content.data;
-        // TODO: Navigate to appropriate screen based on data
-      });
-
     return () => {
       receivedSubscription.remove();
-      responseSubscription.remove();
     };
   }, [unreadCount]);
 

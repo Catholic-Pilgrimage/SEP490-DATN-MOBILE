@@ -6,7 +6,7 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY } from '../constants/theme.constants';
 import { CommunityScreen } from '../features/pilgrim/community/screens';
-import { ExploreScreen } from '../features/pilgrim/explore/screens/ExploreScreen';
+import { AllSitesScreen, ExploreScreen } from '../features/pilgrim/explore/screens';
 import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
 import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
 import { JournalScreen } from '../features/pilgrim/journal/screens/JournalScreen';
@@ -218,6 +218,14 @@ export const PilgrimNavigator = () => {
       <MainStack.Screen
         name="SiteDetail"
         component={SiteDetailScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+          presentation: 'card',
+        }}
+      />
+      <MainStack.Screen
+        name="AllSites"
+        component={AllSitesScreen}
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
           presentation: 'card',

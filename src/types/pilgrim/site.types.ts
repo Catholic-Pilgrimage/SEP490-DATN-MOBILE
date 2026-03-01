@@ -51,6 +51,8 @@ export interface SiteSummary {
   isFavorite: boolean;
   type: SiteType;
   region?: 'Bac' | 'Trung' | 'Nam';
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface NearbySite extends SiteSummary {

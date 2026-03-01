@@ -16,6 +16,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { GUIDE_BORDER_RADIUS, GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
 import { createShiftSubmission, getShiftSubmissions } from '../../../../services/api/guide';
@@ -78,21 +79,24 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             change_reason?: string
         }) => createShiftSubmission(data),
         onSuccess: () => {
-            Alert.alert("Thành công", isUpdateMode ? "Đã gửi yêu cầu thay đổi lịch!" : "Đã gửi đăng ký lịch tuần!", [
-                {
-                    text: "OK", onPress: () => {
-                        onClose();
-                        setShifts([]);
-                        setChangeReason('');
-                        setShowReasonInput(false);
-                        queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.shiftSubmissions.all });
-                        queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.activeShift(initialWeekStart) });
-                    }
-                }
-            ]);
+            Toast.show({
+                type: 'success',
+                text1: 'Thành công',
+                text2: isUpdateMode ? 'Đã gửi yêu cầu thay đổi lịch!' : 'Đã gửi đăng ký lịch tuần!'
+            });
+            onClose();
+            setShifts([]);
+            setChangeReason('');
+            setShowReasonInput(false);
+            queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.shiftSubmissions.all });
+            queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.activeShift(initialWeekStart) });
         },
         onError: (error: any) => {
-            Alert.alert("Lỗi", error?.message || "Không thể gửi đăng ký.");
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi',
+                text2: error?.message || 'Không thể gửi đăng ký.'
+            });
         }
     });
 
@@ -177,14 +181,14 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
             if (end <= start) {
                 if (Platform.OS === 'ios') setEditingTimeType(null);
-                Alert.alert("Lỗi thời gian", "Giờ kết thúc phải sau giờ bắt đầu");
+                Toast.show({ type: 'error', text1: 'Lỗi thời gian', text2: 'Giờ kết thúc phải sau giờ bắt đầu' });
                 return;
             }
 
             const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
             if (duration > 12) {
                 if (Platform.OS === 'ios') setEditingTimeType(null);
-                Alert.alert("Lỗi thời gian", "Ca làm việc không được quá 12 tiếng");
+                Toast.show({ type: 'error', text1: 'Lỗi thời gian', text2: 'Ca làm việc không được quá 12 tiếng' });
                 return;
             }
 
@@ -196,7 +200,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
             if (isOverlap) {
                 if (Platform.OS === 'ios') setEditingTimeType(null);
-                Alert.alert("Lỗi trùng lặp", "Ca làm việc bị trùng với ca khác trong ngày");
+                Toast.show({ type: 'error', text1: 'Lỗi trùng lặp', text2: 'Ca làm việc bị trùng với ca khác trong ngày' });
                 return;
             }
 
@@ -219,7 +223,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
     const handleSubmit = () => {
         if (shifts.length === 0) {
-            Alert.alert("Thông báo", "Vui lòng thêm ít nhất 1 ca làm việc.");
+            Toast.show({ type: 'info', text1: 'Thông báo', text2: 'Vui lòng thêm ít nhất 1 ca làm việc.' });
             return;
         }
 
@@ -230,7 +234,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
         }
 
         if (isUpdateMode && !changeReason.trim()) {
-            Alert.alert("Yêu cầu", "Vui lòng nhập lý do thay đổi lịch trực.");
+            Toast.show({ type: 'info', text1: 'Yêu cầu', text2: 'Vui lòng nhập lý do thay đổi lịch trực.' });
             return;
         }
 

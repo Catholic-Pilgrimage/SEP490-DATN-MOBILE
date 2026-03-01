@@ -5,7 +5,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { SHADOWS } from '../../../constants/theme.constants';
 import authApi from '../../../services/api/shared/authApi';
 
@@ -53,7 +53,7 @@ const ForgotPasswordScreen = () => {
 
   const handleSendOTP = async () => {
     if (!email) {
-      Alert.alert('Lỗi', 'Vui lòng nhập email');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Vui lòng nhập email' });
       return;
     }
 
@@ -63,7 +63,7 @@ const ForgotPasswordScreen = () => {
       setCurrentStep('otp');
       startResendTimer();
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể gửi mã OTP. Vui lòng thử lại.');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Không thể gửi mã OTP. Vui lòng thử lại.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -72,7 +72,7 @@ const ForgotPasswordScreen = () => {
   const handleVerifyOTP = () => {
     const otpCode = otp.join('');
     if (otpCode.length < 6) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ mã xác thực 6 số');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Vui lòng nhập đầy đủ mã xác thực 6 số' });
       return;
     }
     // Since we don't have a standalone verify-otp endpoint for password reset flow shown in the requirements,
@@ -82,18 +82,18 @@ const ForgotPasswordScreen = () => {
 
   const handleResetPassword = async () => {
     if (!newPassword || !confirmPassword) {
-      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ thông tin');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Vui lòng nhập đầy đủ thông tin' });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Mật khẩu xác nhận không khớp' });
       return;
     }
 
     // Basic validation
     if (newPassword.length < 8) {
-      Alert.alert('Lỗi', 'Mật khẩu phải có ít nhất 8 ký tự');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Mật khẩu phải có ít nhất 8 ký tự' });
       return;
     }
 
@@ -107,7 +107,7 @@ const ForgotPasswordScreen = () => {
       });
       setCurrentStep('success');
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.');
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.' });
     } finally {
       setIsSubmitting(false);
     }
@@ -119,9 +119,9 @@ const ForgotPasswordScreen = () => {
       try {
         await authApi.forgotPassword({ email });
         startResendTimer();
-        Alert.alert('Thành công', 'Đã gửi lại mã xác thực');
+        Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã gửi lại mã xác thực' });
       } catch (error: any) {
-        Alert.alert('Lỗi', error.message || 'Không thể gửi lại mã OTP');
+        Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Không thể gửi lại mã OTP' });
       } finally {
         setIsSubmitting(false);
       }

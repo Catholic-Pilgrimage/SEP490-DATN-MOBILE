@@ -846,15 +846,18 @@ const styles = StyleSheet.create({
     color: PREMIUM_COLORS.gold,
     letterSpacing: 2.5,
     textTransform: "uppercase",
+    textShadowColor: "rgba(0, 0, 0, 0.7)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   heroSiteName: {
     // fontSize is now set dynamically in the component
     fontWeight: "800",
-    color: PREMIUM_COLORS.charcoal,
+    color: "#FFFFFF",
     marginBottom: getSpacing(GUIDE_SPACING.md),
-    textShadowColor: "rgba(255, 255, 255, 0.8)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    textShadowColor: "rgba(0, 0, 0, 0.6)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
   },
   heroMeta: {
     flexDirection: "row",

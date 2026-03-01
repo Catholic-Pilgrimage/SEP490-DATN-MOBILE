@@ -175,9 +175,9 @@ const ProfileScreen: React.FC = () => {
   }, [navigation]);
 
   const handleSchedule = useCallback(() => {
-    // TODO: Navigate to Schedule screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
+    // Navigate to the Shifts tab in the bottom tab navigator
+    (navigation as any).navigate("Shifts");
+  }, [navigation]);
 
   const handleSOSList = useCallback(() => {
     (navigation as any).navigate("SOSList");
