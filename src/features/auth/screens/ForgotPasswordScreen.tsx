@@ -2,9 +2,11 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -18,6 +20,9 @@ import {
 import Toast from 'react-native-toast-message';
 import { SHADOWS } from '../../../constants/theme.constants';
 import authApi from '../../../services/api/shared/authApi';
+
+// Background image
+const BG_IMAGE = require("../../../../assets/images/bg2.jpg");
 
 // Forgot Password screen colors matching the design system
 const FORGOT_COLORS = {
@@ -50,6 +55,19 @@ const ForgotPasswordScreen = () => {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const otpRefs = useRef<Array<TextInput | null>>([null, null, null, null, null, null]);
+  const shakeAnimation = useRef(new Animated.Value(0)).current;
+
+  const triggerShake = () => {
+    shakeAnimation.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnimation, { toValue: 0, duration: 50, useNativeDriver: true })
+    ]).start();
+  };
 
   const handleSendOTP = async () => {
     if (!email) {
@@ -63,20 +81,29 @@ const ForgotPasswordScreen = () => {
       setCurrentStep('otp');
       startResendTimer();
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Không thể gửi mã OTP. Vui lòng thử lại.' });
+      let errorMessage = error.message || 'Không thể gửi mã OTP. Vui lòng thử lại.';
+      if (errorMessage.includes('Không tìm thấy tài nguyên')) {
+        errorMessage = 'Email không tồn tại trong hệ thống.';
+      } else if (errorMessage.includes('không hợp lệ') || errorMessage.includes('tài khoản')) {
+        errorMessage = 'Email không hợp lệ.';
+      }
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleVerifyOTP = () => {
-    const otpCode = otp.join('');
+  const handleVerifyOTP = async (autoSubmitOtp?: string) => {
+    const otpCode = autoSubmitOtp || otp.join('');
     if (otpCode.length < 6) {
-      Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Vui lòng nhập đầy đủ mã xác thực 6 số' });
+      setOtpError('Vui lòng nhập đầy đủ mã xác thực 6 số');
+      triggerShake();
       return;
     }
-    // Since we don't have a standalone verify-otp endpoint for password reset flow shown in the requirements,
-    // we proceed to the next step to bundle OTP with the new password.
+
+    setOtpError('');
+    // Move to next step; validation will actually happen on the 'ResetPassword' API call.
+    // We cannot call a verify OTP endpoint here because it does not exist on the given backend.
     setCurrentStep('newPassword');
   };
 
@@ -107,7 +134,22 @@ const ForgotPasswordScreen = () => {
       });
       setCurrentStep('success');
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.' });
+      let errorMessage = error.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.';
+
+      // Check if error is related to OTP or is a validation error from BE (400, 401, 403)
+      const isOtpError = errorMessage.toLowerCase().includes('otp') ||
+        errorMessage.toLowerCase().includes('mã xác thực') ||
+        errorMessage.toLowerCase().includes('yêu cầu không hợp lệ') ||
+        errorMessage.includes('không hợp lệ') ||
+        errorMessage.includes('tài khoản');
+
+      if (isOtpError) {
+        errorMessage = 'Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.';
+        setOtpError('Mã OTP không chính xác hoặc đã hết hạn.');
+        setCurrentStep('otp');
+        setTimeout(() => triggerShake(), 100);
+      }
+      Toast.show({ type: 'error', text1: 'Lỗi', text2: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -119,9 +161,15 @@ const ForgotPasswordScreen = () => {
       try {
         await authApi.forgotPassword({ email });
         startResendTimer();
-        Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã gửi lại mã xác thực' });
+        Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã gửi lại mã OTP đến email của bạn' });
       } catch (error: any) {
-        Toast.show({ type: 'error', text1: 'Lỗi', text2: error.message || 'Không thể gửi lại mã OTP' });
+        let errorMessage = error.message || 'Không thể gửi lại mã OTP';
+        if (errorMessage.includes('Không tìm thấy tài nguyên')) {
+          errorMessage = 'Email không tồn tại trong hệ thống.';
+        } else if (errorMessage.includes('không hợp lệ') || errorMessage.includes('tài khoản')) {
+          errorMessage = 'Thao tác không hợp lệ.';
+        }
+        Toast.show({ type: 'error', text1: 'Lỗi', text2: errorMessage });
       } finally {
         setIsSubmitting(false);
       }
@@ -145,6 +193,29 @@ const ForgotPasswordScreen = () => {
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
+    if (otpError) setOtpError('');
+
+    // Auto-focus next input
+    if (value.length > 0 && index < 5) {
+      otpRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit if 6th digit
+    if (value.length > 0 && index === 5 && newOtp.join('').length === 6) {
+      setTimeout(() => handleVerifyOTP(newOtp.join('')), 100);
+    }
+  };
+
+  const handleOTPKeyPress = (e: any, index: number) => {
+    if (e.nativeEvent.key === 'Backspace') {
+      if (otpError) setOtpError('');
+      if (!otp[index] && index > 0) {
+        otpRefs.current[index - 1]?.focus();
+        const newOtp = [...otp];
+        newOtp[index - 1] = '';
+        setOtp(newOtp);
+      }
+    }
   };
 
   const handleBackToLogin = () => {
@@ -229,7 +300,7 @@ const ForgotPasswordScreen = () => {
           />
           <TextInput
             style={styles.input}
-            placeholder="nhap_email@example.com"
+            placeholder="Nhập email của bạn"
             placeholderTextColor={`${FORGOT_COLORS.textMuted}99`}
             value={email}
             onChangeText={setEmail}
@@ -279,22 +350,29 @@ const ForgotPasswordScreen = () => {
       </Text>
 
       {/* OTP Input */}
-      <View style={styles.otpContainer}>
+      <Animated.View style={[styles.otpContainer, { transform: [{ translateX: shakeAnimation }] }]}>
         {otp.map((digit, index) => (
           <TextInput
             key={index}
+            ref={(ref) => { otpRefs.current[index] = ref; }}
             style={[
               styles.otpInput,
               digit && styles.otpInputFilled,
+              otpError ? styles.otpInputError : null,
             ]}
             value={digit}
             onChangeText={(value) => handleOTPChange(value.slice(-1), index)}
+            onKeyPress={(e) => handleOTPKeyPress(e, index)}
             keyboardType="number-pad"
             maxLength={1}
             selectTextOnFocus
           />
         ))}
-      </View>
+      </Animated.View>
+
+      {otpError ? (
+        <Text style={styles.otpErrorText}>{otpError}</Text>
+      ) : null}
 
       {/* Resend OTP */}
       <View style={styles.resendContainer}>
@@ -315,7 +393,7 @@ const ForgotPasswordScreen = () => {
 
       <TouchableOpacity
         style={styles.primaryButton}
-        onPress={handleVerifyOTP}
+        onPress={() => handleVerifyOTP()}
         activeOpacity={0.9}
       >
         <Text style={styles.primaryButtonText}>Xác nhận</Text>
@@ -498,15 +576,23 @@ const ForgotPasswordScreen = () => {
   );
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={FORGOT_COLORS.backgroundLight} />
+    <ImageBackground
+      source={BG_IMAGE}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* Background Gradient */}
       <LinearGradient
-        colors={[FORGOT_COLORS.primaryLight, FORGOT_COLORS.backgroundLight, FORGOT_COLORS.backgroundLight]}
+        colors={[
+          "rgba(253, 248, 240, 0.2)",
+          "rgba(253, 248, 240, 0.75)",
+          "rgba(253, 248, 240, 0.95)",
+        ]}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 0.5 }}
+        end={{ x: 0, y: 0.6 }}
       />
 
       <KeyboardAvoidingView
@@ -553,7 +639,7 @@ const ForgotPasswordScreen = () => {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -741,6 +827,19 @@ const styles = StyleSheet.create({
   otpInputFilled: {
     borderColor: FORGOT_COLORS.primary,
     backgroundColor: FORGOT_COLORS.primaryLight,
+  },
+  otpInputError: {
+    borderColor: '#FF4D4F',
+    backgroundColor: '#FFF1F0',
+    color: '#FF4D4F',
+  },
+  otpErrorText: {
+    color: '#FF4D4F',
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 24,
+    marginTop: -16,
+    fontWeight: '500',
   },
 
   // Resend OTP

@@ -188,8 +188,43 @@ export const useAddComment = (postId: string) => {
                 return newPost;
             });
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: postKeys.comments(postId) });
+        onSuccess: (newCommentResponse) => {
+            const newComment = newCommentResponse?.data || (newCommentResponse as any);
+
+            if (newComment && newComment.id) {
+                queryClient.setQueryData(postKeys.comments(postId), (old: any) => {
+                    if (!old || !old.pages || old.pages.length === 0) {
+                        return {
+                            pages: [{ data: { items: [newComment] }, items: [newComment] }],
+                            pageParams: [1]
+                        };
+                    }
+
+                    return {
+                        ...old,
+                        pages: old.pages.map((page: any, index: number) => {
+                            if (index === 0) {
+                                if (page.data?.items) {
+                                    return {
+                                        ...page,
+                                        data: { ...page.data, items: [newComment, ...page.data.items] }
+                                    };
+                                }
+                                if (page.items) {
+                                    return { ...page, items: [newComment, ...page.items] };
+                                }
+                                if (page.comments) {
+                                    return { ...page, comments: [newComment, ...page.comments] };
+                                }
+                                return { ...page, items: [newComment, ...(page.items || [])] };
+                            }
+                            return page;
+                        }),
+                    };
+                });
+            }
+
+            // queryClient.invalidateQueries({ queryKey: postKeys.comments(postId) });
             queryClient.invalidateQueries({ queryKey: postKeys.lists() });
             queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
         },

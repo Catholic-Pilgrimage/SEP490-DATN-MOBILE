@@ -1,8 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     FlatList,
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { postKeys, useLikePost, usePosts } from '../../../../hooks/usePosts';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
@@ -29,82 +31,6 @@ import { CreatePostBar } from '../components/CreatePostBar';
 const STAINED_GLASS_PATTERN = {
     uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAxrhiVQWx2be6uJ1xrGN4hrOCUzxkfSHMR9cY-0Rhvsmxq3dUZv72rXkE6aALqYJ_SyYq2b7EXCmgdin9z1u5YfXrQ4VOyNsBL1wjMkzIj0u2uvABqykyPMwnM2GF7VxfEaMbOhZPO_wESJVkyuN5tziBRX-eik_dKiqMIs5XmPvzq79GKdmgklm_GlWjY9erNgg8PcfbBz-ougrXWAVrtGGPdjXZtKHCHWgj7Hbm6Y4a0LzDmRA_ZwuKYbEpTo7ux9fZX7Q9pCYE',
 };
-
-// Filter Types
-const FILTER_CHIPS = [
-    { id: 'all', label: '#Tất cả' },
-    { id: 'prayers', label: '#LờiCầuNguyện' },
-    { id: 'journey', label: '#ChiaSẻHànhTrình' },
-    { id: 'questions', label: '#HỏiĐáp' },
-    { id: 'inspiration', label: '#CảmHứng' },
-];
-
-interface FeedItem {
-    id: string;
-    type: 'text' | 'image' | 'short_text';
-    user: {
-        name: string;
-        avatar: string;
-        time: string;
-    };
-    location?: string;
-    content: {
-        text?: string;
-        image?: string;
-        quote?: string;
-    };
-    stats: {
-        prayers: number;
-        comments: number;
-    };
-}
-
-const DEMO_DATA: FeedItem[] = [
-    {
-        id: '1',
-        type: 'text',
-        user: {
-            name: 'Father John',
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBhPBshT02ka0IOFsBQM31RuOoobPWOSJ4AL9DdJ1yGazW1JAeqJf5PZr4DFjFV-w-XcRAbeOJMDppRvL9JDPNHb6JaHWZB0e0IIxCdijd_Gryre4iFczQs4VsuLpAHAmF_5gSBqrz9kcyqXYiTwAaqIh33DNBBk5ylyY6Aq3tse79a1hjhznXAK5gSfrJEcbyNE5YNqk48h8l4i26TRjtIxLiJPRdbuV_whKca8ar8UqKvraT18jFspHBS6AemhdE3wRF2ks2we1Y',
-            time: '2 hours ago',
-        },
-        location: 'Santiago de Compostela',
-        content: {
-            text: '"The walk today was arduous, but the silence spoke louder than words. In the quiet rhythm of my steps, I found a prayer I hadn\'t known I needed to speak."',
-        },
-        stats: { prayers: 24, comments: 5 },
-    },
-    {
-        id: '2',
-        type: 'image',
-        user: {
-            name: 'Elena R.',
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBdCbzQM_tth_3LAjHMOpAUiwNC_g2jyAhTbBciTpsMjgmWdeUBmeLYyQYkIcwq31K2QxR5KC0V4HIwNBiJQdvTu2iXtWP81bSeq8s3aFYM0-cYywvKy_FMc9FI8w6S1ib7eq4fuUSMIHRQrcGL0pmSh-J9CkVe0KKHzubmOZuJN1GqZE5z15iEkOvPkcNOfgzUJS7N1_zFHsDB9qdcjd6okS8Rzcr8ofzujBTpCBsdE5vAAJPSRH9PLzhXj1N_1janZ2Jz1_qLdkg',
-            time: 'Yesterday',
-        },
-        location: 'Basilica of Guadalupe',
-        content: {
-            image: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcmXbxaLt3IdniWZ1Wyzj498V-PdOdKuiVUt79eGPMKgYZVX_q83RBc3DTxS7BlXSHOMSP7tD2hSQrwGtNe2UzFn9SYDuTU-guHwM9zOWuTaTrxozOQu1WnlAesX7HKOpH4QDm14SoJJui9MEqsmeAsocge5Neq5DHwEce0aJXWvqFkspyI-m4SUeO9neGPpdxH-BtI7e0cqtxdcHTBjKgvdMpJ9CCwcahEx2Qf7OVRICjKIFb5mwO5YT3OrzySP_InKBkA-kWByg',
-            quote: '"A light in the darkness..."',
-            text: 'I felt a profound sense of grace lighting a candle here today. The heavy scent of wax and roses... it felt like home.',
-        },
-        stats: { prayers: 156, comments: 32 },
-    },
-    {
-        id: '3',
-        type: 'short_text',
-        user: {
-            name: 'Markus T.',
-            avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCBd_sUzZAC2XsUZTrzvkQB2W0TZylLuQ7YxzMcjja2bHHqBpcX36iLjmMP4Z2s0qFKe2eJXxlokwvi7KZDrk4u1yyFqOHaJaExe30rIyszaUQSPRlPkHCc5-avAwYLT0rnnyitAww7JlHt59EPpUQKEqHgcDvCYtl_jwMpVwyBCqX74hDd1qnB8zxyoj9TTl88TtgaDn92YA0eHTDIi9fQFPzOOMnN7osYBx3CGBkOT650g7sg7OHx1xvBGLKLgbXwVgyHQkBO5M4',
-            time: '3 days ago',
-        },
-        location: 'Vatican City',
-        content: {
-            text: 'Arrived just in time for the Angelus. The square was packed, yet my heart felt singular focus.',
-        },
-        stats: { prayers: 89, comments: 12 },
-    },
-];
 
 // --- Components ---
 
@@ -236,17 +162,13 @@ const FeedItemComponent = ({ item, onPress, onCommentPress, isFirstItem }: { ite
         }, null, 2));
     }
 
-    const queryClient = useQueryClient();
 
-    // Chuyên nghiệp: Dùng useInfiniteQuery với enabled: false để SUBSCRIBE (lắng nghe) 
-    // sự thay đổi của bộ nhớ đệm (cache) bình luận mà không tốn 1 Request Network nào.
-    // Khi PostDetail cập nhật cache hoặc mutate, component này sẽ tự động re-render!
     const { data: commentsData } = useInfiniteQuery({
         queryKey: postKeys.comments(item.id),
         initialPageParam: 1,
         queryFn: () => Promise.resolve({ data: { items: [] } } as any), // Dummy config
         getNextPageParam: () => undefined,
-        enabled: false, // Tuyệt đối không gọi API
+        enabled: false,
     });
 
     const cachedCommentCount = commentsData?.pages
@@ -317,13 +239,6 @@ const FeedItemComponent = ({ item, onPress, onCommentPress, isFirstItem }: { ite
     );
 };
 
-
-
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../../../contexts/AuthContext';
-
-// ... (keep existing imports)
-
 // --- Main Screen ---
 
 export default function CommunityScreen() {
@@ -340,9 +255,6 @@ export default function CommunityScreen() {
         month: 'long',
         day: 'numeric'
     }).toUpperCase();
-
-    const [activeFilter, setActiveFilter] = React.useState('all');
-
     const {
         data,
         isLoading,
@@ -536,33 +448,6 @@ const styles = StyleSheet.create({
         borderColor: COLORS.surface0,
     },
 
-    // Filters
-    filterContainer: {
-        paddingVertical: 4,
-        gap: 8,
-    },
-    filterChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: COLORS.white,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
-        ...SHADOWS.subtle,
-    },
-    filterChipActive: {
-        backgroundColor: COLORS.accent,
-        borderColor: COLORS.accent,
-    },
-    filterChipText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: COLORS.textSecondary,
-    },
-    filterChipTextActive: {
-        color: COLORS.white,
-    },
-
     // List
     listContent: {
         paddingBottom: 100,
@@ -610,12 +495,6 @@ const styles = StyleSheet.create({
         color: COLORS.textTertiary,
         fontSize: TYPOGRAPHY.fontSize.xs,
     },
-    // Location style modernized (inline)
-    locationText: {
-        color: COLORS.textSecondary,
-        fontSize: TYPOGRAPHY.fontSize.xs,
-        fontWeight: '500',
-    },
 
     // Text Body
     textBody: {
@@ -626,22 +505,6 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         lineHeight: 24,
         fontFamily: 'serif',
-    },
-    quoteText: {
-        fontSize: TYPOGRAPHY.fontSize.lg,
-        fontStyle: 'italic',
-        color: COLORS.accent,
-        marginBottom: SPACING.sm,
-        fontFamily: 'serif',
-        fontWeight: '500',
-    },
-
-    // Divider (kept for backward compat but not used in main feed)
-    divider: {
-        height: 1,
-        width: '100%',
-        backgroundColor: COLORS.divider,
-        marginVertical: SPACING.sm,
     },
 
     // Actions
@@ -658,15 +521,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 6,
     },
-    actionText: {
-        color: COLORS.textSecondary,
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    actionStatsText: {
-        color: COLORS.textTertiary,
-        fontSize: 13,
-    },
 
 
     // Image - Full width
@@ -679,63 +533,6 @@ const styles = StyleSheet.create({
         height: '100%',
         resizeMode: 'cover',
     },
-    imageOverlayHeader: {
-        position: 'absolute',
-        top: 16,
-        left: 16,
-        right: 16,
-    },
-    overlayHeaderRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-    },
-    overlayUserInfo: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    overlayAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderWidth: 2,
-        borderColor: COLORS.white,
-    },
-    overlayUserTextBg: {
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 8,
-    },
-    overlayUserName: {
-        color: COLORS.white,
-        fontWeight: '600',
-        fontSize: 14,
-        fontFamily: 'serif',
-    },
-    overlayTimeText: {
-        color: 'rgba(255,255,255,0.8)',
-        fontSize: 10,
-    },
-    overlayLocationBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderColor: 'rgba(255,255,255,0.4)',
-        borderWidth: 1,
-        borderRadius: 100,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        gap: 6,
-    },
-    overlayLocationText: {
-        color: COLORS.white,
-        fontSize: 10,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-    },
-
 
     // FAB - Removed
 });
