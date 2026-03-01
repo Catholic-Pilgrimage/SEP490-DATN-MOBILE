@@ -33,7 +33,7 @@ import { getMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const GRID_GAP = GUIDE_SPACING.sm;
+const GRID_GAP = 10;
 const NUM_COLUMNS = 3;
 const ITEM_SIZE = (SCREEN_WIDTH - GUIDE_SPACING.lg * 2 - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS;
 
@@ -282,21 +282,21 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     switch (status) {
       case "pending":
         return {
-          backgroundColor: GUIDE_COLORS.warningLight,
-          color: GUIDE_COLORS.warning,
-          icon: "schedule" as keyof typeof MaterialIcons.glyphMap,
+          backgroundColor: "rgba(255, 193, 7, 0.8)", // Amber
+          color: "#FFF",
+          label: "Chờ duyệt"
         };
       case "approved":
         return {
-          backgroundColor: GUIDE_COLORS.successLight,
-          color: GUIDE_COLORS.success,
-          icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
+          backgroundColor: "rgba(76, 175, 80, 0.8)", // Green
+          color: "#FFF",
+          label: "Đã duyệt"
         };
       case "rejected":
         return {
-          backgroundColor: GUIDE_COLORS.errorLight,
-          color: GUIDE_COLORS.error,
-          icon: "error" as keyof typeof MaterialIcons.glyphMap,
+          backgroundColor: "rgba(244, 67, 54, 0.8)", // Red
+          color: "#FFF",
+          label: "Từ chối"
         };
     }
   };
@@ -305,7 +305,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 
   return (
     <View style={[styles.statusBadge, { backgroundColor: config.backgroundColor }]}>
-      <MaterialIcons name={config.icon} size={12} color={config.color} />
+      <Text style={[styles.statusBadgeText, { color: config.color }]}>{config.label}</Text>
     </View>
   );
 };
@@ -321,11 +321,18 @@ interface MediaTypeIconProps {
 const MediaTypeIcon: React.FC<MediaTypeIconProps> = ({ type }) => {
   if (type === "image") return null;
 
-  const icon = type === "video" ? "play-circle-filled" : "360";
+  if (type === "video") {
+    return (
+      <View style={styles.videoIndicator}>
+        <Ionicons name="play" size={10} color="#FFF" />
+        <Text style={styles.videoDuration}>00:15</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.mediaTypeIcon}>
-      <MaterialIcons name={icon} size={20} color={GUIDE_COLORS.surface} />
+    <View style={styles.panaromaIndicator}>
+      <MaterialIcons name="360" size={12} color="#FFF" />
     </View>
   );
 };
@@ -826,25 +833,45 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 6,
     left: 6,
-    width: 22,
-    height: 22,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    justifyContent: "center",
-    alignItems: "center",
-    ...GUIDE_SHADOWS.sm,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2 },
+      android: { elevation: 2 },
+    }),
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
   },
 
   // Media Type Icon
-  mediaTypeIcon: {
+  videoIndicator: {
     position: "absolute",
     bottom: 6,
     right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
+    flexDirection: "row",
     alignItems: "center",
+    gap: 2,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
+  },
+  videoDuration: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  panaromaIndicator: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
   },
 
   // Empty State

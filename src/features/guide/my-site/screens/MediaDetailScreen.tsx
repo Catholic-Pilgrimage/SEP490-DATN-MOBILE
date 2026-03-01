@@ -4,6 +4,7 @@
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,6 +12,7 @@ import {
   Dimensions,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -48,23 +50,23 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     switch (status) {
       case "pending":
         return {
-          backgroundColor: GUIDE_COLORS.warningLight,
-          color: GUIDE_COLORS.warning,
-          label: "Pending",
+          backgroundColor: "rgba(255, 193, 7, 0.85)", // Amber
+          color: "#FFF",
+          label: "Chờ duyệt",
           icon: "schedule" as keyof typeof MaterialIcons.glyphMap,
         };
       case "approved":
         return {
-          backgroundColor: GUIDE_COLORS.successLight,
-          color: GUIDE_COLORS.success,
-          label: "Approved",
+          backgroundColor: "rgba(76, 175, 80, 0.85)", // Green
+          color: "#FFF",
+          label: "Đã duyệt",
           icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
         };
       case "rejected":
         return {
-          backgroundColor: GUIDE_COLORS.errorLight,
-          color: GUIDE_COLORS.error,
-          label: "Rejected",
+          backgroundColor: "rgba(244, 67, 54, 0.85)", // Red
+          color: "#FFF",
+          label: "Đã bị từ chối",
           icon: "cancel" as keyof typeof MaterialIcons.glyphMap,
         };
     }
@@ -74,7 +76,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 
   return (
     <View style={[styles.statusBadge, { backgroundColor: config.backgroundColor }]}>
-      <MaterialIcons name={config.icon} size={16} color={config.color} />
+      <MaterialIcons name={config.icon} size={14} color={config.color} />
       <Text style={[styles.statusBadgeText, { color: config.color }]}>
         {config.label}
       </Text>
@@ -109,9 +111,15 @@ export const MediaDetailScreen: React.FC = () => {
     return videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
   }, []);
 
-  const thumbnailUrl = media.type === "video" && media.url.includes("youtube")
-    ? getYoutubeThumbnail(media.url)
-    : media.url;
+  const isYouTube = media.type === "video" && media.url.includes("youtube");
+  const isLocalVideo = media.type === "video" && !isYouTube;
+  const thumbnailUrl = isYouTube ? getYoutubeThumbnail(media.url) : media.url;
+
+  // Init video player (even if not video, hooks must be called unconditionally)
+  const player = useVideoPlayer(isLocalVideo ? media.url : "", player => {
+    player.loop = true;
+    // Don't auto-play by default unless you want
+  });
 
   // Handlers
   const handleBack = useCallback(() => {
@@ -195,17 +203,27 @@ export const MediaDetailScreen: React.FC = () => {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor="#000" translucent />
 
-      {/* Full Screen Image */}
+      {/* Full Screen Image or Video */}
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: thumbnailUrl || media.url }}
-          style={styles.fullImage}
-          resizeMode="contain"
-        />
+        {isLocalVideo ? (
+          <VideoView
+            style={styles.fullImage}
+            player={player}
+            allowsFullscreen
+            allowsPictureInPicture
+            contentFit="contain"
+          />
+        ) : (
+          <Image
+            source={{ uri: thumbnailUrl || media.url }}
+            style={styles.fullImage}
+            resizeMode="contain"
+          />
+        )}
 
         {/* Overlay gradient */}
-        <View style={styles.topOverlay} />
-        <View style={styles.bottomOverlay} />
+        <View style={styles.topOverlay} pointerEvents="none" />
+        <View style={styles.bottomOverlay} pointerEvents="none" />
 
         {/* Header (on top of image) */}
         <View style={[styles.header, { top: insets.top + GUIDE_SPACING.sm }]}>
@@ -232,9 +250,19 @@ export const MediaDetailScreen: React.FC = () => {
           </Text>
         </View>
 
-        {/* Play button for video */}
-        {media.type === "video" && (
-          <TouchableOpacity style={styles.playButton} activeOpacity={0.8}>
+        {/* Play button ONLY for YouTube video */}
+        {isYouTube && (
+          <TouchableOpacity
+            style={styles.playButton}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (media.url) {
+                Linking.openURL(media.url).catch(() => {
+                  Alert.alert("Lỗi", "Không thể mở video này");
+                });
+              }
+            }}
+          >
             <MaterialIcons name="play-arrow" size={48} color={GUIDE_COLORS.surface} />
           </TouchableOpacity>
         )}
@@ -319,25 +347,7 @@ export const MediaDetailScreen: React.FC = () => {
           </View>
 
           {/* Info Section */}
-          <View style={styles.infoSection}>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="fingerprint" size={18} color={GUIDE_COLORS.textMuted} />
-              <Text style={styles.infoLabel}>ID:</Text>
-              <Text style={styles.infoValue}>{media.code}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="category" size={18} color={GUIDE_COLORS.textMuted} />
-              <Text style={styles.infoLabel}>Type:</Text>
-              <Text style={styles.infoValue}>{media.type}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <MaterialIcons name="access-time" size={18} color={GUIDE_COLORS.textMuted} />
-              <Text style={styles.infoLabel}>Created:</Text>
-              <Text style={styles.infoValue}>
-                {new Date(media.created_at).toLocaleDateString("vi-VN")}
-              </Text>
-            </View>
-          </View>
+          {/* Removed generic Info Section */}
 
           {/* Delete Button */}
           {canDelete && (
@@ -351,8 +361,8 @@ export const MediaDetailScreen: React.FC = () => {
                 <ActivityIndicator size="small" color={GUIDE_COLORS.error} />
               ) : (
                 <>
-                  <MaterialIcons name="delete" size={20} color={GUIDE_COLORS.error} />
-                  <Text style={styles.deleteButtonText}>Xóa media này</Text>
+                  <MaterialIcons name="delete-outline" size={20} color={GUIDE_COLORS.error} />
+                  <Text style={styles.deleteButtonText}>Xóa bản nháp này</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -434,14 +444,18 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: GUIDE_SPACING.md,
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: GUIDE_BORDER_RADIUS.full,
+    ...Platform.select({
+      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2 },
+      android: { elevation: 2 },
+    }),
   },
   statusBadgeText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    fontSize: 12,
+    fontWeight: "700",
   },
 
   // Media Type Badge
@@ -482,9 +496,9 @@ const styles = StyleSheet.create({
   contentPanel: {
     flex: 1,
     backgroundColor: GUIDE_COLORS.background,
-    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xxl,
-    borderTopRightRadius: GUIDE_BORDER_RADIUS.xxl,
-    marginTop: -GUIDE_SPACING.xl,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    marginTop: 0,
   },
   scrollContent: {
     padding: GUIDE_SPACING.lg,
@@ -536,11 +550,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: "rgba(216, 126, 14, 0.1)", // Light amber/orange
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
   editButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.primary,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#D87E0E", // Deep amber/orange
   },
   captionText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
@@ -567,11 +585,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: GUIDE_SPACING.sm,
+    marginTop: GUIDE_SPACING.xs,
   },
   cancelButton: {
     paddingVertical: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.lg,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: GUIDE_COLORS.gray100,
   },
   cancelButtonText: {
@@ -582,45 +601,18 @@ const styles = StyleSheet.create({
   saveButton: {
     paddingVertical: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.lg,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    backgroundColor: GUIDE_COLORS.primary,
-    minWidth: 60,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: "#D87E0E",
+    minWidth: 80,
     alignItems: "center",
   },
   saveButtonDisabled: {
-    backgroundColor: GUIDE_COLORS.gray400,
+    backgroundColor: GUIDE_COLORS.gray300,
   },
   saveButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.surface,
-  },
-
-  // Info Section
-  infoSection: {
-    backgroundColor: GUIDE_COLORS.surface,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    padding: GUIDE_SPACING.md,
-    marginBottom: GUIDE_SPACING.lg,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.sm,
-  },
-  infoLabel: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-    width: 60,
-  },
-  infoValue: {
-    flex: 1,
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textPrimary,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    color: "#FFF",
   },
 
   // Delete Button
@@ -631,16 +623,14 @@ const styles = StyleSheet.create({
     gap: GUIDE_SPACING.sm,
     paddingVertical: GUIDE_SPACING.md,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
-    borderWidth: 1.5,
-    borderColor: GUIDE_COLORS.error,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: "rgba(244, 67, 54, 0.08)", // Light red background
     marginBottom: GUIDE_SPACING.lg,
   },
   deleteButtonDisabled: {
-    borderColor: GUIDE_COLORS.gray300,
+    opacity: 0.5,
   },
   deleteButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: GUIDE_COLORS.error,
   },

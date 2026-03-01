@@ -12,6 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
+import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
@@ -19,6 +20,7 @@ import {
   Dimensions,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -29,6 +31,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -147,6 +150,12 @@ export const MediaUploadScreen: React.FC = () => {
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
+  const [isMediaPickerVisible, setIsMediaPickerVisible] = useState(false);
+  const [mediaPickerConfig, setMediaPickerConfig] = useState({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false });
+
+  const player = useVideoPlayer(selectedType === "video" && selectedFile ? selectedFile.uri : "", player => {
+    player.loop = true;
+  });
 
   // ============================================
   // IMAGE COMPRESSION
@@ -204,51 +213,50 @@ export const MediaUploadScreen: React.FC = () => {
     }
   }, [step, navigation]);
 
-  const handleSelectType = useCallback(async (type: MediaType | "youtube") => {
+  const handleMediaPicked = useCallback(async (result: ImagePicker.ImagePickerResult) => {
+    if (!result.canceled && result.assets[0] && selectedType) {
+      const asset = result.assets[0];
+      setSelectedFile(asset);
+
+      // Compress image (not video)
+      if (selectedType !== "video" && selectedType !== "youtube") {
+        setCompressing(true);
+        try {
+          const compressed = await compressImage(asset.uri, selectedType as MediaType);
+          setCompressedImage(compressed);
+        } catch (error) {
+          console.error("Compression error:", error);
+          // Fallback to original if compression fails
+          setCompressedImage({
+            uri: asset.uri,
+            width: asset.width || 0,
+            height: asset.height || 0,
+          });
+        } finally {
+          setCompressing(false);
+        }
+      }
+
+      setStep("preview");
+    }
+  }, [selectedType, compressImage]);
+
+  const handleSelectType = useCallback((type: MediaType | "youtube") => {
     setSelectedType(type);
 
     if (type === "youtube") {
       setStep("select-file");
     } else {
-      // Open image picker with new MediaType API (fixes deprecation warning)
-      const mediaTypes: ImagePicker.MediaType[] = type === "video"
-        ? ["videos"]
-        : ["images"];
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes,
+      const mediaTypesOptions = type === "video"
+        ? ImagePicker.MediaTypeOptions.Videos
+        : ImagePicker.MediaTypeOptions.Images;
+      setMediaPickerConfig({
+        mediaTypes: mediaTypesOptions,
         allowsEditing: type !== "panorama",
-        quality: 1, // Get full quality, we'll compress ourselves
-        exif: false, // Don't need EXIF, manipulator handles orientation
       });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        setSelectedFile(asset);
-
-        // Compress image (not video)
-        if (type !== "video") {
-          setCompressing(true);
-          try {
-            const compressed = await compressImage(asset.uri, type);
-            setCompressedImage(compressed);
-          } catch (error) {
-            console.error("Compression error:", error);
-            // Fallback to original if compression fails
-            setCompressedImage({
-              uri: asset.uri,
-              width: asset.width || 0,
-              height: asset.height || 0,
-            });
-          } finally {
-            setCompressing(false);
-          }
-        }
-
-        setStep("preview");
-      }
+      setIsMediaPickerVisible(true);
     }
-  }, [compressImage]);
+  }, []);
 
   const handleYoutubeUrlSubmit = useCallback(() => {
     if (!youtubeUrl.trim()) {
@@ -422,12 +430,37 @@ export const MediaUploadScreen: React.FC = () => {
                     Đang nén ảnh...
                   </Text>
                 </View>
-              ) : thumbnailUrl ? (
-                <Image
-                  source={{ uri: thumbnailUrl }}
+              ) : selectedType === "video" && selectedFile ? (
+                <VideoView
                   style={styles.previewImage}
-                  resizeMode="cover"
+                  player={player}
+                  allowsFullscreen
+                  allowsPictureInPicture
+                  contentFit="contain"
                 />
+              ) : thumbnailUrl ? (
+                <>
+                  <Image
+                    source={{ uri: thumbnailUrl }}
+                    style={styles.previewImage}
+                    resizeMode="cover"
+                  />
+                  {selectedType === "youtube" && (
+                    <TouchableOpacity
+                      style={styles.playButton}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        if (youtubeUrl) {
+                          Linking.openURL(youtubeUrl).catch(() => {
+                            Alert.alert("Lỗi", "Không thể mở video này");
+                          });
+                        }
+                      }}
+                    >
+                      <MaterialIcons name="play-arrow" size={48} color={GUIDE_COLORS.surface} />
+                    </TouchableOpacity>
+                  )}
+                </>
               ) : (
                 <View style={styles.previewPlaceholder}>
                   <MaterialIcons
@@ -582,6 +615,16 @@ export const MediaUploadScreen: React.FC = () => {
       >
         {renderStepContent()}
       </ScrollView>
+
+      <MediaPickerModal
+        visible={isMediaPickerVisible}
+        onClose={() => setIsMediaPickerVisible(false)}
+        onMediaPicked={handleMediaPicked}
+        mediaTypes={mediaPickerConfig.mediaTypes}
+        allowsEditing={mediaPickerConfig.allowsEditing}
+        quality={1}
+        title={selectedType === 'video' ? 'Upload Video' : 'Upload Ảnh'}
+      />
     </View>
   );
 };
@@ -791,6 +834,20 @@ const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: GUIDE_COLORS.surface,
+  },
+  playButton: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -40,
+    marginLeft: -40,
+    width: 80,
+    height: 80,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
 
   // Caption
