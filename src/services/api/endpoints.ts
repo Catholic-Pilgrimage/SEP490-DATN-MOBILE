@@ -70,11 +70,16 @@ export const PILGRIM_ENDPOINTS = {
     INVITE: (id: string) => `${API_BASE}/planners/${id}/invite`,
     PARTICIPANTS: (id: string) => `${API_BASE}/planners/${id}/participants`,
     ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
-    DELETE_ITEM: (planId: string, itemId: string) => `${API_BASE}/planners/${planId}/items/${itemId}`,
+    DELETE_ITEM: (planId: string, itemId: string) =>
+      `${API_BASE}/planners/${planId}/items/${itemId}`,
     REORDER_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/reorder`,
     MESSAGES: (id: string) => `${API_BASE}/planners/${id}/messages`,
-    UPLOAD_MESSAGE_IMAGE: (id: string) => `${API_BASE}/planners/${id}/messages/upload-image`,
-    DELETE_MESSAGE: (id: string, messageId: string) => `${API_BASE}/planners/${id}/messages/${messageId}`,
+    UPLOAD_MESSAGE_IMAGE: (id: string) =>
+      `${API_BASE}/planners/${id}/messages/upload-image`,
+    DELETE_MESSAGE: (id: string, messageId: string) =>
+      `${API_BASE}/planners/${id}/messages/${messageId}`,
+    CHECKINS_ME: `${API_BASE}/checkins/me`,
+    CHECKIN_ITEM: (id: string) => `${API_BASE}/planner-items/${id}/checkin`,
   },
 
   // SOS - Emergency request
@@ -173,9 +178,6 @@ export const GUIDE_ENDPOINTS = {
     DELETE: (id: string) => `${API_BASE}/local-guide/schedules/${id}`,
     RESTORE: (id: string) => `${API_BASE}/local-guide/schedules/${id}/restore`,
   },
-
-
-
 
   // SOS Support - Pending support requests
   SOS: {
@@ -286,6 +288,7 @@ export const SHARED_ENDPOINTS = {
     MARK_ALL_READ: `${API_BASE}/notifications/read-all`,
     DELETE: (id: string) => `${API_BASE}/notifications/${id}`,
     DELETE_ALL: `${API_BASE}/notifications`,
+    DELETE_READ: `${API_BASE}/notifications/read`,
     SETTINGS: `${API_BASE}/notifications/settings`,
     UPDATE_SETTINGS: `${API_BASE}/notifications/settings`,
     REGISTER_TOKEN: `${API_BASE}/notifications/token`,

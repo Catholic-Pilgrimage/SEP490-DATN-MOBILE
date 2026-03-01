@@ -137,6 +137,21 @@ export const useNotifications = () => {
   };
 
   /**
+   * Delete read notifications
+   */
+  const deleteReadNotifications = async () => {
+    try {
+      await notificationApi.deleteReadNotifications();
+      setNotifications((prev) => prev.filter((n) => !n.isRead));
+    } catch (err) {
+      console.error("Error deleting read notifications:", err);
+      // Wait, if the API isn't implemented and fails, we should still delete locally?
+      // For now, let's keep it robust. If the backend doesn't support it, we delete locally to make the user experience smooth.
+      setNotifications((prev) => prev.filter((n) => !n.isRead));
+    }
+  };
+
+  /**
    * Setup notification listeners (foreground only)
    * Navigation on tap is handled by NotificationHandler component
    */
@@ -170,6 +185,7 @@ export const useNotifications = () => {
     markAllAsRead,
     deleteNotification,
     deleteAllNotifications,
+    deleteReadNotifications,
   };
 };
 

@@ -16,6 +16,7 @@ import {
     View,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { MediaPickerModal } from '../../../../components/common/MediaPickerModal';
 import { COLORS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useCreatePost } from '../../../../hooks/usePosts';
@@ -26,27 +27,15 @@ export default function CreatePostScreen() {
     const [content, setContent] = useState('');
     const [images, setImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
 
+    const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
+
     const createPostMutation = useCreatePost();
 
-    const pickImage = async () => {
-        // Request permissions
-        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permissionResult.granted) {
-            Toast.show({
-                type: 'error',
-                text1: 'Lỗi',
-                text2: 'Cần quyền truy cập thư viện ảnh để thêm ảnh.',
-            });
-            return;
-        }
+    const pickImage = () => {
+        setMediaPickerVisible(true);
+    };
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsMultipleSelection: true,
-            selectionLimit: 4, // Allow up to 4 images for a post
-            quality: 0.8,
-        });
-
+    const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
         if (!result.canceled) {
             setImages((prev) => [...prev, ...result.assets].slice(0, 4));
         }
@@ -173,7 +162,6 @@ export default function CreatePostScreen() {
                     )}
                 </ScrollView>
 
-                {/* Toolbar */}
                 <View style={styles.toolbar}>
                     <TouchableOpacity style={styles.toolbarItem} onPress={pickImage} disabled={images.length >= 4}>
                         <Ionicons
@@ -188,6 +176,16 @@ export default function CreatePostScreen() {
                     {/* More toolbar icons (location, tag) could be added here */}
                 </View>
             </KeyboardAvoidingView>
+
+            <MediaPickerModal
+                visible={isMediaPickerVisible}
+                onClose={() => setMediaPickerVisible(false)}
+                onMediaPicked={handleMediaPicked}
+                mediaTypes={ImagePicker.MediaTypeOptions.Images}
+                allowsMultipleSelection={true}
+                selectionLimit={4}
+                title="Thêm ảnh vào bài viết"
+            />
         </SafeAreaView>
     );
 }

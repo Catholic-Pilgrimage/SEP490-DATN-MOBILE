@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.PilgrimApp"
+      "bundleIdentifier": "com.anonymous.PilgrimApp",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -48,7 +52,16 @@
           "color": "#ffffff"
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần cấp quyền truy cập thư viện ảnh để thêm ảnh vào bài viết.",
+          "cameraPermission": "Ứng dụng cần cấp quyền truy cập máy ảnh để chụp ảnh và quay video.",
+          "microphonePermission": "Ứng dụng cần cấp quyền truy cập micro để quay video."
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "reactCompiler": true

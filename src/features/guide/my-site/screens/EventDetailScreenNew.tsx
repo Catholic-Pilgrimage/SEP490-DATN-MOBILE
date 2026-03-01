@@ -34,6 +34,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -312,17 +313,15 @@ export const EventDetailScreen: React.FC = () => {
     }
   }, [isCreateMode, passedEvent]);
 
+  const [isMediaPickerVisible, setIsMediaPickerVisible] = useState(false);
+
   // Pick banner image
-  const handlePickBanner = useCallback(async () => {
+  const handlePickBanner = useCallback(() => {
     if (!isEditing) return;
+    setIsMediaPickerVisible(true);
+  }, [isEditing]);
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 1,
-    });
-
+  const handleMediaPicked = useCallback(async (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
 
@@ -349,7 +348,7 @@ export const EventDetailScreen: React.FC = () => {
         });
       }
     }
-  }, [isEditing]);
+  }, []);
 
   // Validate form
   const validateForm = (): boolean => {
@@ -704,6 +703,17 @@ export const EventDetailScreen: React.FC = () => {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <MediaPickerModal
+        visible={isMediaPickerVisible}
+        onClose={() => setIsMediaPickerVisible(false)}
+        onMediaPicked={handleMediaPicked}
+        mediaTypes={ImagePicker.MediaTypeOptions.Images}
+        allowsEditing={true}
+        aspect={[16, 9]}
+        quality={1}
+        title="Thêm ảnh bìa sự kiện"
+      />
     </View>
   );
 };

@@ -17,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { MediaPickerModal } from '../../../../components/common/MediaPickerModal';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useSites } from '../../../../hooks/useSites';
 import { useVerification } from '../../../../hooks/useVerification';
@@ -64,18 +65,14 @@ const VerificationRequestScreen = () => {
     const { sites, fetchSites, isLoading: isSitesLoading } = useSites({ autoFetch: true });
 
     // Handle site search
+    const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
+
     const handleSearch = (text: string) => {
         setSearchQuery(text);
         fetchSites({ query: text });
     };
 
-    const pickImage = async () => {
-        let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsEditing: true,
-            quality: 0.8,
-        });
-
+    const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
         if (!result.canceled) {
             setCertificate({
                 uri: result.assets[0].uri,
@@ -83,6 +80,10 @@ const VerificationRequestScreen = () => {
                 type: result.assets[0].mimeType || 'image/jpeg',
             });
         }
+    };
+
+    const pickImage = () => {
+        setMediaPickerVisible(true);
     };
 
     const validateForm = () => {
@@ -401,9 +402,19 @@ const VerificationRequestScreen = () => {
                     ) : null}
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            <MediaPickerModal
+                visible={isMediaPickerVisible}
+                onClose={() => setMediaPickerVisible(false)}
+                onMediaPicked={handleMediaPicked}
+                mediaTypes={ImagePicker.MediaTypeOptions.Images}
+                allowsEditing={true}
+                quality={0.8}
+                title="Tải lên giấy chứng nhận"
+            />
         </SafeAreaView>
     );
-};
+}
 
 const styles = StyleSheet.create({
     container: {

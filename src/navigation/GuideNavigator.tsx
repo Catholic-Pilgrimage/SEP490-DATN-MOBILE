@@ -1,6 +1,7 @@
 // Local Guide tab navigator - 3 tabs: Home, My Site, Profile
 import { MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
@@ -97,10 +98,23 @@ export const GuideNavigator = () => {
       <Tab.Screen
         name="MySite"
         component={MySiteNavigator}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="church" focused={focused} label={t("navigation.mySite", { defaultValue: "Site của tôi" })} />
-          ),
+        options={({ route }) => {
+          const routeName = getFocusedRouteNameFromRoute(route) ?? 'MySiteHome';
+          const isHidden = routeName === 'MediaDetail' || routeName === 'MediaUpload';
+
+          return {
+            tabBarStyle: [
+              styles.tabBar,
+              {
+                height: 70 + insets.bottom,
+                paddingBottom: insets.bottom + 8,
+                display: isHidden ? 'none' : 'flex'
+              },
+            ],
+            tabBarIcon: ({ focused }) => (
+              <TabIcon name="church" focused={focused} label={t("navigation.mySite", { defaultValue: "Site của tôi" })} />
+            ),
+          };
         }}
       />
       <Tab.Screen

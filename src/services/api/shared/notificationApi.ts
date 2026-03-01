@@ -178,6 +178,16 @@ export const deleteAllNotifications = async (): Promise<ApiResponse<void>> => {
 };
 
 /**
+ * Delete read notifications
+ */
+export const deleteReadNotifications = async (): Promise<ApiResponse<void>> => {
+  const response = await apiClient.delete<ApiResponse<void>>(
+    SHARED_ENDPOINTS.NOTIFICATIONS.DELETE_READ,
+  );
+  return response.data;
+};
+
+/**
  * Get notification settings
  */
 export const getSettings = async (): Promise<
@@ -395,6 +405,7 @@ const notificationApi = {
   markAllAsRead,
   deleteNotification,
   deleteAllNotifications,
+  deleteReadNotifications,
   getSettings,
   updateSettings,
   registerPushToken,

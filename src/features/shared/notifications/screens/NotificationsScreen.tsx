@@ -12,6 +12,7 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 import React, { useMemo } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Platform,
     SectionList,
     StatusBar,
@@ -43,6 +44,7 @@ const NotificationsScreen = ({ navigation }: any) => {
         markAsRead,
         markAllAsRead,
         deleteNotification,
+        deleteReadNotifications,
         error,
     } = useNotifications();
 
@@ -203,6 +205,23 @@ const NotificationsScreen = ({ navigation }: any) => {
                                 />
                             </TouchableOpacity>
                         )}
+                        {notifications.length > 0 && (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    Alert.alert(
+                                        "Xóa thông báo",
+                                        "Bạn có chắc chắn muốn xóa tất cả thông báo đã đọc?",
+                                        [
+                                            { text: "Bỏ qua", style: "cancel" },
+                                            { text: "Xóa", style: "destructive", onPress: deleteReadNotifications }
+                                        ]
+                                    );
+                                }}
+                                style={styles.actionButton}
+                            >
+                                <Ionicons name="trash-bin-outline" size={24} color={COLORS.danger || '#f44336'} />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </View>
 
@@ -292,8 +311,8 @@ const styles = StyleSheet.create({
     headerActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        width: 40,
         justifyContent: 'flex-end',
+        gap: 16,
     },
     actionButton: {
         padding: 4,
