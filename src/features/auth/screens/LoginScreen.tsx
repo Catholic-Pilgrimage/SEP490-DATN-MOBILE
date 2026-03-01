@@ -287,7 +287,10 @@ const LoginScreen = () => {
           <ScrollView
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingTop: insets.top + 10 },
+              {
+                paddingTop: insets.top + 10,
+                paddingBottom: Math.max(insets.bottom + 20, 40)
+              },
             ]}
             showsVerticalScrollIndicator={false}
             bounces={false}

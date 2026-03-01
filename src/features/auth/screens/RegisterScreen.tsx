@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,6 +18,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { SHADOWS } from '../../../constants/theme.constants';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -27,6 +29,9 @@ import {
   formatPhoneForApi,
   validateRegisterForm,
 } from '../../../utils/validation';
+
+// Background image
+const BG_IMAGE = require("../../../../assets/images/bg2.jpg");
 
 // Register screen colors matching the design system
 const REGISTER_COLORS = {
@@ -47,6 +52,7 @@ const REGISTER_COLORS = {
 const RegisterScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { register, isLoading, error, clearError } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -291,14 +297,23 @@ const RegisterScreen = () => {
   const isDisabled = isLoading || isSubmitting;
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={REGISTER_COLORS.backgroundLight} />
+    <ImageBackground
+      source={BG_IMAGE}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
+      {/* Overlay gradient for better readability */}
       <LinearGradient
-        colors={[REGISTER_COLORS.primaryLight, REGISTER_COLORS.backgroundLight, REGISTER_COLORS.backgroundLight]}
+        colors={[
+          "rgba(253, 248, 240, 0.2)",
+          "rgba(253, 248, 240, 0.75)",
+          "rgba(253, 248, 240, 0.95)",
+        ]}
         style={styles.backgroundGradient}
         start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 0.5 }}
+        end={{ x: 0, y: 0.6 }}
       />
 
       <KeyboardAvoidingView
@@ -306,7 +321,13 @@ const RegisterScreen = () => {
         style={styles.keyboardView}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: insets.top + 10,
+              paddingBottom: Math.max(insets.bottom + 20, 60)
+            },
+          ]}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
@@ -510,7 +531,7 @@ const RegisterScreen = () => {
           </View>
         </View>
       )}
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -524,7 +545,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 400,
+    height: 500,
   },
   keyboardView: {
     flex: 1,
