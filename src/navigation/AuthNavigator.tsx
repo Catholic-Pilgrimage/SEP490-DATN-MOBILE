@@ -1,11 +1,11 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
-import LoginScreen from '../features/auth/screens/LoginScreen';
-import RegisterScreen from '../features/auth/screens/RegisterScreen';
-import ForgotPasswordScreen from '../features/auth/screens/ForgotPasswordScreen';
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import React from "react";
+import ForgotPasswordScreen from "../features/auth/screens/ForgotPasswordScreen";
+import LoginScreen from "../features/auth/screens/LoginScreen";
+import RegisterScreen from "../features/auth/screens/RegisterScreen";
 
 export type AuthStackParamList = {
-  Login: undefined;
+  Login: { email?: string } | undefined;
   Register: undefined;
   ForgotPassword: undefined;
 };
@@ -17,9 +17,9 @@ export const AuthNavigator = () => {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
+        animation: "slide_from_right",
         gestureEnabled: true,
-        gestureDirection: 'horizontal',
+        gestureDirection: "horizontal",
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />

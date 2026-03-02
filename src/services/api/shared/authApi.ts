@@ -53,7 +53,9 @@ export const login = async (data: LoginRequest): Promise<LoginResponse> => {
 /**
  * Register new user
  */
-export const register = async (data: RegisterRequest): Promise<RegisterResponse> => {
+export const register = async (
+  data: RegisterRequest,
+): Promise<RegisterResponse> => {
   const response = await apiClient.post<RegisterResponse>(
     AUTH_ENDPOINTS.REGISTER,
     data,
@@ -97,7 +99,7 @@ const mapUserResponse = (data: any): any => {
     address: data.address,
     bio: data.bio,
     isVerified: !!data.verified_at || data.isVerified,
-    isActive: data.status === 'active' || data.isActive,
+    isActive: data.status === "active" || data.isActive,
     createdAt: data.created_at || data.createdAt,
     updatedAt: data.updated_at || data.updatedAt,
     dateOfBirth: data.date_of_birth || data.dateOfBirth,
@@ -125,9 +127,7 @@ const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
  * Get auth profile
  */
 export const getProfile = async (): Promise<ProfileResponse> => {
-  const response = await apiClient.get<ProfileResponse>(
-    AUTH_ENDPOINTS.PROFILE,
-  );
+  const response = await apiClient.get<ProfileResponse>(AUTH_ENDPOINTS.PROFILE);
 
   if (response.data && response.data.data) {
     // Map the inner data object
@@ -230,6 +230,20 @@ export const resendOtp = async (email: string): Promise<ApiResponse<void>> => {
   return response.data;
 };
 
+/**
+ * Verify OTP for forgot password
+ * Calls /api/auth/verify-otp with { email, otp }
+ */
+export const verifyOtp = async (
+  data: VerifyEmailRequest,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.post<ApiResponse<void>>(
+    AUTH_ENDPOINTS.VERIFY_OTP,
+    data,
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -245,6 +259,7 @@ const authApi = {
   forgotPassword,
   resetPassword,
   verifyEmail,
+  verifyOtp,
   resendOtp,
 };
 

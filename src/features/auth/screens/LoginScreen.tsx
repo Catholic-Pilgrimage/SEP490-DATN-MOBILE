@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Image,
   ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
@@ -17,24 +18,26 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
-} from 'react-native';
+  View,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSequence,
   withSpring,
   withTiming,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
-import { SHADOWS } from '../../../constants/theme.constants';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useI18n } from '../../../hooks/useI18n';
-import { navigateToAppropriateScreen } from '../../../navigation/navigationHelpers';
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import { SHADOWS } from "../../../constants/theme.constants";
+import { useAuth } from "../../../contexts/AuthContext";
+import { useI18n } from "../../../hooks/useI18n";
+import { AuthStackParamList } from "../../../navigation/AuthNavigator";
+import { navigateToAppropriateScreen } from "../../../navigation/navigationHelpers";
 
 // Background image
 const BG_IMAGE = require("../../../../assets/images/bg2.jpg");
+const LOGO_IMAGE = require("../../../../assets/images/logo.png");
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -66,6 +69,7 @@ interface FormErrors {
 
 const LoginScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
+  const route = useRoute<RouteProp<AuthStackParamList, "Login">>();
   const {
     login,
     continueAsGuest,
@@ -77,8 +81,8 @@ const LoginScreen = () => {
     user,
   } = useAuth();
 
-  // Form state
-  const [email, setEmail] = useState("");
+  // Form state — prefill email từ params nếu có (vd: sau khi đăng ký xong)
+  const [email, setEmail] = useState(route.params?.email ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
@@ -187,30 +191,45 @@ const LoginScreen = () => {
       });
 
       Toast.show({
-        type: 'success',
-        text1: t('auth.loginSuccess'),
+        type: "success",
+        text1: t("auth.loginSuccess"),
       });
       // Navigation is handled by useEffect when isAuthenticated changes
     } catch (err: any) {
       triggerShakeAnimation();
 
-      // Clear global auth error to prevent banner if it exists
+      // Clear global auth error
       setTimeout(() => clearError(), 0);
 
-      // Extract error message avoiding raw 401
-      let errorMessage = err.message || t('auth.checkCredentials') || "Thông tin đăng nhập không chính xác";
+      // Extract error message từ API
+      let errorMessage =
+        err.message ||
+        t("auth.checkCredentials") ||
+        "Thông tin đăng nhập không chính xác";
       if (errorMessage.includes("401") || errorMessage.includes("404")) {
-        errorMessage = t('auth.errors.invalidCredentials') || "Tài khoản hoặc mật khẩu không chính xác.";
+        errorMessage =
+          t("auth.errors.invalidCredentials") ||
+          "Tài khoản hoặc mật khẩu không chính xác.";
       }
 
-      setFormErrors((prev) => ({
-        ...prev,
-        password: errorMessage,
-      }));
+      // Lỗi từ API → hiện Toast (không dùng inline error)
+      Toast.show({
+        type: "error",
+        text1: "Đăng nhập thất bại",
+        text2: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
-  }, [email, password, login, validateForm, triggerShakeAnimation, clearError, t]);
+  }, [
+    email,
+    password,
+    login,
+    validateForm,
+    triggerShakeAnimation,
+    clearError,
+    t,
+  ]);
 
   const handleForgotPassword = useCallback(() => {
     navigation.navigate("ForgotPassword");
@@ -224,16 +243,16 @@ const LoginScreen = () => {
     try {
       await continueAsGuest();
       Toast.show({
-        type: 'success',
-        text1: t('common.success'),
-        text2: t('auth.guestSuccess'),
+        type: "success",
+        text1: t("common.success"),
+        text2: t("auth.guestSuccess"),
       });
       // Navigation is handled by useEffect when isGuest changes
     } catch (error) {
       Toast.show({
-        type: 'error',
-        text1: t('common.error'),
-        text2: t('auth.errors.guestError')
+        type: "error",
+        text1: t("common.error"),
+        text2: t("auth.errors.guestError"),
       });
     }
   }, [continueAsGuest]);
@@ -296,7 +315,7 @@ const LoginScreen = () => {
               styles.scrollContent,
               {
                 paddingTop: insets.top + 10,
-                paddingBottom: Math.max(insets.bottom + 20, 40)
+                paddingBottom: Math.max(insets.bottom + 20, 40),
               },
             ]}
             showsVerticalScrollIndicator={false}
@@ -306,10 +325,10 @@ const LoginScreen = () => {
             {/* Logo Section */}
             <View style={styles.logoSection}>
               <View style={styles.logoBadge}>
-                <MaterialIcons
-                  name="church"
-                  size={28}
-                  color={LOGIN_COLORS.primary}
+                <Image
+                  source={LOGO_IMAGE}
+                  style={styles.logoImage}
+                  resizeMode="contain"
                 />
               </View>
               <Text style={styles.appName}>{t("appName")}</Text>
@@ -555,8 +574,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   logoBadge: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
     borderRadius: 32,
     backgroundColor: "rgba(255, 255, 255, 0.95)",
     justifyContent: "center",
@@ -565,6 +584,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 2,
     borderColor: LOGIN_COLORS.primary,
+  },
+  logoImage: {
+    width: 64,
+    height: 64,
+    tintColor: LOGIN_COLORS.primary,
   },
   appName: {
     fontSize: 22,

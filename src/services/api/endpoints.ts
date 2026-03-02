@@ -21,6 +21,7 @@ export const AUTH_ENDPOINTS = {
   FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
   RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
   VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
+  VERIFY_OTP: `${API_BASE}/auth/verify-otp`,
   RESEND_OTP: `${API_BASE}/auth/resend-otp`,
 } as const;
 
@@ -313,7 +314,8 @@ export const SHARED_ENDPOINTS = {
     DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
     LIKE: (id: string) => `${API_BASE}/posts/${id}/like`,
     COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
-    COMMENT_DETAIL: (id: string, commentId: string) => `${API_BASE}/posts/${id}/comments/${commentId}`,
+    COMMENT_DETAIL: (id: string, commentId: string) =>
+      `${API_BASE}/posts/${id}/comments/${commentId}`,
   },
 } as const;
 
