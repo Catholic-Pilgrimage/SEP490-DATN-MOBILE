@@ -34,7 +34,7 @@ export const COLORS = {
   // Neutral Colors - Pure & Sacred
   white: '#FFFFFF',
   black: '#000000',
-  background: '#f8f8f6', // Cream/beige from mockup
+  background: '#F6F3EB', // Off-white cream (overall app background)
   backgroundDark: '#221d10', // Dark mode from mockup
   backgroundSoft: '#fafaf8',
   backgroundCard: '#FFFFFF', // Pure white cards

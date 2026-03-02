@@ -15,6 +15,7 @@ export interface FeedPost {
     content: string;
     image_urls: string[];
     likes_count: number;
+    comment_count: number;
     status: string;
     created_at: string;
     updated_at: string;

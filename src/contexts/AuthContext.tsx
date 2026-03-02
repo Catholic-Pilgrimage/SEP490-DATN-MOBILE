@@ -10,6 +10,7 @@ import React, {
   useReducer,
 } from "react";
 import Toast from 'react-native-toast-message';
+import { queryClient } from '../config/query-client';
 import { authApi } from "../services/api";
 import notificationService from "../services/notification/notificationService";
 import { secureStorage } from "../services/storage/secureStorage";
@@ -293,6 +294,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
 
+      // Clear all React Query cache to prevent stale data on next login
+      queryClient.clear();
+
       Toast.show({
         type: 'success',
         text1: 'Thành công',
@@ -318,6 +322,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         .catch(() => { });
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
+
+      // Clear all React Query cache to prevent stale data on next login
+      queryClient.clear();
 
       Toast.show({
         type: 'success',

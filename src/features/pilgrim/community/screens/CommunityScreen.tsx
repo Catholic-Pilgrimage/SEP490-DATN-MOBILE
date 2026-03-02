@@ -1,6 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { useInfiniteQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,7 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { postKeys, useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { useLikePost, usePosts } from '../../../../hooks/usePosts';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
 
@@ -144,41 +143,8 @@ const FeedItemActions = ({
     );
 };
 
-const FeedItemComponent = ({ item, onPress, onCommentPress, isFirstItem }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void; isFirstItem?: boolean }) => {
-    // DEVELOPMENT LOG: To see exact API structure and find comment count
-    if (isFirstItem && __DEV__) {
-        console.log('\n--- 🔍 CHI TIẾT DỮ LIỆU TỪ API (BÀI VIẾT ĐẦU TIÊN) ---', JSON.stringify({
-            id: item.id,
-            keys_có_trong_item: Object.keys(item),
-            nội_dung: item.content,
-            giá_trị_comment: {
-                comment_count: (item as any).comment_count,
-                comments_count: (item as any).comments_count,
-                numberOfComments: (item as any).numberOfComments,
-                total_comments: (item as any).total_comments,
-                totalComments: (item as any).totalComments,
-                stats: (item as any).stats
-            }
-        }, null, 2));
-    }
-
-
-    const { data: commentsData } = useInfiniteQuery({
-        queryKey: postKeys.comments(item.id),
-        initialPageParam: 1,
-        queryFn: () => Promise.resolve({ data: { items: [] } } as any), // Dummy config
-        getNextPageParam: () => undefined,
-        enabled: false,
-    });
-
-    const cachedCommentCount = commentsData?.pages
-        ? commentsData.pages.flatMap((p: any) => p.data?.items || p.items || p.comments || []).length
-        : 0;
-
-    const displayCommentsCount = Math.max(
-        cachedCommentCount,
-        (item as any).comment_count || (item as any).comments_count || 0
-    );
+const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void }) => {
+    const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
 
     const user = {
         name: item.author.full_name,
@@ -270,11 +236,10 @@ export default function CommunityScreen() {
         return data.pages.flatMap((page: any) => page.data?.items || page.items || page.posts || []);
     }, [data]);
 
-    const renderItem = ({ item, index }: { item: FeedPost, index: number }) => {
+    const renderItem = ({ item }: { item: FeedPost }) => {
         return (
             <FeedItemComponent
                 item={item}
-                isFirstItem={index === 0}
                 onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
                 onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
             />

@@ -7,6 +7,7 @@ import {
     Dimensions,
     FlatList,
     Image,
+    ImageBackground,
     Platform,
     StatusBar,
     StyleSheet,
@@ -158,11 +159,11 @@ export const JournalScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Background Pattern */}
-            <View style={styles.bgPattern} pointerEvents="none">
-                {/* Could use an ImageBackground here for the pattern if assets existed */}
-            </View>
+        <ImageBackground
+            source={require('../../../../../assets/images/bg3.jpg')}
+            style={styles.container}
+            resizeMode="cover"
+        >
 
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
@@ -223,7 +224,7 @@ export const JournalScreen = () => {
                     <Text style={styles.fabText}>Viết nhật ký</Text>
                 </LinearGradient>
             </TouchableOpacity>
-        </View>
+        </ImageBackground>
     );
 };
 
