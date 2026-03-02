@@ -218,8 +218,8 @@ const VerificationRequestScreen = () => {
                         {renderInput('Tên điểm hành hương', siteName, setSiteName, 'Nhập tên ĐHH...', true)}
                         {renderInput('Tỉnh / Thành phố', siteProvince, setSiteProvince, 'VD: Hà Nội, TP.HCM...', true)}
                         {renderInput('Địa chỉ chi tiết', siteAddress, setSiteAddress, 'Nhập địa chỉ cụ thể...')}
-                        {renderInput('Loại điểm (Site Type)', siteType, setSiteType, 'VD: Nhà chờ, Nhà thờ, Tu viện...')}
-                        {renderInput('Vùng (Region)', siteRegion, setSiteRegion, 'VD: Bắc, Trung, Nam...')}
+                        {renderInput('Loại điểm', siteType, setSiteType, 'VD: Nhà thờ, Tu viện, Đền thánh...')}
+                        {renderInput('Vùng miền', siteRegion, setSiteRegion, 'VD: Bắc, Trung, Nam...')}
                     </>
                 ) : (
                     <>
@@ -338,7 +338,7 @@ const VerificationRequestScreen = () => {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Trở thành Local Guide</Text>
+                <Text style={styles.headerTitle}>Đăng ký Quản lý Điểm</Text>
             </View>
 
             <KeyboardAvoidingView
@@ -357,7 +357,7 @@ const VerificationRequestScreen = () => {
                             <Ionicons name="briefcase" size={48} color="#D4AF37" style={styles.icon} />
                             <Text style={styles.title}>Yêu cầu đã được gửi</Text>
                             <Text style={styles.description}>
-                                Bạn đã gửi một yêu cầu trở thành Local Guide trước đó. Vui lòng chờ phản hồi từ quản trị viên.
+                                Bạn đã gửi một yêu cầu đăng ký quản lý điểm trước đó. Vui lòng chờ phản hồi từ quản trị viên.
                             </Text>
 
                             <View style={styles.detailsContainer}>

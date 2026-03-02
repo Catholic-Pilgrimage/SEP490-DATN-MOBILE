@@ -6,6 +6,7 @@ import {
     Alert,
     Dimensions,
     Image,
+    ImageBackground,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -152,15 +153,15 @@ export default function CreateJournalScreen() {
 
     if (initialLoading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <ActivityIndicator size="large" color={COLORS.accent} />
-            </View>
+            </ImageBackground>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={styles.container} resizeMode="cover">
             <StatusBar barStyle="dark-content" />
 
             {/* Header */}
@@ -332,7 +333,7 @@ export default function CreateJournalScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </ImageBackground>
     );
 }
 

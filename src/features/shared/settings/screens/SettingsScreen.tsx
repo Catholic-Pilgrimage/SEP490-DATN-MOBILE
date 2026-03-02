@@ -193,7 +193,7 @@ const SettingsScreen = () => {
                     />
                     <SettingItem
                         icon="briefcase-outline"
-                        label="Trở thành Local Guide"
+                        label="Đăng ký Quản lý Điểm"
                         onPress={() => navigation.navigate('VerificationRequest')}
                     />
                     <SettingItem

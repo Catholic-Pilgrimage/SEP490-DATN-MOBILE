@@ -191,19 +191,26 @@ const LoginScreen = () => {
         text1: t('auth.loginSuccess'),
       });
       // Navigation is handled by useEffect when isAuthenticated changes
-    } catch (error: any) {
+    } catch (err: any) {
       triggerShakeAnimation();
 
-      // Show error alert with specific message
-      Toast.show({
-        type: 'error',
-        text1: t('auth.errors.loginFailed'),
-        text2: error.message || t('auth.checkCredentials')
-      });
+      // Clear global auth error to prevent banner if it exists
+      setTimeout(() => clearError(), 0);
+
+      // Extract error message avoiding raw 401
+      let errorMessage = err.message || t('auth.checkCredentials') || "Thông tin đăng nhập không chính xác";
+      if (errorMessage.includes("401") || errorMessage.includes("404")) {
+        errorMessage = t('auth.errors.invalidCredentials') || "Tài khoản hoặc mật khẩu không chính xác.";
+      }
+
+      setFormErrors((prev) => ({
+        ...prev,
+        password: errorMessage,
+      }));
     } finally {
       setIsSubmitting(false);
     }
-  }, [email, password, login, validateForm, triggerShakeAnimation]);
+  }, [email, password, login, validateForm, triggerShakeAnimation, clearError, t]);
 
   const handleForgotPassword = useCallback(() => {
     navigation.navigate("ForgotPassword");
@@ -316,17 +323,7 @@ const LoginScreen = () => {
 
             {/* Form Section */}
             <Animated.View style={[styles.formContainer, shakeStyle]}>
-              {/* Global Error Message */}
-              {error && (
-                <View style={styles.errorBanner}>
-                  <MaterialIcons
-                    name="error-outline"
-                    size={20}
-                    color={LOGIN_COLORS.error}
-                  />
-                  <Text style={styles.errorBannerText}>{error}</Text>
-                </View>
-              )}
+              {/* Global Error Message Removed in favor of Inline Error */}
 
               {/* Email Input */}
               <View style={styles.inputGroup}>

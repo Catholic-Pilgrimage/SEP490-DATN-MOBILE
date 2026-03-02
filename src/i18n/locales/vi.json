@@ -52,7 +52,8 @@
         },
         "errors": {
             "loginFailed": "Đăng nhập thất bại",
-            "guestError": "Không thể tiếp tục. Vui lòng thử lại."
+            "guestError": "Không thể tiếp tục. Vui lòng thử lại.",
+            "invalidCredentials": "Tài khoản hoặc mật khẩu không chính xác."
         }
     },
     "navigation": {

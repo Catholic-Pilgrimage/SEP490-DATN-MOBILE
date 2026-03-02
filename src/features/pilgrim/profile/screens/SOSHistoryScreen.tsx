@@ -175,7 +175,7 @@ export const SOSHistoryScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F7F7F7',
+        backgroundColor: '#F6F3EB',
     },
     header: {
         flexDirection: 'row',
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.md,
-        backgroundColor: THEME.white,
+        backgroundColor: '#F6F3EB',
         borderBottomWidth: 1,
         borderBottomColor: '#F0F0F0',
     },

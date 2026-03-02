@@ -478,6 +478,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   loading = false,
 }) => {
   const isEdit = !!schedule;
+  const insets = useSafeAreaInsets();
   const [formData, setFormData] = useState<ScheduleFormData>({
     days_of_week: [],
     time: "",
@@ -658,7 +659,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </ScrollView>
 
               {/* Footer buttons */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.md) }]}>
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={onClose}

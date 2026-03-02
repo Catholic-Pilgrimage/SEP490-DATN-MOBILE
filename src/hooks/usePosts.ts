@@ -17,6 +17,13 @@ export const usePosts = (limit: number = 20) => {
         queryKey: postKeys.lists(),
         queryFn: async ({ pageParam = 1 }: { pageParam: number }) => {
             const response = await postApi.getPosts({ page: pageParam, limit });
+            if (__DEV__ && pageParam === 1) {
+                const items = response.data?.items || [];
+                if (items.length > 0) {
+                    console.log('[DEBUG] Post API item keys:', Object.keys(items[0]));
+                    console.log('[DEBUG] Post API first item:', JSON.stringify(items[0], null, 2));
+                }
+            }
             return response.data;
         },
         getNextPageParam: (lastPage: any) => {
@@ -141,7 +148,15 @@ export const useAddComment = (postId: string) => {
     return useMutation({
         mutationFn: (data: CreateFeedCommentRequest) => postApi.addComment(postId, data),
         onMutate: async () => {
-            // Optimistic update for lists
+            // Cancel any ongoing comments fetch to prevent race conditions
+            await queryClient.cancelQueries({ queryKey: postKeys.comments(postId) });
+
+            // Save previous comments state for rollback on error
+            const previousComments = queryClient.getQueryData(postKeys.comments(postId));
+            const previousLists = queryClient.getQueryData(postKeys.lists());
+            const previousDetail = queryClient.getQueryData(postKeys.detail(postId));
+
+            // Optimistic update for lists (increment comment count)
             queryClient.setQueryData(postKeys.lists(), (old: any) => {
                 if (!old) return old;
                 return {
@@ -174,7 +189,7 @@ export const useAddComment = (postId: string) => {
                 };
             });
 
-            // Optimistic update for detail view
+            // Optimistic update for detail view (increment comment count)
             queryClient.setQueryData(postKeys.detail(postId), (old: any) => {
                 if (!old) return old;
                 const actualPost = old.data || old;
@@ -187,11 +202,64 @@ export const useAddComment = (postId: string) => {
                 if (old.data) return { ...old, data: newPost };
                 return newPost;
             });
+
+            return { previousComments, previousLists, previousDetail };
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: postKeys.comments(postId) });
+        onSuccess: (newCommentResponse) => {
+            const newComment = newCommentResponse?.data || (newCommentResponse as any);
+
+            if (newComment && newComment.id) {
+                // Add new comment to comments cache
+                queryClient.setQueryData(postKeys.comments(postId), (old: any) => {
+                    if (!old || !old.pages || old.pages.length === 0) {
+                        return {
+                            pages: [{ items: [newComment] }],
+                            pageParams: [1]
+                        };
+                    }
+
+                    return {
+                        ...old,
+                        pages: old.pages.map((page: any, index: number) => {
+                            if (index === 0) {
+                                if (page.data?.items) {
+                                    return {
+                                        ...page,
+                                        data: { ...page.data, items: [newComment, ...page.data.items] }
+                                    };
+                                }
+                                if (page.items) {
+                                    return { ...page, items: [newComment, ...page.items] };
+                                }
+                                if (page.comments) {
+                                    return { ...page, comments: [newComment, ...page.comments] };
+                                }
+                                return { ...page, items: [newComment, ...(page.items || [])] };
+                            }
+                            return page;
+                        }),
+                    };
+                });
+            }
+
+            // Use exact: true to prevent cascading invalidation to comments query
+            // Without exact: true, invalidating ["posts","detail",postId] also
+            // invalidates ["posts","detail",postId,"comments"] due to prefix matching,
+            // which causes comments to refetch and momentarily appear empty.
             queryClient.invalidateQueries({ queryKey: postKeys.lists() });
-            queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
+            queryClient.invalidateQueries({ queryKey: postKeys.detail(postId), exact: true });
+        },
+        onError: (_err, _newVal, context) => {
+            // Rollback all optimistic updates on error
+            if (context?.previousComments) {
+                queryClient.setQueryData(postKeys.comments(postId), context.previousComments);
+            }
+            if (context?.previousLists) {
+                queryClient.setQueryData(postKeys.lists(), context.previousLists);
+            }
+            if (context?.previousDetail) {
+                queryClient.setQueryData(postKeys.detail(postId), context.previousDetail);
+            }
         },
     });
 };
