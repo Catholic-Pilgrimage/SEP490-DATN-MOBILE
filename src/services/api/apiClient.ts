@@ -6,11 +6,16 @@ import axios, {
   AxiosInstance,
   AxiosResponse,
   InternalAxiosRequestConfig,
-} from 'axios';
-import { API_CONFIG, ERROR_MESSAGES, HTTP_STATUS } from '../../config/api.config';
-import { AUTH_STORAGE_KEYS } from '../../types/auth.types';
-import { secureStorage } from '../storage/secureStorage';
-import { AUTH_ENDPOINTS } from './endpoints';
+} from "axios";
+import {
+  API_CONFIG,
+  ERROR_MESSAGES,
+  HTTP_STATUS,
+} from "../../config/api.config";
+import i18n from "../../i18n";
+import { AUTH_STORAGE_KEYS } from "../../types/auth.types";
+import { secureStorage } from "../storage/secureStorage";
+import { AUTH_ENDPOINTS } from "./endpoints";
 
 // Extended config to track retry attempts
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -23,8 +28,8 @@ const apiClient: AxiosInstance = axios.create({
   baseURL: API_CONFIG.BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
   headers: {
-    'Content-Type': API_CONFIG.HEADERS.CONTENT_TYPE,
-    'Accept': API_CONFIG.HEADERS.ACCEPT,
+    "Content-Type": API_CONFIG.HEADERS.CONTENT_TYPE,
+    Accept: API_CONFIG.HEADERS.ACCEPT,
   },
 });
 
@@ -51,19 +56,29 @@ const processQueue = (error: any, token: string | null = null) => {
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     try {
-      const accessToken = await secureStorage.getItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN);
+      const accessToken = await secureStorage.getItem(
+        AUTH_STORAGE_KEYS.ACCESS_TOKEN,
+      );
 
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
       }
 
+      // Add Accept-Language header from current i18n language (always in sync)
+      config.headers["Accept-Language"] = i18n.language || "vi";
+
       // Debug logging for API requests (only in development)
       if (__DEV__) {
         console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+        console.log(
+          `[API] Accept-Language: ${config.headers["Accept-Language"]}`,
+        );
         if (config.data) {
           // Don't log FormData content (binary files)
           const isFormData = config.data instanceof FormData;
-          console.log(`[API] Body: ${isFormData ? '[FormData]' : JSON.stringify(config.data)}`);
+          console.log(
+            `[API] Body: ${isFormData ? "[FormData]" : JSON.stringify(config.data)}`,
+          );
         }
       }
     } catch {
@@ -74,7 +89,7 @@ apiClient.interceptors.request.use(
   },
   (error: AxiosError) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor - Handle responses and errors
@@ -82,7 +97,10 @@ apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     // Debug logging for successful responses (only in development)
     if (__DEV__) {
-      console.log(`[API] Response ${response.status}:`, JSON.stringify(response.data).substring(0, 200));
+      console.log(
+        `[API] Response ${response.status}:`,
+        JSON.stringify(response.data).substring(0, 500),
+      );
     }
     return response;
   },
@@ -90,10 +108,14 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as ExtendedAxiosRequestConfig;
 
     // Handle 401 Unauthorized - Try to refresh token
-    if (error.response?.status === HTTP_STATUS.UNAUTHORIZED && !originalRequest._retry) {
+    if (
+      error.response?.status === HTTP_STATUS.UNAUTHORIZED &&
+      !originalRequest._retry
+    ) {
       // Don't retry for login/refresh-token endpoints
-      const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
-        originalRequest.url?.includes('/auth/refresh-token');
+      const isAuthEndpoint =
+        originalRequest.url?.includes("/auth/login") ||
+        originalRequest.url?.includes("/auth/refresh-token");
 
       if (isAuthEndpoint) {
         return Promise.reject(error);
@@ -117,27 +139,32 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = await secureStorage.getItem(AUTH_STORAGE_KEYS.REFRESH_TOKEN);
+        const refreshToken = await secureStorage.getItem(
+          AUTH_STORAGE_KEYS.REFRESH_TOKEN,
+        );
 
         if (!refreshToken) {
-          throw new Error('No refresh token available');
+          throw new Error("No refresh token available");
         }
 
         const response = await axios.post(
           `${API_CONFIG.BASE_URL}${AUTH_ENDPOINTS.REFRESH_TOKEN}`,
-          { refreshToken }
+          { refreshToken },
         );
 
         if (response.data.success && response.data.data?.accessToken) {
           const newAccessToken = response.data.data.accessToken;
 
           // Save new tokens
-          await secureStorage.setItem(AUTH_STORAGE_KEYS.ACCESS_TOKEN, newAccessToken);
+          await secureStorage.setItem(
+            AUTH_STORAGE_KEYS.ACCESS_TOKEN,
+            newAccessToken,
+          );
 
           if (response.data.data.refreshToken) {
             await secureStorage.setItem(
               AUTH_STORAGE_KEYS.REFRESH_TOKEN,
-              response.data.data.refreshToken
+              response.data.data.refreshToken,
             );
           }
 
@@ -150,7 +177,7 @@ apiClient.interceptors.response.use(
 
           return apiClient(originalRequest);
         } else {
-          throw new Error('Token refresh failed');
+          throw new Error("Token refresh failed");
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
@@ -171,17 +198,17 @@ apiClient.interceptors.response.use(
     // Transform error to user-friendly message
     const transformedError = transformError(error);
     return Promise.reject(transformedError);
-  }
+  },
 );
 
 // Transform axios error to user-friendly error
 function transformError(error: AxiosError): Error {
   if (!error.response) {
     // Network error
-    if (error.message === 'Network Error') {
+    if (error.message === "Network Error") {
       return new Error(ERROR_MESSAGES.NETWORK_ERROR);
     }
-    if (error.code === 'ECONNABORTED') {
+    if (error.code === "ECONNABORTED") {
       return new Error(ERROR_MESSAGES.TIMEOUT_ERROR);
     }
     return new Error(error.message || ERROR_MESSAGES.UNKNOWN_ERROR);
@@ -194,19 +221,19 @@ function transformError(error: AxiosError): Error {
 
   // Extract validation details if available
   const details = data?.error?.details || data?.details;
-  let detailMessage = '';
+  let detailMessage = "";
 
   if (details && Array.isArray(details) && details.length > 0) {
     // Format validation errors - only show the message, not field name
     detailMessage = details
       .map((detail: any) => {
-        if (typeof detail === 'string') return detail;
+        if (typeof detail === "string") return detail;
         if (detail.message) return detail.message;
         if (detail.msg) return detail.msg;
-        return '';
+        return "";
       })
       .filter(Boolean)
-      .join('. ');
+      .join(". ");
   }
 
   // Use detail message if available, otherwise use main message
@@ -214,13 +241,13 @@ function transformError(error: AxiosError): Error {
 
   switch (status) {
     case HTTP_STATUS.BAD_REQUEST:
-      return new Error(fullMessage || 'Yêu cầu không hợp lệ.');
+      return new Error(fullMessage || "Yêu cầu không hợp lệ.");
     case HTTP_STATUS.UNAUTHORIZED:
       return new Error(fullMessage || ERROR_MESSAGES.INVALID_CREDENTIALS);
     case HTTP_STATUS.FORBIDDEN:
       return new Error(fullMessage || ERROR_MESSAGES.ACCOUNT_LOCKED);
     case HTTP_STATUS.NOT_FOUND:
-      return new Error(fullMessage || 'Không tìm thấy tài nguyên.');
+      return new Error(fullMessage || "Không tìm thấy tài nguyên.");
     case HTTP_STATUS.INTERNAL_SERVER_ERROR:
       return new Error(fullMessage || ERROR_MESSAGES.SERVER_ERROR);
     default:

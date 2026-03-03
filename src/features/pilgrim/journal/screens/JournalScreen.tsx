@@ -160,7 +160,7 @@ export const JournalScreen = () => {
 
     return (
         <ImageBackground
-            source={require('../../../../../assets/images/bg3.jpg')}
+            source={require('../../../../../assets/images/journal-bg.png')}
             style={styles.container}
             resizeMode="cover"
         >

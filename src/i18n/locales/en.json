@@ -1,137 +1,385 @@
 {
-    "common": {
-        "loading": "Loading...",
-        "error": "Error",
-        "success": "Success",
-        "cancel": "Cancel",
-        "confirm": "Confirm",
-        "save": "Save",
-        "delete": "Delete",
-        "edit": "Edit",
-        "close": "Close",
-        "back": "Back",
-        "next": "Next",
-        "done": "Done",
-        "yes": "Yes",
-        "no": "No",
-        "ok": "OK",
-        "retry": "Retry",
-        "search": "Search",
-        "filter": "Filter",
-        "sortBy": "Sort by",
-        "viewAll": "View All",
-        "seeMore": "See More",
-        "noData": "No data",
-        "notAssigned": "Not assigned",
-        "or": "Or"
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "retry": "Retry",
+    "search": "Search",
+    "filter": "Filter",
+    "sortBy": "Sort by",
+    "viewAll": "View All",
+    "seeMore": "See More",
+    "noData": "No data",
+    "notAssigned": "Not assigned",
+    "or": "Or"
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "register": "Register",
+    "forgotPassword": "Forgot password?",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "fullName": "Full Name",
+    "phoneNumber": "Phone Number",
+    "welcomeBack": "Welcome Back",
+    "continueJourney": "Continue your journey of faith",
+    "loginFailed": "Login Failed",
+    "checkCredentials": "Please check your login credentials.",
+    "noAccount": "Don't have an account?",
+    "registerNow": "Register Now",
+    "continueAsGuest": "Continue as Guest",
+    "guestSuccess": "Continuing as guest",
+    "loginSuccess": "Login successful",
+    "validation": {
+      "emailRequired": "Please enter your email",
+      "emailInvalid": "Invalid email format",
+      "passwordRequired": "Please enter your password",
+      "passwordMinLength": "Password must be at least {{count}} characters"
     },
-    "auth": {
-        "login": "Login",
-        "logout": "Logout",
-        "register": "Register",
-        "forgotPassword": "Forgot password?",
-        "email": "Email",
-        "password": "Password",
-        "confirmPassword": "Confirm Password",
-        "fullName": "Full Name",
-        "phoneNumber": "Phone Number",
-        "welcomeBack": "Welcome Back",
-        "continueJourney": "Continue your journey of faith",
-        "loginFailed": "Login Failed",
-        "checkCredentials": "Please check your login credentials.",
-        "noAccount": "Don't have an account?",
-        "registerNow": "Register Now",
-        "continueAsGuest": "Continue as Guest",
-        "guestSuccess": "Continuing as guest",
-        "loginSuccess": "Login successful",
-        "validation": {
-            "emailRequired": "Please enter your email",
-            "emailInvalid": "Invalid email format",
-            "passwordRequired": "Please enter your password",
-            "passwordMinLength": "Password must be at least {{count}} characters"
-        },
-        "errors": {
-            "loginFailed": "Login Failed",
-            "guestError": "Unable to continue. Please try again."
-        }
+    "errors": {
+      "loginFailed": "Login Failed",
+      "guestError": "Unable to continue. Please try again."
+    }
+  },
+  "navigation": {
+    "home": "Home",
+    "mySite": "My Site",
+    "profile": "Profile",
+    "explore": "Explore",
+    "schedule": "Schedule",
+    "community": "Community",
+    "notifications": "Notifications"
+  },
+  "dashboard": {
+    "cathedralGuide": "CATHEDRAL GUIDE",
+    "greetings": {
+      "morning": "Good Morning",
+      "afternoon": "Good Afternoon",
+      "evening": "Good Evening"
     },
-    "navigation": {
-        "home": "Home",
-        "mySite": "My Site",
-        "profile": "Profile",
-        "explore": "Explore",
-        "schedule": "Schedule",
-        "community": "Community",
-        "notifications": "Notifications"
+    "guide": "Local Guide",
+    "status": {
+      "open": "OPEN",
+      "closed": "CLOSED"
     },
-    "dashboard": {
-        "cathedralGuide": "CATHEDRAL GUIDE",
-        "greetings": {
-            "morning": "Good Morning",
-            "afternoon": "Good Afternoon",
-            "evening": "Good Evening"
-        },
-        "guide": "Local Guide",
-        "status": {
-            "open": "OPEN",
-            "closed": "CLOSED"
-        },
-        "patron": "Patron",
-        "notAssignedSite": "Not assigned to a site"
+    "patron": "Patron",
+    "notAssignedSite": "Not assigned to a site"
+  },
+  "quickActions": {
+    "postNews": "Post News",
+    "schedule": "Schedule",
+    "upload": "Upload",
+    "goLive": "Go Live",
+    "sosLog": "SOS Log"
+  },
+  "pilgrimInsights": {
+    "sectionLabel": "COMMUNITY",
+    "title": "Pilgrim Insights",
+    "currentPilgrims": "Currently on pilgrimage",
+    "todayVisitors": "Today's visitors"
+  },
+  "todayOverview": {
+    "sectionLabel": "SCHEDULE",
+    "title": "Today's Overview",
+    "activeShift": "ACTIVE SHIFT",
+    "noSchedule": "No schedule for today",
+    "now": "NOW",
+    "mainArea": "Main Area"
+  },
+  "recentActivity": {
+    "title": "Recent Activity",
+    "noActivity": "No recent activity"
+  },
+  "reviews": {
+    "sectionLabel": "FEEDBACK",
+    "title": "Recent Reviews",
+    "aiSummary": "AI Summary",
+    "replied": "Replied",
+    "reply": "Reply",
+    "noReviews": "No reviews yet",
+    "timeAgo": {
+      "justNow": "Just now",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}} days ago"
+    }
+  },
+  "time": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This week",
+    "thisMonth": "This month"
+  },
+  "planner": {
+    "myPlans": "My Plans",
+    "dashboardTitle": "My Pilgrimage\nPlans",
+    "shared": "Shared",
+    "draft": "Draft",
+    "days": "Days",
+    "planNewJourney": "Plan a new journey",
+    "startJourney": "Start your next spiritual journey."
+  },
+  "appName": "Sacred Journey",
+  "editProfile": {
+    "title": "Personal Info",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "discardTitle": "Discard changes?",
+    "discardMessage": "Unsaved changes will be lost.",
+    "continueEditing": "Keep editing",
+    "discard": "Discard",
+    "changeAvatar": "Change photo",
+    "changeAvatarTitle": "Change profile photo",
+    "chooseSource": "Choose source",
+    "takePhoto": "Take photo",
+    "photoLibrary": "Photo library",
+    "permissionDenied": "Permission denied",
+    "cameraPermission": "Please grant camera access.",
+    "libraryPermission": "Please grant photo library access.",
+    "defaultName": "Pilgrim",
+    "defaultGuide": "Guide",
+    "pilgrimRole": "Pilgrim",
+    "pilgrimRoleVerified": "Pilgrim (Verified)",
+    "notUpdated": "Not updated",
+    "loading": "Loading profile...",
+    "sections": {
+      "basicInfo": "BASIC INFORMATION",
+      "accountInfo": "ACCOUNT INFORMATION",
+      "assignment": "ASSIGNMENT INFORMATION"
     },
-    "quickActions": {
-        "postNews": "Post News",
-        "schedule": "Schedule",
-        "upload": "Upload",
-        "goLive": "Go Live",
-        "sosLog": "SOS Log"
+    "fields": {
+      "fullName": "Full name",
+      "email": "Email",
+      "phone": "Phone number",
+      "dateOfBirth": "Date of birth",
+      "verificationStatus": "Verification status",
+      "joinedAt": "Joined date",
+      "verifiedAt": "Verified date",
+      "language": "Language",
+      "site": "Assigned site",
+      "address": "Address",
+      "area": "Area"
     },
-    "pilgrimInsights": {
-        "sectionLabel": "COMMUNITY",
-        "title": "Pilgrim Insights",
-        "currentPilgrims": "Currently on pilgrimage",
-        "todayVisitors": "Today's visitors"
+    "placeholders": {
+      "fullName": "Enter full name",
+      "phone": "Enter phone number",
+      "dateOfBirth": "Select date of birth..."
     },
-    "todayOverview": {
-        "sectionLabel": "SCHEDULE",
-        "title": "Today's Overview",
-        "activeShift": "ACTIVE SHIFT",
-        "noSchedule": "No schedule for today",
-        "now": "NOW",
-        "mainArea": "Main Area"
+    "verified": "Verified",
+    "notVerified": "Not verified",
+    "languageVi": "Vietnamese",
+    "languageEn": "English",
+    "notAssignedSite": "Not assigned to a site",
+    "changePassword": "Change password",
+    "saveChanges": "Save changes",
+    "saving": "Saving...",
+    "updateError": "Unable to update profile. Please try again."
+  },
+  "changePassword": {
+    "title": "Change Password",
+    "description": "To keep your account secure, please do not share your password with others.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "currentPasswordPlaceholder": "Enter current password",
+    "newPasswordPlaceholder": "Enter new password",
+    "confirmPasswordPlaceholder": "Re-enter new password",
+    "submit": "Change password",
+    "requirements": {
+      "minLength": "At least 8 characters",
+      "uppercase": "At least 1 uppercase letter",
+      "number": "At least 1 number"
     },
-    "recentActivity": {
-        "title": "Recent Activity",
-        "noActivity": "No recent activity"
+    "errors": {
+      "allRequired": "Please fill in all fields",
+      "passwordMismatch": "New password and confirmation do not match",
+      "passwordTooShort": "New password must be at least 8 characters",
+      "samePassword": "New password must be different from the current one",
+      "changeFailed": "Password change failed. Please check your current password."
     },
-    "reviews": {
-        "sectionLabel": "FEEDBACK",
-        "title": "Recent Reviews",
-        "aiSummary": "AI Summary",
-        "replied": "Replied",
-        "reply": "Reply",
-        "noReviews": "No reviews yet",
-        "timeAgo": {
-            "justNow": "Just now",
-            "hoursAgo": "{{count}}h ago",
-            "daysAgo": "{{count}} days ago"
-        }
+    "success": "Password changed successfully"
+  },
+  "profile": {
+    "title": "Profile",
+    "guest": "Pilgrim Guest",
+    "guestRole": "Not logged in",
+    "defaultPilgrim": "Pilgrim",
+    "defaultGuide": "Guide",
+    "notAssignedSite": "Not assigned to a site",
+    "verifiedGuide": "Verified Local Guide",
+    "localGuide": "Local Guide",
+    "stats": {
+      "pilgrimages": "Pilgrimages",
+      "favorites": "Favorites",
+      "reviews": "Reviews",
+      "events": "Events",
+      "media": "Media"
     },
-    "time": {
-        "today": "Today",
-        "yesterday": "Yesterday",
-        "tomorrow": "Tomorrow",
-        "thisWeek": "This week",
-        "thisMonth": "This month"
+    "sections": {
+      "account": "ACCOUNT",
+      "siteManagement": "SITE MANAGEMENT",
+      "settings": "SETTINGS"
     },
-    "planner": {
-        "myPlans": "My Plans",
-        "dashboardTitle": "My Pilgrimage\nPlans",
-        "shared": "Shared",
-        "draft": "Draft",
-        "days": "Days",
-        "planNewJourney": "Plan a new journey",
-        "startJourney": "Start your next spiritual journey."
+    "menu": {
+      "personalInfo": "Personal Info",
+      "notifications": "Notifications",
+      "favorites": "Favorites",
+      "sosHistory": "SOS History",
+      "history": "Pilgrimage History",
+      "settings": "Settings",
+      "registerSiteManager": "Register as Site Manager",
+      "mySite": "My Site",
+      "schedule": "Schedule & Shifts",
+      "sos": "Emergency Support (SOS)"
     },
-    "appName": "Sacred Journey"
+    "loginRequired": "Login Required",
+    "loginRequiredMessage": "Please log in to use this feature.",
+    "loginLater": "Later",
+    "login": "Log In",
+    "loginRegister": "Login / Register",
+    "logout": "Log Out",
+    "loggingOut": "Logging out...",
+    "logoutConfirmTitle": "Log Out",
+    "logoutConfirmMessage": "Are you sure you want to log out?",
+    "logoutError": "Unable to log out. Please try again.",
+    "version": "Version 1.0.0",
+    "featureComingSoon": "Feature coming soon"
+  },
+  "settings": {
+    "languageChanged": "Language changed to English",
+    "languageChangedSuccess": "Success",
+    "title": "Settings & Privacy",
+    "sections": {
+      "general": "GENERAL SETTINGS",
+      "support": "SUPPORT & ABOUT"
+    },
+    "notifications": "Push Notifications",
+    "notificationsDesc": "Receive notifications about schedule and news",
+    "biometrics": "Biometric Login",
+    "language": "Language",
+    "selectLanguage": "Select Language",
+    "helpCenter": "Help Center",
+    "shareApp": "Share App",
+    "rateApp": "Rate App",
+    "terms": "Terms of Use",
+    "privacy": "Privacy Policy",
+    "logout": "Log Out",
+    "logoutConfirmTitle": "Log Out",
+    "logoutConfirmMessage": "Are you sure you want to log out?",
+    "loginRegister": "Login / Register",
+    "featureComingSoon": "Feature coming soon",
+    "thankYou": "Thank you",
+    "thankYouMessage": "Thank you for your interest in the app!",
+    "showTerms": "Show terms of service",
+    "showPrivacy": "Show privacy policy",
+    "shareMessage": "Download Catholic Pilgrim App - The companion app for Catholic pilgrims!",
+    "cannotChangeLanguage": "Cannot change language"
+  },
+  "verification": {
+    "headerTitle": "Register Site Manager",
+    "tabNew": "Register New Site",
+    "tabTransition": "Replace Manager",
+    "sectionApplicant": "Applicant Information",
+    "sectionNewSite": "Pilgrimage Site Information",
+    "sectionTransition": "Transition Information",
+    "sectionExtra": "Additional Information",
+    "fields": {
+      "fullName": "Full Name",
+      "fullNamePlaceholder": "Enter full name...",
+      "email": "Email",
+      "emailPlaceholder": "Enter contact email...",
+      "phone": "Phone Number",
+      "phonePlaceholder": "Enter contact phone...",
+      "siteName": "Site name",
+      "siteNamePlaceholder": "Enter site name...",
+      "province": "Province / City",
+      "provincePlaceholder": "E.g.: Hanoi, Ho Chi Minh City...",
+      "address": "Detailed address",
+      "addressPlaceholder": "Enter specific address...",
+      "siteType": "Site type",
+      "siteTypePlaceholder": "Select site type...",
+      "region": "Region",
+      "regionPlaceholder": "Select region...",
+      "selectSite": "Select Pilgrimage Site",
+      "selectSitePlaceholder": "Tap to select a pilgrimage site...",
+      "transitionReason": "Transition reason",
+      "transitionReasonPlaceholder": "Why do you need to replace the current manager?",
+      "introduction": "Introduction / About the site",
+      "introductionPlaceholder": "Brief description about yourself or the site...",
+      "certificate": "Certificate (Optional)"
+    },
+    "siteTypes": {
+      "church": "Church",
+      "shrine": "Shrine",
+      "monastery": "Monastery",
+      "center": "Pilgrimage Center",
+      "other": "Other"
+    },
+    "regions": {
+      "north": "Northern",
+      "central": "Central",
+      "south": "Southern"
+    },
+    "cert": {
+      "takePhoto": "Take photo",
+      "library": "Library",
+      "document": "Document\n(PDF, Word)"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "submit": "Submit request",
+      "newRequest": "Create new request"
+    },
+    "status": {
+      "approved": {
+        "title": "Request approved",
+        "description": "Your site manager registration request has been approved. Please log out and log back in to update your permissions."
+      },
+      "rejected": {
+        "title": "Request rejected",
+        "description": "Your request has been rejected. You can create a new request."
+      },
+      "pending": {
+        "title": "Request submitted",
+        "description": "You have already submitted a site manager registration request. Please wait for a response from the administrator."
+      }
+    },
+    "details": {
+      "requestCode": "Request code:",
+      "requestStatus": "Status:",
+      "registeredSite": "Registered site:",
+      "rejectionReason": "Rejection reason:"
+    },
+    "modal": {
+      "title": "Select Pilgrimage Site",
+      "searchPlaceholder": "Search pilgrimage sites...",
+      "empty": "No pilgrimage sites found."
+    },
+    "errors": {
+      "cannotPickDocument": "Cannot pick document. Please try again.",
+      "cannotPickImage": "Cannot pick image. Please try again.",
+      "cannotOpenCamera": "Cannot open camera. Please try again.",
+      "permissionDenied": "Permission denied",
+      "cameraPermission": "Please grant camera access.",
+      "libraryPermission": "Please grant photo library access.",
+      "guestRequired": "Please fill in applicant Name and Email.",
+      "newSiteRequired": "Please fill in site name and province.",
+      "transitionRequired": "Please fill in site ID and transition reason.",
+      "title": "Error"
+    }
+  }
 }

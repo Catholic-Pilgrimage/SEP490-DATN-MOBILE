@@ -120,6 +120,7 @@ const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
   if (data.dateOfBirth !== undefined) mapped.date_of_birth = data.dateOfBirth;
   if (data.gender !== undefined) mapped.gender = data.gender;
   if (data.nationality !== undefined) mapped.nationality = data.nationality;
+  if (data.language !== undefined) mapped.language = data.language;
   return mapped;
 };
 
@@ -143,11 +144,51 @@ export const getProfile = async (): Promise<ProfileResponse> => {
 export const updateProfile = async (
   data: UpdateProfileRequest,
 ): Promise<ProfileResponse> => {
-  const snakeCaseData = mapUpdateProfileRequest(data);
-  const response = await apiClient.put<ProfileResponse>(
-    AUTH_ENDPOINTS.PROFILE,
-    snakeCaseData,
-  );
+  let response;
+
+  if (data.avatar) {
+    // Send as multipart/form-data when avatar is included
+    const formData = new FormData();
+    if (data.fullName !== undefined)
+      formData.append("full_name", data.fullName);
+    if (data.phone !== undefined) formData.append("phone", data.phone);
+    if (data.address !== undefined) formData.append("address", data.address);
+    if (data.bio !== undefined) formData.append("bio", data.bio);
+    if (data.dateOfBirth !== undefined)
+      formData.append("date_of_birth", data.dateOfBirth);
+    if (data.gender !== undefined) formData.append("gender", data.gender);
+    if (data.nationality !== undefined)
+      formData.append("nationality", data.nationality);
+    if (data.language !== undefined) formData.append("language", data.language);
+
+    const filename = data.avatar.split("/").pop() || "avatar.jpg";
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const mimeType =
+      ext === "png"
+        ? "image/png"
+        : ext === "webp"
+          ? "image/webp"
+          : "image/jpeg";
+    formData.append("avatar", {
+      uri: data.avatar,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    response = await apiClient.put<ProfileResponse>(
+      AUTH_ENDPOINTS.PROFILE,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+  } else {
+    const snakeCaseData = mapUpdateProfileRequest(data);
+    response = await apiClient.put<ProfileResponse>(
+      AUTH_ENDPOINTS.PROFILE,
+      snakeCaseData,
+    );
+  }
 
   if (response.data && response.data.data) {
     response.data.data = mapUserResponse(response.data.data);

@@ -3,13 +3,16 @@
  * Displays user profile data from API with edit capability
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useNavigation } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
@@ -22,12 +25,14 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
   GUIDE_SHADOWS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { useI18n } from "../../../../hooks/useI18n";
 import { useGuideProfile } from "../hooks/useGuideProfile";
 
 // Premium color palette
@@ -54,6 +59,7 @@ interface InfoRowProps {
   isEditing?: boolean;
   placeholder?: string;
   keyboardType?: "default" | "email-address" | "phone-pad";
+  notUpdatedText?: string;
 }
 
 const InfoRow: React.FC<InfoRowProps> = ({
@@ -65,6 +71,7 @@ const InfoRow: React.FC<InfoRowProps> = ({
   isEditing = false,
   placeholder,
   keyboardType = "default",
+  notUpdatedText = "Chưa cập nhật",
 }) => (
   <View style={styles.infoRow}>
     <View style={styles.infoRowLeft}>
@@ -83,13 +90,10 @@ const InfoRow: React.FC<InfoRowProps> = ({
             keyboardType={keyboardType}
           />
         ) : (
-          <Text style={styles.infoValue}>{value || "Chưa cập nhật"}</Text>
+          <Text style={styles.infoValue}>{value || notUpdatedText}</Text>
         )}
       </View>
     </View>
-    {editable && !isEditing && (
-      <Ionicons name="create-outline" size={18} color={GUIDE_COLORS.gray400} />
-    )}
   </View>
 );
 
@@ -116,11 +120,15 @@ const Section: React.FC<SectionProps> = ({ title, children }) => (
 const PersonalInfoScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { profile, site, loading, refetch, updateProfile, isVerified } = useGuideProfile();
+  const { t } = useI18n();
+  const { profile, site, loading, refetch, updateProfile, isVerified } =
+    useGuideProfile();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -149,12 +157,12 @@ const PersonalInfoScreen: React.FC = () => {
   const handleBack = useCallback(() => {
     if (isEditing) {
       Alert.alert(
-        "Huỷ thay đổi?",
-        "Các thay đổi chưa lưu sẽ bị mất.",
+        t("editProfile.discardTitle"),
+        t("editProfile.discardMessage"),
         [
-          { text: "Tiếp tục chỉnh sửa", style: "cancel" },
+          { text: t("editProfile.continueEditing"), style: "cancel" },
           {
-            text: "Huỷ",
+            text: t("editProfile.discard"),
             style: "destructive",
             onPress: () => {
               setIsEditing(false);
@@ -169,12 +177,12 @@ const PersonalInfoScreen: React.FC = () => {
               navigation.goBack();
             },
           },
-        ]
+        ],
       );
     } else {
       navigation.goBack();
     }
-  }, [isEditing, navigation, profile]);
+  }, [isEditing, navigation, profile, t]);
 
   const handleEdit = useCallback(() => {
     setIsEditing(true);
@@ -197,32 +205,111 @@ const PersonalInfoScreen: React.FC = () => {
       setIsSaving(true);
 
       const updateData = {
-        full_name: formData.full_name,
+        fullName: formData.full_name,
         phone: formData.phone,
-        date_of_birth: formData.date_of_birth,
+        dateOfBirth: formData.date_of_birth,
+        ...(avatarUri ? { avatar: avatarUri } : {}),
       };
 
-      await updateProfile(updateData);
+      const message = await updateProfile(updateData);
 
-      Alert.alert("Thành công", "Thông tin đã được cập nhật");
+      Toast.show({
+        type: "success",
+        text1: message || t("editProfile.saveChanges"),
+      });
       setIsEditing(false);
+      setAvatarUri(null);
       await refetch();
     } catch (error: any) {
-      Alert.alert("Lỗi", error.message || "Không thể cập nhật thông tin. Vui lòng thử lại.");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("editProfile.updateError"),
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [formData, updateProfile, refetch]);
+  }, [formData, avatarUri, updateProfile, refetch]);
 
   const updateFormField = useCallback(
     (field: keyof typeof formData) => (value: string) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
     },
-    []
+    [],
   );
+
+  const pickAvatar = () => {
+    Alert.alert(
+      t("editProfile.changeAvatarTitle"),
+      t("editProfile.chooseSource"),
+      [
+        {
+          text: t("editProfile.takePhoto"),
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Toast.show({
+                type: "error",
+                text1: t("editProfile.permissionDenied"),
+                text2: t("editProfile.cameraPermission"),
+              });
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: "images",
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0)
+              setAvatarUri(result.assets[0].uri);
+          },
+        },
+        {
+          text: t("editProfile.photoLibrary"),
+          onPress: async () => {
+            const permission =
+              await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Toast.show({
+                type: "error",
+                text1: t("editProfile.permissionDenied"),
+                text2: t("editProfile.libraryPermission"),
+              });
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: "images",
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets.length > 0)
+              setAvatarUri(result.assets[0].uri);
+          },
+        },
+        { text: t("editProfile.discard"), style: "cancel" },
+      ],
+    );
+  };
+
+  const handleDateChange = (_: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      const yyyy = selectedDate.getFullYear();
+      const mm = String(selectedDate.getMonth() + 1).padStart(2, "0");
+      const dd = String(selectedDate.getDate()).padStart(2, "0");
+      setFormData((prev) => ({
+        ...prev,
+        date_of_birth: `${yyyy}-${mm}-${dd}`,
+      }));
+    }
+  };
 
   // Avatar URL
   const getAvatarUrl = () => {
+    if (avatarUri) return avatarUri;
     if (profile?.avatar_url) return profile.avatar_url;
     if (profile?.full_name) {
       const encodedName = encodeURIComponent(profile.full_name);
@@ -263,32 +350,53 @@ const PersonalInfoScreen: React.FC = () => {
     }
   };
 
+  // Only block with loading screen on initial fetch (no cached profile yet)
   if (loading && !profile) {
     return (
-      <View style={[styles.container, styles.loadingContainer, { paddingTop: insets.top }]}>
+      <ImageBackground
+        source={require("../../../../../assets/images/profile-bg.jpg")}
+        style={[
+          styles.container,
+          styles.loadingContainer,
+          { paddingTop: insets.top },
+        ]}
+        resizeMode="cover"
+        fadeDuration={0}
+      >
         <ActivityIndicator size="large" color={PREMIUM_COLORS.gold} />
-        <Text style={styles.loadingText}>Đang tải thông tin...</Text>
-      </View>
+        <Text style={styles.loadingText}>{t("editProfile.loading")}</Text>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={PREMIUM_COLORS.cream} />
+    <ImageBackground
+      source={require("../../../../../assets/images/profile-bg.jpg")}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+      fadeDuration={0}
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent
+      />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <MaterialIcons name="arrow-back-ios" size={20} color={GUIDE_COLORS.textPrimary} />
+          <MaterialIcons name="arrow-back-ios" size={20} color="#3D2B1F" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thông tin cá nhân</Text>
+        <Text style={styles.headerTitle}>{t("editProfile.title")}</Text>
         {isEditing ? (
           <TouchableOpacity style={styles.headerButton} onPress={handleCancel}>
-            <Text style={styles.cancelButtonText}>Huỷ</Text>
+            <Text style={styles.cancelButtonText}>
+              {t("editProfile.cancel")}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.headerButton} onPress={handleEdit}>
-            <Text style={styles.editButtonText}>Sửa</Text>
+            <Text style={styles.editButtonText}>{t("editProfile.edit")}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -318,113 +426,206 @@ const PersonalInfoScreen: React.FC = () => {
                 style={styles.avatarBorder}
               >
                 <View style={styles.avatarInner}>
-                  <Image source={{ uri: getAvatarUrl() }} style={styles.avatarImage} />
+                  <Image
+                    source={{ uri: getAvatarUrl() }}
+                    style={styles.avatarImage}
+                  />
                 </View>
               </LinearGradient>
               {isVerified && (
                 <View style={styles.verifiedBadge}>
-                  <MaterialIcons name="verified" size={22} color={PREMIUM_COLORS.gold} />
+                  <MaterialIcons
+                    name="verified"
+                    size={22}
+                    color={PREMIUM_COLORS.gold}
+                  />
                 </View>
               )}
             </View>
             {isEditing && (
-              <TouchableOpacity style={styles.changeAvatarButton}>
-                <Ionicons name="camera-outline" size={16} color={PREMIUM_COLORS.gold} />
-                <Text style={styles.changeAvatarText}>Đổi ảnh</Text>
+              <TouchableOpacity
+                style={styles.changeAvatarButton}
+                onPress={pickAvatar}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={16}
+                  color={PREMIUM_COLORS.gold}
+                />
+                <Text style={styles.changeAvatarText}>
+                  {t("editProfile.changeAvatar")}
+                </Text>
               </TouchableOpacity>
             )}
-            <Text style={styles.avatarName}>{profile?.full_name || "Hướng dẫn viên"}</Text>
+            <Text style={styles.avatarName}>
+              {profile?.full_name || t("editProfile.defaultGuide")}
+            </Text>
             <View style={styles.roleBadge}>
               <Text style={styles.roleBadgeText}>
-                {isVerified ? "Verified Local Guide" : "Local Guide"}
+                {isVerified
+                  ? t("profile.verifiedGuide")
+                  : t("profile.localGuide")}
               </Text>
             </View>
           </View>
 
           {/* Basic Information */}
-          <Section title="THÔNG TIN CƠ BẢN">
+          <Section title={t("editProfile.sections.basicInfo")}>
             <InfoRow
               icon="person-outline"
-              label="Họ và tên"
+              label={t("editProfile.fields.fullName")}
               value={isEditing ? formData.full_name : profile?.full_name || ""}
               editable
               isEditing={isEditing}
               onChangeText={updateFormField("full_name")}
-              placeholder="Nhập họ và tên"
+              placeholder={t("editProfile.placeholders.fullName")}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="mail-outline"
-              label="Email"
+              label={t("editProfile.fields.email")}
               value={profile?.email || ""}
               editable={false}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="call-outline"
-              label="Số điện thoại"
+              label={t("editProfile.fields.phone")}
               value={isEditing ? formData.phone : profile?.phone || ""}
               editable
               isEditing={isEditing}
               onChangeText={updateFormField("phone")}
-              placeholder="Nhập số điện thoại"
+              placeholder={t("editProfile.placeholders.phone")}
               keyboardType="phone-pad"
+              notUpdatedText={t("editProfile.notUpdated")}
             />
-            <InfoRow
-              icon="calendar-outline"
-              label="Ngày sinh"
-              value={
-                isEditing
-                  ? formData.date_of_birth
-                  : formatDate(profile?.date_of_birth || "")
-              }
-              editable
-              isEditing={isEditing}
-              onChangeText={updateFormField("date_of_birth")}
-              placeholder="DD/MM/YYYY"
-            />
+            {isEditing ? (
+              <TouchableOpacity
+                style={styles.datePickerBtn}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.infoIconContainer}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={PREMIUM_COLORS.gold}
+                  />
+                </View>
+                <View>
+                  <Text style={styles.infoLabel}>
+                    {t("editProfile.fields.dateOfBirth")}
+                  </Text>
+                  <Text style={styles.datePickerBtnText}>
+                    {formData.date_of_birth
+                      ? formatDate(formData.date_of_birth)
+                      : t("editProfile.placeholders.dateOfBirth")}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <InfoRow
+                icon="calendar-outline"
+                label={t("editProfile.fields.dateOfBirth")}
+                value={formatDate(profile?.date_of_birth || "")}
+                isEditing={false}
+                notUpdatedText={t("editProfile.notUpdated")}
+              />
+            )}
+            {showDatePicker && (
+              <DateTimePicker
+                value={
+                  formData.date_of_birth
+                    ? new Date(formData.date_of_birth)
+                    : new Date(2000, 0, 1)
+                }
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleDateChange}
+                maximumDate={new Date()}
+              />
+            )}
           </Section>
 
           {/* Assignment Information */}
-          <Section title="THÔNG TIN PHÂN CÔNG">
+          <Section title={t("editProfile.sections.assignment")}>
             <InfoRow
               icon="business-outline"
-              label="Địa điểm phục vụ"
-              value={site?.name || "Chưa được gán địa điểm"}
+              label={t("editProfile.fields.site")}
+              value={site?.name || t("editProfile.notAssignedSite")}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="location-outline"
-              label="Địa chỉ"
+              label={t("editProfile.fields.address")}
               value={site?.address || ""}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="globe-outline"
-              label="Khu vực"
+              label={t("editProfile.fields.area")}
               value={site?.province || ""}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
           </Section>
 
           {/* Account Information */}
-          <Section title="THÔNG TIN TÀI KHOẢN">
+          <Section title={t("editProfile.sections.accountInfo")}>
             <InfoRow
               icon="shield-checkmark-outline"
-              label="Trạng thái xác minh"
-              value={isVerified ? "Đã xác minh" : "Chưa xác minh"}
+              label={t("editProfile.fields.verificationStatus")}
+              value={
+                isVerified
+                  ? t("editProfile.verified")
+                  : t("editProfile.notVerified")
+              }
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="time-outline"
-              label="Ngày xác minh"
-              value={profile?.verified_at ? formatDateTime(profile.verified_at) : "—"}
+              label={t("editProfile.fields.verifiedAt")}
+              value={
+                profile?.verified_at ? formatDateTime(profile.verified_at) : "—"
+              }
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="language-outline"
-              label="Ngôn ngữ"
-              value={profile?.language === "vi" ? "Tiếng Việt" : "English"}
+              label={t("editProfile.fields.language")}
+              value={
+                profile?.language === "vi"
+                  ? t("editProfile.languageVi")
+                  : t("editProfile.languageEn")
+              }
+              notUpdatedText={t("editProfile.notUpdated")}
             />
             <InfoRow
               icon="calendar-outline"
-              label="Ngày tham gia"
+              label={t("editProfile.fields.joinedAt")}
               value={formatDateTime(profile?.created_at || "")}
+              notUpdatedText={t("editProfile.notUpdated")}
             />
           </Section>
+
+          {/* Change Password Button */}
+          {!isEditing && (
+            <TouchableOpacity
+              style={styles.changePasswordButton}
+              onPress={() => navigation.navigate("ChangePassword" as never)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="key-outline" size={20} color="#D4AF37" />
+              <Text style={styles.changePasswordText}>
+                {t("editProfile.changePassword")}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color="#D4AF37"
+                style={{ marginLeft: "auto" }}
+              />
+            </TouchableOpacity>
+          )}
 
           {/* Save Button when editing */}
           {isEditing && (
@@ -438,8 +639,14 @@ const PersonalInfoScreen: React.FC = () => {
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons name="checkmark-outline" size={20} color="#FFFFFF" />
-                  <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
+                  <Ionicons
+                    name="checkmark-outline"
+                    size={20}
+                    color="#FFFFFF"
+                  />
+                  <Text style={styles.saveButtonText}>
+                    {t("editProfile.saveChanges")}
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -449,7 +656,7 @@ const PersonalInfoScreen: React.FC = () => {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -460,7 +667,7 @@ const PersonalInfoScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "transparent",
   },
   flex: {
     flex: 1,
@@ -482,9 +689,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: PREMIUM_COLORS.cream,
-    borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.borderLight,
+    backgroundColor: "transparent",
   },
   backButton: {
     width: 40,
@@ -496,7 +701,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
+    color: "#3D2B1F",
   },
   headerButton: {
     paddingHorizontal: GUIDE_SPACING.sm,
@@ -505,12 +710,12 @@ const styles = StyleSheet.create({
   editButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: PREMIUM_COLORS.gold,
+    color: "#3D2B1F",
   },
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: GUIDE_COLORS.error,
+    color: "#C0392B",
   },
 
   // Scroll
@@ -600,8 +805,10 @@ const styles = StyleSheet.create({
     marginBottom: GUIDE_SPACING.sm,
   },
   sectionContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
     borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.3)",
     ...GUIDE_SHADOWS.sm,
   },
 
@@ -672,6 +879,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  changePasswordButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  changePasswordText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#D4AF37",
+  },
+  datePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.md,
+    paddingHorizontal: GUIDE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.borderLight,
+  },
+  datePickerBtnText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: GUIDE_COLORS.textPrimary,
   },
 });
 

@@ -7,7 +7,12 @@ import { UpdateProfileRequest } from "../../../../types/user.types";
 
 import { useCallback, useEffect, useState } from "react";
 import { authApi } from "../../../../services/api";
-import { guideEventApi, guideMediaApi, guideSiteApi, guideSOSApi } from "../../../../services/api/guide";
+import {
+  guideEventApi,
+  guideMediaApi,
+  guideSiteApi,
+  guideSOSApi,
+} from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 
 // ============================================
@@ -44,8 +49,6 @@ export interface GuideProfileStats {
   sosPendingCount: number;
 }
 
-
-
 export interface UseGuideProfileResult {
   profile: GuideProfileData | null;
   site: LocalGuideSite | null;
@@ -53,7 +56,7 @@ export interface UseGuideProfileResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  updateProfile: (data: UpdateProfileRequest) => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<string | undefined>;
   isVerified: boolean;
 }
 
@@ -75,7 +78,7 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     reviewsCount: 0,
     sosPendingCount: 0,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchProfile = useCallback(async () => {
@@ -84,12 +87,20 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       setError(null);
 
       // Fetch profile, site, and stats in parallel
-      const [profileResponse, siteResponse, eventsResponse, mediaResponse, sosResponse] = await Promise.all([
+      const [
+        profileResponse,
+        siteResponse,
+        eventsResponse,
+        mediaResponse,
+        sosResponse,
+      ] = await Promise.all([
         authApi.getProfile(),
         guideSiteApi.getAssignedSite().catch(() => null), // Don't fail if site not assigned
         guideEventApi.getEvents({ limit: 1 }).catch(() => null), // Get total count
         guideMediaApi.getMedia({ limit: 1 }).catch(() => null), // Get total count
-        guideSOSApi.getGuideSOSList({ status: 'pending', limit: 1 }).catch(() => null), // Get pending SOS count
+        guideSOSApi
+          .getGuideSOSList({ status: "pending", limit: 1 })
+          .catch(() => null), // Get pending SOS count
       ]);
 
       if (profileResponse?.success && profileResponse?.data) {
@@ -105,7 +116,9 @@ export const useGuideProfile = (): UseGuideProfileResult => {
           role: data.role,
           status: data.status || (data.isActive ? "active" : "inactive"),
           site_id: data.site_id || data.siteId || null,
-          verified_at: data.verified_at || (data.isVerified ? data.updated_at || data.updatedAt : null),
+          verified_at:
+            data.verified_at ||
+            (data.isVerified ? data.updated_at || data.updatedAt : null),
           created_at: data.created_at || data.createdAt || "",
           updated_at: data.updated_at || data.updatedAt || "",
           avatar_url: data.avatar_url || data.avatar || null,
@@ -149,22 +162,26 @@ export const useGuideProfile = (): UseGuideProfileResult => {
     }
   }, []);
 
-  const updateProfile = useCallback(async (data: UpdateProfileRequest) => {
-    try {
-      setLoading(true);
-      const response = await authApi.updateProfile(data);
-      if (response.success) {
-        await fetchProfile(); // Reload data after update
-      } else {
-        throw new Error(response.message || 'Failed to update profile');
+  const updateProfile = useCallback(
+    async (data: UpdateProfileRequest): Promise<string | undefined> => {
+      try {
+        setLoading(true);
+        const response = await authApi.updateProfile(data);
+        if (response.success) {
+          await fetchProfile(); // Reload data after update
+          return response.message;
+        } else {
+          throw new Error(response.message || "Failed to update profile");
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to update profile");
+        throw err;
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchProfile]);
+    },
+    [fetchProfile],
+  );
 
   useEffect(() => {
     fetchProfile();

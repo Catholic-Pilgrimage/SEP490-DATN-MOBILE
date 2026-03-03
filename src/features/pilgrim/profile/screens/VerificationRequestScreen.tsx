@@ -4,22 +4,23 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../../contexts/AuthContext";
+import useI18n from "../../../../hooks/useI18n";
 import { useSites } from "../../../../hooks/useSites";
 import { useVerification } from "../../../../hooks/useVerification";
 import { ReactNativeFile } from "../../../../types/pilgrim/verification.types";
@@ -30,6 +31,7 @@ const VerificationRequestScreen = () => {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { isGuest } = useAuth();
+  const { t } = useI18n();
   const {
     myRequest,
     isMyRequestLoading,
@@ -72,16 +74,16 @@ const VerificationRequestScreen = () => {
 
   // Dropdown state
   const SITE_TYPE_OPTIONS: { label: string; value: string }[] = [
-    { label: "Nhà thờ", value: "church" },
-    { label: "Đền thánh", value: "shrine" },
-    { label: "Tu viện", value: "monastery" },
-    { label: "Trung tâm hành hương", value: "center" },
-    { label: "Khác", value: "other" },
+    { label: t("verification.siteTypes.church"), value: "church" },
+    { label: t("verification.siteTypes.shrine"), value: "shrine" },
+    { label: t("verification.siteTypes.monastery"), value: "monastery" },
+    { label: t("verification.siteTypes.center"), value: "center" },
+    { label: t("verification.siteTypes.other"), value: "other" },
   ];
   const SITE_REGION_OPTIONS: { label: string; value: string }[] = [
-    { label: "Miền Bắc", value: "Bac" },
-    { label: "Miền Trung", value: "Trung" },
-    { label: "Miền Nam", value: "Nam" },
+    { label: t("verification.regions.north"), value: "Bac" },
+    { label: t("verification.regions.central"), value: "Trung" },
+    { label: t("verification.regions.south"), value: "Nam" },
   ];
   const [isTypeDropdownVisible, setIsTypeDropdownVisible] = useState(false);
   const [isRegionDropdownVisible, setIsRegionDropdownVisible] = useState(false);
@@ -124,7 +126,10 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert("Lỗi", "Không thể chọn tài liệu. Vui lòng thử lại.");
+      Alert.alert(
+        t("verification.errors.title"),
+        t("verification.errors.cannotPickDocument"),
+      );
     }
   };
 
@@ -134,8 +139,8 @@ const VerificationRequestScreen = () => {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         Alert.alert(
-          "Từ chối quyền",
-          "Vui lòng cấp quyền truy cập thư viện ảnh.",
+          t("verification.errors.permissionDenied"),
+          t("verification.errors.libraryPermission"),
         );
         return;
       }
@@ -152,7 +157,10 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert("Lỗi", "Không thể chọn ảnh. Vui lòng thử lại.");
+      Alert.alert(
+        t("verification.errors.title"),
+        t("verification.errors.cannotPickImage"),
+      );
     }
   };
 
@@ -160,7 +168,10 @@ const VerificationRequestScreen = () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert("Từ chối quyền", "Vui lòng cấp quyền máy ảnh.");
+        Alert.alert(
+          t("verification.errors.permissionDenied"),
+          t("verification.errors.cameraPermission"),
+        );
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -176,27 +187,36 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert("Lỗi", "Không thể mở máy ảnh. Vui lòng thử lại.");
+      Alert.alert(
+        t("verification.errors.title"),
+        t("verification.errors.cannotOpenCamera"),
+      );
     }
   };
 
   const validateForm = () => {
     if (isGuest) {
       if (!applicantName || !applicantEmail) {
-        Alert.alert("Lỗi", "Vui lòng điền đủ Tên và Email người nộp đơn.");
+        Alert.alert(
+          t("verification.errors.title"),
+          t("verification.errors.guestRequired"),
+        );
         return false;
       }
     }
     if (formType === "new") {
       if (!siteName || !siteProvince) {
-        Alert.alert("Lỗi", "Vui lòng điền Tên điểm hành hương và Tỉnh/Thành.");
+        Alert.alert(
+          t("verification.errors.title"),
+          t("verification.errors.newSiteRequired"),
+        );
         return false;
       }
     } else {
       if (!existingSiteId || !transitionReason) {
         Alert.alert(
-          "Lỗi",
-          "Vui lòng điền Mã điểm hành hương và Lý do thay thế.",
+          t("verification.errors.title"),
+          t("verification.errors.transitionRequired"),
         );
         return false;
       }
@@ -376,7 +396,7 @@ const VerificationRequestScreen = () => {
           <Text
             style={[styles.tabText, formType === "new" && styles.activeTabText]}
           >
-            Đăng ký điểm mới
+            {t("verification.tabNew")}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -389,7 +409,7 @@ const VerificationRequestScreen = () => {
               formType === "transition" && styles.activeTabText,
             ]}
           >
-            Thay thế Quản lý
+            {t("verification.tabTransition")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -397,27 +417,29 @@ const VerificationRequestScreen = () => {
       {/* Applicant Information for Guests */}
       {isGuest && (
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>Thông tin người nộp đơn</Text>
+          <Text style={styles.sectionTitle}>
+            {t("verification.sectionApplicant")}
+          </Text>
           {renderInput(
-            "Họ và Tên",
+            t("verification.fields.fullName"),
             applicantName,
             setApplicantName,
-            "Nhập họ và tên...",
+            t("verification.fields.fullNamePlaceholder"),
             true,
           )}
           {renderInput(
-            "Email",
+            t("verification.fields.email"),
             applicantEmail,
             setApplicantEmail,
-            "Nhập email liên hệ...",
+            t("verification.fields.emailPlaceholder"),
             true,
             "email-address",
           )}
           {renderInput(
-            "Số điện thoại",
+            t("verification.fields.phone"),
             applicantPhone,
             setApplicantPhone,
-            "Nhập SĐT liên hệ...",
+            t("verification.fields.phonePlaceholder"),
             false,
             "phone-pad",
           )}
@@ -428,56 +450,57 @@ const VerificationRequestScreen = () => {
       <View style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>
           {formType === "new"
-            ? "Thông tin Điểm Hành Hương"
-            : "Thông tin Thay thế"}
+            ? t("verification.sectionNewSite")
+            : t("verification.sectionTransition")}
         </Text>
 
         {formType === "new" ? (
           <>
             {renderInput(
-              "Tên điểm hành hương",
+              t("verification.fields.siteName"),
               siteName,
               setSiteName,
-              "Nhập tên ĐHH...",
+              t("verification.fields.siteNamePlaceholder"),
               true,
             )}
             {renderInput(
-              "Tỉnh / Thành phố",
+              t("verification.fields.province"),
               siteProvince,
               setSiteProvince,
-              "VD: Hà Nội, TP.HCM...",
+              t("verification.fields.provincePlaceholder"),
               true,
             )}
             {renderInput(
-              "Địa chỉ chi tiết",
+              t("verification.fields.address"),
               siteAddress,
               setSiteAddress,
-              "Nhập địa chỉ cụ thể...",
+              t("verification.fields.addressPlaceholder"),
             )}
             {renderDropdown(
-              "Loại điểm",
+              t("verification.fields.siteType"),
               siteType,
               setSiteType,
               SITE_TYPE_OPTIONS,
               isTypeDropdownVisible,
               setIsTypeDropdownVisible,
-              "Chọn loại điểm...",
+              t("verification.fields.siteTypePlaceholder"),
             )}
             {renderDropdown(
-              "Vùng miền",
+              t("verification.fields.region"),
               siteRegion,
               setSiteRegion,
               SITE_REGION_OPTIONS,
               isRegionDropdownVisible,
               setIsRegionDropdownVisible,
-              "Chọn vùng miền...",
+              t("verification.fields.regionPlaceholder"),
             )}
           </>
         ) : (
           <>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>
-                Chọn Điểm Hành Hương <Text style={{ color: "#DC4C4C" }}>*</Text>
+                {t("verification.fields.selectSite")}{" "}
+                <Text style={{ color: "#DC4C4C" }}>*</Text>
               </Text>
               <TouchableOpacity
                 style={styles.pickerButton}
@@ -489,16 +512,17 @@ const VerificationRequestScreen = () => {
                     !selectedSiteName && { color: "#A0ABC0" },
                   ]}
                 >
-                  {selectedSiteName || "Chạm để chọn điểm hành hương..."}
+                  {selectedSiteName ||
+                    t("verification.fields.selectSitePlaceholder")}
                 </Text>
                 <Ionicons name="chevron-down" size={20} color="#6C8CA3" />
               </TouchableOpacity>
             </View>
             {renderInput(
-              "Lý do thay thế",
+              t("verification.fields.transitionReason"),
               transitionReason,
               setTransitionReason,
-              "Tại sao bạn cần thay thế Quản lý hiện tại?",
+              t("verification.fields.transitionReasonPlaceholder"),
               true,
               "default",
               true,
@@ -509,19 +533,23 @@ const VerificationRequestScreen = () => {
 
       {/* Extra Info */}
       <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Thông tin thêm</Text>
+        <Text style={styles.sectionTitle}>
+          {t("verification.sectionExtra")}
+        </Text>
         {renderInput(
-          "Giới thiệu bản thân / Điểm đến",
+          t("verification.fields.introduction"),
           introduction,
           setIntroduction,
-          "Mô tả ngắn về bạn hoặc điểm hành hương...",
+          t("verification.fields.introductionPlaceholder"),
           false,
           "default",
           true,
         )}
 
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Giấy chứng nhận (Tùy chọn)</Text>
+          <Text style={styles.inputLabel}>
+            {t("verification.fields.certificate")}
+          </Text>
           {certificate ? (
             <View style={styles.certPreview}>
               <Ionicons
@@ -547,14 +575,18 @@ const VerificationRequestScreen = () => {
                 onPress={takePhoto}
               >
                 <Ionicons name="camera-outline" size={22} color="#D4AF37" />
-                <Text style={styles.certPickerBtnText}>Chụp ảnh</Text>
+                <Text style={styles.certPickerBtnText}>
+                  {t("verification.cert.takePhoto")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.certPickerBtn}
                 onPress={pickImageFromLibrary}
               >
                 <Ionicons name="image-outline" size={22} color="#D4AF37" />
-                <Text style={styles.certPickerBtnText}>Thư viện</Text>
+                <Text style={styles.certPickerBtnText}>
+                  {t("verification.cert.library")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.certPickerBtn}
@@ -562,7 +594,7 @@ const VerificationRequestScreen = () => {
               >
                 <Ionicons name="document-outline" size={22} color="#D4AF37" />
                 <Text style={styles.certPickerBtnText}>
-                  Tài liệu{"\n"}(PDF, Word)
+                  {t("verification.cert.document")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -575,7 +607,9 @@ const VerificationRequestScreen = () => {
           style={styles.cancelBtn}
           onPress={() => setIsEditing(false)}
         >
-          <Text style={styles.cancelBtnText}>Hủy</Text>
+          <Text style={styles.cancelBtnText}>
+            {t("verification.actions.cancel")}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.submitBtn}
@@ -585,7 +619,9 @@ const VerificationRequestScreen = () => {
           {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitBtnText}>Gửi yêu cầu</Text>
+            <Text style={styles.submitBtnText}>
+              {t("verification.actions.submit")}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -600,7 +636,9 @@ const VerificationRequestScreen = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn Điểm Hành Hương</Text>
+              <Text style={styles.modalTitle}>
+                {t("verification.modal.title")}
+              </Text>
               <TouchableOpacity
                 onPress={() => setIsSiteModalVisible(false)}
                 style={styles.closeBtn}
@@ -618,7 +656,7 @@ const VerificationRequestScreen = () => {
               />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Tìm kiếm điểm hành hương..."
+                placeholder={t("verification.modal.searchPlaceholder")}
                 placeholderTextColor="#A0ABC0"
                 value={searchQuery}
                 onChangeText={handleSearch}
@@ -651,7 +689,7 @@ const VerificationRequestScreen = () => {
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyText}>
-                      Không tìm thấy điểm hành hương nào.
+                      {t("verification.modal.empty")}
                     </Text>
                   </View>
                 }
@@ -669,6 +707,7 @@ const VerificationRequestScreen = () => {
       source={require("../../../../../assets/images/verification-bg.png")}
       style={styles.container}
       resizeMode="cover"
+      fadeDuration={0}
     >
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
@@ -677,7 +716,7 @@ const VerificationRequestScreen = () => {
         >
           <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Đăng ký Quản lý Điểm</Text>
+        <Text style={styles.headerTitle}>{t("verification.headerTitle")}</Text>
       </View>
 
       <KeyboardAvoidingView
@@ -689,12 +728,7 @@ const VerificationRequestScreen = () => {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {isMyRequestLoading ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color="#D4AF37" />
-              <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
-            </View>
-          ) : myRequest && !isEditing ? (
+          {myRequest && !isEditing ? (
             <View style={styles.card}>
               <Ionicons
                 name={
@@ -716,26 +750,30 @@ const VerificationRequestScreen = () => {
               />
               <Text style={styles.title}>
                 {myRequest.status.toLowerCase() === "approved"
-                  ? "Yêu cầu đã được duyệt"
+                  ? t("verification.status.approved.title")
                   : myRequest.status.toLowerCase() === "rejected"
-                    ? "Yêu cầu bị từ chối"
-                    : "Yêu cầu đã được gửi"}
+                    ? t("verification.status.rejected.title")
+                    : t("verification.status.pending.title")}
               </Text>
               <Text style={styles.description}>
                 {myRequest.status.toLowerCase() === "approved"
-                  ? "Yêu cầu đăng ký quản lý điểm của bạn đã được chấp thuận. Hãy đăng xuất và đăng nhập lại để cập nhật quyền hạn."
+                  ? t("verification.status.approved.description")
                   : myRequest.status.toLowerCase() === "rejected"
-                    ? "Yêu cầu của bạn đã bị từ chối. Bạn có thể tạo yêu cầu mới."
-                    : "Bạn đã gửi một yêu cầu đăng ký quản lý điểm trước đó. Vui lòng chờ phản hồi từ quản trị viên."}
+                    ? t("verification.status.rejected.description")
+                    : t("verification.status.pending.description")}
               </Text>
 
               <View style={styles.detailsContainer}>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Mã yêu cầu:</Text>
+                  <Text style={styles.detailLabel}>
+                    {t("verification.details.requestCode")}
+                  </Text>
                   <Text style={styles.detailValue}>{myRequest.code}</Text>
                 </View>
                 <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Trạng thái:</Text>
+                  <Text style={styles.detailLabel}>
+                    {t("verification.details.requestStatus")}
+                  </Text>
                   <View
                     style={[
                       styles.statusBadge,
@@ -768,7 +806,9 @@ const VerificationRequestScreen = () => {
                 </View>
                 {myRequest.site_name && (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Điểm ĐK:</Text>
+                    <Text style={styles.detailLabel}>
+                      {t("verification.details.registeredSite")}
+                    </Text>
                     <Text style={styles.detailValue} numberOfLines={1}>
                       {myRequest.site_name}
                     </Text>
@@ -781,7 +821,9 @@ const VerificationRequestScreen = () => {
                       { flexDirection: "column", alignItems: "flex-start" },
                     ]}
                   >
-                    <Text style={styles.detailLabel}>Lý do từ chối:</Text>
+                    <Text style={styles.detailLabel}>
+                      {t("verification.details.rejectionReason")}
+                    </Text>
                     <Text
                       style={[
                         styles.detailValue,
@@ -799,7 +841,9 @@ const VerificationRequestScreen = () => {
                   style={styles.primaryButton}
                   onPress={() => setIsEditing(true)}
                 >
-                  <Text style={styles.primaryButtonText}>Tạo yêu cầu mới</Text>
+                  <Text style={styles.primaryButtonText}>
+                    {t("verification.actions.newRequest")}
+                  </Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -934,12 +978,12 @@ const styles = StyleSheet.create({
   },
   tabsContainer: {
     flexDirection: "row",
-    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    backgroundColor: "rgba(253, 248, 240, 0.85)",
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.4)",
+    borderColor: "rgba(212, 175, 55, 0.3)",
   },
   tab: {
     flex: 1,
@@ -964,17 +1008,17 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   sectionCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    backgroundColor: "rgba(253, 248, 240, 0.92)",
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
+    shadowColor: "#B8860B",
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    borderColor: "rgba(212, 175, 55, 0.25)",
   },
   sectionTitle: {
     fontSize: 16,
@@ -995,9 +1039,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    backgroundColor: "rgba(255, 251, 240, 0.85)",
     borderWidth: 1,
-    borderColor: "rgba(200, 200, 200, 0.3)",
+    borderColor: "rgba(212, 175, 55, 0.3)",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -1066,9 +1110,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    backgroundColor: "rgba(255, 251, 240, 0.85)",
     borderWidth: 1,
-    borderColor: "rgba(200, 200, 200, 0.3)",
+    borderColor: "rgba(212, 175, 55, 0.3)",
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 14,
@@ -1159,15 +1203,17 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   dropdownContainer: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FDF8F0",
     borderRadius: 16,
     width: "100%",
     paddingVertical: 8,
     elevation: 8,
-    shadowColor: "#000",
+    shadowColor: "#B8860B",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.25)",
   },
   dropdownTitle: {
     fontSize: 16,
@@ -1176,7 +1222,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0EDE6",
+    borderBottomColor: "rgba(212, 175, 55, 0.2)",
   },
   dropdownItem: {
     flexDirection: "row",
@@ -1185,10 +1231,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "#F7F5F2",
+    borderBottomColor: "rgba(212, 175, 55, 0.12)",
   },
   dropdownItemSelected: {
-    backgroundColor: "#FFFBF0",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
   },
   dropdownItemText: {
     fontSize: 15,

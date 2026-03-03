@@ -9,8 +9,8 @@ import React, {
   useMemo,
   useReducer,
 } from "react";
-import Toast from 'react-native-toast-message';
-import { queryClient } from '../config/query-client';
+import Toast from "react-native-toast-message";
+import { queryClient } from "../config/query-client";
 import { authApi } from "../services/api";
 import notificationService from "../services/notification/notificationService";
 import { secureStorage } from "../services/storage/secureStorage";
@@ -38,15 +38,15 @@ const initialState: AuthState = {
 type AuthAction =
   | { type: "AUTH_LOADING" }
   | {
-    type: "AUTH_SUCCESS";
-    payload: { user: User; accessToken: string; refreshToken: string };
-  }
+      type: "AUTH_SUCCESS";
+      payload: { user: User; accessToken: string; refreshToken: string };
+    }
   | { type: "AUTH_ERROR"; payload: string }
   | { type: "AUTH_LOGOUT" }
   | {
-    type: "AUTH_RESTORE";
-    payload: { user: User; accessToken: string; refreshToken: string };
-  }
+      type: "AUTH_RESTORE";
+      payload: { user: User; accessToken: string; refreshToken: string };
+    }
   | { type: "AUTH_UPDATE_USER"; payload: User }
   | { type: "AUTH_CLEAR_ERROR" }
   | { type: "AUTH_SET_LOADING"; payload: boolean }
@@ -298,9 +298,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       queryClient.clear();
 
       Toast.show({
-        type: 'success',
-        text1: 'Thành công',
-        text2: 'Bạn đã đăng xuất khỏi hệ thống',
+        type: "success",
+        text1: "Thành công",
+        text2: "Bạn đã đăng xuất khỏi hệ thống",
       });
     } catch {
       // ✅ Try to revoke token even in error case (silent fail)
@@ -319,7 +319,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           AUTH_STORAGE_KEYS.USER,
           AUTH_STORAGE_KEYS.IS_GUEST,
         ])
-        .catch(() => { });
+        .catch(() => {});
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
 
@@ -327,9 +327,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       queryClient.clear();
 
       Toast.show({
-        type: 'success',
-        text1: 'Thành công',
-        text2: 'Bạn đã đăng xuất khỏi hệ thống',
+        type: "success",
+        text1: "Thành công",
+        text2: "Bạn đã đăng xuất khỏi hệ thống",
       });
     }
   }, [pushToken]);
@@ -389,24 +389,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   // Update user profile
-  const updateProfile = useCallback(async (data: UpdateProfileRequest) => {
-    try {
-      const response = await authApi.updateProfile(data);
+  const updateProfile = useCallback(
+    async (data: UpdateProfileRequest): Promise<string | undefined> => {
+      try {
+        const response = await authApi.updateProfile(data);
 
-      if (response?.success && response?.data) {
-        const user = response.data;
-        await secureStorage.setItem(
-          AUTH_STORAGE_KEYS.USER,
-          JSON.stringify(user),
-        );
-        dispatch({ type: "AUTH_UPDATE_USER", payload: user });
-      } else {
-        throw new Error(response?.error?.message || "Cập nhật thất bại");
+        if (response?.success && response?.data) {
+          const user = response.data;
+          await secureStorage.setItem(
+            AUTH_STORAGE_KEYS.USER,
+            JSON.stringify(user),
+          );
+          dispatch({ type: "AUTH_UPDATE_USER", payload: user });
+          return response.message;
+        } else {
+          throw new Error(response?.error?.message || "Cập nhật thất bại");
+        }
+      } catch (error: any) {
+        throw error;
       }
-    } catch (error: any) {
-      throw error;
-    }
-  }, []);
+    },
+    [],
+  );
 
   // Clear error
   const clearError = useCallback(() => {

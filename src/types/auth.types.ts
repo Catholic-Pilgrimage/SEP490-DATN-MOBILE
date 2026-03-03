@@ -112,8 +112,6 @@ export interface VerifyEmailRequest {
   otp: string;
 }
 
-
-
 // Auth state for context/store
 export interface AuthState {
   user: User | null;
@@ -131,7 +129,7 @@ export interface AuthContextType extends AuthState {
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
   getProfile: () => Promise<void>;
-  updateProfile: (data: UpdateProfileRequest) => Promise<void>;
+  updateProfile: (data: UpdateProfileRequest) => Promise<string | undefined>;
   clearError: () => void;
   isGuest: boolean;
   continueAsGuest: () => void;

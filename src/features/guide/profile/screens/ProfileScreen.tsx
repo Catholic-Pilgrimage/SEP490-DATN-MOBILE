@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  ImageBackground,
   Platform,
   RefreshControl,
   ScrollView,
@@ -28,6 +29,7 @@ import {
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import useI18n from "../../../../hooks/useI18n";
 import { useGuideProfile } from "../hooks/useGuideProfile";
 
 // Premium color palette
@@ -77,7 +79,9 @@ const MenuItem: React.FC<MenuItemProps> = ({
           color={danger ? GUIDE_COLORS.error : PREMIUM_COLORS.gold}
         />
       </View>
-      <Text style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}>
+      <Text
+        style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}
+      >
         {label}
       </Text>
     </View>
@@ -105,23 +109,29 @@ interface StatsCardProps {
   events: number;
   media: number;
   reviews: number;
+  labels: { events: string; media: string; reviews: string };
 }
 
-const StatsCard: React.FC<StatsCardProps> = ({ events, media, reviews }) => (
+const StatsCard: React.FC<StatsCardProps> = ({
+  events,
+  media,
+  reviews,
+  labels,
+}) => (
   <View style={styles.statsCard}>
     <View style={styles.statItem}>
       <Text style={styles.statNumber}>{events}</Text>
-      <Text style={styles.statLabel}>Sự kiện</Text>
+      <Text style={styles.statLabel}>{labels.events}</Text>
     </View>
     <View style={styles.statDivider} />
     <View style={styles.statItem}>
       <Text style={styles.statNumber}>{media}</Text>
-      <Text style={styles.statLabel}>Media</Text>
+      <Text style={styles.statLabel}>{labels.media}</Text>
     </View>
     <View style={styles.statDivider} />
     <View style={styles.statItem}>
       <Text style={styles.statNumber}>{reviews}</Text>
-      <Text style={styles.statLabel}>Đánh giá</Text>
+      <Text style={styles.statLabel}>{labels.reviews}</Text>
     </View>
   </View>
 );
@@ -142,11 +152,13 @@ const ProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { logout } = useAuth();
+  const { t } = useI18n();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Use API hook for profile, site and stats data
-  const { profile, site, stats, loading, refetch, isVerified } = useGuideProfile();
+  const { profile, site, stats, loading, refetch, isVerified } =
+    useGuideProfile();
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -165,9 +177,8 @@ const ProfileScreen: React.FC = () => {
   }, [navigation]);
 
   const handleNotifications = useCallback(() => {
-    // TODO: Navigate to Notifications screen
-    Alert.alert("Thông báo", "Tính năng đang phát triển");
-  }, []);
+    Alert.alert(t("common.ok"), t("profile.featureComingSoon"));
+  }, [t]);
 
   const handleMySite = useCallback(() => {
     // Navigate to SiteManagement screen to display full info with edit option
@@ -187,16 +198,14 @@ const ProfileScreen: React.FC = () => {
     (navigation as any).navigate("Settings");
   }, [navigation]);
 
-
-
   const handleSignOut = useCallback(() => {
     Alert.alert(
-      "Đăng xuất",
-      "Bạn có chắc chắn muốn đăng xuất?",
+      t("profile.logoutConfirmTitle"),
+      t("profile.logoutConfirmMessage"),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Đăng xuất",
+          text: t("profile.logout"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -206,19 +215,19 @@ const ProfileScreen: React.FC = () => {
                 CommonActions.reset({
                   index: 0,
                   routes: [{ name: "Auth" }],
-                })
+                }),
               );
             } catch (error) {
               console.error("Logout error:", error);
-              Alert.alert("Lỗi", "Không thể đăng xuất. Vui lòng thử lại.");
+              Alert.alert(t("common.error"), t("profile.logoutError"));
               setIsLoggingOut(false);
             }
           },
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
-  }, [logout, navigation]);
+  }, [logout, navigation, t]);
 
   // Default avatar
   const getAvatarUrl = () => {
@@ -230,20 +239,35 @@ const ProfileScreen: React.FC = () => {
     return "https://ui-avatars.com/api/?name=Guide&background=D4AF37&color=fff&size=200";
   };
 
-  const displayName = profile?.full_name || "Hướng dẫn viên";
-  const displayRole = isVerified ? "Verified Local Guide" : "Local Guide";
-  const siteName = site?.name || "Chưa được gán địa điểm";
+  const displayName = profile?.full_name || t("profile.defaultGuide");
+  const displayRole = isVerified
+    ? t("profile.verifiedGuide")
+    : t("profile.localGuide");
+  const siteName = site?.name || t("profile.notAssignedSite");
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={PREMIUM_COLORS.cream} />
+    <ImageBackground
+      source={require("../../../../../assets/images/profile-bg.jpg")}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+      fadeDuration={0}
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent
+      />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <MaterialIcons name="arrow-back-ios" size={20} color={GUIDE_COLORS.textPrimary} />
+          <MaterialIcons
+            name="arrow-back-ios"
+            size={20}
+            color={GUIDE_COLORS.textPrimary}
+          />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hồ sơ</Text>
+        <Text style={styles.headerTitle}>{t("profile.title")}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -277,7 +301,11 @@ const ProfileScreen: React.FC = () => {
             </LinearGradient>
             {isVerified && (
               <View style={styles.verifiedBadge}>
-                <MaterialIcons name="verified" size={18} color={PREMIUM_COLORS.gold} />
+                <MaterialIcons
+                  name="verified"
+                  size={18}
+                  color={PREMIUM_COLORS.gold}
+                />
               </View>
             )}
           </View>
@@ -288,7 +316,11 @@ const ProfileScreen: React.FC = () => {
 
           {/* Assigned Site */}
           <View style={styles.siteTag}>
-            <MaterialIcons name="church" size={14} color={PREMIUM_COLORS.gold} />
+            <MaterialIcons
+              name="church"
+              size={14}
+              color={PREMIUM_COLORS.gold}
+            />
             <Text style={styles.siteTagText}>{siteName}</Text>
           </View>
         </View>
@@ -298,47 +330,56 @@ const ProfileScreen: React.FC = () => {
           events={stats.eventsCount}
           media={stats.mediaCount}
           reviews={stats.reviewsCount}
+          labels={{
+            events: t("profile.stats.events"),
+            media: t("profile.stats.media"),
+            reviews: t("profile.stats.reviews"),
+          }}
         />
 
         {/* Account Section */}
-        <SectionHeader title="TÀI KHOẢN" />
+        <SectionHeader title={t("profile.sections.account")} />
         <View style={styles.menuSection}>
           <MenuItem
             icon="person-outline"
-            label="Thông tin cá nhân"
+            label={t("profile.menu.personalInfo")}
             onPress={handleEditProfile}
           />
           <MenuItem
             icon="notifications-outline"
-            label="Thông báo"
+            label={t("profile.menu.notifications")}
             onPress={handleNotifications}
             showBadge="3"
           />
           <MenuItem
             icon="business-outline"
-            label="Địa điểm của tôi"
+            label={t("profile.menu.mySite")}
             onPress={handleMySite}
           />
           <MenuItem
             icon="calendar-outline"
-            label="Lịch trình & Ca trực"
+            label={t("profile.menu.schedule")}
             onPress={handleSchedule}
           />
           <MenuItem
             icon="alert-circle-outline"
-            label="Hỗ trợ khẩn cấp (SOS)"
+            label={t("profile.menu.sos")}
             onPress={handleSOSList}
-            showBadge={stats.sosPendingCount > 0 ? stats.sosPendingCount.toString() : undefined}
+            showBadge={
+              stats.sosPendingCount > 0
+                ? stats.sosPendingCount.toString()
+                : undefined
+            }
             isLast
           />
         </View>
 
         {/* Settings Section */}
-        <SectionHeader title="CÀI ĐẶT" />
+        <SectionHeader title={t("profile.sections.settings")} />
         <View style={styles.menuSection}>
           <MenuItem
             icon="settings-outline"
-            label="Cài đặt"
+            label={t("profile.menu.settings")}
             onPress={handleSettings}
             isLast
           />
@@ -346,7 +387,10 @@ const ProfileScreen: React.FC = () => {
 
         {/* Sign Out Button */}
         <TouchableOpacity
-          style={[styles.signOutButton, isLoggingOut && styles.signOutButtonDisabled]}
+          style={[
+            styles.signOutButton,
+            isLoggingOut && styles.signOutButtonDisabled,
+          ]}
           onPress={handleSignOut}
           disabled={isLoggingOut}
           activeOpacity={0.8}
@@ -357,14 +401,14 @@ const ProfileScreen: React.FC = () => {
             <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
           )}
           <Text style={styles.signOutText}>
-            {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+            {isLoggingOut ? t("profile.loggingOut") : t("profile.logout")}
           </Text>
         </TouchableOpacity>
 
         {/* Version */}
-        <Text style={styles.versionText}>Phiên bản 1.4.2</Text>
+        <Text style={styles.versionText}>{t("profile.version")}</Text>
       </ScrollView>
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -375,7 +419,7 @@ const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "transparent",
   },
 
   // Header
@@ -385,7 +429,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "transparent",
   },
   backButton: {
     width: 40,
@@ -481,10 +525,10 @@ const styles = StyleSheet.create({
     marginHorizontal: GUIDE_SPACING.lg,
     marginTop: GUIDE_SPACING.sm,
     paddingVertical: GUIDE_SPACING.md,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     borderWidth: 1,
-    borderColor: PREMIUM_COLORS.goldLight,
+    borderColor: "rgba(212, 175, 55, 0.3)",
     ...Platform.select({
       ios: {
         shadowColor: PREMIUM_COLORS.gold,
@@ -531,11 +575,11 @@ const styles = StyleSheet.create({
   // Menu Section
   menuSection: {
     marginHorizontal: GUIDE_SPACING.lg,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: PREMIUM_COLORS.goldLight,
+    borderColor: "rgba(212, 175, 55, 0.3)",
   },
   menuItem: {
     flexDirection: "row",

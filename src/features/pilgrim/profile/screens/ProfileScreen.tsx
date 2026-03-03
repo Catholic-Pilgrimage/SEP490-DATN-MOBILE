@@ -12,6 +12,7 @@ import {
     ActivityIndicator,
     Alert,
     Image,
+    ImageBackground,
     Platform,
     RefreshControl,
     ScrollView,
@@ -25,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useUserQuery } from "../../../../hooks/useUserQuery";
 import { NotificationModal } from "../../explore/components/NotificationModal";
@@ -116,6 +118,7 @@ const ProfileScreen = () => {
   } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const { t } = useI18n();
 
   // React Query for real-time profile updates
   const { data: queryUser, refetch, isRefetching } = useUserQuery();
@@ -149,46 +152,50 @@ const ProfileScreen = () => {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setIsLoggingOut(true);
-            await logout();
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: "Auth" }],
-              }),
-            );
-          } catch (error) {
-            console.error("Logout error:", error);
-            setIsLoggingOut(false);
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: "Auth" }],
-              }),
-            );
-          }
+    Alert.alert(
+      t("profile.logoutConfirmTitle"),
+      t("profile.logoutConfirmMessage"),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("profile.logout"),
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsLoggingOut(true);
+              await logout();
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: "Auth" }],
+                }),
+              );
+            } catch (error) {
+              console.error("Logout error:", error);
+              setIsLoggingOut(false);
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: "Auth" }],
+                }),
+              );
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const menuItems = [
     {
       icon: "person-outline",
-      label: "Thông tin cá nhân",
+      label: t("profile.menu.personalInfo"),
       requireAuth: true,
       route: "EditProfile",
     },
     {
       icon: "notifications-outline",
-      label: "Thông báo",
+      label: t("profile.menu.notifications"),
       requireAuth: true,
       route: "Notifications",
       showBadge:
@@ -200,25 +207,25 @@ const ProfileScreen = () => {
     },
     {
       icon: "heart",
-      label: "Yêu thích",
+      label: t("profile.menu.favorites"),
       requireAuth: true,
       route: "FavoriteSites",
     },
     {
       icon: "hand-left-outline",
-      label: "Lịch sử Hỗ trợ",
+      label: t("profile.menu.sosHistory"),
       requireAuth: true,
       route: "SOSHistory",
     },
     {
       icon: "time-outline",
-      label: "Lịch sử hành hương",
+      label: t("profile.menu.history"),
       requireAuth: true,
       route: "History",
     },
     {
       icon: "settings-outline",
-      label: "Cài đặt",
+      label: t("profile.menu.settings"),
       requireAuth: false,
       route: "Settings",
     },
@@ -227,11 +234,11 @@ const ProfileScreen = () => {
   const handleMenuPress = (item: (typeof menuItems)[0]) => {
     if (item.requireAuth && isGuest) {
       Alert.alert(
-        "Yêu cầu đăng nhập",
-        "Vui lòng đăng nhập để sử dụng tính năng này.",
+        t("profile.loginRequired"),
+        t("profile.loginRequiredMessage"),
         [
-          { text: "Để sau", style: "cancel" },
-          { text: "Đăng nhập", onPress: () => handleLogin() },
+          { text: t("profile.loginLater"), style: "cancel" },
+          { text: t("profile.login"), onPress: () => handleLogin() },
         ],
       );
       return;
@@ -251,7 +258,7 @@ const ProfileScreen = () => {
     ) {
       navigation.navigate(item.route);
     } else {
-      Alert.alert("Thông báo", "Tính năng đang phát triển");
+      Alert.alert(t("common.ok"), t("profile.featureComingSoon"));
     }
   };
 
@@ -260,16 +267,22 @@ const ProfileScreen = () => {
   const settingsItems = menuItems.slice(4);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ImageBackground
+      source={require("../../../../../assets/images/profile-bg.jpg")}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+      fadeDuration={0}
+    >
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={PREMIUM_COLORS.cream}
+        backgroundColor="transparent"
+        translucent
       />
 
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
-        <Text style={styles.headerTitle}>Hồ sơ</Text>
+        <Text style={styles.headerTitle}>{t("profile.title")}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -366,11 +379,11 @@ const ProfileScreen = () => {
 
           <Text style={styles.profileName}>
             {isGuest
-              ? "Khách hành hương"
-              : user?.fullName || "Người hành hương"}
+              ? t("profile.guest")
+              : user?.fullName || t("profile.defaultPilgrim")}
           </Text>
           <Text style={styles.profileRole}>
-            {isGuest ? "Chưa đăng nhập" : user?.email || "Pilgrim"}
+            {isGuest ? t("profile.guestRole") : user?.email || "Pilgrim"}
           </Text>
         </View>
 
@@ -380,22 +393,24 @@ const ProfileScreen = () => {
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Hành hương</Text>
+            <Text style={styles.statLabel}>
+              {t("profile.stats.pilgrimages")}
+            </Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Yêu thích</Text>
+            <Text style={styles.statLabel}>{t("profile.stats.favorites")}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>Đánh giá</Text>
+            <Text style={styles.statLabel}>{t("profile.stats.reviews")}</Text>
           </View>
         </View>
 
         {/* Account Section */}
-        <SectionHeader title="TÀI KHOẢN" />
+        <SectionHeader title={t("profile.sections.account")} />
         <View style={styles.menuSection}>
           {accountItems.map((item, index) => (
             <MenuItem
@@ -409,23 +424,21 @@ const ProfileScreen = () => {
           ))}
         </View>
 
-        {/* Register Site Manager Button - only for authenticated pilgrims */}
-        {isAuthenticated && !isGuest && (
-          <>
-            <SectionHeader title="QUẢN LÝ ĐIỂM" />
-            <View style={styles.menuSection}>
-              <MenuItem
-                icon="briefcase-outline"
-                label="Đăng ký Quản lý Điểm"
-                onPress={() => navigation.navigate("VerificationRequest")}
-                isLast
-              />
-            </View>
-          </>
-        )}
+        {/* Register Site Manager Button - visible for all users */}
+        <>
+          <SectionHeader title={t("profile.sections.siteManagement")} />
+          <View style={styles.menuSection}>
+            <MenuItem
+              icon="briefcase-outline"
+              label={t("profile.menu.registerSiteManager")}
+              onPress={() => navigation.navigate("VerificationRequest")}
+              isLast
+            />
+          </View>
+        </>
 
         {/* Settings Section */}
-        <SectionHeader title="CÀI ĐẶT" />
+        <SectionHeader title={t("profile.sections.settings")} />
         <View style={styles.menuSection}>
           {settingsItems.map((item, index) => (
             <MenuItem
@@ -460,28 +473,28 @@ const ProfileScreen = () => {
           )}
           <Text style={styles.signOutText}>
             {isGuest
-              ? "Đăng nhập / Đăng ký"
+              ? t("profile.loginRegister")
               : isLoggingOut
-                ? "Đang đăng xuất..."
-                : "Đăng xuất"}
+                ? t("profile.loggingOut")
+                : t("profile.logout")}
           </Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>Phiên bản 1.0.0</Text>
+        <Text style={styles.versionText}>{t("profile.version")}</Text>
       </ScrollView>
 
       <NotificationModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
       />
-    </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
@@ -489,7 +502,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "transparent",
   },
   headerTitle: {
     fontSize: 18,
@@ -589,10 +602,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 24,
     marginTop: 8,
     paddingVertical: 16,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: PREMIUM_COLORS.goldLight,
+    borderColor: "rgba(212, 175, 55, 0.3)",
     ...Platform.select({
       ios: {
         shadowColor: PREMIUM_COLORS.gold,
@@ -638,11 +651,11 @@ const styles = StyleSheet.create({
   // Menu Section
   menuSection: {
     marginHorizontal: 24,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 251, 240, 0.92)",
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: PREMIUM_COLORS.goldLight,
+    borderColor: "rgba(212, 175, 55, 0.3)",
   },
   menuItem: {
     flexDirection: "row",
