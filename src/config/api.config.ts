@@ -2,7 +2,7 @@
 
 export const API_CONFIG = {
   // Base URL for the API (from environment variable or default)
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://sep490-datn-backend.onrender.com',
+  BASE_URL: process.env.EXPO_PUBLIC_API_URL || "http://172.16.216.223:3000",
 
   // Request timeout in milliseconds (from environment variable or default 60s)
   TIMEOUT: Number(process.env.EXPO_PUBLIC_API_TIMEOUT) || 60000,
@@ -15,8 +15,8 @@ export const API_CONFIG = {
 
   // Headers
   HEADERS: {
-    CONTENT_TYPE: 'application/json',
-    ACCEPT: 'application/json',
+    CONTENT_TYPE: "application/json",
+    ACCEPT: "application/json",
   },
 };
 
@@ -33,11 +33,13 @@ export const HTTP_STATUS = {
 
 // Error messages
 export const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Không thể kết nối đến máy chủ. Server có thể đang khởi động, vui lòng thử lại sau 30 giây.',
-  TIMEOUT_ERROR: 'Yêu cầu đã hết thời gian. Server có thể đang bận, vui lòng thử lại.',
-  SERVER_ERROR: 'Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau.',
-  UNAUTHORIZED: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
-  INVALID_CREDENTIALS: 'Email hoặc mật khẩu không đúng.',
-  ACCOUNT_LOCKED: 'Tài khoản của bạn đã bị khóa.',
-  UNKNOWN_ERROR: 'Đã xảy ra lỗi không xác định.',
+  NETWORK_ERROR:
+    "Không thể kết nối đến máy chủ. Server có thể đang khởi động, vui lòng thử lại sau 30 giây.",
+  TIMEOUT_ERROR:
+    "Yêu cầu đã hết thời gian. Server có thể đang bận, vui lòng thử lại.",
+  SERVER_ERROR: "Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau.",
+  UNAUTHORIZED: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+  INVALID_CREDENTIALS: "Email hoặc mật khẩu không đúng.",
+  ACCOUNT_LOCKED: "Tài khoản của bạn đã bị khóa.",
+  UNKNOWN_ERROR: "Đã xảy ra lỗi không xác định.",
 };

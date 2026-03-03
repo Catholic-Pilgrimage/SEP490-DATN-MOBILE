@@ -1,7 +1,7 @@
 /**
  * MediaUploadScreen
  * Upload flow: Choose type → Select file/URL → Preview + Caption → Submit
- * 
+ *
  * Features:
  * - Image compression (max 2MB, 2000px)
  * - EXIF orientation fix (automatic with expo-image-manipulator)
@@ -39,7 +39,10 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
-import { uploadMedia, uploadMediaWithYouTube } from "../../../../services/api/guide";
+import {
+  uploadMedia,
+  uploadMediaWithYouTube,
+} from "../../../../services/api/guide";
 import { MediaType } from "../../../../types/guide";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -122,14 +125,23 @@ const MediaTypeCard: React.FC<MediaTypeCardProps> = ({ option, onPress }) => (
     onPress={onPress}
     activeOpacity={0.7}
   >
-    <View style={[styles.typeIconContainer, { backgroundColor: `${option.iconColor}15` }]}>
+    <View
+      style={[
+        styles.typeIconContainer,
+        { backgroundColor: `${option.iconColor}15` },
+      ]}
+    >
       <MaterialIcons name={option.icon} size={32} color={option.iconColor} />
     </View>
     <View style={styles.typeCardContent}>
       <Text style={styles.typeCardLabel}>{option.label}</Text>
       <Text style={styles.typeCardDescription}>{option.description}</Text>
     </View>
-    <MaterialIcons name="chevron-right" size={24} color={GUIDE_COLORS.gray400} />
+    <MaterialIcons
+      name="chevron-right"
+      size={24}
+      color={GUIDE_COLORS.gray400}
+    />
   </TouchableOpacity>
 );
 
@@ -143,19 +155,29 @@ export const MediaUploadScreen: React.FC = () => {
 
   // State
   const [step, setStep] = useState<UploadStep>("select-type");
-  const [selectedType, setSelectedType] = useState<MediaType | "youtube" | null>(null);
-  const [selectedFile, setSelectedFile] = useState<ImagePicker.ImagePickerAsset | null>(null);
-  const [compressedImage, setCompressedImage] = useState<CompressedImage | null>(null);
+  const [selectedType, setSelectedType] = useState<
+    MediaType | "youtube" | null
+  >(null);
+  const [selectedFile, setSelectedFile] =
+    useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [compressedImage, setCompressedImage] =
+    useState<CompressedImage | null>(null);
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [caption, setCaption] = useState("");
   const [uploading, setUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [isMediaPickerVisible, setIsMediaPickerVisible] = useState(false);
-  const [mediaPickerConfig, setMediaPickerConfig] = useState({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: false });
+  const [mediaPickerConfig, setMediaPickerConfig] = useState<{
+    mediaTypes: "images" | "videos";
+    allowsEditing: boolean;
+  }>({ mediaTypes: "images", allowsEditing: false });
 
-  const player = useVideoPlayer(selectedType === "video" && selectedFile ? selectedFile.uri : "", player => {
-    player.loop = true;
-  });
+  const player = useVideoPlayer(
+    selectedType === "video" && selectedFile ? selectedFile.uri : "",
+    (player) => {
+      player.loop = true;
+    },
+  );
 
   // ============================================
   // IMAGE COMPRESSION
@@ -168,35 +190,35 @@ export const MediaUploadScreen: React.FC = () => {
    * - Compress quality
    * - Auto-fix EXIF orientation
    */
-  const compressImage = useCallback(async (
-    uri: string,
-    type: MediaType
-  ): Promise<CompressedImage> => {
-    const config = COMPRESSION_CONFIG[type] || COMPRESSION_CONFIG.image;
+  const compressImage = useCallback(
+    async (uri: string, type: MediaType): Promise<CompressedImage> => {
+      const config = COMPRESSION_CONFIG[type] || COMPRESSION_CONFIG.image;
 
-    // Manipulate image: resize and compress
-    const manipulated = await ImageManipulator.manipulateAsync(
-      uri,
-      [
-        {
-          resize: {
-            width: config.maxWidth,
-            height: config.maxHeight,
+      // Manipulate image: resize and compress
+      const manipulated = await ImageManipulator.manipulateAsync(
+        uri,
+        [
+          {
+            resize: {
+              width: config.maxWidth,
+              height: config.maxHeight,
+            },
           },
+        ],
+        {
+          compress: config.quality,
+          format: ImageManipulator.SaveFormat.JPEG, // Convert HEIC → JPEG
         },
-      ],
-      {
-        compress: config.quality,
-        format: ImageManipulator.SaveFormat.JPEG, // Convert HEIC → JPEG
-      }
-    );
+      );
 
-    return {
-      uri: manipulated.uri,
-      width: manipulated.width,
-      height: manipulated.height,
-    };
-  }, []);
+      return {
+        uri: manipulated.uri,
+        width: manipulated.width,
+        height: manipulated.height,
+      };
+    },
+    [],
+  );
 
   // Handlers
   const handleBack = useCallback(() => {
@@ -213,33 +235,39 @@ export const MediaUploadScreen: React.FC = () => {
     }
   }, [step, navigation]);
 
-  const handleMediaPicked = useCallback(async (result: ImagePicker.ImagePickerResult) => {
-    if (!result.canceled && result.assets[0] && selectedType) {
-      const asset = result.assets[0];
-      setSelectedFile(asset);
+  const handleMediaPicked = useCallback(
+    async (result: ImagePicker.ImagePickerResult) => {
+      if (!result.canceled && result.assets[0] && selectedType) {
+        const asset = result.assets[0];
+        setSelectedFile(asset);
 
-      // Compress image (not video)
-      if (selectedType !== "video" && selectedType !== "youtube") {
-        setCompressing(true);
-        try {
-          const compressed = await compressImage(asset.uri, selectedType as MediaType);
-          setCompressedImage(compressed);
-        } catch (error) {
-          console.error("Compression error:", error);
-          // Fallback to original if compression fails
-          setCompressedImage({
-            uri: asset.uri,
-            width: asset.width || 0,
-            height: asset.height || 0,
-          });
-        } finally {
-          setCompressing(false);
+        // Compress image (not video)
+        if (selectedType !== "video" && selectedType !== "youtube") {
+          setCompressing(true);
+          try {
+            const compressed = await compressImage(
+              asset.uri,
+              selectedType as MediaType,
+            );
+            setCompressedImage(compressed);
+          } catch (error) {
+            console.error("Compression error:", error);
+            // Fallback to original if compression fails
+            setCompressedImage({
+              uri: asset.uri,
+              width: asset.width || 0,
+              height: asset.height || 0,
+            });
+          } finally {
+            setCompressing(false);
+          }
         }
-      }
 
-      setStep("preview");
-    }
-  }, [selectedType, compressImage]);
+        setStep("preview");
+      }
+    },
+    [selectedType, compressImage],
+  );
 
   const handleSelectType = useCallback((type: MediaType | "youtube") => {
     setSelectedType(type);
@@ -247,9 +275,8 @@ export const MediaUploadScreen: React.FC = () => {
     if (type === "youtube") {
       setStep("select-file");
     } else {
-      const mediaTypesOptions = type === "video"
-        ? ImagePicker.MediaTypeOptions.Videos
-        : ImagePicker.MediaTypeOptions.Images;
+      const mediaTypesOptions: "images" | "videos" =
+        type === "video" ? "videos" : "images";
       setMediaPickerConfig({
         mediaTypes: mediaTypesOptions,
         allowsEditing: type !== "panorama",
@@ -276,9 +303,11 @@ export const MediaUploadScreen: React.FC = () => {
 
   const getYoutubeThumbnail = useCallback((url: string) => {
     const videoId = url.match(
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
     )?.[1];
-    return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
+    return videoId
+      ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+      : null;
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -287,7 +316,8 @@ export const MediaUploadScreen: React.FC = () => {
     setUploading(true);
 
     try {
-      const mediaType: MediaType = selectedType === "youtube" ? "video" : selectedType;
+      const mediaType: MediaType =
+        selectedType === "youtube" ? "video" : selectedType;
 
       let result;
 
@@ -301,22 +331,22 @@ export const MediaUploadScreen: React.FC = () => {
       } else {
         // File upload: Send as multipart/form-data
         // Use compressed image for images, original for video
-        const fileUri = (selectedType !== "video" && compressedImage)
-          ? compressedImage.uri
-          : selectedFile?.uri;
+        const fileUri =
+          selectedType !== "video" && compressedImage
+            ? compressedImage.uri
+            : selectedFile?.uri;
 
         if (!fileUri) {
           throw new Error("No file selected");
         }
 
         // Prepare file info for FormData
-        const fileName = selectedType !== "video"
-          ? `image_${Date.now()}.jpg` // Compressed images are always JPEG
-          : `video_${Date.now()}.mp4`;
+        const fileName =
+          selectedType !== "video"
+            ? `image_${Date.now()}.jpg` // Compressed images are always JPEG
+            : `video_${Date.now()}.mp4`;
 
-        const mimeType = selectedType !== "video"
-          ? "image/jpeg"
-          : "video/mp4";
+        const mimeType = selectedType !== "video" ? "image/jpeg" : "video/mp4";
 
         result = await uploadMedia({
           type: mediaType,
@@ -330,11 +360,9 @@ export const MediaUploadScreen: React.FC = () => {
       }
 
       if (result?.success) {
-        Alert.alert(
-          "Thành công",
-          "Media đã được upload và đang chờ duyệt",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
+        Alert.alert("Thành công", "Media đã được upload và đang chờ duyệt", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
       } else {
         Alert.alert("Lỗi", result?.message || "Không thể upload media");
       }
@@ -344,7 +372,14 @@ export const MediaUploadScreen: React.FC = () => {
     } finally {
       setUploading(false);
     }
-  }, [selectedType, selectedFile, compressedImage, youtubeUrl, caption, navigation]);
+  }, [
+    selectedType,
+    selectedFile,
+    compressedImage,
+    youtubeUrl,
+    caption,
+    navigation,
+  ]);
 
   // Render step content
   const renderStepContent = () => {
@@ -403,16 +438,21 @@ export const MediaUploadScreen: React.FC = () => {
               activeOpacity={0.8}
             >
               <Text style={styles.continueButtonText}>Tiếp tục</Text>
-              <MaterialIcons name="arrow-forward" size={20} color={GUIDE_COLORS.surface} />
+              <MaterialIcons
+                name="arrow-forward"
+                size={20}
+                color={GUIDE_COLORS.surface}
+              />
             </TouchableOpacity>
           </View>
         );
 
       case "preview":
         // Use compressed image for preview (if available), fallback to original
-        const thumbnailUrl = selectedType === "youtube"
-          ? getYoutubeThumbnail(youtubeUrl)
-          : (compressedImage?.uri || selectedFile?.uri);
+        const thumbnailUrl =
+          selectedType === "youtube"
+            ? getYoutubeThumbnail(youtubeUrl)
+            : compressedImage?.uri || selectedFile?.uri;
 
         return (
           <KeyboardAvoidingView
@@ -425,8 +465,16 @@ export const MediaUploadScreen: React.FC = () => {
             <View style={styles.previewContainer}>
               {compressing ? (
                 <View style={styles.previewPlaceholder}>
-                  <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-                  <Text style={[styles.captionLabel, { marginTop: GUIDE_SPACING.md }]}>
+                  <ActivityIndicator
+                    size="large"
+                    color={GUIDE_COLORS.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.captionLabel,
+                      { marginTop: GUIDE_SPACING.md },
+                    ]}
+                  >
                     Đang nén ảnh...
                   </Text>
                 </View>
@@ -457,7 +505,11 @@ export const MediaUploadScreen: React.FC = () => {
                         }
                       }}
                     >
-                      <MaterialIcons name="play-arrow" size={48} color={GUIDE_COLORS.surface} />
+                      <MaterialIcons
+                        name="play-arrow"
+                        size={48}
+                        color={GUIDE_COLORS.surface}
+                      />
                     </TouchableOpacity>
                   )}
                 </>
@@ -530,7 +582,7 @@ export const MediaUploadScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.submitButton,
-                (uploading || compressing) && styles.submitButtonDisabled
+                (uploading || compressing) && styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}
               disabled={uploading || compressing}
@@ -540,7 +592,11 @@ export const MediaUploadScreen: React.FC = () => {
                 <ActivityIndicator color={GUIDE_COLORS.surface} />
               ) : (
                 <>
-                  <MaterialIcons name="cloud-upload" size={22} color={GUIDE_COLORS.surface} />
+                  <MaterialIcons
+                    name="cloud-upload"
+                    size={22}
+                    color={GUIDE_COLORS.surface}
+                  />
                   <Text style={styles.submitButtonText}>Upload Media</Text>
                 </>
               )}
@@ -564,12 +620,19 @@ export const MediaUploadScreen: React.FC = () => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={GUIDE_COLORS.background} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={GUIDE_COLORS.background}
+      />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <MaterialIcons name="arrow-back-ios" size={20} color={GUIDE_COLORS.textPrimary} />
+          <MaterialIcons
+            name="arrow-back-ios"
+            size={20}
+            color={GUIDE_COLORS.textPrimary}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Upload Media</Text>
         <View style={styles.headerSpacer} />
@@ -623,7 +686,7 @@ export const MediaUploadScreen: React.FC = () => {
         mediaTypes={mediaPickerConfig.mediaTypes}
         allowsEditing={mediaPickerConfig.allowsEditing}
         quality={1}
-        title={selectedType === 'video' ? 'Upload Video' : 'Upload Ảnh'}
+        title={selectedType === "video" ? "Upload Video" : "Upload Ảnh"}
       />
     </View>
   );
