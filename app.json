@@ -28,8 +28,8 @@
         "backgroundColor": "#cfaa3a"
       },
       "splash": {
-        "image": "./assets/images/splash-full.png",
-        "resizeMode": "cover",
+        "image": "./assets/images/logo.png",
+        "resizeMode": "contain",
         "backgroundColor": "#cfaa3a"
       },
       "package": "com.anonymous.PilgrimApp",
