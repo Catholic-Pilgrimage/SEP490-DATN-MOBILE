@@ -72,6 +72,8 @@ export const PILGRIM_ENDPOINTS = {
     ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
     DELETE_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}`,
+    UPDATE_ITEM: (planId: string, itemId: string) =>
+      `${API_BASE}/planners/${planId}/items/${itemId}`,
     REORDER_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/reorder`,
     MESSAGES: (id: string) => `${API_BASE}/planners/${id}/messages`,
     UPLOAD_MESSAGE_IMAGE: (id: string) =>
