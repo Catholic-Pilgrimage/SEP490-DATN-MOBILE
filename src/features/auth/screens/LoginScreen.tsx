@@ -4,28 +4,28 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  ImageBackground,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    ImageBackground,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withSpring,
+    withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -215,7 +215,7 @@ const LoginScreen = () => {
       // Lỗi từ API → hiện Toast (không dùng inline error)
       Toast.show({
         type: "error",
-        text1: "Đăng nhập thất bại",
+        text1: t("auth.loginFailed"),
         text2: errorMessage,
       });
     } finally {
@@ -368,7 +368,7 @@ const LoginScreen = () => {
                   />
                   <TextInput
                     style={styles.input}
-                    placeholder="Nhập email của bạn"
+                    placeholder={t("register.fields.emailPlaceholder")}
                     placeholderTextColor={`${LOGIN_COLORS.textMuted}99`}
                     value={email}
                     onChangeText={handleEmailChange}

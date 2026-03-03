@@ -289,6 +289,31 @@
     "shareMessage": "Download Catholic Pilgrim App - The companion app for Catholic pilgrims!",
     "cannotChangeLanguage": "Cannot change language"
   },
+  "notificationScreen": {
+    "title": "Notifications",
+    "tabs": {
+      "all": "All",
+      "schedule": "Schedule",
+      "system": "System"
+    },
+    "sections": {
+      "newest": "Newest",
+      "today": "Today",
+      "earlier": "Earlier"
+    },
+    "empty": "No notifications",
+    "emptyTitle": "All caught up!",
+    "emptyText": "You have no new notifications.",
+    "backButton": "Go back",
+    "endOfList": "You've seen all notifications",
+    "loadMoreError": "Could not load more notifications",
+    "tapToRetry": "Tap to retry",
+    "deleteConfirmTitle": "Delete notifications",
+    "deleteConfirmMessage": "Which notifications do you want to delete?",
+    "deleteRead": "Delete read",
+    "deleteAll": "Delete all",
+    "markAllRead": "Mark all as read"
+  },
   "verification": {
     "headerTitle": "Register Site Manager",
     "tabNew": "Register New Site",
@@ -380,6 +405,98 @@
       "newSiteRequired": "Please fill in site name and province.",
       "transitionRequired": "Please fill in site ID and transition reason.",
       "title": "Error"
+    }
+  },
+  "register": {
+    "title": "Create new account",
+    "subtitle": "Start your journey of faith with us",
+    "fields": {
+      "fullName": "Full name",
+      "fullNamePlaceholder": "Enter your full name",
+      "email": "Email",
+      "emailPlaceholder": "Enter your email",
+      "phone": "Phone number",
+      "phonePlaceholder": "Enter your phone number",
+      "dateOfBirth": "Date of birth",
+      "dateOfBirthPlaceholder": "Select date of birth",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordPlaceholder": "Re-enter password"
+    },
+    "passwordHint": "At least 6 characters, including uppercase, lowercase, numbers and special characters",
+    "terms": {
+      "agree": "I agree to the",
+      "termsOfService": "Terms of Service",
+      "and": "and",
+      "privacyPolicy": "Privacy Policy",
+      "termsTitle": "Terms of Service",
+      "termsContent": "Terms of service content will be shown here.",
+      "privacyTitle": "Privacy Policy",
+      "privacyContent": "Privacy policy content will be shown here."
+    },
+    "registerButton": "Register",
+    "orRegisterWith": "Or register with",
+    "alreadyHaveAccount": "Already have an account?",
+    "loginNow": "Log in now",
+    "iosCancelDate": "Cancel",
+    "iosDoneDate": "Done",
+    "success": "Registration successful!",
+    "successMessage": "Your account has been created. Please log in to continue."
+  },
+  "forgotPassword": {
+    "email": {
+      "title": "Forgot password?",
+      "description": "Don't worry! Enter your registered email and we'll send a verification code to reset your password.",
+      "label": "Email",
+      "placeholder": "Enter your email",
+      "sendOtp": "Send verification code"
+    },
+    "otp": {
+      "title": "Enter verification code",
+      "description": "We sent a 6-digit code to",
+      "noCode": "Didn't receive the code?",
+      "resend": "Resend",
+      "resendAfter": "Resend after {{count}}s",
+      "confirm": "Confirm",
+      "error": "Please enter the complete 6-digit verification code"
+    },
+    "newPassword": {
+      "title": "Create new password",
+      "description": "Your new password must be different from your previous password.",
+      "newPasswordLabel": "New password",
+      "newPasswordPlaceholder": "At least 8 characters",
+      "confirmLabel": "Confirm password",
+      "confirmPlaceholder": "Re-enter new password",
+      "requirements": {
+        "minLength": "At least 8 characters",
+        "uppercase": "At least 1 uppercase letter",
+        "number": "At least 1 number"
+      },
+      "submit": "Reset password"
+    },
+    "success": {
+      "title": "Success!",
+      "description": "Your password has been reset successfully. You can now log in with your new password.",
+      "loginNow": "Log in now"
+    },
+    "backToLogin": "Back to login",
+    "errors": {
+      "title": "Error",
+      "emailRequired": "Please enter your email",
+      "emailNotFound": "Email does not exist in the system.",
+      "emailInvalid": "Invalid email.",
+      "otpInvalid": "OTP is incorrect or has expired. Please try again.",
+      "cannotSendOtp": "Cannot send OTP. Please try again.",
+      "cannotResendOtp": "Cannot resend OTP",
+      "invalidAction": "Invalid action.",
+      "otpExpired": "Verification code is invalid or has expired. Please check again.",
+      "resetFailed": "Password reset failed. Please try again.",
+      "allRequired": "Please fill in all fields",
+      "passwordMismatch": "Passwords do not match",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "verifyFailed": "Verification failed",
+      "otpResent": "OTP has been resent to your email"
     }
   }
 }

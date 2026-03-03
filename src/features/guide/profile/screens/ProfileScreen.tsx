@@ -30,6 +30,8 @@ import {
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import useI18n from "../../../../hooks/useI18n";
+import { useNotifications } from "../../../../hooks/useNotifications";
+import { NotificationModal } from "../../../pilgrim/explore/components/NotificationModal";
 import { useGuideProfile } from "../hooks/useGuideProfile";
 
 // Premium color palette
@@ -155,6 +157,9 @@ const ProfileScreen: React.FC = () => {
   const { t } = useI18n();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const { unreadCount } = useNotifications();
 
   // Use API hook for profile, site and stats data
   const { profile, site, stats, loading, refetch, isVerified } =
@@ -177,8 +182,8 @@ const ProfileScreen: React.FC = () => {
   }, [navigation]);
 
   const handleNotifications = useCallback(() => {
-    Alert.alert(t("common.ok"), t("profile.featureComingSoon"));
-  }, [t]);
+    setShowNotifications(true);
+  }, []);
 
   const handleMySite = useCallback(() => {
     // Navigate to SiteManagement screen to display full info with edit option
@@ -349,7 +354,13 @@ const ProfileScreen: React.FC = () => {
             icon="notifications-outline"
             label={t("profile.menu.notifications")}
             onPress={handleNotifications}
-            showBadge="3"
+            showBadge={
+              unreadCount > 0
+                ? unreadCount > 99
+                  ? "99+"
+                  : unreadCount.toString()
+                : undefined
+            }
           />
           <MenuItem
             icon="business-outline"
@@ -408,6 +419,11 @@ const ProfileScreen: React.FC = () => {
         {/* Version */}
         <Text style={styles.versionText}>{t("profile.version")}</Text>
       </ScrollView>
+
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </ImageBackground>
   );
 };

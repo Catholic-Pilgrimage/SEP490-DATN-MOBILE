@@ -10,8 +10,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/splash-full.png",
-      "resizeMode": "cover"
+      "image": "./assets/images/logo.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#cfaa3a"
     },
     "ios": {
       "supportsTablet": true,
@@ -24,6 +25,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#cfaa3a"
+      },
+      "splash": {
+        "image": "./assets/images/splash-full.png",
+        "resizeMode": "cover",
         "backgroundColor": "#cfaa3a"
       },
       "package": "com.anonymous.PilgrimApp",

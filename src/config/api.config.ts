@@ -2,7 +2,7 @@
 
 export const API_CONFIG = {
   // Base URL for the API (from environment variable or default)
-  BASE_URL: process.env.EXPO_PUBLIC_API_URL || "http://172.16.216.223:3000",
+  BASE_URL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.137:3000",
 
   // Request timeout in milliseconds (from environment variable or default 60s)
   TIMEOUT: Number(process.env.EXPO_PUBLIC_API_TIMEOUT) || 60000,

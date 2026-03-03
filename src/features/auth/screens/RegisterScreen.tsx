@@ -5,29 +5,30 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { SHADOWS } from "../../../constants/theme.constants";
 import { useAuth } from "../../../contexts/AuthContext";
+import { useI18n } from "../../../hooks/useI18n";
 import {
-    RegisterFormErrors,
-    formatDateForApi,
-    formatDateForDisplay,
-    formatPhoneForApi,
-    validateRegisterForm,
+  RegisterFormErrors,
+  formatDateForApi,
+  formatDateForDisplay,
+  formatPhoneForApi,
+  validateRegisterForm,
 } from "../../../utils/validation";
 
 // Background image
@@ -52,6 +53,7 @@ const REGISTER_COLORS = {
 const RegisterScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { register, isLoading, error, clearError } = useAuth();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
 
   // Form states
@@ -161,8 +163,8 @@ const RegisterScreen = () => {
 
       Toast.show({
         type: "success",
-        text1: "Đăng ký thành công!",
-        text2: "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục.",
+        text1: t("register.success"),
+        text2: t("register.successMessage"),
       });
       navigation.navigate("Login", { email: email.trim().toLowerCase() });
     } catch {
@@ -180,16 +182,16 @@ const RegisterScreen = () => {
   const handleTermsPress = () => {
     Toast.show({
       type: "info",
-      text1: "Điều khoản dịch vụ",
-      text2: "Nội dung điều khoản dịch vụ sẽ được hiển thị ở đây.",
+      text1: t("register.terms.termsTitle"),
+      text2: t("register.terms.termsContent"),
     });
   };
 
   const handlePrivacyPress = () => {
     Toast.show({
       type: "info",
-      text1: "Chính sách bảo mật",
-      text2: "Nội dung chính sách bảo mật sẽ được hiển thị ở đây.",
+      text1: t("register.terms.privacyTitle"),
+      text2: t("register.terms.privacyContent"),
     });
   };
 
@@ -322,7 +324,7 @@ const RegisterScreen = () => {
             >
               {dateOfBirth
                 ? formatDateForDisplay(dateOfBirth)
-                : "Chọn ngày sinh"}
+                : t("register.fields.dateOfBirthPlaceholder")}
             </Text>
             <MaterialIcons
               name="arrow-drop-down"
@@ -400,10 +402,8 @@ const RegisterScreen = () => {
                 <MaterialIcons name="person-add" size={32} color="#fff" />
               </LinearGradient>
             </View>
-            <Text style={styles.title}>Tạo tài khoản mới</Text>
-            <Text style={styles.subtitle}>
-              Bắt đầu hành trình đức tin của bạn cùng chúng tôi
-            </Text>
+            <Text style={styles.title}>{t("register.title")}</Text>
+            <Text style={styles.subtitle}>{t("register.subtitle")}</Text>
           </View>
 
           {/* Error Banner */}
@@ -439,11 +439,12 @@ const RegisterScreen = () => {
             {/* Full Name */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Họ và tên <Text style={styles.required}>*</Text>
+                {t("register.fields.fullName")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderInput(
                 "person-outline",
-                "Nhập họ và tên của bạn",
+                t("register.fields.fullNamePlaceholder"),
                 fullName,
                 setFullName,
                 "fullName",
@@ -454,11 +455,12 @@ const RegisterScreen = () => {
             {/* Email */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Email <Text style={styles.required}>*</Text>
+                {t("register.fields.email")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderInput(
                 "mail-outline",
-                "Nhập email của bạn",
+                t("register.fields.emailPlaceholder"),
                 email,
                 setEmail,
                 "email",
@@ -469,11 +471,12 @@ const RegisterScreen = () => {
             {/* Phone */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Số điện thoại <Text style={styles.required}>*</Text>
+                {t("register.fields.phone")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderInput(
                 "phone",
-                "Nhập số điện thoại của bạn",
+                t("register.fields.phonePlaceholder"),
                 phone,
                 setPhone,
                 "phone",
@@ -484,7 +487,8 @@ const RegisterScreen = () => {
             {/* Date of Birth */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Ngày sinh <Text style={styles.required}>*</Text>
+                {t("register.fields.dateOfBirth")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderDateInput()}
             </View>
@@ -492,11 +496,12 @@ const RegisterScreen = () => {
             {/* Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Mật khẩu <Text style={styles.required}>*</Text>
+                {t("register.fields.password")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderInput(
                 "lock-outline",
-                "Nhập mật khẩu",
+                t("register.fields.passwordPlaceholder"),
                 password,
                 setPassword,
                 "password",
@@ -509,18 +514,19 @@ const RegisterScreen = () => {
                 },
               )}
               <Text style={styles.passwordHint}>
-                Ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt
+                {t("register.passwordHint")}
               </Text>
             </View>
 
             {/* Confirm Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>
-                Xác nhận mật khẩu <Text style={styles.required}>*</Text>
+                {t("register.fields.confirmPassword")}{" "}
+                <Text style={styles.required}>*</Text>
               </Text>
               {renderInput(
                 "lock-outline",
-                "Nhập lại mật khẩu",
+                t("register.fields.confirmPasswordPlaceholder"),
                 confirmPassword,
                 setConfirmPassword,
                 "confirmPassword",
@@ -556,13 +562,13 @@ const RegisterScreen = () => {
                 )}
               </View>
               <Text style={styles.termsText}>
-                Tôi đồng ý với{" "}
+                {t("register.terms.agree")}{" "}
                 <Text style={styles.termsLink} onPress={handleTermsPress}>
-                  Điều khoản dịch vụ
+                  {t("register.terms.termsOfService")}
                 </Text>{" "}
-                và{" "}
+                {t("register.terms.and")}{" "}
                 <Text style={styles.termsLink} onPress={handlePrivacyPress}>
-                  Chính sách bảo mật
+                  {t("register.terms.privacyPolicy")}
                 </Text>
               </Text>
             </TouchableOpacity>
@@ -589,7 +595,9 @@ const RegisterScreen = () => {
                 />
               ) : (
                 <>
-                  <Text style={styles.registerButtonText}>Đăng ký</Text>
+                  <Text style={styles.registerButtonText}>
+                    {t("register.registerButton")}
+                  </Text>
                   <MaterialIcons
                     name="arrow-forward"
                     size={20}
@@ -602,7 +610,9 @@ const RegisterScreen = () => {
             {/* Divider */}
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Hoặc đăng ký với</Text>
+              <Text style={styles.dividerText}>
+                {t("register.orRegisterWith")}
+              </Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -629,13 +639,15 @@ const RegisterScreen = () => {
 
           {/* Footer */}
           <View style={styles.footerContainer}>
-            <Text style={styles.footerText}>Đã có tài khoản? </Text>
+            <Text style={styles.footerText}>
+              {t("register.alreadyHaveAccount")}{" "}
+            </Text>
             <TouchableOpacity
               onPress={handleLogin}
               activeOpacity={0.7}
               disabled={isDisabled}
             >
-              <Text style={styles.loginLink}>Đăng nhập ngay</Text>
+              <Text style={styles.loginLink}>{t("register.loginNow")}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -647,10 +659,14 @@ const RegisterScreen = () => {
           <View style={styles.iosDatePickerContainer}>
             <View style={styles.iosDatePickerHeader}>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.iosDatePickerCancel}>Hủy</Text>
+                <Text style={styles.iosDatePickerCancel}>
+                  {t("register.iosCancelDate")}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                <Text style={styles.iosDatePickerDone}>Xong</Text>
+                <Text style={styles.iosDatePickerDone}>
+                  {t("register.iosDoneDate")}
+                </Text>
               </TouchableOpacity>
             </View>
             <DateTimePicker

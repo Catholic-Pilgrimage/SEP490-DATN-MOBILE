@@ -22,18 +22,20 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
-  GUIDE_SPACING
+  GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useI18n } from "../../../../hooks/useI18n";
+import { useNotifications } from "../../../../hooks/useNotifications";
 import {
   getFontSize,
   getSpacing,
   isSmallScreen,
   isTablet,
   moderateScale,
-  responsive
+  responsive,
 } from "../../../../utils/responsive";
+import { NotificationModal } from "../../../pilgrim/explore/components/NotificationModal";
 import { PilgrimInsights, QuickActionsBar, RecentReviews } from "../components";
 import { useDashboardHome } from "../hooks/useDashboardHome";
 
@@ -62,7 +64,7 @@ const getScreenHeight = () => Dimensions.get("window").height;
 const getHeroHeight = () => {
   const width = getScreenWidth();
   if (width < 375) return width * 0.85; // Small screens
-  if (width < 414) return width * 0.9;  // Medium screens
+  if (width < 414) return width * 0.9; // Medium screens
   if (width >= 768) return width * 0.5; // Tablets
   return width * 0.95; // Large phones
 };
@@ -147,7 +149,7 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
           styles.quickActionButton,
           {
             width: getQuickActionWidth(),
-          }
+          },
         ]}
         onPress={onPress}
         onPressIn={handlePressIn}
@@ -160,7 +162,7 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
           end={{ x: 1, y: 1 }}
           style={[
             styles.quickActionGradient,
-            { minHeight: getQuickActionMinHeight() }
+            { minHeight: getQuickActionMinHeight() },
           ]}
         >
           {/* Decorative Pattern - Cross motif */}
@@ -173,25 +175,21 @@ const QuickActionButton: React.FC<QuickActionProps> = ({
           </View>
 
           {/* Icon */}
-          <View style={[
-            styles.quickActionIconContainer,
-            {
-              width: iconContainerSize,
-              height: iconContainerSize,
-              borderRadius: iconContainerSize * 0.3,
-            }
-          ]}>
-            <MaterialIcons
-              name={icon}
-              size={iconSize}
-              color="#FFFFFF"
-            />
+          <View
+            style={[
+              styles.quickActionIconContainer,
+              {
+                width: iconContainerSize,
+                height: iconContainerSize,
+                borderRadius: iconContainerSize * 0.3,
+              },
+            ]}
+          >
+            <MaterialIcons name={icon} size={iconSize} color="#FFFFFF" />
           </View>
 
           {/* Label */}
-          <Text style={styles.quickActionLabel}>
-            {label}
-          </Text>
+          <Text style={styles.quickActionLabel}>{label}</Text>
 
           {/* Badge */}
           {badgeCount !== undefined && badgeCount > 0 && (
@@ -238,7 +236,7 @@ const StatusIndicator: React.FC<{ isActive: boolean }> = ({ isActive }) => {
               useNativeDriver: true,
             }),
           ]),
-        ])
+        ]),
       ).start();
     }
   }, [isActive, pulseAnim, glowAnim]);
@@ -275,7 +273,9 @@ const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { user } = useAuth();
+  const { unreadCount } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // Use dynamic dimensions for responsive updates
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -366,7 +366,7 @@ const DashboardScreen: React.FC = () => {
       return user.fullName;
     }
     if (user?.email) {
-      return user.email.split('@')[0]; // Use email username as fallback
+      return user.email.split("@")[0]; // Use email username as fallback
     }
     return "Local Guide";
   };
@@ -414,7 +414,7 @@ const DashboardScreen: React.FC = () => {
                 "rgba(0, 0, 0, 0.5)",
                 "rgba(0, 0, 0, 0.55)",
                 "rgba(253, 248, 240, 0.95)",
-                PREMIUM_COLORS.cream
+                PREMIUM_COLORS.cream,
               ]}
               locations={[0, 0.2, 0.4, 0.55, 0.8, 1]}
               style={styles.heroGradient}
@@ -431,32 +431,33 @@ const DashboardScreen: React.FC = () => {
                     colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
                     style={styles.appBarButtonGradient}
                   >
-                    <Ionicons
-                      name="person"
-                      size={20}
-                      color="#FFFFFF"
-                    />
+                    <Ionicons name="person" size={20} color="#FFFFFF" />
                   </LinearGradient>
                 </TouchableOpacity>
 
                 <View style={styles.appBarTitleContainer}>
-                  <Text style={styles.appBarTitle}>{t("dashboard.cathedralGuide")}</Text>
+                  <Text style={styles.appBarTitle}>
+                    {t("dashboard.cathedralGuide")}
+                  </Text>
                   <View style={styles.appBarTitleUnderline} />
                 </View>
 
-                <TouchableOpacity style={styles.appBarButton}>
+                <TouchableOpacity
+                  style={styles.appBarButton}
+                  onPress={() => setShowNotifications(true)}
+                >
                   <LinearGradient
                     colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
                     style={styles.appBarButtonGradient}
                   >
-                    <Ionicons
-                      name="notifications"
-                      size={20}
-                      color="#FFFFFF"
-                    />
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>3</Text>
-                    </View>
+                    <Ionicons name="notifications" size={20} color="#FFFFFF" />
+                    {unreadCount > 0 && (
+                      <View style={styles.notificationBadge}>
+                        <Text style={styles.notificationBadgeText}>
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Text>
+                      </View>
+                    )}
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -465,14 +466,21 @@ const DashboardScreen: React.FC = () => {
               <View style={styles.heroContent}>
                 <View style={styles.greetingContainer}>
                   <View style={styles.greetingLine} />
-                  <Text style={styles.heroGreeting}>{greeting}, {guideName}</Text>
+                  <Text style={styles.heroGreeting}>
+                    {greeting}, {guideName}
+                  </Text>
                   <View style={styles.greetingLine} />
                 </View>
 
-                <Text style={[
-                  styles.heroSiteName,
-                  { fontSize: siteNameFontSize, lineHeight: siteNameFontSize * 1.2 }
-                ]}>
+                <Text
+                  style={[
+                    styles.heroSiteName,
+                    {
+                      fontSize: siteNameFontSize,
+                      lineHeight: siteNameFontSize * 1.2,
+                    },
+                  ]}
+                >
                   {siteLoading
                     ? t("common.loading")
                     : siteInfo?.name || t("dashboard.notAssignedSite")}
@@ -490,18 +498,25 @@ const DashboardScreen: React.FC = () => {
                   >
                     <StatusIndicator isActive={isOpen} />
                     <Text style={styles.statusText}>
-                      {isOpen ? t("dashboard.status.open") : t("dashboard.status.closed")}
+                      {isOpen
+                        ? t("dashboard.status.open")
+                        : t("dashboard.status.closed")}
                     </Text>
                   </View>
                   {/* Patron Saint - Elegant Italic with ellipsis */}
                   {siteInfo?.patronSaint && (
                     <View style={styles.heroPatronContainer}>
                       <Text
-                        style={[styles.heroPatron, { fontSize: getFontSize(13) }]}
+                        style={[
+                          styles.heroPatron,
+                          { fontSize: getFontSize(13) },
+                        ]}
                         numberOfLines={1}
                         ellipsizeMode="tail"
                       >
-                        <Text style={styles.heroPatronLabel}>{t("dashboard.patron")}: </Text>
+                        <Text style={styles.heroPatronLabel}>
+                          {t("dashboard.patron")}:{" "}
+                        </Text>
                         {siteInfo.patronSaint}
                       </Text>
                     </View>
@@ -513,7 +528,12 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Compact Quick Actions Bar - Horizontal Scroll */}
-        <View style={[styles.quickActionsOverlay, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
+        <View
+          style={[
+            styles.quickActionsOverlay,
+            { paddingHorizontal: getSpacing(GUIDE_SPACING.md) },
+          ]}
+        >
           <QuickActionsBar
             onActionPress={(actionId) => handleQuickAction(actionId)}
             badges={{
@@ -526,20 +546,43 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Pilgrim Insights Section - Live Data */}
-        <View style={[styles.pilgrimSection, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
+        <View
+          style={[
+            styles.pilgrimSection,
+            { paddingHorizontal: getSpacing(GUIDE_SPACING.md) },
+          ]}
+        >
           <PilgrimInsights
             liveCheckInCount={12} // TODO: Connect to real API
-            todayVisitors={48}    // TODO: Connect to real API
-            onViewAll={() => { /* TODO: Navigate to pilgrim stats */ }}
+            todayVisitors={48} // TODO: Connect to real API
+            onViewAll={() => {
+              /* TODO: Navigate to pilgrim stats */
+            }}
           />
         </View>
 
         {/* Today's Overview Section - Premium Design */}
-        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.md) }]}>
+        <View
+          style={[
+            styles.section,
+            { paddingHorizontal: getSpacing(GUIDE_SPACING.md) },
+          ]}
+        >
           <View style={styles.sectionHeaderRow}>
             <View>
-              <Text style={[styles.sectionLabel, { fontSize: getFontSize(10) }]}>{t("todayOverview.sectionLabel")}</Text>
-              <Text style={[styles.sectionTitleSerif, { fontSize: sectionTitleFontSize }]}>{t("todayOverview.title")}</Text>
+              <Text
+                style={[styles.sectionLabel, { fontSize: getFontSize(10) }]}
+              >
+                {t("todayOverview.sectionLabel")}
+              </Text>
+              <Text
+                style={[
+                  styles.sectionTitleSerif,
+                  { fontSize: sectionTitleFontSize },
+                ]}
+              >
+                {t("todayOverview.title")}
+              </Text>
             </View>
             {activeShiftDisplay.shouldShow && (
               <LinearGradient
@@ -548,7 +591,9 @@ const DashboardScreen: React.FC = () => {
                 end={{ x: 1, y: 1 }}
                 style={styles.shiftBadge}
               >
-                <Text style={styles.shiftBadgeLabel}>{t("todayOverview.activeShift")}</Text>
+                <Text style={styles.shiftBadgeLabel}>
+                  {t("todayOverview.activeShift")}
+                </Text>
                 <Text style={styles.shiftBadgeTime}>
                   {activeShiftDisplay.timeRange}
                 </Text>
@@ -560,8 +605,16 @@ const DashboardScreen: React.FC = () => {
           <View style={styles.timeline}>
             {todayOverview.length === 0 ? (
               <View style={styles.emptyStateContainer}>
-                <MaterialIcons name="event-available" size={moderateScale(48, 0.3)} color={GUIDE_COLORS.gray300} />
-                <Text style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}>{t("todayOverview.noSchedule")}</Text>
+                <MaterialIcons
+                  name="event-available"
+                  size={moderateScale(48, 0.3)}
+                  color={GUIDE_COLORS.gray300}
+                />
+                <Text
+                  style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}
+                >
+                  {t("todayOverview.noSchedule")}
+                </Text>
               </View>
             ) : (
               todayOverview.map((item, index) => (
@@ -583,14 +636,17 @@ const DashboardScreen: React.FC = () => {
                       style={styles.timelineDot}
                     >
                       <MaterialIcons
-                        name={item.type === 'schedule' ? "church" : "event"}
+                        name={item.type === "schedule" ? "church" : "event"}
                         size={14}
                         color={item.isNow ? "#FFFFFF" : "#6B7280"}
                       />
                     </LinearGradient>
                     {index < todayOverview.length - 1 && (
                       <LinearGradient
-                        colors={[PREMIUM_COLORS.gold, "rgba(212, 175, 55, 0.2)"]}
+                        colors={[
+                          PREMIUM_COLORS.gold,
+                          "rgba(212, 175, 55, 0.2)",
+                        ]}
                         style={styles.timelineLine}
                       />
                     )}
@@ -614,14 +670,27 @@ const DashboardScreen: React.FC = () => {
                       {item.title}
                     </Text>
                     <View style={styles.timelineLocationRow}>
-                      <Ionicons name="location-outline" size={moderateScale(12, 0.3)} color={GUIDE_COLORS.gray400} />
-                      <Text style={[styles.timelineLocation, { fontSize: getFontSize(12) }]}>{item.location || t("todayOverview.mainArea")}</Text>
+                      <Ionicons
+                        name="location-outline"
+                        size={moderateScale(12, 0.3)}
+                        color={GUIDE_COLORS.gray400}
+                      />
+                      <Text
+                        style={[
+                          styles.timelineLocation,
+                          { fontSize: getFontSize(12) },
+                        ]}
+                      >
+                        {item.location || t("todayOverview.mainArea")}
+                      </Text>
                     </View>
                   </View>
 
                   {item.isNow && (
                     <View style={styles.timelineActiveIndicator}>
-                      <Text style={styles.timelineActiveText}>{t("todayOverview.now")}</Text>
+                      <Text style={styles.timelineActiveText}>
+                        {t("todayOverview.now")}
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -631,20 +700,46 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Recent Activity Section - Premium Cards */}
-        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.xl) }]}>
+        <View
+          style={[
+            styles.section,
+            { paddingHorizontal: getSpacing(GUIDE_SPACING.xl) },
+          ]}
+        >
           <View style={styles.sectionHeaderWithAction}>
-            <Text style={[styles.sectionTitleSerif, { fontSize: sectionTitleFontSize }]}>{t("recentActivity.title")}</Text>
+            <Text
+              style={[
+                styles.sectionTitleSerif,
+                { fontSize: sectionTitleFontSize },
+              ]}
+            >
+              {t("recentActivity.title")}
+            </Text>
             <TouchableOpacity style={styles.viewAllButton}>
-              <Text style={[styles.viewAllText, { fontSize: getFontSize(13) }]}>{t("common.viewAll")}</Text>
-              <Ionicons name="chevron-forward" size={moderateScale(14, 0.3)} color={PREMIUM_COLORS.gold} />
+              <Text style={[styles.viewAllText, { fontSize: getFontSize(13) }]}>
+                {t("common.viewAll")}
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={moderateScale(14, 0.3)}
+                color={PREMIUM_COLORS.gold}
+              />
             </TouchableOpacity>
           </View>
 
           <View style={styles.activityList}>
             {recentActivity.length === 0 ? (
               <View style={styles.emptyStateContainer}>
-                <MaterialIcons name="history" size={moderateScale(48, 0.3)} color={GUIDE_COLORS.gray300} />
-                <Text style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}>{t("recentActivity.noActivity")}</Text>
+                <MaterialIcons
+                  name="history"
+                  size={moderateScale(48, 0.3)}
+                  color={GUIDE_COLORS.gray300}
+                />
+                <Text
+                  style={[styles.emptyStateText, { fontSize: getFontSize(14) }]}
+                >
+                  {t("recentActivity.noActivity")}
+                </Text>
               </View>
             ) : (
               recentActivity.slice(0, 5).map((activity) => (
@@ -652,16 +747,31 @@ const DashboardScreen: React.FC = () => {
                   <View style={styles.activityImageContainer}>
                     <Image
                       source={{
-                        uri: activity.thumbnail || "https://via.placeholder.com/50",
+                        uri:
+                          activity.thumbnail ||
+                          "https://via.placeholder.com/50",
                       }}
-                      style={[styles.activityImage, { width: moderateScale(56, 0.3), height: moderateScale(56, 0.3) }]}
+                      style={[
+                        styles.activityImage,
+                        {
+                          width: moderateScale(56, 0.3),
+                          height: moderateScale(56, 0.3),
+                        },
+                      ]}
                     />
-                    <View style={[
-                      styles.activityImageOverlay,
-                      { backgroundColor: activity.type === 'media' ? PREMIUM_COLORS.gold : PREMIUM_COLORS.sapphire }
-                    ]}>
+                    <View
+                      style={[
+                        styles.activityImageOverlay,
+                        {
+                          backgroundColor:
+                            activity.type === "media"
+                              ? PREMIUM_COLORS.gold
+                              : PREMIUM_COLORS.sapphire,
+                        },
+                      ]}
+                    >
                       <Ionicons
-                        name={activity.type === 'media' ? "image" : "calendar"}
+                        name={activity.type === "media" ? "image" : "calendar"}
                         size={moderateScale(12, 0.3)}
                         color="#FFFFFF"
                       />
@@ -673,8 +783,19 @@ const DashboardScreen: React.FC = () => {
                       {activity.subtitle}
                     </Text>
                     <View style={styles.activityTimeRow}>
-                      <Ionicons name="time-outline" size={10} color={GUIDE_COLORS.gray400} />
-                      <Text style={styles.activityTime}>{new Date(activity.created_at).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</Text>
+                      <Ionicons
+                        name="time-outline"
+                        size={10}
+                        color={GUIDE_COLORS.gray400}
+                      />
+                      <Text style={styles.activityTime}>
+                        {new Date(activity.created_at).toLocaleString("vi-VN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          day: "2-digit",
+                          month: "2-digit",
+                        })}
+                      </Text>
                     </View>
                   </View>
                   <View style={styles.activityArrow}>
@@ -691,46 +812,73 @@ const DashboardScreen: React.FC = () => {
         </View>
 
         {/* Recent Reviews Section - Pilgrim Feedback */}
-        <View style={[styles.section, { paddingHorizontal: getSpacing(GUIDE_SPACING.lg) }]}>
+        <View
+          style={[
+            styles.section,
+            { paddingHorizontal: getSpacing(GUIDE_SPACING.lg) },
+          ]}
+        >
           <RecentReviews
             reviews={[
               {
-                id: '1',
-                pilgrimName: 'Maria Nguyễn',
-                pilgrimAvatar: 'https://randomuser.me/api/portraits/women/44.jpg',
+                id: "1",
+                pilgrimName: "Maria Nguyễn",
+                pilgrimAvatar:
+                  "https://randomuser.me/api/portraits/women/44.jpg",
                 rating: 5,
-                content: 'Buổi hành hương rất ý nghĩa! Hướng dẫn viên nhiệt tình và am hiểu lịch sử.',
-                createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+                content:
+                  "Buổi hành hương rất ý nghĩa! Hướng dẫn viên nhiệt tình và am hiểu lịch sử.",
+                createdAt: new Date(
+                  Date.now() - 2 * 60 * 60 * 1000,
+                ).toISOString(),
                 isReplied: false,
               },
               {
-                id: '2',
-                pilgrimName: 'Joseph Trần',
-                pilgrimAvatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+                id: "2",
+                pilgrimName: "Joseph Trần",
+                pilgrimAvatar: "https://randomuser.me/api/portraits/men/32.jpg",
                 rating: 4,
-                content: 'Nhà thờ rất đẹp, không gian tĩnh lặng phù hợp cầu nguyện.',
-                createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+                content:
+                  "Nhà thờ rất đẹp, không gian tĩnh lặng phù hợp cầu nguyện.",
+                createdAt: new Date(
+                  Date.now() - 5 * 60 * 60 * 1000,
+                ).toISOString(),
                 isReplied: true,
               },
               {
-                id: '3',
-                pilgrimName: 'Teresa Lê',
-                pilgrimAvatar: 'https://randomuser.me/api/portraits/women/68.jpg',
+                id: "3",
+                pilgrimName: "Teresa Lê",
+                pilgrimAvatar:
+                  "https://randomuser.me/api/portraits/women/68.jpg",
                 rating: 5,
-                content: 'Tuyệt vời! Sẽ quay lại lần sau.',
-                createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+                content: "Tuyệt vời! Sẽ quay lại lần sau.",
+                createdAt: new Date(
+                  Date.now() - 24 * 60 * 60 * 1000,
+                ).toISOString(),
                 isReplied: false,
               },
             ]}
-            onReply={(reviewId) => { /* TODO: Navigate to reply screen */ }}
-            onViewAll={() => { /* TODO: Navigate to all reviews */ }}
-            onAISummary={() => { /* TODO: Generate AI summary */ }}
+            onReply={(reviewId) => {
+              /* TODO: Navigate to reply screen */
+            }}
+            onViewAll={() => {
+              /* TODO: Navigate to all reviews */
+            }}
+            onAISummary={() => {
+              /* TODO: Generate AI summary */
+            }}
           />
         </View>
 
         {/* Bottom Spacing for Tab Bar */}
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Notification Modal */}
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </View>
   );
 };

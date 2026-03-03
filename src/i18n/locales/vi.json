@@ -290,6 +290,31 @@
     "shareMessage": "Tải ngay Catholic Pilgrim App - Ứng dụng đồng hành cùng người hành hương Công giáo!",
     "cannotChangeLanguage": "Không thể đổi ngôn ngữ"
   },
+  "notificationScreen": {
+    "title": "Thông báo",
+    "tabs": {
+      "all": "Tất cả",
+      "schedule": "Lịch trình",
+      "system": "Hệ thống"
+    },
+    "sections": {
+      "newest": "Mới nhất",
+      "today": "Hôm nay",
+      "earlier": "Trước đó"
+    },
+    "empty": "Không có thông báo nào",
+    "emptyTitle": "Thật yên bình!",
+    "emptyText": "Bạn chưa có thông báo mới nào.",
+    "backButton": "Quay về",
+    "endOfList": "Bạn đã xem hết thông báo",
+    "loadMoreError": "Không thể tải thêm thông báo",
+    "tapToRetry": "Nhấn để thử lại",
+    "deleteConfirmTitle": "Xóa thông báo",
+    "deleteConfirmMessage": "Bạn muốn xóa thông báo nào?",
+    "deleteRead": "Xóa đã đọc",
+    "deleteAll": "Xóa tất cả",
+    "markAllRead": "Đánh dấu tất cả đã đọc"
+  },
   "verification": {
     "headerTitle": "Đăng ký Quản lý Điểm",
     "tabNew": "Đăng ký điểm mới",
@@ -381,6 +406,98 @@
       "newSiteRequired": "Vui lòng điền Tên điểm hành hương và Tỉnh/Thành.",
       "transitionRequired": "Vui lòng điền Mã điểm hành hương và Lý do thay thế.",
       "title": "Lỗi"
+    }
+  },
+  "register": {
+    "title": "Tạo tài khoản mới",
+    "subtitle": "Bắt đầu hành trình đức tin của bạn cùng chúng tôi",
+    "fields": {
+      "fullName": "Họ và tên",
+      "fullNamePlaceholder": "Nhập họ và tên của bạn",
+      "email": "Email",
+      "emailPlaceholder": "Nhập email của bạn",
+      "phone": "Số điện thoại",
+      "phonePlaceholder": "Nhập số điện thoại của bạn",
+      "dateOfBirth": "Ngày sinh",
+      "dateOfBirthPlaceholder": "Chọn ngày sinh",
+      "password": "Mật khẩu",
+      "passwordPlaceholder": "Nhập mật khẩu",
+      "confirmPassword": "Xác nhận mật khẩu",
+      "confirmPasswordPlaceholder": "Nhập lại mật khẩu"
+    },
+    "passwordHint": "Ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt",
+    "terms": {
+      "agree": "Tôi đồng ý với",
+      "termsOfService": "Điều khoản dịch vụ",
+      "and": "và",
+      "privacyPolicy": "Chính sách bảo mật",
+      "termsTitle": "Điều khoản dịch vụ",
+      "termsContent": "Nội dung điều khoản dịch vụ sẽ được hiển thị ở đây.",
+      "privacyTitle": "Chính sách bảo mật",
+      "privacyContent": "Nội dung chính sách bảo mật sẽ được hiển thị ở đây."
+    },
+    "registerButton": "Đăng ký",
+    "orRegisterWith": "Hoặc đăng ký với",
+    "alreadyHaveAccount": "Đã có tài khoản?",
+    "loginNow": "Đăng nhập ngay",
+    "iosCancelDate": "Hủy",
+    "iosDoneDate": "Xong",
+    "success": "Đăng ký thành công!",
+    "successMessage": "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục."
+  },
+  "forgotPassword": {
+    "email": {
+      "title": "Quên mật khẩu?",
+      "description": "Đừng lo lắng! Nhập email đã đăng ký và chúng tôi sẽ gửi mã xác thực để đặt lại mật khẩu.",
+      "label": "Email",
+      "placeholder": "Nhập email của bạn",
+      "sendOtp": "Gửi mã xác thực"
+    },
+    "otp": {
+      "title": "Nhập mã xác thực",
+      "description": "Chúng tôi đã gửi mã 6 số đến",
+      "noCode": "Không nhận được mã?",
+      "resend": "Gửi lại",
+      "resendAfter": "Gửi lại sau {{count}}s",
+      "confirm": "Xác nhận",
+      "error": "Vui lòng nhập đầy đủ mã xác thực 6 số"
+    },
+    "newPassword": {
+      "title": "Tạo mật khẩu mới",
+      "description": "Mật khẩu mới phải khác với mật khẩu đã sử dụng trước đó.",
+      "newPasswordLabel": "Mật khẩu mới",
+      "newPasswordPlaceholder": "Tối thiểu 8 ký tự",
+      "confirmLabel": "Xác nhận mật khẩu",
+      "confirmPlaceholder": "Nhập lại mật khẩu mới",
+      "requirements": {
+        "minLength": "Ít nhất 8 ký tự",
+        "uppercase": "Ít nhất 1 chữ hoa",
+        "number": "Ít nhất 1 số"
+      },
+      "submit": "Đặt lại mật khẩu"
+    },
+    "success": {
+      "title": "Thành công!",
+      "description": "Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng nhập với mật khẩu mới.",
+      "loginNow": "Đăng nhập ngay"
+    },
+    "backToLogin": "Quay lại đăng nhập",
+    "errors": {
+      "title": "Lỗi",
+      "emailRequired": "Vui lòng nhập email",
+      "emailNotFound": "Email không tồn tại trong hệ thống.",
+      "emailInvalid": "Email không hợp lệ.",
+      "otpInvalid": "Mã OTP không chính xác hoặc đã hết hạn. Vui lòng thử lại.",
+      "cannotSendOtp": "Không thể gửi mã OTP. Vui lòng thử lại.",
+      "cannotResendOtp": "Không thể gửi lại mã OTP",
+      "invalidAction": "Thao tác không hợp lệ.",
+      "otpExpired": "Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.",
+      "resetFailed": "Đặt lại mật khẩu thất bại. Vui lòng thử lại.",
+      "allRequired": "Vui lòng nhập đầy đủ thông tin",
+      "passwordMismatch": "Mật khẩu xác nhận không khớp",
+      "passwordTooShort": "Mật khẩu phải có ít nhất 8 ký tự",
+      "verifyFailed": "Xác thực thất bại",
+      "otpResent": "Đã gửi lại mã OTP đến email của bạn"
     }
   }
 }

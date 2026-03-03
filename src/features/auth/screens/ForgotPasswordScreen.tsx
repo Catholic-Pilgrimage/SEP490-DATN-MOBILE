@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { SHADOWS } from "../../../constants/theme.constants";
+import { useI18n } from "../../../hooks/useI18n";
 import authApi from "../../../services/api/shared/authApi";
 
 // Background image
@@ -47,6 +48,7 @@ type Step = "email" | "otp" | "newPassword" | "success";
 const ForgotPasswordScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
+  const { t } = useI18n();
   const [currentStep, setCurrentStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -96,7 +98,11 @@ const ForgotPasswordScreen = () => {
 
   const handleSendOTP = async () => {
     if (!email) {
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Vui lòng nhập email" });
+      Toast.show({
+        type: "error",
+        text1: t("forgotPassword.errors.title"),
+        text2: t("forgotPassword.errors.emailRequired"),
+      });
       return;
     }
 
@@ -107,16 +113,20 @@ const ForgotPasswordScreen = () => {
       startResendTimer();
     } catch (error: any) {
       let errorMessage =
-        error.message || "Không thể gửi mã OTP. Vui lòng thử lại.";
+        error.message || t("forgotPassword.errors.cannotSendOtp");
       if (errorMessage.includes("Không tìm thấy tài nguyên")) {
-        errorMessage = "Email không tồn tại trong hệ thống.";
+        errorMessage = t("forgotPassword.errors.emailNotFound");
       } else if (
         errorMessage.includes("không hợp lệ") ||
         errorMessage.includes("tài khoản")
       ) {
-        errorMessage = "Email không hợp lệ.";
+        errorMessage = t("forgotPassword.errors.emailInvalid");
       }
-      Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
+      Toast.show({
+        type: "error",
+        text1: t("forgotPassword.errors.title"),
+        text2: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +135,7 @@ const ForgotPasswordScreen = () => {
   const handleVerifyOTP = async (autoSubmitOtp?: string) => {
     const otpCode = autoSubmitOtp || otp.join("");
     if (otpCode.length < 6) {
-      setOtpError("Vui lòng nhập đầy đủ mã xác thực 6 số");
+      setOtpError(t("forgotPassword.errors.otpInvalid"));
       triggerShake();
       return;
     }
@@ -136,22 +146,20 @@ const ForgotPasswordScreen = () => {
       await authApi.verifyOtp({ email, otp: otpCode });
       setCurrentStep("newPassword");
     } catch (error: any) {
-      let errorMessage =
-        error.message || "Mã xác thực không hợp lệ hoặc đã hết hạn.";
+      let errorMessage = error.message || t("forgotPassword.errors.otpExpired");
       if (
         errorMessage.toLowerCase().includes("otp") ||
         errorMessage.toLowerCase().includes("mã") ||
         errorMessage.toLowerCase().includes("hết hạn") ||
         errorMessage.toLowerCase().includes("không hợp lệ")
       ) {
-        errorMessage =
-          "Mã OTP không chính xác hoặc đã hết hạn. Vui lòng thử lại.";
+        errorMessage = t("forgotPassword.errors.otpExpired");
       }
       setOtpError(errorMessage);
       triggerShake();
       Toast.show({
         type: "error",
-        text1: "Xác thực thất bại",
+        text1: t("forgotPassword.errors.verifyFailed"),
         text2: errorMessage,
       });
     } finally {
@@ -163,8 +171,8 @@ const ForgotPasswordScreen = () => {
     if (!newPassword || !confirmPassword) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Vui lòng nhập đầy đủ thông tin",
+        text1: t("forgotPassword.errors.title"),
+        text2: t("forgotPassword.errors.allRequired"),
       });
       return;
     }
@@ -172,8 +180,8 @@ const ForgotPasswordScreen = () => {
     if (newPassword !== confirmPassword) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Mật khẩu xác nhận không khớp",
+        text1: t("forgotPassword.errors.title"),
+        text2: t("forgotPassword.errors.passwordMismatch"),
       });
       return;
     }
@@ -182,8 +190,8 @@ const ForgotPasswordScreen = () => {
     if (newPassword.length < 8) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Mật khẩu phải có ít nhất 8 ký tự",
+        text1: t("forgotPassword.errors.title"),
+        text2: t("forgotPassword.errors.passwordTooShort"),
       });
       return;
     }
@@ -199,7 +207,7 @@ const ForgotPasswordScreen = () => {
       setCurrentStep("success");
     } catch (error: any) {
       let errorMessage =
-        error.message || "Đặt lại mật khẩu thất bại. Vui lòng thử lại.";
+        error.message || t("forgotPassword.errors.resetFailed");
 
       // Check if error is related to OTP or is a validation error from BE (400, 401, 403)
       const isOtpError =
@@ -210,13 +218,16 @@ const ForgotPasswordScreen = () => {
         errorMessage.includes("tài khoản");
 
       if (isOtpError) {
-        errorMessage =
-          "Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.";
-        setOtpError("Mã OTP không chính xác hoặc đã hết hạn.");
+        errorMessage = t("forgotPassword.errors.otpExpired");
+        setOtpError(t("forgotPassword.errors.otpExpired"));
         setCurrentStep("otp");
         setTimeout(() => triggerShake(), 100);
       }
-      Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
+      Toast.show({
+        type: "error",
+        text1: t("forgotPassword.errors.title"),
+        text2: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -230,20 +241,25 @@ const ForgotPasswordScreen = () => {
         startResendTimer();
         Toast.show({
           type: "success",
-          text1: "Thành công",
-          text2: "Đã gửi lại mã OTP đến email của bạn",
+          text1: t("forgotPassword.errors.otpResent"),
+          text2: t("forgotPassword.errors.otpResent"),
         });
       } catch (error: any) {
-        let errorMessage = error.message || "Không thể gửi lại mã OTP";
+        let errorMessage =
+          error.message || t("forgotPassword.errors.cannotResendOtp");
         if (errorMessage.includes("Không tìm thấy tài nguyên")) {
-          errorMessage = "Email không tồn tại trong hệ thống.";
+          errorMessage = t("forgotPassword.errors.emailNotFound");
         } else if (
           errorMessage.includes("không hợp lệ") ||
           errorMessage.includes("tài khoản")
         ) {
-          errorMessage = "Thao tác không hợp lệ.";
+          errorMessage = t("forgotPassword.errors.invalidAction");
         }
-        Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
+        Toast.show({
+          type: "error",
+          text1: t("forgotPassword.errors.title"),
+          text2: errorMessage,
+        });
       } finally {
         setIsSubmitting(false);
       }
@@ -361,14 +377,13 @@ const ForgotPasswordScreen = () => {
         </LinearGradient>
       </View>
 
-      <Text style={styles.stepTitle}>Quên mật khẩu?</Text>
+      <Text style={styles.stepTitle}>{t("forgotPassword.email.title")}</Text>
       <Text style={styles.stepDescription}>
-        Đừng lo lắng! Nhập email đã đăng ký và chúng tôi sẽ gửi mã xác thực để
-        đặt lại mật khẩu.
+        {t("forgotPassword.email.description")}
       </Text>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>{t("forgotPassword.email.label")}</Text>
         <View
           style={[
             styles.inputWrapper,
@@ -387,7 +402,7 @@ const ForgotPasswordScreen = () => {
           />
           <TextInput
             style={styles.input}
-            placeholder="Nhập email của bạn"
+            placeholder={t("forgotPassword.email.placeholder")}
             placeholderTextColor={`${FORGOT_COLORS.textMuted}99`}
             value={email}
             onChangeText={setEmail}
@@ -412,7 +427,9 @@ const ForgotPasswordScreen = () => {
           />
         ) : (
           <>
-            <Text style={styles.primaryButtonText}>Gửi mã xác thực</Text>
+            <Text style={styles.primaryButtonText}>
+              {t("forgotPassword.email.sendOtp")}
+            </Text>
             <MaterialIcons
               name="arrow-forward"
               size={20}
@@ -433,13 +450,14 @@ const ForgotPasswordScreen = () => {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          <MaterialIcons name="pin" size={32} color="#fff" />
+          <MaterialIcons name="mark-email-read" size={32} color="#fff" />
         </LinearGradient>
       </View>
 
-      <Text style={styles.stepTitle}>Nhập mã xác thực</Text>
+      <Text style={styles.stepTitle}>{t("forgotPassword.otp.title")}</Text>
       <Text style={styles.stepDescription}>
-        Chúng tôi đã gửi mã 6 số đến{"\n"}
+        {t("forgotPassword.otp.description")}
+        {"\n"}
         <Text style={styles.emailHighlight}>{email}</Text>
       </Text>
 
@@ -475,7 +493,7 @@ const ForgotPasswordScreen = () => {
 
       {/* Resend OTP */}
       <View style={styles.resendContainer}>
-        <Text style={styles.resendText}>Không nhận được mã? </Text>
+        <Text style={styles.resendText}>{t("forgotPassword.otp.noCode")} </Text>
         <TouchableOpacity
           onPress={handleResendOTP}
           disabled={resendTimer > 0}
@@ -487,7 +505,9 @@ const ForgotPasswordScreen = () => {
               resendTimer > 0 && styles.resendLinkDisabled,
             ]}
           >
-            {resendTimer > 0 ? `Gửi lại sau ${resendTimer}s` : "Gửi lại"}
+            {resendTimer > 0
+              ? t("forgotPassword.otp.resendAfter", { count: resendTimer })
+              : t("forgotPassword.otp.resend")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -505,7 +525,9 @@ const ForgotPasswordScreen = () => {
           />
         ) : (
           <>
-            <Text style={styles.primaryButtonText}>Xác nhận</Text>
+            <Text style={styles.primaryButtonText}>
+              {t("forgotPassword.otp.confirm")}
+            </Text>
             <MaterialIcons
               name="arrow-forward"
               size={20}
@@ -530,14 +552,18 @@ const ForgotPasswordScreen = () => {
         </LinearGradient>
       </View>
 
-      <Text style={styles.stepTitle}>Tạo mật khẩu mới</Text>
+      <Text style={styles.stepTitle}>
+        {t("forgotPassword.newPassword.title")}
+      </Text>
       <Text style={styles.stepDescription}>
-        Mật khẩu mới phải khác với mật khẩu đã sử dụng trước đó.
+        {t("forgotPassword.newPassword.description")}
       </Text>
 
       {/* New Password Input */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Mật khẩu mới</Text>
+        <Text style={styles.label}>
+          {t("forgotPassword.newPassword.newPasswordLabel")}
+        </Text>
         <View
           style={[
             styles.inputWrapper,
@@ -556,7 +582,7 @@ const ForgotPasswordScreen = () => {
           />
           <TextInput
             style={styles.input}
-            placeholder="Tối thiểu 8 ký tự"
+            placeholder={t("forgotPassword.newPassword.newPasswordPlaceholder")}
             placeholderTextColor={`${FORGOT_COLORS.textMuted}99`}
             value={newPassword}
             onChangeText={setNewPassword}
@@ -581,7 +607,9 @@ const ForgotPasswordScreen = () => {
 
       {/* Confirm Password Input */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Xác nhận mật khẩu</Text>
+        <Text style={styles.label}>
+          {t("forgotPassword.newPassword.confirmLabel")}
+        </Text>
         <View
           style={[
             styles.inputWrapper,
@@ -600,7 +628,7 @@ const ForgotPasswordScreen = () => {
           />
           <TextInput
             style={styles.input}
-            placeholder="Nhập lại mật khẩu mới"
+            placeholder={t("forgotPassword.newPassword.confirmPlaceholder")}
             placeholderTextColor={`${FORGOT_COLORS.textMuted}99`}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -645,7 +673,7 @@ const ForgotPasswordScreen = () => {
               newPassword.length >= 8 && styles.requirementMet,
             ]}
           >
-            Ít nhất 8 ký tự
+            {t("forgotPassword.newPassword.requirements.minLength")}
           </Text>
         </View>
         <View style={styles.requirementItem}>
@@ -668,7 +696,7 @@ const ForgotPasswordScreen = () => {
               /[A-Z]/.test(newPassword) && styles.requirementMet,
             ]}
           >
-            Ít nhất 1 chữ hoa
+            {t("forgotPassword.newPassword.requirements.uppercase")}
           </Text>
         </View>
         <View style={styles.requirementItem}>
@@ -691,7 +719,7 @@ const ForgotPasswordScreen = () => {
               /[0-9]/.test(newPassword) && styles.requirementMet,
             ]}
           >
-            Ít nhất 1 số
+            {t("forgotPassword.newPassword.requirements.number")}
           </Text>
         </View>
       </View>
@@ -709,7 +737,9 @@ const ForgotPasswordScreen = () => {
           />
         ) : (
           <>
-            <Text style={styles.primaryButtonText}>Đặt lại mật khẩu</Text>
+            <Text style={styles.primaryButtonText}>
+              {t("forgotPassword.newPassword.submit")}
+            </Text>
             <MaterialIcons
               name="arrow-forward"
               size={20}
@@ -733,10 +763,9 @@ const ForgotPasswordScreen = () => {
         </View>
       </View>
 
-      <Text style={styles.stepTitle}>Thành công!</Text>
+      <Text style={styles.stepTitle}>{t("forgotPassword.success.title")}</Text>
       <Text style={styles.stepDescription}>
-        Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng nhập với
-        mật khẩu mới.
+        {t("forgotPassword.success.description")}
       </Text>
 
       <TouchableOpacity
@@ -744,7 +773,9 @@ const ForgotPasswordScreen = () => {
         onPress={handleBackToLogin}
         activeOpacity={0.9}
       >
-        <Text style={styles.primaryButtonText}>Đăng nhập ngay</Text>
+        <Text style={styles.primaryButtonText}>
+          {t("forgotPassword.success.loginNow")}
+        </Text>
         <MaterialIcons
           name="login"
           size={20}
@@ -790,23 +821,30 @@ const ForgotPasswordScreen = () => {
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Header with Back Button */}
-          {currentStep !== "success" && currentStep !== "email" && (
-            <TouchableOpacity
-              style={[styles.backButton, { top: insets.top + 8 }]}
-              onPress={handleBack}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons
-                name="arrow-back"
-                size={24}
-                color={FORGOT_COLORS.textMain}
-              />
-            </TouchableOpacity>
+          {/* Header: Back Button + Step Indicator */}
+          {currentStep !== "success" && (
+            <View style={styles.headerRow}>
+              {currentStep !== "email" ? (
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={handleBack}
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons
+                    name="arrow-back"
+                    size={24}
+                    color={FORGOT_COLORS.textMain}
+                  />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.backButtonPlaceholder} />
+              )}
+              <View style={styles.stepIndicatorInline}>
+                {renderStepIndicator()}
+              </View>
+              <View style={styles.backButtonPlaceholder} />
+            </View>
           )}
-
-          {/* Step Indicator */}
-          {currentStep !== "success" && renderStepIndicator()}
 
           {/* Step Content */}
           {currentStep === "email" && renderEmailStep()}
@@ -827,7 +865,9 @@ const ForgotPasswordScreen = () => {
                   size={18}
                   color={FORGOT_COLORS.textMuted}
                 />
-                <Text style={styles.backToLoginText}>Quay lại đăng nhập</Text>
+                <Text style={styles.backToLoginText}>
+                  {t("forgotPassword.backToLogin")}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -857,18 +897,30 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  // Header Row
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  stepIndicatorInline: {
+    flex: 1,
+  },
+  backButtonPlaceholder: {
+    width: 44,
+    height: 44,
+  },
+
   // Back Button
   backButton: {
-    position: "absolute",
-    top: 16, // overridden dynamically with insets.top + 8
-    left: 16,
     width: 44,
     height: 44,
     borderRadius: 12,
     backgroundColor: FORGOT_COLORS.surfaceLight,
     justifyContent: "center",
     alignItems: "center",
-    zIndex: 10,
     ...SHADOWS.small,
   },
 
@@ -877,9 +929,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 24,
-    paddingHorizontal: 48,
-    marginBottom: 16,
+    paddingHorizontal: 8,
+    marginBottom: 0,
   },
   stepDot: {
     width: 28,
