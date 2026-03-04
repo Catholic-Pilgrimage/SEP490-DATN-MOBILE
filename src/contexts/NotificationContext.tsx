@@ -5,16 +5,17 @@
  */
 
 import React, {
-    createContext,
-    useContext,
-    useEffect,
-    useRef,
-    useState,
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
 } from "react";
 import Toast from "react-native-toast-message";
 import type { Notification as NotificationData } from "../services/api/shared/notificationApi";
 import notificationApi from "../services/api/shared/notificationApi";
 import notificationService from "../services/notification/notificationService";
+import { useAuth } from "./AuthContext";
 
 interface NotificationContextValue {
   notifications: NotificationData[];
@@ -42,6 +43,7 @@ const NotificationContext = createContext<NotificationContextValue | null>(
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const { isAuthenticated } = useAuth();
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -189,10 +191,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // Fetch on mount
+  // Fetch on mount and whenever auth state changes (login/logout/restore)
   useEffect(() => {
-    fetchNotifications(true);
-  }, []);
+    if (isAuthenticated) {
+      fetchNotifications(true);
+    } else {
+      // Clear notifications on logout
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  }, [isAuthenticated]);
 
   // Push notification listeners
   useEffect(() => {
