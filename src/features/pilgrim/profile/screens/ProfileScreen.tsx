@@ -1,31 +1,32 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import {
-    CommonActions,
-    useFocusEffect,
-    useNavigation,
-    useScrollToTop,
+  CommonActions,
+  useFocusEffect,
+  useNavigation,
+  useScrollToTop,
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ImageBackground,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ImageBackground,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useFavorites } from "../../../../hooks/useFavorites";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useUserQuery } from "../../../../hooks/useUserQuery";
@@ -138,6 +139,7 @@ const ProfileScreen = () => {
   useScrollToTop(scrollRef);
 
   const { unreadCount } = useNotifications();
+  const { favoriteIds } = useFavorites();
 
   const handleLogin = async () => {
     if (isGuest) {
@@ -392,19 +394,23 @@ const ProfileScreen = () => {
         {/* Stats Card */}
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>
+              {(user as any)?.visitedSites ?? 0}
+            </Text>
             <Text style={styles.statLabel}>
               {t("profile.stats.pilgrimages")}
             </Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{favoriteIds.size}</Text>
             <Text style={styles.statLabel}>{t("profile.stats.favorites")}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>
+              {(user as any)?.totalReviews ?? 0}
+            </Text>
             <Text style={styles.statLabel}>{t("profile.stats.reviews")}</Text>
           </View>
         </View>

@@ -640,14 +640,45 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       zoom: 15,
                     }}
                     pins={[
+                      // Site pin - Red color like guide
                       {
                         id: site.id,
                         latitude: site.latitude,
                         longitude: site.longitude,
                         title: site.name,
-                        color: "#D4AF37",
+                        subtitle: [site.address, site.district, site.province]
+                          .filter(Boolean)
+                          .join(", "),
+                        color: "#DC2626", // Red color for main site
                         icon: "⛪",
                       } as MapPin,
+                      // Nearby places pins - with category colors matching guide
+                      ...(places || [])
+                        .filter((p) => p.latitude && p.longitude)
+                        .map((place) => {
+                          // Category config matching guide's LocationsTab
+                          const categoryConfig: Record<
+                            string,
+                            { color: string; emoji: string }
+                          > = {
+                            food: { color: "#F97316", emoji: "🍜" },
+                            lodging: { color: "#2563EB", emoji: "🏨" },
+                            medical: { color: "#10B981", emoji: "🏥" },
+                          };
+                          const config =
+                            categoryConfig[place.category] ||
+                            categoryConfig.food;
+
+                          return {
+                            id: place.id,
+                            latitude: place.latitude,
+                            longitude: place.longitude,
+                            title: place.name,
+                            subtitle: place.address,
+                            color: config.color,
+                            icon: config.emoji,
+                          };
+                        }) as MapPin[],
                     ]}
                     showUserLocation
                     style={styles.mapImage}
@@ -675,6 +706,16 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     address={place.address}
                     distance={`${Math.round(place.distance_meters / 100) / 10} km`}
                     type={place.category as any}
+                    onDirections={() => {
+                      if (place.latitude && place.longitude && mapRef.current) {
+                        mapRef.current.flyTo(
+                          place.latitude,
+                          place.longitude,
+                          15,
+                        );
+                        mapRef.current.selectPin(place.id);
+                      }
+                    }}
                   />
                 ))
               ) : (

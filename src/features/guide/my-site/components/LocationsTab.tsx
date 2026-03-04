@@ -5,24 +5,48 @@
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useState, useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  GUIDE_BORDER_RADIUS,
-  GUIDE_COLORS,
-  GUIDE_SPACING,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
+} from "../../../../components/map/VietmapView";
+import { VIETMAP_CONFIG } from "../../../../config/env";
+import {
+    GUIDE_BORDER_RADIUS,
+    GUIDE_COLORS,
+    GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
-import { getSpacing, getFontSize, moderateScale } from "../../../../utils/responsive";
-import { VietmapView, VietmapViewRef, MapPin } from "../../../../components/map/VietmapView";
+import useI18n from "../../../../hooks/useI18n";
+import {
+    createNearbyPlace,
+    CreateNearbyPlaceRequest,
+    deleteNearbyPlace,
+    getNearbyPlaces,
+    GuideNearbyPlace,
+    restoreNearbyPlace,
+    updateNearbyPlace,
+} from "../../../../services/api/guide/nearbyPlacesApi";
+import { NearbyPlaceCategory } from "../../../../types/common.types";
+import { getFontSize, getSpacing } from "../../../../utils/responsive";
 
 // Premium Colors
 const PREMIUM_COLORS = {
@@ -35,261 +59,860 @@ const PREMIUM_COLORS = {
   ruby: "#E11D48",
 };
 
-// Pin Types
-const PIN_TYPES = [
-  { id: "parking", icon: "car", label: "Bãi đỗ xe", color: PREMIUM_COLORS.sapphire },
-  { id: "restroom", icon: "water", label: "Nhà vệ sinh", color: PREMIUM_COLORS.emerald },
-  { id: "reception", icon: "information-circle", label: "Lễ tân", color: PREMIUM_COLORS.gold },
-  { id: "chapel", icon: "home", label: "Nhà nguyện", color: "#9333EA" },
-  { id: "entrance", icon: "enter", label: "Lối vào", color: "#F97316" },
-  { id: "exit", icon: "exit", label: "Lối ra", color: PREMIUM_COLORS.ruby },
-  { id: "other", icon: "location", label: "Khác", color: GUIDE_COLORS.gray500 },
-] as const;
+// Category config theo API BE
+const getCategoryConfig = (t: any): Record<
+  NearbyPlaceCategory,
+  { label: string; icon: any; color: string; emoji: string }
+> => ({
+  food: { label: t('locationsTab.categories.food'), icon: "restaurant", color: "#F97316", emoji: "🍜" },
+  lodging: { label: t('locationsTab.categories.lodging'), icon: "bed", color: "#2563EB", emoji: "🏨" },
+  medical: {
+    label: t('locationsTab.categories.medical'),
+    icon: "medical-bag",
+    color: "#10B981",
+    emoji: "🏥",
+  },
+});
 
-type PinType = typeof PIN_TYPES[number]["id"];
+const CATEGORIES: NearbyPlaceCategory[] = ["food", "lodging", "medical"];
 
-interface LocationPin {
-  id: string;
-  type: PinType;
-  name: string;
-  latitude: number;
-  longitude: number;
-  description?: string;
-}
+// ---- Filter types ----
+type CategoryFilter = "all" | NearbyPlaceCategory;
+type PlaceStatusFilter = "all" | "pending" | "approved" | "rejected";
+type ActiveFilter = "active" | "inactive" | "all";
+
+const getActiveFilterOptions = (t: any) => [
+  {
+    key: "all" as ActiveFilter,
+    label: t('locationsTab.activeFilter.all'),
+    icon: "apps" as keyof typeof MaterialIcons.glyphMap,
+    color: "#8B7355",
+    desc: t('locationsTab.activeDesc.all'),
+  },
+  {
+    key: "active" as ActiveFilter,
+    label: t('locationsTab.activeFilter.active'),
+    icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
+    color: "#10B981",
+    desc: t('locationsTab.activeDesc.active'),
+  },
+  {
+    key: "inactive" as ActiveFilter,
+    label: t('locationsTab.activeFilter.inactive'),
+    icon: "delete" as keyof typeof MaterialIcons.glyphMap,
+    color: "#EF4444",
+    desc: t('locationsTab.activeDesc.inactive'),
+  },
+];
+
+const getCategoryFilterOptions = (t: any) => [
+  { key: "all" as CategoryFilter, label: t('locationsTab.categories.all'), emoji: "🗺️" },
+  { key: "food" as CategoryFilter, label: t('locationsTab.categories.food'), emoji: "🍜" },
+  { key: "lodging" as CategoryFilter, label: t('locationsTab.categories.lodging'), emoji: "🏨" },
+  { key: "medical" as CategoryFilter, label: t('locationsTab.categories.medical'), emoji: "🏥" },
+];
+
+const getStatusFilterOptions = (t: any) => [
+  {
+    key: "all" as PlaceStatusFilter,
+    label: t('locationsTab.status.all'),
+    color: "#8B7355",
+    bg: "#F3EFE9",
+    icon: "apps" as keyof typeof MaterialIcons.glyphMap,
+    desc: t('locationsTab.statusDesc.all'),
+  },
+  {
+    key: "pending" as PlaceStatusFilter,
+    label: t('locationsTab.status.pending'),
+    color: "#F59E0B",
+    bg: "#FEF3C7",
+    icon: "schedule" as keyof typeof MaterialIcons.glyphMap,
+    desc: t('locationsTab.statusDesc.pending'),
+  },
+  {
+    key: "approved" as PlaceStatusFilter,
+    label: t('locationsTab.status.approved'),
+    color: "#10B981",
+    bg: "#D1FAE5",
+    icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
+    desc: t('locationsTab.statusDesc.approved'),
+  },
+  {
+    key: "rejected" as PlaceStatusFilter,
+    label: t('locationsTab.status.rejected'),
+    color: "#EF4444",
+    bg: "#FEE2E2",
+    icon: "cancel" as keyof typeof MaterialIcons.glyphMap,
+    desc: t('locationsTab.statusDesc.rejected'),
+  },
+];
 
 interface LocationsTabProps {
   siteLocation?: {
     latitude: number;
     longitude: number;
+    name?: string;
+    address?: string;
   };
-  pins?: LocationPin[];
-  onAddPin?: (pin: Omit<LocationPin, "id">) => Promise<void>;
-  onDeletePin?: (pinId: string) => Promise<void>;
-  onPinPress?: (pin: LocationPin) => void;
 }
 
-// Mock pins for demo
-const MOCK_PINS: LocationPin[] = [
-  { id: "1", type: "parking", name: "Bãi đỗ xe chính", latitude: 10.762622, longitude: 106.660172, description: "Sức chứa 50 xe" },
-  { id: "2", type: "entrance", name: "Cổng chính", latitude: 10.762822, longitude: 106.660372 },
-  { id: "3", type: "restroom", name: "Nhà vệ sinh A", latitude: 10.762422, longitude: 106.660572 },
-  { id: "4", type: "reception", name: "Quầy lễ tân", latitude: 10.762722, longitude: 106.660272 },
-  { id: "5", type: "chapel", name: "Nhà nguyện nhỏ", latitude: 10.762522, longitude: 106.660472 },
-];
+// ---- Add Form Modal ----
+interface AddFormState {
+  name: string;
+  category: NearbyPlaceCategory;
+  address: string;
+  phone: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+}
 
-// Helper to get emoji for pin type
-const getIconEmoji = (type: PinType): string => {
-  const emojiMap: Record<PinType, string> = {
-    parking: "🅿️",
-    restroom: "🚻",
-    reception: "ℹ️",
-    chapel: "⛪",
-    entrance: "🚪",
-    exit: "🚶",
-    other: "📍",
-  };
-  return emojiMap[type] || "📍";
-};
+// Status badge config
+const getStatusConfig = (t: any) => ({
+  pending: { label: t('locationsTab.status.pending'), color: "#F59E0B", bg: "#FEF3C7" },
+  approved: { label: t('locationsTab.status.approved'), color: "#10B981", bg: "#D1FAE5" },
+  rejected: { label: t('locationsTab.status.rejected'), color: "#EF4444", bg: "#FEE2E2" },
+});
 
-// Pin Card Component
-const PinCard: React.FC<{
-  pin: LocationPin;
+// PlaceCard Component
+const PlaceCard: React.FC<{
+  place: GuideNearbyPlace;
+  onDelete: () => void;
+  onEdit: () => void;
+  onRestore?: () => void;
   onPress?: () => void;
-  onDelete?: () => void;
-}> = ({ pin, onPress, onDelete }) => {
-  const pinType = PIN_TYPES.find((p) => p.id === pin.type) || PIN_TYPES[6];
+  t: any;
+  categoryConfig: any;
+  statusConfig: any;
+}> = ({ place, onDelete, onEdit, onRestore, onPress, t, categoryConfig, statusConfig }) => {
+  const cfg = categoryConfig[place.category];
+  const statusCfg = statusConfig[place.status] ?? statusConfig.pending;
+
+  // Only show delete button for pending/rejected, not for approved
+  const canDelete = place.status !== "approved";
 
   return (
-    <TouchableOpacity style={styles.pinCard} onPress={onPress} activeOpacity={0.8}>
-      <View style={[styles.pinCardIcon, { backgroundColor: pinType.color + "20" }]}>
-        <Ionicons name={pinType.icon as any} size={24} color={pinType.color} />
+    <TouchableOpacity
+      style={styles.pinCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.pinCardIcon, { backgroundColor: cfg.color + "20" }]}>
+        <Text style={{ fontSize: 24 }}>{cfg.emoji}</Text>
       </View>
       <View style={styles.pinCardContent}>
-        <Text style={styles.pinCardName}>{pin.name}</Text>
-        <Text style={styles.pinCardType}>{pinType.label}</Text>
-        {pin.description && (
-          <Text style={styles.pinCardDesc} numberOfLines={1}>{pin.description}</Text>
+        <Text style={styles.pinCardName}>{place.name}</Text>
+        <Text style={styles.pinCardType}>{cfg.label}</Text>
+        {!!place.address && (
+          <View style={styles.pinCardInfoRow}>
+            <Ionicons name="location-outline" size={14} color="#EF4444" />
+            <Text style={styles.pinCardDesc} numberOfLines={1}>
+              {place.address}
+            </Text>
+          </View>
+        )}
+        {!!place.distance_meters && (
+          <View style={styles.pinCardInfoRow}>
+            <Ionicons name="navigate-outline" size={14} color="#3B82F6" />
+            <Text style={styles.pinCardDesc}>
+              {t('locationsTab.distanceAway', {
+                distance: place.distance_meters >= 1000
+                  ? t('locationsTab.distance.kilometers', { distance: (place.distance_meters / 1000).toFixed(1) })
+                  : t('locationsTab.distance.meters', { distance: place.distance_meters })
+              })}
+            </Text>
+          </View>
+        )}
+        {!!place.phone && (
+          <View style={styles.pinCardInfoRow}>
+            <Ionicons name="call-outline" size={14} color="#10B981" />
+            <Text style={styles.pinCardDesc} numberOfLines={1}>
+              {place.phone}
+            </Text>
+          </View>
+        )}
+        <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+          <Text style={[styles.statusText, { color: statusCfg.color }]}>
+            {statusCfg.label}
+          </Text>
+        </View>
+        {place.status === "rejected" && !!place.rejection_reason && (
+          <Text style={styles.rejectionText} numberOfLines={2}>
+            {t('locationsTab.rejectionReason', { reason: place.rejection_reason })}
+          </Text>
+        )}
+        {place.status === "rejected" && (
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              onEdit();
+            }}
+          >
+            <MaterialIcons name="edit" size={14} color="#2563EB" />
+            <Text style={styles.editBtnText}>{t('locationsTab.editAndResubmit')}</Text>
+          </TouchableOpacity>
+        )}
+        {!!onRestore && (
+          <TouchableOpacity
+            style={styles.restoreBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              onRestore();
+            }}
+          >
+            <MaterialIcons name="restore" size={14} color="#10B981" />
+            <Text style={styles.restoreBtnText}>{t('locationsTab.restore')}</Text>
+          </TouchableOpacity>
         )}
       </View>
-      <TouchableOpacity 
-        style={styles.pinCardDelete} 
-        onPress={onDelete}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <MaterialIcons name="delete-outline" size={20} color={GUIDE_COLORS.gray400} />
-      </TouchableOpacity>
+      {canDelete && (
+        <TouchableOpacity
+          style={styles.pinCardDelete}
+          onPress={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <MaterialIcons
+            name="delete-outline"
+            size={20}
+            color={GUIDE_COLORS.gray400}
+          />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 };
 
-// Legend Component
-const Legend: React.FC = () => {
+// ---- Filter Bottom Sheet ----
+interface FilterSheetProps {
+  visible: boolean;
+  categoryFilter: CategoryFilter;
+  statusFilter: PlaceStatusFilter;
+  isActiveFilter: ActiveFilter;
+  onApply: (
+    cat: CategoryFilter,
+    status: PlaceStatusFilter,
+    active: ActiveFilter,
+  ) => void;
+  onClose: () => void;
+  t: any;
+  categoryFilterOptions: any[];
+  statusFilterOptions: any[];
+  activeFilterOptions: any[];
+}
+
+const FilterSheet: React.FC<FilterSheetProps> = ({
+  visible,
+  categoryFilter,
+  statusFilter,
+  isActiveFilter,
+  onApply,
+  onClose,
+  t,
+  categoryFilterOptions,
+  statusFilterOptions,
+  activeFilterOptions,
+}) => {
+  const insets = useSafeAreaInsets();
+  const [localCat, setLocalCat] = useState<CategoryFilter>(categoryFilter);
+  const [localStatus, setLocalStatus] =
+    useState<PlaceStatusFilter>(statusFilter);
+  const [localActive, setLocalActive] = useState<ActiveFilter>(isActiveFilter);
+
+  useEffect(() => {
+    if (visible) {
+      setLocalCat(categoryFilter);
+      setLocalStatus(statusFilter);
+      setLocalActive(isActiveFilter);
+    }
+  }, [visible, categoryFilter, statusFilter, isActiveFilter]);
+
   return (
-    <View style={styles.legend}>
-      <Text style={styles.legendTitle}>Chú thích</Text>
-      <View style={styles.legendGrid}>
-        {PIN_TYPES.map((type) => (
-          <View key={type.id} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: type.color }]}>
-              <Ionicons name={type.icon as any} size={12} color="#FFF" />
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.sheetOverlay}>
+          <TouchableWithoutFeedback>
+            <View
+              style={[
+                styles.sheetContainer,
+                { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) },
+              ]}
+            >
+              {/* Handle */}
+              <View style={styles.sheetHandleWrap}>
+                <View style={styles.sheetHandle} />
+              </View>
+
+              {/* Header */}
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{t('locationsTab.filterTitle')}</Text>
+                <TouchableOpacity onPress={onClose}>
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={GUIDE_COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {/* Category */}
+              <Text style={styles.sheetSectionTitle}>{t('locationsTab.categoryLabel')}</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.sheetChipRow}
+              >
+                {categoryFilterOptions.map((opt) => {
+                  const active = localCat === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        styles.sheetChip,
+                        active && styles.sheetChipActive,
+                      ]}
+                      onPress={() => setLocalCat(opt.key)}
+                    >
+                      <Text style={{ fontSize: 16 }}>{opt.emoji}</Text>
+                      <Text
+                        style={[
+                          styles.sheetChipLabel,
+                          active && styles.sheetChipLabelActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Status */}
+              <Text style={styles.sheetSectionTitle}>{t('locationsTab.statusLabel')}</Text>
+              <View style={styles.sheetStatusList}>
+                {statusFilterOptions.map((opt) => {
+                  const active = localStatus === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        styles.sheetStatusRow,
+                        active && {
+                          backgroundColor: opt.bg,
+                          borderColor: opt.color,
+                        },
+                      ]}
+                      onPress={() => setLocalStatus(opt.key)}
+                    >
+                      <View
+                        style={[
+                          styles.sheetStatusIcon,
+                          { backgroundColor: opt.bg },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={opt.icon}
+                          size={20}
+                          color={opt.color}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.sheetStatusLabel,
+                            active && { color: opt.color },
+                          ]}
+                        >
+                          {opt.label}
+                        </Text>
+                        <Text style={styles.sheetStatusDesc}>{opt.desc}</Text>
+                      </View>
+                      {active && (
+                        <View
+                          style={[
+                            styles.sheetCheckCircle,
+                            { backgroundColor: opt.color },
+                          ]}
+                        >
+                          <Ionicons name="checkmark" size={14} color="#FFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Active filter - Hiển thị */}
+              <Text style={styles.sheetSectionTitle}>{t('locationsTab.displayLabel')}</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.sheetChipRow,
+                  { marginBottom: getSpacing(GUIDE_SPACING.md) },
+                ]}
+              >
+                {activeFilterOptions.map((opt) => {
+                  const active = localActive === opt.key;
+                  return (
+                    <TouchableOpacity
+                      key={opt.key}
+                      style={[
+                        styles.sheetActiveChip,
+                        active ? {
+                          backgroundColor: opt.color,
+                          borderColor: opt.color,
+                        } : {
+                          backgroundColor: "#FAFAFA",
+                          borderColor: GUIDE_COLORS.gray200,
+                        },
+                      ]}
+                      onPress={() => setLocalActive(opt.key)}
+                    >
+                      <MaterialIcons
+                        name={opt.icon}
+                        size={16}
+                        color={active ? "#FFF" : opt.color}
+                      />
+                      <Text
+                        style={[
+                          styles.sheetActiveChipLabel,
+                          active && { color: "#FFF" },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Apply */}
+              <TouchableOpacity
+                style={styles.sheetApplyBtn}
+                onPress={() => {
+                  onApply(localCat, localStatus, localActive);
+                  onClose();
+                }}
+              >
+                <Text style={styles.sheetApplyText}>{t('locationsTab.applyFilter')}</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.legendLabel}>{type.label}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 };
 
 // Main Component
-export const LocationsTab: React.FC<LocationsTabProps> = ({
-  siteLocation,
-  pins = MOCK_PINS,
-  onAddPin,
-  onDeletePin,
-  onPinPress,
-}) => {
-  const [selectedType, setSelectedType] = useState<PinType>("parking");
-  const [localPins, setLocalPins] = useState<LocationPin[]>(pins);
-  const mapRef = useRef<VietmapViewRef>(null);
+export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
+  const { t } = useI18n();
 
-  // Convert LocationPin to MapPin for VietmapView
-  const mapPins: MapPin[] = localPins.map((pin) => {
-    const pinType = PIN_TYPES.find((p) => p.id === pin.type);
-    return {
-      id: pin.id,
-      latitude: pin.latitude,
-      longitude: pin.longitude,
-      title: pin.name,
-      color: pinType?.color || PREMIUM_COLORS.gold,
-      icon: getIconEmoji(pin.type),
+  // Get translated configs
+  const CATEGORY_CONFIG = getCategoryConfig(t);
+  const STATUS_CONFIG = getStatusConfig(t);
+  const CATEGORY_FILTER_OPTIONS = getCategoryFilterOptions(t);
+  const STATUS_FILTER_OPTIONS = getStatusFilterOptions(t);
+  const ACTIVE_FILTER_OPTIONS = getActiveFilterOptions(t);
+
+  const [places, setPlaces] = useState<GuideNearbyPlace[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<PlaceStatusFilter>("all");
+  const [isActiveFilter, setIsActiveFilter] = useState<ActiveFilter>("active");
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showFullMap, setShowFullMap] = useState(false);
+  const [isSelectingOnMap, setIsSelectingOnMap] = useState(false);
+  const [editingPlace, setEditingPlace] = useState<GuideNearbyPlace | null>(
+    null,
+  );
+  const [pendingCoords, setPendingCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [form, setForm] = useState<AddFormState>({
+    name: "",
+    category: "food",
+    address: "",
+    phone: "",
+    description: "",
+    latitude: siteLocation?.latitude || 10.762622,
+    longitude: siteLocation?.longitude || 106.660172,
+  });
+  const mapRef = useRef<VietmapViewRef>(null);
+  const addressDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-geocode when address changes using 2-step process
+  const handleAddressChange = useCallback((address: string) => {
+    setForm((prev) => ({ ...prev, address }));
+
+    // Clear previous timeout
+    if (addressDebounceRef.current) {
+      clearTimeout(addressDebounceRef.current);
+    }
+
+    // Debounce geocoding (wait 1.5s after user stops typing)
+    if (address.trim().length > 10) {
+      addressDebounceRef.current = setTimeout(async () => {
+        try {
+          // Step 1: Search v4 to get ref_id
+          const searchUrl = `${VIETMAP_CONFIG.SEARCH_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&text=${encodeURIComponent(address)}`;
+          const searchRes = await fetch(searchUrl);
+          const searchData = await searchRes.json();
+
+          if (!Array.isArray(searchData) || searchData.length === 0) {
+            return;
+          }
+
+          const firstResult = searchData[0];
+          const refId = firstResult.ref_id;
+
+          if (!refId) {
+            return;
+          }
+
+          // Step 2: Get place detail with ref_id to get coordinates
+          const detailUrl = `${VIETMAP_CONFIG.PLACE_DETAIL_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&refid=${refId}`;
+          const detailRes = await fetch(detailUrl);
+          const detailData = await detailRes.json();
+
+          const lat = detailData?.lat;
+          const lng = detailData?.lng;
+
+          if (lat && lng) {
+            setForm((prev) => ({
+              ...prev,
+              latitude: Number(lat),
+              longitude: Number(lng),
+            }));
+
+            Toast.show({
+              type: "info",
+              text1: t('locationsTab.toast.coordsUpdated'),
+              text2: `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`,
+              visibilityTime: 2000,
+            });
+          }
+        } catch (error) {
+          // Silent fail - user can select on map
+        }
+      }, 1500);
+    }
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (addressDebounceRef.current) {
+        clearTimeout(addressDebounceRef.current);
+      }
     };
+  }, []);
+
+  // Fetch places from API
+  const fetchPlaces = useCallback(
+    async (activeParam?: ActiveFilter) => {
+      setIsLoading(true);
+      const active = activeParam ?? isActiveFilter;
+      const params: { is_active?: boolean } = {};
+      if (active === "active") params.is_active = true;
+      if (active === "inactive") params.is_active = false;
+      try {
+        const res = await getNearbyPlaces(params);
+        setPlaces(res.data?.data || []);
+      } catch (error) {
+        console.error("❌ Error fetching nearby places:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isActiveFilter],
+  );
+
+  useEffect(() => {
+    fetchPlaces();
+  }, [fetchPlaces]);
+
+  // Filtered places
+  const filteredPlaces = places.filter((p) => {
+    const catMatch = categoryFilter === "all" || p.category === categoryFilter;
+    const statusMatch = statusFilter === "all" || p.status === statusFilter;
+    return catMatch && statusMatch;
   });
 
-  const handleAddPin = useCallback(() => {
-    Alert.prompt(
-      "Thêm điểm mới",
-      `Nhập tên cho ${PIN_TYPES.find((p) => p.id === selectedType)?.label}:`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Thêm",
-          onPress: async (name: string | undefined) => {
-            if (!name?.trim()) return;
-            const pinType = PIN_TYPES.find((p) => p.id === selectedType);
-            const newPin: LocationPin = {
-              id: Date.now().toString(),
-              type: selectedType,
-              name: name.trim(),
-              latitude: siteLocation?.latitude || 10.762622,
-              longitude: siteLocation?.longitude || 106.660172,
-            };
-            setLocalPins((prev) => [...prev, newPin]);
-            // Add to map
-            mapRef.current?.addPin({
-              id: newPin.id,
-              latitude: newPin.latitude,
-              longitude: newPin.longitude,
-              title: newPin.name,
-              color: pinType?.color,
-              icon: getIconEmoji(selectedType),
-            });
-            if (onAddPin) {
-              await onAddPin(newPin);
-            }
-          },
-        },
-      ],
-      "plain-text"
-    );
-  }, [selectedType, onAddPin, siteLocation]);
+  const hasFilters =
+    categoryFilter !== "all" ||
+    statusFilter !== "all" ||
+    isActiveFilter !== "active";
 
-  const handleDeletePin = useCallback((pin: LocationPin) => {
-    Alert.alert(
-      "Xóa điểm",
-      `Bạn có chắc muốn xóa "${pin.name}"?`,
-      [
-        { text: "Hủy", style: "cancel" },
+  // Convert GuideNearbyPlace[] to MapPin[] + add site pin
+  // Only show approved places on map
+  const approvedPlaces = places.filter((p) => p.status === "approved");
+
+  const mapPins: MapPin[] = [
+    // Site pin (if available)
+    ...(siteLocation
+      ? [
         {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            setLocalPins((prev) => prev.filter((p) => p.id !== pin.id));
-            mapRef.current?.removePin(pin.id);
-            if (onDeletePin) {
-              await onDeletePin(pin.id);
-            }
-          },
+          id: "site-main",
+          latitude: Number(siteLocation.latitude),
+          longitude: Number(siteLocation.longitude),
+          title: siteLocation.name || "Thánh đường",
+          subtitle: siteLocation.address || "Nhấn để xem chi tiết",
+          color: "#DC2626", // Red color for main site
+          icon: "⛪",
         },
       ]
-    );
-  }, [onDeletePin]);
+      : []),
+    // Nearby places pins - Only approved ones
+    ...approvedPlaces.map((p) => ({
+      id: p.id,
+      latitude: Number(p.latitude),
+      longitude: Number(p.longitude),
+      title: p.name,
+      subtitle: p.address || CATEGORY_CONFIG[p.category]?.label,
+      color: CATEGORY_CONFIG[p.category]?.color || PREMIUM_COLORS.gold,
+      icon: CATEGORY_CONFIG[p.category]?.emoji || "📍",
+    })),
+  ];
 
-  const handleMapPress = useCallback((event: { latitude: number; longitude: number }) => {
-    // Show option to add pin at tapped location
-    Alert.prompt(
-      "Thêm điểm tại vị trí này",
-      `Nhập tên cho ${PIN_TYPES.find((p) => p.id === selectedType)?.label}:`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Thêm",
-          onPress: async (name: string | undefined) => {
-            if (!name?.trim()) return;
-            const pinType = PIN_TYPES.find((p) => p.id === selectedType);
-            const newPin: LocationPin = {
-              id: Date.now().toString(),
-              type: selectedType,
-              name: name.trim(),
-              latitude: event.latitude,
-              longitude: event.longitude,
-            };
-            setLocalPins((prev) => [...prev, newPin]);
-            mapRef.current?.addPin({
-              id: newPin.id,
-              latitude: newPin.latitude,
-              longitude: newPin.longitude,
-              title: newPin.name,
-              color: pinType?.color,
-              icon: getIconEmoji(selectedType),
-            });
-            if (onAddPin) {
-              await onAddPin(newPin);
-            }
-          },
-        },
-      ],
-      "plain-text"
-    );
-  }, [selectedType, onAddPin]);
+  // Tap on map → just show info, or save coords if in selection mode
+  const handleMapPress = useCallback(
+    async (event: { latitude: number; longitude: number }) => {
+      if (isSelectingOnMap) {
+        // User is selecting location for new place
+        setPendingCoords(event);
 
-  const handleMarkerPress = useCallback((mapPin: MapPin) => {
-    const pin = localPins.find((p) => p.id === mapPin.id);
-    if (pin && onPinPress) {
-      onPinPress(pin);
+        // Reverse geocode to get address
+        try {
+          const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${event.latitude}&lng=${event.longitude}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          const first = Array.isArray(data) ? data[0] : data?.value?.[0];
+
+          const address = first?.display || first?.address || `${event.latitude.toFixed(6)}, ${event.longitude.toFixed(6)}`;
+
+          setForm((prev) => ({
+            ...prev,
+            latitude: event.latitude,
+            longitude: event.longitude,
+            address: address, // Auto-fill address from reverse geocoding
+          }));
+        } catch {
+          // If reverse geocoding fails, just use coordinates
+          setForm((prev) => ({
+            ...prev,
+            latitude: event.latitude,
+            longitude: event.longitude,
+          }));
+        }
+
+        setIsSelectingOnMap(false);
+        setShowAddModal(true);
+      } else {
+        // Normal tap - just store coords for later use
+        setPendingCoords(event);
+      }
+    },
+    [isSelectingOnMap],
+  );
+
+  // Open modal with current site coords or pending coords from map tap
+  const handleAddPress = useCallback(() => {
+    const coords = pendingCoords || {
+      latitude: siteLocation?.latitude || 10.762622,
+      longitude: siteLocation?.longitude || 106.660172,
+    };
+
+    setForm({
+      name: "",
+      category: "food",
+      address: "",
+      phone: "",
+      description: "",
+      latitude: Number(coords.latitude),
+      longitude: Number(coords.longitude),
+    });
+    setEditingPlace(null);
+    setShowAddModal(true);
+  }, [siteLocation, pendingCoords]);
+
+  // Open "Select on Map" mode
+  const handleSelectOnMap = useCallback(() => {
+    setShowAddModal(false);
+    setIsSelectingOnMap(true);
+    Alert.alert(
+      t('locationsTab.modal.selectOnMapTitle'),
+      t('locationsTab.modal.selectOnMapMessage'),
+      [{ text: t('common.ok') }]
+    );
+  }, [t]);
+
+  // Open modal prefilled with rejected place data
+  const handleEdit = useCallback((place: GuideNearbyPlace) => {
+    setForm({
+      name: place.name,
+      category: place.category,
+      address: place.address,
+      phone: place.phone || "",
+      description: place.description || "",
+      latitude: Number(place.latitude),
+      longitude: Number(place.longitude),
+    });
+    setPendingCoords(null);
+    setEditingPlace(place);
+    setShowAddModal(true);
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!form.name.trim()) {
+      Toast.show({
+        type: "error",
+        text1: t('common.error'),
+        text2: t('locationsTab.toast.errorNameRequired'),
+      });
+      return;
     }
-  }, [localPins, onPinPress]);
+    if (!form.address.trim()) {
+      Toast.show({
+        type: "error",
+        text1: t('common.error'),
+        text2: t('locationsTab.toast.errorAddressRequired'),
+      });
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const payload: CreateNearbyPlaceRequest = {
+        name: form.name.trim(),
+        category: form.category,
+        address: form.address.trim(),
+        latitude: form.latitude,
+        longitude: form.longitude,
+        phone: form.phone.trim() || undefined,
+        description: form.description.trim() || undefined,
+      };
+
+      let response;
+      if (editingPlace) {
+        response = await updateNearbyPlace(editingPlace.id, payload);
+      } else {
+        response = await createNearbyPlace(payload);
+      }
+
+      // Show success message from BE
+      Toast.show({
+        type: "success",
+        text1: t('common.success'),
+        text2: response.message || (editingPlace ? "Đã cập nhật địa điểm" : "Đã thêm địa điểm mới"),
+      });
+
+      setShowAddModal(false);
+      setEditingPlace(null);
+      await fetchPlaces();
+    } catch (error: any) {
+      // Show error message from BE
+      const errorMsg = error?.response?.data?.message || error?.message || "Không thể lưu địa điểm. Vui lòng thử lại.";
+      Toast.show({
+        type: "error",
+        text1: t('common.error'),
+        text2: errorMsg,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, editingPlace, fetchPlaces]);
+
+  const handleDelete = useCallback((place: GuideNearbyPlace) => {
+    Alert.alert(t('locationsTab.deleteConfirm'), t('locationsTab.deleteMessage', { name: place.name }), [
+      { text: t('common.cancel'), style: "cancel" },
+      {
+        text: t('locationsTab.delete'),
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const response = await deleteNearbyPlace(place.id);
+            Toast.show({
+              type: "success",
+              text1: t('locationsTab.toast.deleted'),
+              text2: response.message || "Đã xóa địa điểm thành công",
+            });
+            setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+            mapRef.current?.removePin(place.id);
+          } catch (error: any) {
+            const errorMsg = error?.response?.data?.message || "Không thể xóa địa điểm.";
+            Toast.show({
+              type: "error",
+              text1: t('common.error'),
+              text2: errorMsg,
+            });
+          }
+        },
+      },
+    ]);
+  }, [t]);
+
+  const handleRestore = useCallback((place: GuideNearbyPlace) => {
+    Alert.alert(t('locationsTab.restoreConfirm'), t('locationsTab.restoreMessage', { name: place.name }), [
+      { text: t('common.cancel'), style: "cancel" },
+      {
+        text: t('locationsTab.restore'),
+        onPress: async () => {
+          try {
+            const response = await restoreNearbyPlace(place.id);
+            Toast.show({
+              type: "success",
+              text1: t('locationsTab.toast.restored'),
+              text2: response.message || "Đã khôi phục địa điểm thành công",
+            });
+            setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+          } catch (error: any) {
+            const errorMsg = error?.response?.data?.message || "Không thể khôi phục địa điểm.";
+            Toast.show({
+              type: "error",
+              text1: t('common.error'),
+              text2: errorMsg,
+            });
+          }
+        },
+      },
+    ]);
+  }, [t]);
+
+  // Handle card press - fly to location on map
+  const handleCardPress = useCallback((place: GuideNearbyPlace) => {
+    mapRef.current?.flyTo(Number(place.latitude), Number(place.longitude), 15);
+    mapRef.current?.selectPin(place.id);
+  }, []);
 
   return (
     <View style={styles.container}>
-      {/* Vietmap View */}
+      {/* Map */}
       <View style={styles.mapContainer}>
         <VietmapView
           ref={mapRef}
           initialRegion={{
             latitude: siteLocation?.latitude || 10.762622,
             longitude: siteLocation?.longitude || 106.660172,
-            zoom: 16,
+            zoom: 15,
           }}
           pins={mapPins}
           showUserLocation
           onMapPress={handleMapPress}
-          onMarkerPress={handleMarkerPress}
           style={styles.map}
         />
-
-        {/* Floating Add Button */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddPin}>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddPress}>
           <LinearGradient
             colors={[PREMIUM_COLORS.gold, "#B8860B"]}
             style={styles.addButtonGradient}
@@ -297,73 +920,287 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({
             <MaterialIcons name="add-location" size={24} color="#FFF" />
           </LinearGradient>
         </TouchableOpacity>
+        
+        {/* View Full Map Button */}
+        <TouchableOpacity 
+          style={styles.fullMapButton} 
+          onPress={() => setShowFullMap(true)}
+        >
+          <MaterialIcons name="fullscreen" size={24} color={PREMIUM_COLORS.gold} />
+        </TouchableOpacity>
       </View>
 
-      {/* Pin Type Selector */}
-      <View style={styles.selectorContainer}>
-        <Text style={styles.selectorTitle}>Loại điểm:</Text>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.selectorScroll}
-        >
-          {PIN_TYPES.map((type) => (
+      {/* List Header with Filter */}
+      <View style={styles.listContainer}>
+        <View style={styles.listHeader}>
+          <Text style={styles.listTitle}>{t('locationsTab.title')}</Text>
+          <View style={styles.listHeaderRight}>
+            {isLoading ? (
+              <ActivityIndicator size="small" color={PREMIUM_COLORS.gold} />
+            ) : (
+              <Text style={styles.listCount}>{t('locationsTab.placeCount', { count: filteredPlaces.length })}</Text>
+            )}
             <TouchableOpacity
-              key={type.id}
               style={[
-                styles.typeChip,
-                selectedType === type.id && { backgroundColor: type.color },
+                styles.filterTriggerBtn,
+                hasFilters && styles.filterTriggerBtnActive,
               ]}
-              onPress={() => setSelectedType(type.id)}
+              onPress={() => setShowFilterSheet(true)}
             >
-              <Ionicons
-                name={type.icon as any}
-                size={16}
-                color={selectedType === type.id ? "#FFF" : type.color}
+              <MaterialIcons
+                name="filter-list"
+                size={18}
+                color={
+                  hasFilters ? PREMIUM_COLORS.gold : GUIDE_COLORS.textSecondary
+                }
               />
               <Text
                 style={[
-                  styles.typeChipLabel,
-                  selectedType === type.id && { color: "#FFF" },
+                  styles.filterTriggerText,
+                  hasFilters && { color: PREMIUM_COLORS.gold },
                 ]}
               >
-                {type.label}
+                {t('locationsTab.filter')}{hasFilters ? " ●" : ""}
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Pins List */}
-      <View style={styles.listContainer}>
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>Các điểm đã đánh dấu</Text>
-          <Text style={styles.listCount}>{localPins.length} điểm</Text>
+          </View>
         </View>
+
         <FlatList
-          data={localPins}
+          data={filteredPlaces}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PinCard
-              pin={item}
-              onPress={() => onPinPress?.(item)}
-              onDelete={() => handleDeletePin(item)}
+            <PlaceCard
+              place={item}
+              onPress={() => handleCardPress(item)}
+              onDelete={() => handleDelete(item)}
+              onEdit={() => handleEdit(item)}
+              onRestore={
+                isActiveFilter === "inactive"
+                  ? () => handleRestore(item)
+                  : undefined
+              }
+              t={t}
+              categoryConfig={CATEGORY_CONFIG}
+              statusConfig={STATUS_CONFIG}
             />
           )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onRefresh={fetchPlaces}
+          refreshing={isLoading}
           ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <MaterialIcons name="place" size={48} color={GUIDE_COLORS.gray300} />
-              <Text style={styles.emptyText}>Chưa có điểm nào</Text>
-              <Text style={styles.emptySubtext}>Nhấn nút + để thêm điểm mới</Text>
-            </View>
+            !isLoading ? (
+              <View style={styles.emptyState}>
+                <MaterialIcons
+                  name="place"
+                  size={48}
+                  color={GUIDE_COLORS.gray300}
+                />
+                <Text style={styles.emptyText}>
+                  {hasFilters ? t('locationsTab.empty.noResults') : t('locationsTab.empty.noPlaces')}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  {hasFilters
+                    ? t('locationsTab.empty.tryChangeFilter')
+                    : t('locationsTab.empty.tapToAdd')}
+                </Text>
+              </View>
+            ) : null
           }
         />
       </View>
 
-      {/* Legend */}
-      <Legend />
+      {/* Filter Bottom Sheet */}
+      <FilterSheet
+        visible={showFilterSheet}
+        categoryFilter={categoryFilter}
+        statusFilter={statusFilter}
+        isActiveFilter={isActiveFilter}
+        onApply={(cat, status, active) => {
+          setCategoryFilter(cat);
+          setStatusFilter(status);
+          if (active !== isActiveFilter) {
+            setIsActiveFilter(active);
+            fetchPlaces(active);
+          }
+        }}
+        onClose={() => setShowFilterSheet(false)}
+        t={t}
+        categoryFilterOptions={CATEGORY_FILTER_OPTIONS}
+        statusFilterOptions={STATUS_FILTER_OPTIONS}
+        activeFilterOptions={ACTIVE_FILTER_OPTIONS}
+      />
+
+      {/* Add Place Modal */}
+      {showAddModal && (
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ width: "100%" }}
+          >
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingPlace
+                    ? t('locationsTab.modal.editTitle')
+                    : t('locationsTab.modal.addTitle')}
+                </Text>
+                <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                  <MaterialIcons
+                    name="close"
+                    size={24}
+                    color={GUIDE_COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Category picker */}
+                <Text style={styles.fieldLabel}>{t('locationsTab.modal.categoryLabel')}</Text>
+                <View style={styles.categoryRow}>
+                  {CATEGORIES.map((cat) => {
+                    const cfg = CATEGORY_CONFIG[cat];
+                    return (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.catChip,
+                          form.category === cat && {
+                            backgroundColor: cfg.color,
+                            borderColor: cfg.color,
+                          },
+                        ]}
+                        onPress={() =>
+                          setForm((f) => ({ ...f, category: cat }))
+                        }
+                      >
+                        <Text>{cfg.emoji}</Text>
+                        <Text
+                          style={[
+                            styles.catChipLabel,
+                            form.category === cat && { color: "#FFF" },
+                          ]}
+                        >
+                          {cfg.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Name */}
+                <Text style={styles.fieldLabel}>{t('locationsTab.modal.nameLabel')}</Text>
+                <TextInput
+                  style={styles.inputBox}
+                  placeholder={t('locationsTab.modal.namePlaceholder')}
+                  placeholderTextColor={GUIDE_COLORS.textMuted}
+                  value={form.name}
+                  onChangeText={(val) => setForm((f) => ({ ...f, name: val }))}
+                  returnKeyType="next"
+                />
+
+                {/* Address */}
+                <Text style={styles.fieldLabel}>{t('locationsTab.modal.addressLabel')}</Text>
+                <TextInput
+                  style={styles.inputBox}
+                  placeholder={t('locationsTab.modal.addressPlaceholder')}
+                  placeholderTextColor={GUIDE_COLORS.textMuted}
+                  value={form.address}
+                  onChangeText={handleAddressChange}
+                  returnKeyType="next"
+                />
+
+                {/* Select on Map button */}
+                <TouchableOpacity
+                  style={styles.selectMapBtn}
+                  onPress={handleSelectOnMap}
+                >
+                  <MaterialIcons name="map" size={18} color={PREMIUM_COLORS.gold} />
+                  <Text style={styles.selectMapText}>
+                    {t('locationsTab.modal.selectOnMap')}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Show current form coordinates */}
+                {form.latitude && form.longitude && (
+                  <Text style={styles.coordsNote}>
+                    {t('locationsTab.modal.currentCoords', {
+                      lat: form.latitude.toFixed(5),
+                      lng: form.longitude.toFixed(5)
+                    })}
+                  </Text>
+                )}
+
+                {/* Phone */}
+                <Text style={styles.fieldLabel}>{t('locationsTab.modal.phoneLabel')}</Text>
+                <TextInput
+                  style={styles.inputBox}
+                  placeholder={t('locationsTab.modal.phonePlaceholder')}
+                  placeholderTextColor={GUIDE_COLORS.textMuted}
+                  value={form.phone}
+                  onChangeText={(val) => setForm((f) => ({ ...f, phone: val }))}
+                  keyboardType="phone-pad"
+                  returnKeyType="next"
+                />
+
+                {/* Description */}
+                <Text style={styles.fieldLabel}>{t('locationsTab.modal.descriptionLabel')}</Text>
+                <TextInput
+                  style={[
+                    styles.inputBox,
+                    { minHeight: 60, textAlignVertical: "top" },
+                  ]}
+                  placeholder={t('locationsTab.modal.descriptionPlaceholder')}
+                  placeholderTextColor={GUIDE_COLORS.textMuted}
+                  value={form.description}
+                  onChangeText={(val) =>
+                    setForm((f) => ({ ...f, description: val }))
+                  }
+                  multiline
+                  returnKeyType="done"
+                />
+              </ScrollView>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setShowAddModal(false)}
+                >
+                  <Text style={styles.cancelBtnText}>{t('locationsTab.modal.cancel')}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
+                  onPress={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>
+                      {editingPlace ? t('locationsTab.modal.saveAndResubmit') : t('locationsTab.modal.submit')}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      )}
+
+      {/* Full Map Modal */}
+      <FullMapModal
+        visible={showFullMap}
+        onClose={() => setShowFullMap(false)}
+        pins={mapPins}
+        initialRegion={{
+          latitude: siteLocation?.latitude || 10.762622,
+          longitude: siteLocation?.longitude || 106.660172,
+          zoom: 14,
+        }}
+        title={t('locationsTab.fullMapTitle')}
+        showUserLocation
+      />
     </View>
   );
 };
@@ -373,10 +1210,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: PREMIUM_COLORS.cream,
   },
-  
+
   // Map Section
   mapContainer: {
-    height: 200,
+    height: 280,
     position: "relative",
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     margin: getSpacing(GUIDE_SPACING.md),
@@ -411,36 +1248,28 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  // Selector
-  selectorContainer: {
-    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
-    paddingBottom: getSpacing(GUIDE_SPACING.sm),
-  },
-  selectorTitle: {
-    fontSize: getFontSize(13),
-    fontWeight: "600",
-    color: GUIDE_COLORS.textSecondary,
-    marginBottom: getSpacing(GUIDE_SPACING.sm),
-  },
-  selectorScroll: {
-    gap: getSpacing(GUIDE_SPACING.sm),
-  },
-  typeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
-    paddingVertical: getSpacing(GUIDE_SPACING.sm),
+  fullMapButton: {
+    position: "absolute",
+    bottom: getSpacing(GUIDE_SPACING.md),
+    left: getSpacing(GUIDE_SPACING.md),
+    width: 44,
+    height: 44,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
     backgroundColor: "#FFF",
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray200,
-  },
-  typeChipLabel: {
-    fontSize: getFontSize(12),
-    fontWeight: "500",
-    color: GUIDE_COLORS.textSecondary,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
 
   // List
@@ -474,6 +1303,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFF",
     borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: PREMIUM_COLORS.goldLight,
     padding: getSpacing(GUIDE_SPACING.md),
     gap: getSpacing(GUIDE_SPACING.md),
     ...Platform.select({
@@ -497,6 +1328,12 @@ const styles = StyleSheet.create({
   },
   pinCardContent: {
     flex: 1,
+  },
+  pinCardInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
   },
   pinCardName: {
     fontSize: getFontSize(15),
@@ -534,51 +1371,360 @@ const styles = StyleSheet.create({
     marginTop: getSpacing(GUIDE_SPACING.xs),
   },
 
-  // Legend
-  legend: {
-    backgroundColor: "#FFF",
-    marginHorizontal: getSpacing(GUIDE_SPACING.md),
-    marginBottom: getSpacing(GUIDE_SPACING.md),
-    padding: getSpacing(GUIDE_SPACING.md),
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+  // Status badge
+  statusBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    marginTop: 4,
   },
-  legendTitle: {
+  statusText: {
+    fontSize: getFontSize(11),
+    fontWeight: "600",
+  },
+  rejectionText: {
+    fontSize: getFontSize(11),
+    color: "#EF4444",
+    marginTop: 2,
+    fontStyle: "italic",
+  },
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+  editBtnText: {
+    fontSize: getFontSize(12),
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  restoreBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#10B981",
+    backgroundColor: "#ECFDF5",
+  },
+  restoreBtnText: {
+    fontSize: getFontSize(12),
+    color: "#10B981",
+    fontWeight: "600",
+  },
+
+  // Modal
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    zIndex: 100,
+  },
+  modalContainer: {
+    backgroundColor: PREMIUM_COLORS.cream,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
+    padding: getSpacing(GUIDE_SPACING.lg),
+    maxHeight: "85%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  modalTitle: {
+    fontSize: getFontSize(17),
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  fieldLabel: {
     fontSize: getFontSize(13),
     fontWeight: "600",
     color: GUIDE_COLORS.textSecondary,
-    marginBottom: getSpacing(GUIDE_SPACING.sm),
+    marginTop: getSpacing(GUIDE_SPACING.md),
+    marginBottom: 4,
   },
-  legendGrid: {
+  categoryRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: getSpacing(GUIDE_SPACING.sm),
+    flexWrap: "wrap",
   },
-  legendItem: {
+  selectMapBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: PREMIUM_COLORS.gold,
+    backgroundColor: PREMIUM_COLORS.goldLight,
+    marginTop: 8,
+  },
+  selectMapText: {
+    fontSize: getFontSize(13),
+    fontWeight: "600",
+    color: PREMIUM_COLORS.gold,
+  },
+  catChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray200,
+    backgroundColor: "#FFF",
+  },
+  catChipLabel: {
+    fontSize: getFontSize(13),
+    color: GUIDE_COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  inputBox: {
+    backgroundColor: PREMIUM_COLORS.cream,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1.5,
+    borderColor: PREMIUM_COLORS.gold,
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
+    paddingVertical: getSpacing(GUIDE_SPACING.sm),
+    minHeight: 44,
+    fontSize: getFontSize(14),
+    color: GUIDE_COLORS.textPrimary,
+  },
+  inputText: {
+    fontSize: getFontSize(14),
+    color: GUIDE_COLORS.textPrimary,
+  },
+  coordsNote: {
+    fontSize: getFontSize(12),
+    color: GUIDE_COLORS.textMuted,
+    marginTop: getSpacing(GUIDE_SPACING.sm),
+    fontStyle: "italic",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: getSpacing(GUIDE_SPACING.md),
+    marginTop: getSpacing(GUIDE_SPACING.lg),
+  },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray200,
+    alignItems: "center",
+  },
+  cancelBtnText: {
+    fontSize: getFontSize(15),
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+  submitBtn: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: PREMIUM_COLORS.gold,
+    alignItems: "center",
+  },
+  submitBtnText: {
+    fontSize: getFontSize(15),
+    fontWeight: "700",
+    color: "#FFF",
+  },
+
+  // List header right
+  listHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  // Filter trigger button
+  filterTriggerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray200,
+    backgroundColor: "#FFF",
+  },
+  filterTriggerBtnActive: {
+    borderColor: PREMIUM_COLORS.gold,
+    backgroundColor: PREMIUM_COLORS.goldLight,
+  },
+  filterTriggerText: {
+    fontSize: getFontSize(12),
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+
+  // Filter Bottom Sheet
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheetContainer: {
+    backgroundColor: PREMIUM_COLORS.cream,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
+    paddingHorizontal: getSpacing(GUIDE_SPACING.lg),
+    paddingTop: 12,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      android: { elevation: 16 },
+    }),
+  },
+  sheetHandleWrap: {
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GUIDE_COLORS.gray200,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  sheetTitle: {
+    fontSize: getFontSize(17),
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  sheetSectionTitle: {
+    fontSize: getFontSize(13),
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  sheetChipRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  sheetChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray200,
+    backgroundColor: "#F9FAFB",
   },
-  legendDot: {
+  sheetChipActive: {
+    borderColor: PREMIUM_COLORS.gold,
+    backgroundColor: PREMIUM_COLORS.goldLight,
+  },
+  sheetChipLabel: {
+    fontSize: getFontSize(13),
+    fontWeight: "500",
+    color: GUIDE_COLORS.textSecondary,
+  },
+  sheetChipLabelActive: {
+    color: PREMIUM_COLORS.gold,
+    fontWeight: "700",
+  },
+  sheetActiveChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    borderWidth: 1.5,
+  },
+  sheetActiveChipLabel: {
+    fontSize: getFontSize(13),
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+  sheetStatusList: {
+    gap: 8,
+    marginBottom: getSpacing(GUIDE_SPACING.lg),
+  },
+  sheetStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.gray100,
+    backgroundColor: "#FAFAFA",
+  },
+  sheetStatusIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sheetStatusLabel: {
+    fontSize: getFontSize(14),
+    fontWeight: "600",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  sheetStatusDesc: {
+    fontSize: getFontSize(12),
+    color: GUIDE_COLORS.textMuted,
+    marginTop: 1,
+  },
+  sheetCheckCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: "auto",
   },
-  legendLabel: {
-    fontSize: getFontSize(11),
-    color: GUIDE_COLORS.textSecondary,
+  sheetApplyBtn: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    paddingVertical: 14,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  sheetApplyText: {
+    fontSize: getFontSize(15),
+    fontWeight: "700",
+    color: "#FFF",
   },
 });
 

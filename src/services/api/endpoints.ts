@@ -197,6 +197,16 @@ export const GUIDE_ENDPOINTS = {
     RESTORE: (id: string) => `${API_BASE}/local-guide/media/${id}/restore`,
   },
 
+  // Local Guide Nearby Places - Đề xuất địa điểm lân cận (ăn uống, lưu trú, y tế)
+  LOCAL_GUIDE_NEARBY_PLACES: {
+    LIST: `${API_BASE}/local-guide/nearby-places`,
+    CREATE: `${API_BASE}/local-guide/nearby-places`,
+    UPDATE: (id: string) => `${API_BASE}/local-guide/nearby-places/${id}`,
+    DELETE: (id: string) => `${API_BASE}/local-guide/nearby-places/${id}`,
+    RESTORE: (id: string) =>
+      `${API_BASE}/local-guide/nearby-places/${id}/restore`,
+  },
+
   // Local Guide Events - Event management for assigned site
   LOCAL_GUIDE_EVENTS: {
     LIST: `${API_BASE}/local-guide/events`,

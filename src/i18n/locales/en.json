@@ -512,7 +512,95 @@
       "church": "Church",
       "shrine": "Shrine",
       "monastery": "Monastery",
+      "center": "Center",
       "other": "Site"
+    }
+  },
+  "locationsTab": {
+    "title": "Nearby Places",
+    "viewFullMap": "View Map",
+    "fullMapTitle": "Location Map",
+    "addPlace": "Add Place",
+    "categories": {
+      "all": "All",
+      "food": "Food",
+      "lodging": "Lodging",
+      "medical": "Medical"
+    },
+    "status": {
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "activeFilter": {
+      "all": "All",
+      "active": "Active",
+      "inactive": "Deleted"
+    },
+    "filter": "Filter",
+    "filterTitle": "Filter Places",
+    "applyFilter": "Apply",
+    "categoryLabel": "Category",
+    "statusLabel": "Status",
+    "displayLabel": "Display",
+    "statusDesc": {
+      "all": "Show all",
+      "pending": "Awaiting approval",
+      "approved": "Already approved",
+      "rejected": "Rejected"
+    },
+    "activeDesc": {
+      "all": "Show all",
+      "active": "is_active = true",
+      "inactive": "is_active = false"
+    },
+    "placeCount": "{{count}} places",
+    "distance": {
+      "meters": "{{distance}} m",
+      "kilometers": "{{distance}} km"
+    },
+    "distanceAway": "{{distance}} away",
+    "rejectionReason": "Reason: {{reason}}",
+    "editAndResubmit": "Edit & resubmit",
+    "restore": "Restore",
+    "delete": "Delete",
+    "deleteConfirm": "Delete Place",
+    "deleteMessage": "Are you sure you want to delete \"{{name}}\"?",
+    "restoreConfirm": "Restore Place",
+    "restoreMessage": "Restore \"{{name}}\"?",
+    "empty": {
+      "noResults": "No results",
+      "noPlaces": "No places yet",
+      "tryChangeFilter": "Try changing filters",
+      "tapToAdd": "Tap + or tap on map to add"
+    },
+    "modal": {
+      "addTitle": "Add Nearby Place",
+      "editTitle": "Edit Place",
+      "cancel": "Cancel",
+      "submit": "Submit for approval",
+      "saveAndResubmit": "Save & resubmit",
+      "categoryLabel": "Place Type *",
+      "nameLabel": "Place Name *",
+      "namePlaceholder": "Enter name...",
+      "addressLabel": "Address *",
+      "addressPlaceholder": "Enter address...",
+      "selectOnMap": "Or select location on map",
+      "selectOnMapTitle": "Select location on map",
+      "selectOnMapMessage": "Tap on the map to select place location",
+      "currentCoords": "Current coordinates: {{lat}}, {{lng}}",
+      "phoneLabel": "Phone Number",
+      "phonePlaceholder": "Enter phone number...",
+      "descriptionLabel": "Notes",
+      "descriptionPlaceholder": "Enter notes (optional)..."
+    },
+    "toast": {
+      "coordsUpdated": "Coordinates updated",
+      "errorNameRequired": "Please enter place name",
+      "errorAddressRequired": "Please enter address",
+      "deleted": "Deleted",
+      "restored": "Restored"
     }
   }
 }

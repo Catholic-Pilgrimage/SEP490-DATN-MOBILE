@@ -513,7 +513,95 @@
       "church": "Nhà thờ",
       "shrine": "Đền thánh",
       "monastery": "Tu viện",
+      "center": "Trung tâm",
       "other": "Địa điểm"
+    }
+  },
+  "locationsTab": {
+    "title": "Địa điểm lân cận",
+    "viewFullMap": "Xem bản đồ",
+    "fullMapTitle": "Bản đồ địa điểm",
+    "addPlace": "Thêm địa điểm",
+    "categories": {
+      "all": "Tất cả",
+      "food": "Ăn uống",
+      "lodging": "Lưu trú",
+      "medical": "Y tế"
+    },
+    "status": {
+      "all": "Tất cả",
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "rejected": "Từ chối"
+    },
+    "activeFilter": {
+      "all": "Tất cả",
+      "active": "Đang hoạt động",
+      "inactive": "Đã xóa"
+    },
+    "filter": "Lọc",
+    "filterTitle": "Lọc địa điểm",
+    "applyFilter": "Áp dụng",
+    "categoryLabel": "Danh mục",
+    "statusLabel": "Trạng thái",
+    "displayLabel": "Hiển thị",
+    "statusDesc": {
+      "all": "Hiển thị tất cả",
+      "pending": "Đang chờ phê duyệt",
+      "approved": "Đã được phê duyệt",
+      "rejected": "Bị từ chối"
+    },
+    "activeDesc": {
+      "all": "Hiển thị tất cả",
+      "active": "is_active = true",
+      "inactive": "is_active = false"
+    },
+    "placeCount": "{{count}} nơi",
+    "distance": {
+      "meters": "{{distance}} m",
+      "kilometers": "{{distance}} km"
+    },
+    "distanceAway": "Cách {{distance}}",
+    "rejectionReason": "Lý do: {{reason}}",
+    "editAndResubmit": "Chỉnh sửa & gửi lại",
+    "restore": "Khôi phục",
+    "delete": "Xóa",
+    "deleteConfirm": "Xóa địa điểm",
+    "deleteMessage": "Bạn có chắc muốn xóa \"{{name}}\"?",
+    "restoreConfirm": "Khôi phục địa điểm",
+    "restoreMessage": "Khôi phục \"{{name}}\"?",
+    "empty": {
+      "noResults": "Không có kết quả",
+      "noPlaces": "Chưa có địa điểm nào",
+      "tryChangeFilter": "Thử thay đổi bộ lọc",
+      "tapToAdd": "Nhấn + hoặc chạm vào bản đồ để thêm"
+    },
+    "modal": {
+      "addTitle": "Thêm địa điểm lân cận",
+      "editTitle": "Chỉnh sửa địa điểm",
+      "cancel": "Hủy",
+      "submit": "Gửi duyệt",
+      "saveAndResubmit": "Lưu & gửi lại",
+      "categoryLabel": "Loại địa điểm *",
+      "nameLabel": "Tên địa điểm *",
+      "namePlaceholder": "Nhập tên...",
+      "addressLabel": "Địa chỉ *",
+      "addressPlaceholder": "Nhập địa chỉ...",
+      "selectOnMap": "Hoặc chọn vị trí trên bản đồ",
+      "selectOnMapTitle": "Chọn vị trí trên bản đồ",
+      "selectOnMapMessage": "Chạm vào bản đồ để chọn vị trí địa điểm",
+      "currentCoords": "Tọa độ hiện tại: {{lat}}, {{lng}}",
+      "phoneLabel": "Số điện thoại",
+      "phonePlaceholder": "Nhập số điện thoại...",
+      "descriptionLabel": "Ghi chú",
+      "descriptionPlaceholder": "Nhập ghi chú (tuỳ chọn)..."
+    },
+    "toast": {
+      "coordsUpdated": "Đã cập nhật tọa độ",
+      "errorNameRequired": "Vui lòng nhập tên địa điểm",
+      "errorAddressRequired": "Vui lòng nhập địa chỉ",
+      "deleted": "Đã xóa",
+      "restored": "Đã khôi phục"
     }
   }
 }

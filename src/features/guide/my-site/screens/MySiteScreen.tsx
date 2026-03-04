@@ -243,7 +243,18 @@ const MySiteScreen: React.FC = () => {
       {/* Locations Tab - Map with pin points */}
       {activeTab === "Địa điểm" && (
         <View style={styles.mediaTabContainer}>
-          <LocationsTab />
+          <LocationsTab 
+            siteLocation={
+              siteData?.latitude && siteData?.longitude
+                ? {
+                    latitude: siteData.latitude,
+                    longitude: siteData.longitude,
+                    name: siteData.name,
+                    address: siteData.address,
+                  }
+                : undefined
+            }
+          />
         </View>
       )}
 

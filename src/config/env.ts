@@ -25,11 +25,20 @@ export const VIETMAP_CONFIG = {
   TILEMAP_KEY: VIETMAP_TILEMAP_KEY,
   SERVICES_KEY: VIETMAP_SERVICES_KEY,
   // Map style URLs
+  // Vietmap GL style JSON — works with @rnmapbox/maps native SDK (standard Mapbox GL style format)
   STYLE_URL: `https://maps.vietmap.vn/api/maps/light/styles.json?apikey=${VIETMAP_TILEMAP_KEY}`,
+  // Mapbox hosted style (requires valid pk. token with map tile scope)
+  MAPBOX_STYLE_URL: "mapbox://styles/mapbox/streets-v12",
   // Tile URL
   TILE_URL: `https://maps.vietmap.vn/api/tm/{z}/{x}/{y}.png?apikey=${VIETMAP_TILEMAP_KEY}`,
-  // Geocoding API
-  GEOCODING_URL: "https://maps.vietmap.vn/api/search/v3",
+  // Search & Geocode API v4 (merged search & geocode)
+  SEARCH_URL: "https://maps.vietmap.vn/api/search/v4",
+  // Autocomplete API v4 (incremental search)
+  AUTOCOMPLETE_URL: "https://maps.vietmap.vn/api/autocomplete/v4",
+  // Place Detail API v4 (get coordinates from ref_id)
+  PLACE_DETAIL_URL: "https://maps.vietmap.vn/api/place/v4",
+  // Reverse Geocoding API v4 (lat/lng → address)
+  REVERSE_GEOCODING_URL: "https://maps.vietmap.vn/api/reverse/v4",
   // Routing API
   ROUTING_URL: "https://maps.vietmap.vn/api/route",
 };
