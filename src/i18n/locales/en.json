@@ -498,5 +498,21 @@
       "verifyFailed": "Verification failed",
       "otpResent": "OTP has been resent to your email"
     }
+  },
+  "favoriteSites": {
+    "title": "Favorite Sites",
+    "removeTitle": "Remove from Favorites",
+    "removeMessage": "Are you sure you want to remove \"{{name}}\" from your favorites?",
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "emptyTitle": "No favorite sites yet",
+    "emptySubtitle": "Tap the ❤️ icon to add pilgrimage sites to your favorites list.",
+    "exploreNow": "Explore Now",
+    "types": {
+      "church": "Church",
+      "shrine": "Shrine",
+      "monastery": "Monastery",
+      "other": "Site"
+    }
   }
 }

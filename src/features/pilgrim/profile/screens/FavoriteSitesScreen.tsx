@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 
 import { COLORS, SHADOWS } from '../../../../constants/theme.constants';
 import { useQuery as useApiQuery } from '../../../../hooks/useApi';
@@ -29,6 +30,7 @@ const COLUMN_WIDTH = (width - 48) / 2;
 const FavoriteSitesScreen = () => {
     const navigation = useNavigation<NativeStackNavigationProp<any>>();
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation();
     const [favorites, setFavorites] = useState<FavoriteSite[]>([]);
 
     // Centralized favorites hook for toggling
@@ -60,12 +62,12 @@ const FavoriteSitesScreen = () => {
 
     const handleRemoveFavorite = async (siteId: string, siteName: string) => {
         Alert.alert(
-            'Xóa khỏi yêu thích',
-            `Bạn có chắc muốn xóa "${siteName}" khỏi danh sách yêu thích?`,
+            t('favoriteSites.removeTitle'),
+            t('favoriteSites.removeMessage', { name: siteName }),
             [
-                { text: 'Hủy', style: 'cancel' },
+                { text: t('favoriteSites.cancel'), style: 'cancel' },
                 {
-                    text: 'Xóa',
+                    text: t('favoriteSites.remove'),
                     style: 'destructive',
                     onPress: async () => {
                         // Optimistic: remove from local list
@@ -123,9 +125,9 @@ const FavoriteSitesScreen = () => {
 
                         <View style={styles.categoryTag}>
                             <Text style={styles.categoryText}>
-                                {item.type === 'church' ? 'Nhà thờ' :
-                                    item.type === 'shrine' ? 'Đền thánh' :
-                                        item.type === 'monastery' ? 'Tu viện' : 'Địa điểm'}
+                                {item.type === 'church' ? t('favoriteSites.types.church') :
+                                    item.type === 'shrine' ? t('favoriteSites.types.shrine') :
+                                        item.type === 'monastery' ? t('favoriteSites.types.monastery') : t('favoriteSites.types.other')}
                             </Text>
                         </View>
                     </View>
@@ -140,15 +142,13 @@ const FavoriteSitesScreen = () => {
                 source={{ uri: 'https://cdn-icons-png.flaticon.com/512/4076/4076549.png' }}
                 style={styles.emptyImage}
             />
-            <Text style={styles.emptyTitle}>Chưa có địa điểm yêu thích</Text>
-            <Text style={styles.emptySubtitle}>
-                Nhấn vào biểu tượng ❤️ để thêm địa điểm hành hương vào danh sách yêu thích.
-            </Text>
+            <Text style={styles.emptyTitle}>{t('favoriteSites.emptyTitle')}</Text>
+            <Text style={styles.emptySubtitle}>{t('favoriteSites.emptySubtitle')}</Text>
             <TouchableOpacity
                 style={styles.exploreButton}
                 onPress={() => navigation.navigate('Hanh huong')}
             >
-                <Text style={styles.exploreButtonText}>Khám phá ngay</Text>
+                <Text style={styles.exploreButtonText}>{t('favoriteSites.exploreNow')}</Text>
             </TouchableOpacity>
         </View>
     );
@@ -162,7 +162,7 @@ const FavoriteSitesScreen = () => {
                 >
                     <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Địa điểm yêu thích</Text>
+                <Text style={styles.headerTitle}>{t('favoriteSites.title')}</Text>
                 <View style={styles.placeholderButton} />
             </View>
 

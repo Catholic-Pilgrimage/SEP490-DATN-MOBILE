@@ -499,5 +499,21 @@
       "verifyFailed": "Xác thực thất bại",
       "otpResent": "Đã gửi lại mã OTP đến email của bạn"
     }
+  },
+  "favoriteSites": {
+    "title": "Địa điểm yêu thích",
+    "removeTitle": "Xóa khỏi yêu thích",
+    "removeMessage": "Bạn có chắc muốn xóa \"{{name}}\" khỏi danh sách yêu thích?",
+    "cancel": "Hủy",
+    "remove": "Xóa",
+    "emptyTitle": "Chưa có địa điểm yêu thích",
+    "emptySubtitle": "Nhấn vào biểu tượng ❤️ để thêm địa điểm hành hương vào danh sách yêu thích.",
+    "exploreNow": "Khám phá ngay",
+    "types": {
+      "church": "Nhà thờ",
+      "shrine": "Đền thánh",
+      "monastery": "Tu viện",
+      "other": "Địa điểm"
+    }
   }
 }
