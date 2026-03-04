@@ -54,7 +54,7 @@
         "@rnmapbox/maps",
         {
           "RNMapboxMapsVersion": "11.8.0",
-          "RNMapboxMapsDownloadToken": "pk.eyJ1Ijoic2ZyYW5raWUzMDExIiwiYSI6ImNtbWJxbDRpMzBwc3AycHI0cmcyNzF5dDgifQ.Tkj5o8ORerNl8Qmk3Swcmw"
+          "RNMapboxMapsDownloadToken": "sk.eyJ1Ijoic2ZyYW5raWUzMDExIiwiYSI6ImNtbWJycDE3NDBxanYyc3IybWkzM3ZhbGEifQ.Dey4cxS6PRa2tNry2iQ4Lg"
         }
       ],
       [
