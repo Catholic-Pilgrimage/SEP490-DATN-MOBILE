@@ -47,7 +47,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
     const start = new Date(plan.startDate);
     const end = new Date(plan.endDate);
     const durationDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    const dateStr = start.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const dateStr = `${start.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} – ${end.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
 
     // Status Badge Logic
     const renderStatus = () => {

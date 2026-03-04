@@ -31,11 +31,13 @@ import {
   GetPlansResponse,
   InviteParticipantRequest,
   PlanEntity,
+  PlanItem,
   PlannerMessage,
   PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
   ReorderPlanItemsRequest,
   ReorderPlanItemsResponse,
   SendPlanMessageRequest,
+  UpdatePlanItemRequest,
   UpdatePlanRequest,
   UploadMessageImageResponse
 } from "../../../types/pilgrim";
@@ -117,6 +119,21 @@ export const addPlanItem = async (
 ): Promise<ApiResponse<AddPlanItemResponse>> => {
   const response = await apiClient.post<ApiResponse<AddPlanItemResponse>>(
     PILGRIM_ENDPOINTS.PLANNER.ADD_ITEM(planId),
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * Update an item in plan
+ */
+export const updatePlanItem = async (
+  planId: string,
+  itemId: string,
+  data: UpdatePlanItemRequest,
+): Promise<ApiResponse<PlanItem>> => {
+  const response = await apiClient.put<ApiResponse<PlanItem>>(
+    PILGRIM_ENDPOINTS.PLANNER.UPDATE_ITEM(planId, itemId),
     data,
   );
   return response.data;
@@ -299,6 +316,7 @@ const pilgrimPlannerApi = {
   inviteParticipant,
   getParticipants,
   addPlanItem,
+  updatePlanItem,
   deletePlanItem,
   reorderPlanItems,
   getPlanMessages,

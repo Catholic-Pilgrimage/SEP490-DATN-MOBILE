@@ -32,7 +32,7 @@ import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import { SiteSummary } from "../../../../types/pilgrim";
-import { PlanEntity, PlanItem, PlanParticipant } from "../../../../types/pilgrim/planner.types";
+import { PlanEntity, PlanItem, PlanParticipant, UpdatePlanItemRequest } from "../../../../types/pilgrim/planner.types";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
   const { planId } = route.params;
@@ -68,6 +68,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("viewer");
   const [inviting, setInviting] = useState(false);
+
+  // Edit Item State
+  const [showEditItemModal, setShowEditItemModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
+  const [editEstimatedTime, setEditEstimatedTime] = useState("10:00");
+  const [editRestDuration, setEditRestDuration] = useState(120);
+  const [editNote, setEditNote] = useState("");
+  const [showEditTimePicker, setShowEditTimePicker] = useState(false);
+  const [editTempTime, setEditTempTime] = useState(new Date());
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Check-in state
   const [checkingInItemId, setCheckingInItemId] = useState<string | null>(null);
@@ -248,6 +258,79 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         },
       ],
     );
+  };
+
+  const handleOpenEditItem = (item: PlanItem) => {
+    setEditingItem(item);
+    // Parse existing estimated_time
+    const timeVal = typeof item.estimated_time === "string" ? item.estimated_time : "10:00";
+    setEditEstimatedTime(timeVal.length >= 5 ? timeVal.substring(0, 5) : timeVal);
+    // Parse rest_duration to minutes
+    const durStr = formatTimeValue(item.rest_duration);
+    let minutes = 120;
+    const hourMatch = durStr.match(/(\d+)\s*gi[oờ]/);
+    const minMatch = durStr.match(/(\d+)\s*ph[uút]/);
+    if (hourMatch) minutes = parseInt(hourMatch[1]) * 60;
+    if (minMatch) minutes += parseInt(minMatch[1]);
+    if (!hourMatch && !minMatch) {
+      const rawMatch = durStr.match(/(\d+)/);
+      if (rawMatch) minutes = parseInt(rawMatch[1]);
+    }
+    setEditRestDuration(Math.max(60, Math.min(240, minutes)));
+    setEditNote(item.note || "");
+    setShowEditItemModal(true);
+  };
+
+  const handleEditTimeChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") setShowEditTimePicker(false);
+    if (selectedDate) {
+      const h = selectedDate.getHours().toString().padStart(2, "0");
+      const m = selectedDate.getMinutes().toString().padStart(2, "0");
+      setEditEstimatedTime(`${h}:${m}`);
+      if (Platform.OS === "ios") setShowEditTimePicker(false);
+    }
+  };
+
+  const openEditTimePicker = () => {
+    const [h, m] = editEstimatedTime.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h || 10);
+    d.setMinutes(m || 0);
+    setEditTempTime(d);
+    setShowEditTimePicker(true);
+  };
+
+  const buildDurationString = (totalMinutes: number): string => {
+    const dh = Math.floor(totalMinutes / 60);
+    const dm = totalMinutes % 60;
+    if (dh > 0 && dm > 0) return `${dh} ${dh === 1 ? "hour" : "hours"} ${dm} ${dm === 1 ? "minute" : "minutes"}`;
+    if (dh > 0) return `${dh} ${dh === 1 ? "hour" : "hours"}`;
+    return `${totalMinutes} ${totalMinutes === 1 ? "minute" : "minutes"}`;
+  };
+
+  const handleSaveEditItem = async () => {
+    if (!editingItem) return;
+    try {
+      setSavingEdit(true);
+      const payload: UpdatePlanItemRequest = {
+        estimated_time: editEstimatedTime,
+        rest_duration: buildDurationString(editRestDuration),
+        note: editNote.trim() || undefined,
+      };
+      const response = await pilgrimPlannerApi.updatePlanItem(planId, editingItem.id, payload);
+      if (response.success) {
+        setShowEditItemModal(false);
+        setEditingItem(null);
+        loadPlan();
+      } else {
+        Alert.alert("Lỗi", response.message || "Không thể cập nhật địa điểm");
+      }
+    } catch (error: any) {
+      console.error("Update item error:", error);
+      Alert.alert("Lỗi", error.message || "Không thể cập nhật địa điểm");
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const openAddModal = (day: number) => {
@@ -439,15 +522,15 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           onPress: async () => {
             try {
               setCheckingInItemId(itemId);
-              
+
               // Get current location
               const location = await locationService.getCurrentLocation();
-              
+
               const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
                 latitude: location.latitude,
                 longitude: location.longitude,
               });
-              
+
               if (response.success) {
                 Alert.alert("Thành công", `Đã check-in tại ${siteName}!`);
                 loadPlan(); // Reload to update UI
@@ -704,6 +787,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                   color={COLORS.accent}
                                 />
                               )}
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleOpenEditItem(item)}
+                              style={{ padding: 4 }}
+                            >
+                              <Ionicons
+                                name="create-outline"
+                                size={18}
+                                color={COLORS.primary}
+                              />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => handleDeleteItem(item.id)}
@@ -968,6 +1061,104 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           </ScrollView>
         </View>
       </Modal>
+
+      {/* Edit Item Modal */}
+      <Modal
+        visible={showEditItemModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowEditItemModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Chỉnh sửa địa điểm</Text>
+            <TouchableOpacity onPress={() => setShowEditItemModal(false)}>
+              <Text style={styles.modalClose}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ padding: 16 }}>
+            {editingItem && (
+              <Text style={[styles.timeInputLabel, { marginBottom: 16 }]}>
+                {editingItem.site.name}
+              </Text>
+            )}
+
+            {/* Estimated Time */}
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.timeInputFieldLabel}>Giờ dự kiến</Text>
+              <TouchableOpacity
+                style={styles.timePickerButton}
+                onPress={openEditTimePicker}
+              >
+                <Ionicons name="time-outline" size={24} color={COLORS.primary} />
+                <Text style={styles.timePickerButtonText}>{editEstimatedTime}</Text>
+                <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Rest Duration */}
+            <View style={styles.timeInputContainer}>
+              <Text style={styles.timeInputFieldLabel}>Thời gian nghỉ</Text>
+              <Text style={styles.durationValueText}>{formatDuration(editRestDuration)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={60}
+                maximumValue={240}
+                step={15}
+                value={editRestDuration}
+                onValueChange={setEditRestDuration}
+                minimumTrackTintColor={COLORS.primary}
+                maximumTrackTintColor={COLORS.border}
+                thumbTintColor={COLORS.accent}
+              />
+              <View style={styles.sliderLabels}>
+                <Text style={styles.sliderLabelText}>1 giờ</Text>
+                <Text style={styles.sliderLabelText}>4 giờ</Text>
+              </View>
+            </View>
+
+            {/* Note */}
+            <View style={styles.noteInputContainer}>
+              <Text style={styles.timeInputFieldLabel}>Ghi chú</Text>
+              <TextInput
+                style={styles.noteInput}
+                placeholder="Nhập ghi chú..."
+                placeholderTextColor={COLORS.textTertiary}
+                value={editNote}
+                onChangeText={setEditNote}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              style={styles.confirmButton}
+              onPress={handleSaveEditItem}
+              disabled={savingEdit}
+            >
+              {savingEdit ? (
+                <ActivityIndicator color={COLORS.textPrimary} />
+              ) : (
+                <Text style={styles.confirmButtonText}>Lưu thay đổi</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Edit Time Picker */}
+      {showEditTimePicker && (
+        <DateTimePicker
+          value={editTempTime}
+          mode="time"
+          is24Hour={true}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={handleEditTimeChange}
+        />
+      )}
 
       {/* Time Picker */}
       {showTimePicker && (
@@ -1397,9 +1588,10 @@ const styles = StyleSheet.create({
     maxWidth: 100,
   },
   itemActions: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
+    flexShrink: 0,
   },
   checkInButton: {
     padding: 4,

@@ -165,6 +165,14 @@ export interface AddPlanItemRequest {
   rest_duration?: string; // Format: text (e.g., "1 hour", "30 minutes", "2 hours 30 minutes")
 }
 
+export interface UpdatePlanItemRequest {
+  day_number?: number;
+  order_index?: number;
+  note?: string;
+  estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
+  rest_duration?: string; // Format: "30 minutes", "1 hour", "2 hours 30 minutes"
+}
+
 export interface ReorderPlanItemsRequest {
   day_number: number;
   item_ids: string[];
