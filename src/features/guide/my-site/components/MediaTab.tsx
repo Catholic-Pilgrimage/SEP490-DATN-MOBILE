@@ -5,7 +5,8 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Dimensions,
@@ -63,18 +64,21 @@ const PREMIUM_COLORS = {
   brownLight: "#E8E0D5",
 };
 
-const TYPE_FILTERS: { key: TypeFilter; label: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-  { key: "all", label: "Tất cả", icon: "apps" },
-  { key: "image", label: "Ảnh", icon: "photo" },
-  { key: "video", label: "Video", icon: "videocam" },
-  { key: "panorama", label: "360°", icon: "panorama-fish-eye" },
+type TypeFilterItem = { key: TypeFilter; label: string; icon: keyof typeof MaterialIcons.glyphMap };
+type StatusFilterItem = { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string };
+
+const getTypeFilters = (t: (key: string) => string): TypeFilterItem[] => [
+  { key: "all", label: t("mediaTab.typeAll"), icon: "apps" },
+  { key: "image", label: t("mediaTab.typeImage"), icon: "photo" },
+  { key: "video", label: t("mediaTab.typeVideo"), icon: "videocam" },
+  { key: "panorama", label: t("mediaTab.typePanorama"), icon: "panorama-fish-eye" },
 ];
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string }[] = [
-  { key: "all", label: "Tất cả", color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: "Hiển thị tất cả media" },
-  { key: "pending", label: "Chờ duyệt", color: GUIDE_COLORS.warning, bgColor: "#FFF8E1", icon: "schedule", description: "Media đang chờ phê duyệt" },
-  { key: "approved", label: "Đã duyệt", color: GUIDE_COLORS.success, bgColor: "#E8F5E9", icon: "check-circle", description: "Media đã được phê duyệt" },
-  { key: "rejected", label: "Từ chối", color: GUIDE_COLORS.error, bgColor: "#FFEBEE", icon: "cancel", description: "Media bị từ chối" },
+const getStatusFilters = (t: (key: string) => string): StatusFilterItem[] => [
+  { key: "all", label: t("mediaTab.statusAll"), color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: t("mediaTab.statusAllDesc") },
+  { key: "pending", label: t("mediaTab.statusPending"), color: GUIDE_COLORS.warning, bgColor: "#FFF8E1", icon: "schedule", description: t("mediaTab.statusPendingDesc") },
+  { key: "approved", label: t("mediaTab.statusApproved"), color: GUIDE_COLORS.success, bgColor: "#E8F5E9", icon: "check-circle", description: t("mediaTab.statusApprovedDesc") },
+  { key: "rejected", label: t("mediaTab.statusRejected"), color: GUIDE_COLORS.error, bgColor: "#FFEBEE", icon: "cancel", description: t("mediaTab.statusRejectedDesc") },
 ];
 
 
@@ -89,6 +93,8 @@ interface FilterBottomSheetProps {
   activeTypeFilter: TypeFilter;
   onFilterChange: (status: StatusFilter, type: TypeFilter) => void;
   onClose: () => void;
+  typeFilters: TypeFilterItem[];
+  statusFilters: StatusFilterItem[];
 }
 
 const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
@@ -97,7 +103,10 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   activeTypeFilter,
   onFilterChange,
   onClose,
+  typeFilters,
+  statusFilters,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>(activeStatusFilter);
   const [selectedType, setSelectedType] = useState<TypeFilter>(activeTypeFilter);
@@ -132,7 +141,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>Lọc media</Text>
+                <Text style={styles.bottomSheetTitle}>{t("mediaTab.filterTitle")}</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
@@ -140,9 +149,9 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Type Options */}
               <View style={styles.filterSectionContainer}>
-                <Text style={styles.filterSectionTitle}>Loại media</Text>
+                <Text style={styles.filterSectionTitle}>{t("mediaTab.typeSection")}</Text>
                 <View style={styles.typeGridContainer}>
-                  {TYPE_FILTERS.map((type) => {
+                  {typeFilters.map((type) => {
                     const isSelected = selectedType === type.key;
                     return (
                       <TouchableOpacity
@@ -173,9 +182,9 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Status Options */}
               <View style={styles.filterSectionContainer}>
-                <Text style={styles.filterSectionTitle}>Trạng thái</Text>
+                <Text style={styles.filterSectionTitle}>{t("mediaTab.statusSection")}</Text>
                 <View style={styles.filterOptionsContainer}>
-                  {STATUS_FILTERS.map((filter) => {
+                  {statusFilters.map((filter) => {
                     const isSelected = selectedStatus === filter.key;
                     return (
                       <TouchableOpacity
@@ -222,7 +231,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   onPress={handleApply}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                  <Text style={styles.applyButtonText}>{t("mediaTab.apply")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -240,6 +249,7 @@ interface FilterTriggerProps {
 }
 
 const FilterTrigger: React.FC<FilterTriggerProps> = ({ hasFilters, onPress }) => {
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={[
@@ -258,7 +268,7 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ hasFilters, onPress }) =>
         styles.filterTriggerText,
         hasFilters && { color: PREMIUM_COLORS.brown },
       ]}>
-        {hasFilters ? "Đã lọc" : "Bộ lọc"}
+        {hasFilters ? t("mediaTab.filterActive") : t("mediaTab.filter")}
       </Text>
       <Ionicons
         name="chevron-down"
@@ -278,26 +288,15 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+  const { t } = useTranslation();
   const getBadgeConfig = () => {
     switch (status) {
       case "pending":
-        return {
-          backgroundColor: "rgba(255, 193, 7, 0.8)", // Amber
-          color: "#FFF",
-          label: "Chờ duyệt"
-        };
+        return { backgroundColor: "rgba(255, 193, 7, 0.8)", color: "#FFF", label: t("mediaTab.statusPending") };
       case "approved":
-        return {
-          backgroundColor: "rgba(76, 175, 80, 0.8)", // Green
-          color: "#FFF",
-          label: "Đã duyệt"
-        };
+        return { backgroundColor: "rgba(76, 175, 80, 0.8)", color: "#FFF", label: t("mediaTab.statusApproved") };
       case "rejected":
-        return {
-          backgroundColor: "rgba(244, 67, 54, 0.8)", // Red
-          color: "#FFF",
-          label: "Từ chối"
-        };
+        return { backgroundColor: "rgba(244, 67, 54, 0.8)", color: "#FFF", label: t("mediaTab.statusRejected") };
     }
   };
 
@@ -345,21 +344,22 @@ interface EmptyStateProps {
   onUploadPress: () => void;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ onUploadPress }) => (
-  <View style={styles.emptyState}>
-    <View style={styles.emptyIconContainer}>
-      <MaterialIcons name="photo-camera" size={48} color={GUIDE_COLORS.gray300} />
+const EmptyState: React.FC<EmptyStateProps> = ({ onUploadPress }) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconContainer}>
+        <MaterialIcons name="photo-camera" size={48} color={GUIDE_COLORS.gray300} />
+      </View>
+      <Text style={styles.emptyTitle}>{t("mediaTab.empty")}</Text>
+      <Text style={styles.emptyDescription}>{t("mediaTab.emptyDesc")}</Text>
+      <TouchableOpacity style={styles.emptyButton} onPress={onUploadPress} activeOpacity={0.8}>
+        <MaterialIcons name="add" size={20} color={GUIDE_COLORS.surface} />
+        <Text style={styles.emptyButtonText}>{t("mediaTab.uploadMedia")}</Text>
+      </TouchableOpacity>
     </View>
-    <Text style={styles.emptyTitle}>Chưa có media nào</Text>
-    <Text style={styles.emptyDescription}>
-      Hãy upload ảnh, video hoặc{"\n"}panorama 360° cho site của bạn
-    </Text>
-    <TouchableOpacity style={styles.emptyButton} onPress={onUploadPress} activeOpacity={0.8}>
-      <MaterialIcons name="add" size={20} color={GUIDE_COLORS.surface} />
-      <Text style={styles.emptyButtonText}>Upload Media</Text>
-    </TouchableOpacity>
-  </View>
-);
+  );
+};
 
 // ============================================
 // MEDIA ITEM COMPONENT
@@ -403,9 +403,12 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({ item, onPress }) => {
 // ============================================
 
 export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress }) => {
+  const { t } = useTranslation();
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const typeFilters = useMemo(() => getTypeFilters(t), [t]);
+  const statusFilters = useMemo(() => getStatusFilters(t), [t]);
 
   const {
     data: mediaList = [],
@@ -459,21 +462,19 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
       let dateKey: string;
 
       if (date.toDateString() === today.toDateString()) {
-        dateKey = "Hôm nay";
+        dateKey = t("mediaTab.today");
       } else if (date.toDateString() === yesterday.toDateString()) {
-        dateKey = "Hôm qua";
+        dateKey = t("mediaTab.yesterday");
       } else {
-        // Format: "Thứ X, DD tháng MM, YYYY" for this year, add year if different
-        const dayNames = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
-        const dayName = dayNames[date.getDay()];
+        const dayName = t(`mediaTab.dayName${date.getDay()}`);
         const day = date.getDate();
         const month = date.getMonth() + 1;
         const year = date.getFullYear();
 
         if (year === today.getFullYear()) {
-          dateKey = `${dayName}, ${day} tháng ${month}`;
+          dateKey = t("mediaTab.dateFormat", { dayName, day, month });
         } else {
-          dateKey = `${dayName}, ${day} tháng ${month}, ${year}`;
+          dateKey = t("mediaTab.dateFormatWithYear", { dayName, day, month, year });
         }
       }
 
@@ -483,16 +484,14 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
       groups[dateKey].push(item);
     });
 
-    // Convert to SectionList format, sorted by most recent first
     return Object.entries(groups)
       .map(([title, data]) => ({ title, data }))
       .sort((a, b) => {
-        // Sort by the first item's created_at in each group
         const dateA = new Date(a.data[0]?.created_at || 0);
         const dateB = new Date(b.data[0]?.created_at || 0);
         return dateB.getTime() - dateA.getTime();
       });
-  }, []);
+  }, [t]);
 
   const sections = groupMediaByDate(mediaList);
 
@@ -524,7 +523,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
     <View style={styles.container}>
       {/* Header Row */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitleMain}>Thư viện media</Text>
+        <Text style={styles.sectionTitleMain}>{t("mediaTab.libraryTitle")}</Text>
         <FilterTrigger
           hasFilters={statusFilter !== "all" || typeFilter !== "all"}
           onPress={() => setShowFilterSheet(true)}
@@ -541,13 +540,15 @@ export const MediaTab: React.FC<MediaTabProps> = ({ onMediaPress, onUploadPress 
           setTypeFilter(type);
         }}
         onClose={() => setShowFilterSheet(false)}
+        typeFilters={typeFilters}
+        statusFilters={statusFilters}
       />
 
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-          <Text style={styles.loadingText}>Đang tải media...</Text>
+          <Text style={styles.loadingText}>{t("mediaTab.loading")}</Text>
         </View>
       ) : mediaList.length === 0 ? (
         <EmptyState onUploadPress={onUploadPress} />

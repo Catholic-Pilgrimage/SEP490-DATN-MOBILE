@@ -17,7 +17,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
-import { dashboardHomeApi, guideEventApi, guideMediaApi, guideSiteApi, massScheduleApi } from '../../../../services/api/guide';
+import { dashboardHomeApi, guideEventApi, guideMediaApi, guideNearbyPlacesApi, guideSiteApi, massScheduleApi } from '../../../../services/api/guide';
 import {
   ActiveShiftInfo,
   DashboardHomeData,
@@ -187,13 +187,15 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   const recentActivityQuery = useQuery({
     queryKey: GUIDE_KEYS.dashboard.recentActivity(),
     queryFn: async () => {
-      const [mediaRes, eventsRes] = await Promise.all([
-        guideMediaApi.getMedia({ limit: 3 }),
-        guideEventApi.getEvents({ limit: 3 }),
+      const [mediaRes, eventsRes, nearbyPlacesRes] = await Promise.all([
+        guideMediaApi.getMedia({ limit: 2 }),
+        guideEventApi.getEvents({ limit: 2 }),
+        guideNearbyPlacesApi.getNearbyPlaces(),
       ]);
       return {
         media: mediaRes?.data?.data || [],
         events: eventsRes?.data?.data || [],
+        nearbyPlaces: (nearbyPlacesRes?.data?.data || []).slice(0, 2),
       };
     },
   });
@@ -284,7 +286,8 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     return getRecentActivity(
       recentActivityQuery.data?.media || [],
       recentActivityQuery.data?.events || [],
-      5
+      5,
+      recentActivityQuery.data?.nearbyPlaces || [],
     );
   }, [recentActivityQuery.data]);
 

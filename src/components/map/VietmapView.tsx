@@ -12,23 +12,34 @@ import Mapbox, {
   RasterLayer,
   RasterSource,
 } from "@rnmapbox/maps";
-import React, { forwardRef, useImperativeHandle, useRef } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+} from "react";
 import {
   ActivityIndicator,
-  Linking,
+  StyleProp,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { MAPBOX_ACCESS_TOKEN, VIETMAP_CONFIG } from "../../config/env";
+import {
+  COLORS,
+  BORDER_RADIUS,
+  SPACING,
+  TYPOGRAPHY,
+  SHADOWS,
+} from "../../constants/theme.constants";
 
-// Init Mapbox SDK with token (required to bootstrap native SDK)
 Mapbox.setAccessToken(MAPBOX_ACCESS_TOKEN);
 
-// Minimal inline style — no network request needed
-// Includes glyphs so PointAnnotation renders correctly
 const EMPTY_STYLE = JSON.stringify({
   version: 8,
   name: "empty",
@@ -38,12 +49,11 @@ const EMPTY_STYLE = JSON.stringify({
     {
       id: "background",
       type: "background",
-      paint: { "background-color": "#f5f0e8" },
+      paint: { "background-color": COLORS.parchment },
     },
   ],
 });
 
-// Types
 export interface MapPin {
   id: string;
   latitude: number;
@@ -66,7 +76,11 @@ export interface VietmapViewProps {
   onMapReady?: () => void;
   onMapPress?: (event: { latitude: number; longitude: number }) => void;
   onMarkerPress?: (pin: MapPin) => void;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
+  /** Extra bottom offset (px) for the info card to avoid overlapping external overlay buttons */
+  cardBottomOffset?: number;
+  /** Whether to show info cards (selected pin + reverse-geocode) on the map (default: true) */
+  showInfoCards?: boolean;
 }
 
 export interface VietmapViewRef {
@@ -77,12 +91,13 @@ export interface VietmapViewRef {
   selectPin: (pinId: string) => void;
 }
 
-// Default center: Ho Chi Minh City
 const DEFAULT_CENTER = {
   latitude: 10.762622,
   longitude: 106.660172,
   zoom: 14,
 };
+
+const SNAP_THRESHOLD = 0.0003; // ~30m
 
 export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
   (
@@ -95,11 +110,15 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       onMapPress,
       onMarkerPress,
       style,
+      cardBottomOffset = 0,
+      showInfoCards = true,
     },
     ref,
   ) => {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const cameraRef = useRef<Camera>(null);
+    const abortRef = useRef<AbortController | null>(null);
     const [localPins, setLocalPins] = React.useState<MapPin[]>(pins);
     const [isLoading, setIsLoading] = React.useState(true);
     const [selectedPin, setSelectedPin] = React.useState<MapPin | null>(null);
@@ -115,12 +134,10 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       null,
     );
 
-    // Sync pins prop → localPins
     React.useEffect(() => {
       setLocalPins(pins);
     }, [pins]);
 
-    // Safety timeout: hide spinner after 8s regardless of map events
     React.useEffect(() => {
       loadingTimerRef.current = setTimeout(() => {
         setIsLoading(false);
@@ -130,23 +147,32 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       };
     }, []);
 
+    React.useEffect(() => {
+      return () => {
+        abortRef.current?.abort();
+      };
+    }, []);
+
     const centerLat = initialRegion?.latitude ?? DEFAULT_CENTER.latitude;
     const centerLng = initialRegion?.longitude ?? DEFAULT_CENTER.longitude;
     const zoomLevel = initialRegion?.zoom ?? DEFAULT_CENTER.zoom;
 
-    // Reverse geocode a tap position using Vietmap API
-    const reverseGeocode = async (lat: number, lng: number) => {
+    const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       try {
         setTapLoading(true);
         setTapInfo(null);
         const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${lat}&lng=${lng}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
         const data = await res.json();
         const first = Array.isArray(data) ? data[0] : data?.value?.[0];
         if (first) {
           const name: string = first.name || first.display || "";
           setTapInfo({
-            title: name || "Địa điểm",
+            title: name || t("map.location"),
             subtitle:
               first.address ||
               first.display ||
@@ -157,16 +183,17 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           });
         } else {
           setTapInfo({
-            title: "Vị trí đã chọn",
+            title: t("map.selectedLocation"),
             subtitle: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
             lat,
             lng,
             icon: "📍",
           });
         }
-      } catch {
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
         setTapInfo({
-          title: "Vị trí đã chọn",
+          title: t("map.selectedLocation"),
           subtitle: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
           lat,
           lng,
@@ -175,12 +202,64 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       } finally {
         setTapLoading(false);
       }
-    };
+    }, [t]);
 
-    // Expose imperative methods
-    useImperativeHandle(ref, () => ({
-      flyTo: (latitude: number, longitude: number, zoom?: number) => {
-        if (cameraRef.current) {
+    const handleMarkerPress = useCallback(
+      (pin: MapPin) => {
+        setTapInfo(null);
+        setSelectedPin((prev) => (prev?.id === pin.id ? null : pin));
+        cameraRef.current?.flyTo([pin.longitude, pin.latitude], 400);
+        onMarkerPress?.(pin);
+      },
+      [onMarkerPress],
+    );
+
+    const handlePress = useCallback(
+      (feature: any) => {
+        const coords = feature?.geometry?.coordinates;
+        if (!coords) return;
+        const lng = coords[0];
+        const lat = coords[1];
+
+        const nearbyPin = localPins.find(
+          (p) =>
+            Math.abs(p.latitude - lat) < SNAP_THRESHOLD &&
+            Math.abs(p.longitude - lng) < SNAP_THRESHOLD,
+        );
+        if (nearbyPin) {
+          handleMarkerPress(nearbyPin);
+          return;
+        }
+
+        setSelectedPin(null);
+        onMapPress?.({ latitude: lat, longitude: lng });
+        if (showInfoCards) {
+          reverseGeocode(lat, lng);
+        }
+      },
+      [localPins, onMapPress, reverseGeocode, handleMarkerPress, showInfoCards],
+    );
+
+    const dismissTapInfo = useCallback(() => {
+      setTapInfo(null);
+    }, []);
+
+    const handleMapLoaded = useCallback(() => {
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      setIsLoading(false);
+      onMapReady?.();
+    }, [onMapReady]);
+
+    const handleMapFailed = useCallback(() => {
+      if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
+      setIsLoading(false);
+    }, []);
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        flyTo: (latitude: number, longitude: number, zoom?: number) => {
+          if (!cameraRef.current) return;
           if (zoom !== undefined) {
             cameraRef.current.setCamera({
               centerCoordinate: [longitude, latitude],
@@ -190,63 +269,32 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           } else {
             cameraRef.current.flyTo([longitude, latitude], 600);
           }
-        }
-      },
-      addPin: (pin: MapPin) => {
-        setLocalPins((prev) => {
-          const filtered = prev.filter((p) => p.id !== pin.id);
-          return [...filtered, pin];
-        });
-      },
-      removePin: (pinId: string) => {
-        setLocalPins((prev) => prev.filter((p) => p.id !== pinId));
-      },
-      clearPins: () => {
-        setLocalPins([]);
-      },
-      selectPin: (pinId: string) => {
-        const pin = localPins.find((p) => p.id === pinId);
-        if (pin) {
-          setTapInfo(null);
-          setSelectedPin(pin);
-        }
-      },
-    }));
-
-    const handlePress = (feature: any) => {
-      const coords = feature?.geometry?.coordinates;
-      if (!coords) return;
-      const lng = coords[0];
-      const lat = coords[1];
-
-      // If tap is very close to an existing pin → select that pin instead of reverse geocode
-      const SNAP_THRESHOLD = 0.0003; // ~30m
-      const nearbyPin = localPins.find(
-        (p) =>
-          Math.abs(p.latitude - lat) < SNAP_THRESHOLD &&
-          Math.abs(p.longitude - lng) < SNAP_THRESHOLD,
-      );
-      if (nearbyPin) {
-        handleMarkerPress(nearbyPin);
-        return;
-      }
-
-      setSelectedPin(null);
-      onMapPress?.({ latitude: lat, longitude: lng });
-      reverseGeocode(lat, lng);
-    };
-
-    const handleMarkerPress = (pin: MapPin) => {
-      setTapInfo(null);
-      setSelectedPin((prev) => (prev?.id === pin.id ? null : pin));
-      cameraRef.current?.flyTo([pin.longitude, pin.latitude], 400);
-      onMarkerPress?.(pin);
-    };
-
-    const openInMaps = (lat: number, lng: number, label: string) => {
-      const url = `https://maps.google.com/?q=${lat},${lng}&label=${encodeURIComponent(label)}`;
-      Linking.openURL(url);
-    };
+        },
+        addPin: (pin: MapPin) => {
+          setLocalPins((prev) => {
+            const filtered = prev.filter((p) => p.id !== pin.id);
+            return [...filtered, pin];
+          });
+        },
+        removePin: (pinId: string) => {
+          setLocalPins((prev) => prev.filter((p) => p.id !== pinId));
+        },
+        clearPins: () => {
+          setLocalPins([]);
+        },
+        selectPin: (pinId: string) => {
+          setLocalPins((current) => {
+            const pin = current.find((p) => p.id === pinId);
+            if (pin) {
+              setTapInfo(null);
+              setSelectedPin(pin);
+            }
+            return current;
+          });
+        },
+      }),
+      [],
+    );
 
     return (
       <View style={[styles.container, style]}>
@@ -256,21 +304,13 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           scrollEnabled={scrollEnabled}
           zoomEnabled={scrollEnabled}
           pitchEnabled={false}
-          onDidFinishLoadingMap={() => {
-            if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
-            setIsLoading(false);
-            onMapReady?.();
-          }}
-          onDidFailLoadingMap={() => {
-            if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
-            setIsLoading(false);
-          }}
+          onDidFinishLoadingMap={handleMapLoaded}
+          onDidFailLoadingMap={handleMapFailed}
           onPress={handlePress}
           attributionEnabled={false}
           logoEnabled={false}
           compassEnabled
         >
-          {/* Vietmap raster tiles overlay — served directly from Vietmap CDN */}
           <RasterSource
             id="vietmap-raster"
             tileUrlTemplates={[VIETMAP_CONFIG.TILE_URL]}
@@ -294,16 +334,14 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
             animationDuration={0}
           />
 
-          {/* User location puck */}
           {showUserLocation && (
             <LocationPuck
               puckBearingEnabled
               puckBearing="heading"
-              pulsing={{ isEnabled: true, color: "#2563EB", radius: 50 }}
+              pulsing={{ isEnabled: true, color: COLORS.info, radius: 50 }}
             />
           )}
 
-          {/* Render pins — above raster layer */}
           {localPins.map((pin) => (
             <PointAnnotation
               key={pin.id}
@@ -315,7 +353,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
               <View
                 style={[
                   styles.markerContainer,
-                  { backgroundColor: pin.color || "#D4AF37" },
+                  { backgroundColor: pin.color || COLORS.accent },
                   selectedPin?.id === pin.id && styles.markerContainerSelected,
                 ]}
               >
@@ -325,10 +363,9 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           ))}
         </MapView>
 
-        {/* Selected custom pin card */}
-        {selectedPin && (
+        {showInfoCards && selectedPin && (
           <TouchableOpacity
-            style={[styles.pinCard, { bottom: 12 + insets.bottom }]}
+            style={[styles.pinCard, { bottom: SPACING.md + insets.bottom + cardBottomOffset }]}
             onPress={() => onMarkerPress?.(selectedPin)}
             activeOpacity={0.9}
           >
@@ -336,7 +373,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
               <View
                 style={[
                   styles.pinCardMarker,
-                  { backgroundColor: selectedPin.color || "#D4AF37" },
+                  { backgroundColor: selectedPin.color || COLORS.accent },
                 ]}
               >
                 <Text style={styles.pinCardIcon}>
@@ -347,35 +384,31 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                 <Text style={styles.pinCardTitle} numberOfLines={1}>
                   {selectedPin.title}
                 </Text>
-                {selectedPin.subtitle ? (
-                  <Text style={styles.pinCardSubtitle} numberOfLines={1}>
-                    {selectedPin.subtitle}
-                  </Text>
-                ) : (
-                  <Text style={styles.pinCardSubtitle}>
-                    Nhấn để xem chi tiết
-                  </Text>
-                )}
+                <Text style={styles.pinCardSubtitle} numberOfLines={1}>
+                  {selectedPin.subtitle || t("map.tapToViewDetail")}
+                </Text>
               </View>
               <Text style={styles.pinCardArrow}>›</Text>
             </View>
           </TouchableOpacity>
         )}
 
-        {/* Tap info card — shown when user taps map (reverse geocode result) */}
-        {!selectedPin && (tapLoading || tapInfo) && (
-          <View style={[styles.pinCard, { bottom: 12 + insets.bottom }]}>
+        {showInfoCards && !selectedPin && (tapLoading || tapInfo) && (
+          <View style={[styles.pinCard, { bottom: SPACING.md + insets.bottom + cardBottomOffset }]}>
             {tapLoading ? (
               <View style={styles.pinCardContent}>
-                <ActivityIndicator size="small" color="#D4AF37" />
-                <Text style={[styles.pinCardSubtitle, { marginLeft: 8 }]}>
-                  Đang tìm địa điểm...
+                <ActivityIndicator size="small" color={COLORS.accent} />
+                <Text style={[styles.pinCardSubtitle, { marginLeft: SPACING.sm }]}>
+                  {t("map.searchingLocation")}
                 </Text>
               </View>
             ) : tapInfo ? (
               <View style={styles.pinCardContent}>
                 <View
-                  style={[styles.pinCardMarker, { backgroundColor: "#E53935" }]}
+                  style={[
+                    styles.pinCardMarker,
+                    { backgroundColor: COLORS.danger },
+                  ]}
                 >
                   <Text style={styles.pinCardIcon}>{tapInfo.icon}</Text>
                 </View>
@@ -387,15 +420,21 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                     {tapInfo.subtitle}
                   </Text>
                 </View>
+                <TouchableOpacity
+                  onPress={dismissTapInfo}
+                  style={styles.dismissBtn}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.dismissText}>✕</Text>
+                </TouchableOpacity>
               </View>
             ) : null}
           </View>
         )}
 
-        {/* Loading overlay */}
         {isLoading && (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#D4AF37" />
+            <ActivityIndicator size="large" color={COLORS.accent} />
           </View>
         )}
       </View>
@@ -403,11 +442,13 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
   },
 );
 
+VietmapView.displayName = "VietmapView";
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     overflow: "hidden",
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.md,
   },
   map: {
     flex: 1,
@@ -417,7 +458,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(253, 248, 240, 0.85)",
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.md,
   },
   markerContainer: {
     width: 44,
@@ -426,39 +467,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    borderColor: COLORS.white,
+    ...SHADOWS.large,
   },
   markerContainerSelected: {
-    borderColor: "#fff",
+    borderColor: COLORS.white,
     borderWidth: 3,
+    ...SHADOWS.large,
     elevation: 8,
     shadowOpacity: 0.5,
   },
   markerIcon: {
-    fontSize: 18,
+    fontSize: TYPOGRAPHY.fontSize.xl,
   },
   pinCard: {
     position: "absolute",
-    left: 12,
-    right: 12,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    left: SPACING.md,
+    right: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    ...SHADOWS.large,
     elevation: 8,
     maxWidth: "95%",
   },
   pinCardContent: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
+    padding: SPACING.md,
     gap: 10,
   },
   pinCardMarker: {
@@ -468,47 +503,45 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 4,
+    borderColor: COLORS.white,
+    ...SHADOWS.small,
   },
   pinCardIcon: {
-    fontSize: 22,
+    fontSize: TYPOGRAPHY.fontSize.xxl + 2,
   },
   pinCardText: {
     flex: 1,
     minWidth: 0,
   },
   pinCardTitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1a1a1a",
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
     flexShrink: 1,
   },
   pinCardSubtitle: {
-    fontSize: 12,
-    color: "#888",
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
     marginTop: 2,
     flexShrink: 1,
   },
   pinCardArrow: {
-    fontSize: 22,
-    color: "#D4AF37",
-    fontWeight: "600",
+    fontSize: TYPOGRAPHY.fontSize.xxl + 2,
+    color: COLORS.accent,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
-  pinCardDirectionBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#f5f0e8",
+  dismissBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.background,
     justifyContent: "center",
     alignItems: "center",
   },
-  pinCardDirectionText: {
-    fontSize: 18,
+  dismissText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
 });
 

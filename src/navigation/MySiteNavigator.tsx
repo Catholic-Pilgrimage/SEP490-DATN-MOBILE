@@ -10,7 +10,7 @@ import EventDetailScreen from '../features/guide/my-site/screens/EventDetailScre
 import { EventItem, MediaItem } from '../types/guide';
 
 export type MySiteStackParamList = {
-  MySiteHome: undefined;
+  MySiteHome: { initialTab?: string } | undefined;
   EventDetail: { event?: EventItem };
   MediaUpload: undefined;
   MediaDetail: { media: MediaItem };

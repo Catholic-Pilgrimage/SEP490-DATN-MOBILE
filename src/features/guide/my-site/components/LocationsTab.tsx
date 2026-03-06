@@ -7,43 +7,44 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { VIETMAP_CONFIG } from "../../../../config/env";
 import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SPACING,
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import useI18n from "../../../../hooks/useI18n";
 import {
-    createNearbyPlace,
-    CreateNearbyPlaceRequest,
-    deleteNearbyPlace,
-    getNearbyPlaces,
-    GuideNearbyPlace,
-    restoreNearbyPlace,
-    updateNearbyPlace,
+  createNearbyPlace,
+  CreateNearbyPlaceRequest,
+  deleteNearbyPlace,
+  getNearbyPlaces,
+  GuideNearbyPlace,
+  restoreNearbyPlace,
+  updateNearbyPlace,
 } from "../../../../services/api/guide/nearbyPlacesApi";
 import { NearbyPlaceCategory } from "../../../../types/common.types";
 import { getFontSize, getSpacing } from "../../../../utils/responsive";
@@ -60,14 +61,26 @@ const PREMIUM_COLORS = {
 };
 
 // Category config theo API BE
-const getCategoryConfig = (t: any): Record<
+const getCategoryConfig = (
+  t: any,
+): Record<
   NearbyPlaceCategory,
   { label: string; icon: any; color: string; emoji: string }
 > => ({
-  food: { label: t('locationsTab.categories.food'), icon: "restaurant", color: "#F97316", emoji: "🍜" },
-  lodging: { label: t('locationsTab.categories.lodging'), icon: "bed", color: "#2563EB", emoji: "🏨" },
+  food: {
+    label: t("locationsTab.categories.food"),
+    icon: "restaurant",
+    color: "#F97316",
+    emoji: "🍜",
+  },
+  lodging: {
+    label: t("locationsTab.categories.lodging"),
+    icon: "bed",
+    color: "#2563EB",
+    emoji: "🏨",
+  },
   medical: {
-    label: t('locationsTab.categories.medical'),
+    label: t("locationsTab.categories.medical"),
     icon: "medical-bag",
     color: "#10B981",
     emoji: "🏥",
@@ -84,66 +97,82 @@ type ActiveFilter = "active" | "inactive" | "all";
 const getActiveFilterOptions = (t: any) => [
   {
     key: "all" as ActiveFilter,
-    label: t('locationsTab.activeFilter.all'),
+    label: t("locationsTab.activeFilter.all"),
     icon: "apps" as keyof typeof MaterialIcons.glyphMap,
     color: "#8B7355",
-    desc: t('locationsTab.activeDesc.all'),
+    desc: t("locationsTab.activeDesc.all"),
   },
   {
     key: "active" as ActiveFilter,
-    label: t('locationsTab.activeFilter.active'),
+    label: t("locationsTab.activeFilter.active"),
     icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
     color: "#10B981",
-    desc: t('locationsTab.activeDesc.active'),
+    desc: t("locationsTab.activeDesc.active"),
   },
   {
     key: "inactive" as ActiveFilter,
-    label: t('locationsTab.activeFilter.inactive'),
+    label: t("locationsTab.activeFilter.inactive"),
     icon: "delete" as keyof typeof MaterialIcons.glyphMap,
     color: "#EF4444",
-    desc: t('locationsTab.activeDesc.inactive'),
+    desc: t("locationsTab.activeDesc.inactive"),
   },
 ];
 
 const getCategoryFilterOptions = (t: any) => [
-  { key: "all" as CategoryFilter, label: t('locationsTab.categories.all'), emoji: "🗺️" },
-  { key: "food" as CategoryFilter, label: t('locationsTab.categories.food'), emoji: "🍜" },
-  { key: "lodging" as CategoryFilter, label: t('locationsTab.categories.lodging'), emoji: "🏨" },
-  { key: "medical" as CategoryFilter, label: t('locationsTab.categories.medical'), emoji: "🏥" },
+  {
+    key: "all" as CategoryFilter,
+    label: t("locationsTab.categories.all"),
+    emoji: "🗺️",
+  },
+  {
+    key: "food" as CategoryFilter,
+    label: t("locationsTab.categories.food"),
+    emoji: "🍜",
+  },
+  {
+    key: "lodging" as CategoryFilter,
+    label: t("locationsTab.categories.lodging"),
+    emoji: "🏨",
+  },
+  {
+    key: "medical" as CategoryFilter,
+    label: t("locationsTab.categories.medical"),
+    emoji: "🏥",
+  },
 ];
 
 const getStatusFilterOptions = (t: any) => [
   {
     key: "all" as PlaceStatusFilter,
-    label: t('locationsTab.status.all'),
+    label: t("locationsTab.status.all"),
     color: "#8B7355",
     bg: "#F3EFE9",
     icon: "apps" as keyof typeof MaterialIcons.glyphMap,
-    desc: t('locationsTab.statusDesc.all'),
+    desc: t("locationsTab.statusDesc.all"),
   },
   {
     key: "pending" as PlaceStatusFilter,
-    label: t('locationsTab.status.pending'),
+    label: t("locationsTab.status.pending"),
     color: "#F59E0B",
     bg: "#FEF3C7",
     icon: "schedule" as keyof typeof MaterialIcons.glyphMap,
-    desc: t('locationsTab.statusDesc.pending'),
+    desc: t("locationsTab.statusDesc.pending"),
   },
   {
     key: "approved" as PlaceStatusFilter,
-    label: t('locationsTab.status.approved'),
+    label: t("locationsTab.status.approved"),
     color: "#10B981",
     bg: "#D1FAE5",
     icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
-    desc: t('locationsTab.statusDesc.approved'),
+    desc: t("locationsTab.statusDesc.approved"),
   },
   {
     key: "rejected" as PlaceStatusFilter,
-    label: t('locationsTab.status.rejected'),
+    label: t("locationsTab.status.rejected"),
     color: "#EF4444",
     bg: "#FEE2E2",
     icon: "cancel" as keyof typeof MaterialIcons.glyphMap,
-    desc: t('locationsTab.statusDesc.rejected'),
+    desc: t("locationsTab.statusDesc.rejected"),
   },
 ];
 
@@ -169,9 +198,21 @@ interface AddFormState {
 
 // Status badge config
 const getStatusConfig = (t: any) => ({
-  pending: { label: t('locationsTab.status.pending'), color: "#F59E0B", bg: "#FEF3C7" },
-  approved: { label: t('locationsTab.status.approved'), color: "#10B981", bg: "#D1FAE5" },
-  rejected: { label: t('locationsTab.status.rejected'), color: "#EF4444", bg: "#FEE2E2" },
+  pending: {
+    label: t("locationsTab.status.pending"),
+    color: "#F59E0B",
+    bg: "#FEF3C7",
+  },
+  approved: {
+    label: t("locationsTab.status.approved"),
+    color: "#10B981",
+    bg: "#D1FAE5",
+  },
+  rejected: {
+    label: t("locationsTab.status.rejected"),
+    color: "#EF4444",
+    bg: "#FEE2E2",
+  },
 });
 
 // PlaceCard Component
@@ -184,25 +225,89 @@ const PlaceCard: React.FC<{
   t: any;
   categoryConfig: any;
   statusConfig: any;
-}> = ({ place, onDelete, onEdit, onRestore, onPress, t, categoryConfig, statusConfig }) => {
+}> = ({
+  place,
+  onDelete,
+  onEdit,
+  onRestore,
+  onPress,
+  t,
+  categoryConfig,
+  statusConfig,
+}) => {
   const cfg = categoryConfig[place.category];
   const statusCfg = statusConfig[place.status] ?? statusConfig.pending;
 
-  // Only show delete button for pending/rejected, not for approved
+  const canEdit = place.status === "pending" || place.status === "rejected";
   const canDelete = place.status !== "approved";
 
   return (
     <TouchableOpacity
       style={styles.pinCard}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.95}
     >
-      <View style={[styles.pinCardIcon, { backgroundColor: cfg.color + "20" }]}>
-        <Text style={{ fontSize: 24 }}>{cfg.emoji}</Text>
+      {/* Category accent strip */}
+      <View style={[styles.pinCardAccent, { backgroundColor: cfg.color }]}>
+        <Text style={styles.pinCardEmoji}>{cfg.emoji}</Text>
       </View>
+
+      <View style={styles.pinCardDivider} />
+
+      {/* Content */}
       <View style={styles.pinCardContent}>
-        <Text style={styles.pinCardName}>{place.name}</Text>
-        <Text style={styles.pinCardType}>{cfg.label}</Text>
+        <View style={styles.pinCardHeader}>
+          <Text style={styles.pinCardName} numberOfLines={1}>{place.name}</Text>
+          {(canEdit || canDelete || !!onRestore) && (
+            <View style={styles.pinCardIconActions}>
+              {canEdit && (
+                <TouchableOpacity
+                  style={styles.iconActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onEdit();
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons name="edit" size={16} color={PREMIUM_COLORS.gold} />
+                </TouchableOpacity>
+              )}
+              {!!onRestore && (
+                <TouchableOpacity
+                  style={styles.iconActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onRestore();
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons name="restore" size={16} color="#10B981" />
+                </TouchableOpacity>
+              )}
+              {canDelete && (
+                <TouchableOpacity
+                  style={styles.iconActionBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MaterialIcons name="delete-outline" size={16} color="#EF4444" />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.pinCardBadgeRow}>
+          <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
+            <Text style={[styles.statusText, { color: statusCfg.color }]}>
+              {statusCfg.label}
+            </Text>
+          </View>
+        </View>
+
         {!!place.address && (
           <View style={styles.pinCardInfoRow}>
             <Ionicons name="location-outline" size={14} color="#EF4444" />
@@ -211,77 +316,44 @@ const PlaceCard: React.FC<{
             </Text>
           </View>
         )}
-        {!!place.distance_meters && (
-          <View style={styles.pinCardInfoRow}>
-            <Ionicons name="navigate-outline" size={14} color="#3B82F6" />
-            <Text style={styles.pinCardDesc}>
-              {t('locationsTab.distanceAway', {
-                distance: place.distance_meters >= 1000
-                  ? t('locationsTab.distance.kilometers', { distance: (place.distance_meters / 1000).toFixed(1) })
-                  : t('locationsTab.distance.meters', { distance: place.distance_meters })
-              })}
-            </Text>
-          </View>
-        )}
-        {!!place.phone && (
-          <View style={styles.pinCardInfoRow}>
-            <Ionicons name="call-outline" size={14} color="#10B981" />
-            <Text style={styles.pinCardDesc} numberOfLines={1}>
-              {place.phone}
-            </Text>
-          </View>
-        )}
-        <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg }]}>
-          <Text style={[styles.statusText, { color: statusCfg.color }]}>
-            {statusCfg.label}
-          </Text>
+
+        <View style={styles.pinCardMeta}>
+          {!!place.distance_meters && (
+            <View style={styles.pinCardInfoRow}>
+              <Ionicons name="navigate-outline" size={14} color="#3B82F6" />
+              <Text style={styles.pinCardDesc}>
+                {t("locationsTab.distanceAway", {
+                  distance:
+                    place.distance_meters >= 1000
+                      ? t("locationsTab.distance.kilometers", {
+                          distance: (place.distance_meters / 1000).toFixed(1),
+                        })
+                      : t("locationsTab.distance.meters", {
+                          distance: place.distance_meters,
+                        }),
+                })}
+              </Text>
+            </View>
+          )}
+          {!!place.phone && (
+            <View style={styles.pinCardInfoRow}>
+              <Ionicons name="call-outline" size={14} color="#10B981" />
+              <Text style={styles.pinCardDesc} numberOfLines={1}>
+                {place.phone}
+              </Text>
+            </View>
+          )}
         </View>
+
         {place.status === "rejected" && !!place.rejection_reason && (
-          <Text style={styles.rejectionText} numberOfLines={2}>
-            {t('locationsTab.rejectionReason', { reason: place.rejection_reason })}
-          </Text>
-        )}
-        {place.status === "rejected" && (
-          <TouchableOpacity
-            style={styles.editBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-          >
-            <MaterialIcons name="edit" size={14} color="#2563EB" />
-            <Text style={styles.editBtnText}>{t('locationsTab.editAndResubmit')}</Text>
-          </TouchableOpacity>
-        )}
-        {!!onRestore && (
-          <TouchableOpacity
-            style={styles.restoreBtn}
-            onPress={(e) => {
-              e.stopPropagation();
-              onRestore();
-            }}
-          >
-            <MaterialIcons name="restore" size={14} color="#10B981" />
-            <Text style={styles.restoreBtnText}>{t('locationsTab.restore')}</Text>
-          </TouchableOpacity>
+          <View style={styles.rejectionBox}>
+            <Ionicons name="alert-circle" size={14} color="#E74C3C" />
+            <Text style={styles.rejectionText} numberOfLines={1}>
+              {place.rejection_reason}
+            </Text>
+          </View>
         )}
       </View>
-      {canDelete && (
-        <TouchableOpacity
-          style={styles.pinCardDelete}
-          onPress={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <MaterialIcons
-            name="delete-outline"
-            size={20}
-            color={GUIDE_COLORS.gray400}
-          />
-        </TouchableOpacity>
-      )}
     </TouchableOpacity>
   );
 };
@@ -353,7 +425,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
 
               {/* Header */}
               <View style={styles.sheetHeader}>
-                <Text style={styles.sheetTitle}>{t('locationsTab.filterTitle')}</Text>
+                <Text style={styles.sheetTitle}>
+                  {t("locationsTab.filterTitle")}
+                </Text>
                 <TouchableOpacity onPress={onClose}>
                   <Ionicons
                     name="close"
@@ -364,7 +438,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
               </View>
 
               {/* Category */}
-              <Text style={styles.sheetSectionTitle}>{t('locationsTab.categoryLabel')}</Text>
+              <Text style={styles.sheetSectionTitle}>
+                {t("locationsTab.categoryLabel")}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -396,7 +472,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
               </ScrollView>
 
               {/* Status */}
-              <Text style={styles.sheetSectionTitle}>{t('locationsTab.statusLabel')}</Text>
+              <Text style={styles.sheetSectionTitle}>
+                {t("locationsTab.statusLabel")}
+              </Text>
               <View style={styles.sheetStatusList}>
                 {statusFilterOptions.map((opt) => {
                   const active = localStatus === opt.key;
@@ -451,7 +529,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
               </View>
 
               {/* Active filter - Hiển thị */}
-              <Text style={styles.sheetSectionTitle}>{t('locationsTab.displayLabel')}</Text>
+              <Text style={styles.sheetSectionTitle}>
+                {t("locationsTab.displayLabel")}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -467,13 +547,15 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
                       key={opt.key}
                       style={[
                         styles.sheetActiveChip,
-                        active ? {
-                          backgroundColor: opt.color,
-                          borderColor: opt.color,
-                        } : {
-                          backgroundColor: "#FAFAFA",
-                          borderColor: GUIDE_COLORS.gray200,
-                        },
+                        active
+                          ? {
+                              backgroundColor: opt.color,
+                              borderColor: opt.color,
+                            }
+                          : {
+                              backgroundColor: "#FAFAFA",
+                              borderColor: GUIDE_COLORS.gray200,
+                            },
                       ]}
                       onPress={() => setLocalActive(opt.key)}
                     >
@@ -503,7 +585,9 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
                   onClose();
                 }}
               >
-                <Text style={styles.sheetApplyText}>{t('locationsTab.applyFilter')}</Text>
+                <Text style={styles.sheetApplyText}>
+                  {t("locationsTab.applyFilter")}
+                </Text>
               </TouchableOpacity>
             </View>
           </TouchableWithoutFeedback>
@@ -599,7 +683,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
 
             Toast.show({
               type: "info",
-              text1: t('locationsTab.toast.coordsUpdated'),
+              text1: t("locationsTab.toast.coordsUpdated"),
               text2: `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`,
               visibilityTime: 2000,
             });
@@ -664,16 +748,16 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     // Site pin (if available)
     ...(siteLocation
       ? [
-        {
-          id: "site-main",
-          latitude: Number(siteLocation.latitude),
-          longitude: Number(siteLocation.longitude),
-          title: siteLocation.name || "Thánh đường",
-          subtitle: siteLocation.address || "Nhấn để xem chi tiết",
-          color: "#DC2626", // Red color for main site
-          icon: "⛪",
-        },
-      ]
+          {
+            id: "site-main",
+            latitude: Number(siteLocation.latitude),
+            longitude: Number(siteLocation.longitude),
+            title: siteLocation.name || "Thánh đường",
+            subtitle: siteLocation.address || "Nhấn để xem chi tiết",
+            color: "#DC2626", // Red color for main site
+            icon: "⛪",
+          },
+        ]
       : []),
     // Nearby places pins - Only approved ones
     ...approvedPlaces.map((p) => ({
@@ -701,7 +785,10 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           const data = await res.json();
           const first = Array.isArray(data) ? data[0] : data?.value?.[0];
 
-          const address = first?.display || first?.address || `${event.latitude.toFixed(6)}, ${event.longitude.toFixed(6)}`;
+          const address =
+            first?.display ||
+            first?.address ||
+            `${event.latitude.toFixed(6)}, ${event.longitude.toFixed(6)}`;
 
           setForm((prev) => ({
             ...prev,
@@ -753,9 +840,9 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     setShowAddModal(false);
     setIsSelectingOnMap(true);
     Alert.alert(
-      t('locationsTab.modal.selectOnMapTitle'),
-      t('locationsTab.modal.selectOnMapMessage'),
-      [{ text: t('common.ok') }]
+      t("locationsTab.modal.selectOnMapTitle"),
+      t("locationsTab.modal.selectOnMapMessage"),
+      [{ text: t("common.ok") }],
     );
   }, [t]);
 
@@ -779,16 +866,16 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     if (!form.name.trim()) {
       Toast.show({
         type: "error",
-        text1: t('common.error'),
-        text2: t('locationsTab.toast.errorNameRequired'),
+        text1: t("common.error"),
+        text2: t("locationsTab.toast.errorNameRequired"),
       });
       return;
     }
     if (!form.address.trim()) {
       Toast.show({
         type: "error",
-        text1: t('common.error'),
-        text2: t('locationsTab.toast.errorAddressRequired'),
+        text1: t("common.error"),
+        text2: t("locationsTab.toast.errorAddressRequired"),
       });
       return;
     }
@@ -814,8 +901,10 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       // Show success message from BE
       Toast.show({
         type: "success",
-        text1: t('common.success'),
-        text2: response.message || (editingPlace ? "Đã cập nhật địa điểm" : "Đã thêm địa điểm mới"),
+        text1: t("common.success"),
+        text2:
+          response.message ||
+          (editingPlace ? "Đã cập nhật địa điểm" : "Đã thêm địa điểm mới"),
       });
 
       setShowAddModal(false);
@@ -823,10 +912,13 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       await fetchPlaces();
     } catch (error: any) {
       // Show error message from BE
-      const errorMsg = error?.response?.data?.message || error?.message || "Không thể lưu địa điểm. Vui lòng thử lại.";
+      const errorMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể lưu địa điểm. Vui lòng thử lại.";
       Toast.show({
         type: "error",
-        text1: t('common.error'),
+        text1: t("common.error"),
         text2: errorMsg,
       });
     } finally {
@@ -834,61 +926,78 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     }
   }, [form, editingPlace, fetchPlaces]);
 
-  const handleDelete = useCallback((place: GuideNearbyPlace) => {
-    Alert.alert(t('locationsTab.deleteConfirm'), t('locationsTab.deleteMessage', { name: place.name }), [
-      { text: t('common.cancel'), style: "cancel" },
-      {
-        text: t('locationsTab.delete'),
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const response = await deleteNearbyPlace(place.id);
-            Toast.show({
-              type: "success",
-              text1: t('locationsTab.toast.deleted'),
-              text2: response.message || "Đã xóa địa điểm thành công",
-            });
-            setPlaces((prev) => prev.filter((p) => p.id !== place.id));
-            mapRef.current?.removePin(place.id);
-          } catch (error: any) {
-            const errorMsg = error?.response?.data?.message || "Không thể xóa địa điểm.";
-            Toast.show({
-              type: "error",
-              text1: t('common.error'),
-              text2: errorMsg,
-            });
-          }
-        },
-      },
-    ]);
-  }, [t]);
+  const handleDelete = useCallback(
+    (place: GuideNearbyPlace) => {
+      Alert.alert(
+        t("locationsTab.deleteConfirm"),
+        t("locationsTab.deleteMessage", { name: place.name }),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("locationsTab.delete"),
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const response = await deleteNearbyPlace(place.id);
+                Toast.show({
+                  type: "success",
+                  text1: t("locationsTab.toast.deleted"),
+                  text2: response.message || "Đã xóa địa điểm thành công",
+                });
+                setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+                mapRef.current?.removePin(place.id);
+              } catch (error: any) {
+                const errorMsg =
+                  error?.response?.data?.message || "Không thể xóa địa điểm.";
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: errorMsg,
+                });
+              }
+            },
+          },
+        ],
+      );
+    },
+    [t],
+  );
 
-  const handleRestore = useCallback((place: GuideNearbyPlace) => {
-    Alert.alert(t('locationsTab.restoreConfirm'), t('locationsTab.restoreMessage', { name: place.name }), [
-      { text: t('common.cancel'), style: "cancel" },
-      {
-        text: t('locationsTab.restore'),
-        onPress: async () => {
-          try {
-            const response = await restoreNearbyPlace(place.id);
-            Toast.show({
-              type: "success",
-              text1: t('locationsTab.toast.restored'),
-              text2: response.message || "Đã khôi phục địa điểm thành công",
-            });
-            setPlaces((prev) => prev.filter((p) => p.id !== place.id));
-          } catch (error: any) {
-            const errorMsg = error?.response?.data?.message || "Không thể khôi phục địa điểm.";
-            Toast.show({
-              type: "error",
-              text1: t('common.error'),
-              text2: errorMsg,
-            });
-          }
-        },
-      },
-    ]);
-  }, [t]);
+  const handleRestore = useCallback(
+    (place: GuideNearbyPlace) => {
+      Alert.alert(
+        t("locationsTab.restoreConfirm"),
+        t("locationsTab.restoreMessage", { name: place.name }),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("locationsTab.restore"),
+            onPress: async () => {
+              try {
+                const response = await restoreNearbyPlace(place.id);
+                Toast.show({
+                  type: "success",
+                  text1: t("locationsTab.toast.restored"),
+                  text2: response.message || "Đã khôi phục địa điểm thành công",
+                });
+                setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+              } catch (error: any) {
+                const errorMsg =
+                  error?.response?.data?.message ||
+                  "Không thể khôi phục địa điểm.";
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: errorMsg,
+                });
+              }
+            },
+          },
+        ],
+      );
+    },
+    [t],
+  );
 
   // Handle card press - fly to location on map
   const handleCardPress = useCallback((place: GuideNearbyPlace) => {
@@ -896,8 +1005,16 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     mapRef.current?.selectPin(place.id);
   }, []);
 
-  return (
-    <View style={styles.container}>
+  if (isLoading && places.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={PREMIUM_COLORS.gold} />
+      </View>
+    );
+  }
+
+  const listHeaderComponent = (
+    <>
       {/* Map */}
       <View style={styles.mapContainer}>
         <VietmapView
@@ -911,6 +1028,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           showUserLocation
           onMapPress={handleMapPress}
           style={styles.map}
+          showInfoCards
         />
         <TouchableOpacity style={styles.addButton} onPress={handleAddPress}>
           <LinearGradient
@@ -920,96 +1038,109 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
             <MaterialIcons name="add-location" size={24} color="#FFF" />
           </LinearGradient>
         </TouchableOpacity>
-        
-        {/* View Full Map Button */}
-        <TouchableOpacity 
-          style={styles.fullMapButton} 
+
+        <TouchableOpacity
+          style={styles.fullMapButton}
           onPress={() => setShowFullMap(true)}
         >
-          <MaterialIcons name="fullscreen" size={24} color={PREMIUM_COLORS.gold} />
+          <MaterialIcons
+            name="fullscreen"
+            size={24}
+            color={PREMIUM_COLORS.gold}
+          />
         </TouchableOpacity>
       </View>
 
       {/* List Header with Filter */}
-      <View style={styles.listContainer}>
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>{t('locationsTab.title')}</Text>
-          <View style={styles.listHeaderRight}>
-            {isLoading ? (
-              <ActivityIndicator size="small" color={PREMIUM_COLORS.gold} />
-            ) : (
-              <Text style={styles.listCount}>{t('locationsTab.placeCount', { count: filteredPlaces.length })}</Text>
-            )}
-            <TouchableOpacity
-              style={[
-                styles.filterTriggerBtn,
-                hasFilters && styles.filterTriggerBtnActive,
-              ]}
-              onPress={() => setShowFilterSheet(true)}
-            >
-              <MaterialIcons
-                name="filter-list"
-                size={18}
-                color={
-                  hasFilters ? PREMIUM_COLORS.gold : GUIDE_COLORS.textSecondary
-                }
-              />
-              <Text
-                style={[
-                  styles.filterTriggerText,
-                  hasFilters && { color: PREMIUM_COLORS.gold },
-                ]}
-              >
-                {t('locationsTab.filter')}{hasFilters ? " ●" : ""}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <FlatList
-          data={filteredPlaces}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <PlaceCard
-              place={item}
-              onPress={() => handleCardPress(item)}
-              onDelete={() => handleDelete(item)}
-              onEdit={() => handleEdit(item)}
-              onRestore={
-                isActiveFilter === "inactive"
-                  ? () => handleRestore(item)
-                  : undefined
+      <View style={styles.listHeader}>
+        <Text style={styles.listTitle}>{t("locationsTab.title")}</Text>
+        <View style={styles.listHeaderRight}>
+          <Text style={styles.listCount}>
+            {t("locationsTab.placeCount", { count: filteredPlaces.length })}
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.filterTriggerBtn,
+              hasFilters && styles.filterTriggerBtnActive,
+            ]}
+            onPress={() => setShowFilterSheet(true)}
+          >
+            <MaterialIcons
+              name="filter-list"
+              size={18}
+              color={
+                hasFilters ? PREMIUM_COLORS.gold : GUIDE_COLORS.textSecondary
               }
-              t={t}
-              categoryConfig={CATEGORY_CONFIG}
-              statusConfig={STATUS_CONFIG}
             />
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onRefresh={fetchPlaces}
-          refreshing={isLoading}
-          ListEmptyComponent={
-            !isLoading ? (
-              <View style={styles.emptyState}>
-                <MaterialIcons
-                  name="place"
-                  size={48}
-                  color={GUIDE_COLORS.gray300}
-                />
-                <Text style={styles.emptyText}>
-                  {hasFilters ? t('locationsTab.empty.noResults') : t('locationsTab.empty.noPlaces')}
-                </Text>
-                <Text style={styles.emptySubtext}>
-                  {hasFilters
-                    ? t('locationsTab.empty.tryChangeFilter')
-                    : t('locationsTab.empty.tapToAdd')}
-                </Text>
-              </View>
-            ) : null
-          }
-        />
+            <Text
+              style={[
+                styles.filterTriggerText,
+                hasFilters && { color: PREMIUM_COLORS.gold },
+              ]}
+            >
+              {t("locationsTab.filter")}
+              {hasFilters ? " ●" : ""}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
+    </>
+  );
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={filteredPlaces}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => (
+          <PlaceCard
+            place={item}
+            onPress={() => handleCardPress(item)}
+            onDelete={() => handleDelete(item)}
+            onEdit={() => handleEdit(item)}
+            onRestore={
+              isActiveFilter === "inactive"
+                ? () => handleRestore(item)
+                : undefined
+            }
+            t={t}
+            categoryConfig={CATEGORY_CONFIG}
+            statusConfig={STATUS_CONFIG}
+          />
+        )}
+        ListHeaderComponent={listHeaderComponent}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading}
+            onRefresh={fetchPlaces}
+            colors={[PREMIUM_COLORS.gold]}
+            tintColor={PREMIUM_COLORS.gold}
+          />
+        }
+        ListEmptyComponent={
+          !isLoading ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons
+                name="place"
+                size={48}
+                color={GUIDE_COLORS.gray300}
+              />
+              <Text style={styles.emptyText}>
+                {hasFilters
+                  ? t("locationsTab.empty.noResults")
+                  : t("locationsTab.empty.noPlaces")}
+              </Text>
+              <Text style={styles.emptySubtext}>
+                {hasFilters
+                  ? t("locationsTab.empty.tryChangeFilter")
+                  : t("locationsTab.empty.tapToAdd")}
+              </Text>
+            </View>
+          ) : null
+        }
+      />
 
       {/* Filter Bottom Sheet */}
       <FilterSheet
@@ -1033,18 +1164,23 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       />
 
       {/* Add Place Modal */}
-      {showAddModal && (
-        <View style={styles.modalOverlay}>
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={{ width: "100%" }}
-          >
+      <Modal
+        visible={showAddModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
             <View style={styles.modalContainer}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {editingPlace
-                    ? t('locationsTab.modal.editTitle')
-                    : t('locationsTab.modal.addTitle')}
+                    ? t("locationsTab.modal.editTitle")
+                    : t("locationsTab.modal.addTitle")}
                 </Text>
                 <TouchableOpacity onPress={() => setShowAddModal(false)}>
                   <MaterialIcons
@@ -1057,7 +1193,9 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
 
               <ScrollView showsVerticalScrollIndicator={false}>
                 {/* Category picker */}
-                <Text style={styles.fieldLabel}>{t('locationsTab.modal.categoryLabel')}</Text>
+                <Text style={styles.fieldLabel}>
+                  {t("locationsTab.modal.categoryLabel")}
+                </Text>
                 <View style={styles.categoryRow}>
                   {CATEGORIES.map((cat) => {
                     const cfg = CATEGORY_CONFIG[cat];
@@ -1090,10 +1228,12 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                 </View>
 
                 {/* Name */}
-                <Text style={styles.fieldLabel}>{t('locationsTab.modal.nameLabel')}</Text>
+                <Text style={styles.fieldLabel}>
+                  {t("locationsTab.modal.nameLabel")}
+                </Text>
                 <TextInput
                   style={styles.inputBox}
-                  placeholder={t('locationsTab.modal.namePlaceholder')}
+                  placeholder={t("locationsTab.modal.namePlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.name}
                   onChangeText={(val) => setForm((f) => ({ ...f, name: val }))}
@@ -1101,10 +1241,12 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                 />
 
                 {/* Address */}
-                <Text style={styles.fieldLabel}>{t('locationsTab.modal.addressLabel')}</Text>
+                <Text style={styles.fieldLabel}>
+                  {t("locationsTab.modal.addressLabel")}
+                </Text>
                 <TextInput
                   style={styles.inputBox}
-                  placeholder={t('locationsTab.modal.addressPlaceholder')}
+                  placeholder={t("locationsTab.modal.addressPlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.address}
                   onChangeText={handleAddressChange}
@@ -1116,27 +1258,33 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   style={styles.selectMapBtn}
                   onPress={handleSelectOnMap}
                 >
-                  <MaterialIcons name="map" size={18} color={PREMIUM_COLORS.gold} />
+                  <MaterialIcons
+                    name="map"
+                    size={18}
+                    color={PREMIUM_COLORS.gold}
+                  />
                   <Text style={styles.selectMapText}>
-                    {t('locationsTab.modal.selectOnMap')}
+                    {t("locationsTab.modal.selectOnMap")}
                   </Text>
                 </TouchableOpacity>
 
                 {/* Show current form coordinates */}
-                {form.latitude && form.longitude && (
+                {form.latitude != null && form.longitude != null && (
                   <Text style={styles.coordsNote}>
-                    {t('locationsTab.modal.currentCoords', {
-                      lat: form.latitude.toFixed(5),
-                      lng: form.longitude.toFixed(5)
+                    {t("locationsTab.modal.currentCoords", {
+                      lat: Number(form.latitude).toFixed(5),
+                      lng: Number(form.longitude).toFixed(5),
                     })}
                   </Text>
                 )}
 
                 {/* Phone */}
-                <Text style={styles.fieldLabel}>{t('locationsTab.modal.phoneLabel')}</Text>
+                <Text style={styles.fieldLabel}>
+                  {t("locationsTab.modal.phoneLabel")}
+                </Text>
                 <TextInput
                   style={styles.inputBox}
-                  placeholder={t('locationsTab.modal.phonePlaceholder')}
+                  placeholder={t("locationsTab.modal.phonePlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.phone}
                   onChangeText={(val) => setForm((f) => ({ ...f, phone: val }))}
@@ -1145,13 +1293,15 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                 />
 
                 {/* Description */}
-                <Text style={styles.fieldLabel}>{t('locationsTab.modal.descriptionLabel')}</Text>
+                <Text style={styles.fieldLabel}>
+                  {t("locationsTab.modal.descriptionLabel")}
+                </Text>
                 <TextInput
                   style={[
                     styles.inputBox,
                     { minHeight: 60, textAlignVertical: "top" },
                   ]}
-                  placeholder={t('locationsTab.modal.descriptionPlaceholder')}
+                  placeholder={t("locationsTab.modal.descriptionPlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.description}
                   onChangeText={(val) =>
@@ -1167,7 +1317,9 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   style={styles.cancelBtn}
                   onPress={() => setShowAddModal(false)}
                 >
-                  <Text style={styles.cancelBtnText}>{t('locationsTab.modal.cancel')}</Text>
+                  <Text style={styles.cancelBtnText}>
+                    {t("locationsTab.modal.cancel")}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.submitBtn, isSubmitting && { opacity: 0.6 }]}
@@ -1178,15 +1330,17 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                     <ActivityIndicator size="small" color="#FFF" />
                   ) : (
                     <Text style={styles.submitBtnText}>
-                      {editingPlace ? t('locationsTab.modal.saveAndResubmit') : t('locationsTab.modal.submit')}
+                      {editingPlace
+                        ? t("locationsTab.modal.saveAndResubmit")
+                        : t("locationsTab.modal.submit")}
                     </Text>
                   )}
                 </TouchableOpacity>
               </View>
             </View>
-          </KeyboardAvoidingView>
-        </View>
-      )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Full Map Modal */}
       <FullMapModal
@@ -1198,8 +1352,53 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           longitude: siteLocation?.longitude || 106.660172,
           zoom: 14,
         }}
-        title={t('locationsTab.fullMapTitle')}
+        title={t("locationsTab.fullMapTitle")}
         showUserLocation
+        onAddPlace={(coords) => {
+          setPendingCoords(coords);
+          setForm({
+            name: "",
+            category: "food",
+            address: "",
+            phone: "",
+            description: "",
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          });
+          setEditingPlace(null);
+          setShowAddModal(true);
+        }}
+        isSelectingLocation={isSelectingOnMap}
+        onLocationSelected={async (coords) => {
+          setPendingCoords(coords);
+          try {
+            const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${coords.latitude}&lng=${coords.longitude}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            const first = Array.isArray(data) ? data[0] : data?.value?.[0];
+            const address = first?.display || first?.address || `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+            setForm((prev) => ({
+              ...prev,
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+              address,
+            }));
+          } catch {
+            setForm((prev) => ({
+              ...prev,
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            }));
+          }
+          Toast.show({
+            type: "info",
+            text1: t("locationsTab.toast.coordsUpdated"),
+            text2: `${Number(coords.latitude).toFixed(5)}, ${Number(coords.longitude).toFixed(5)}`,
+            visibilityTime: 2000,
+          });
+          setIsSelectingOnMap(false);
+          setShowAddModal(true);
+        }}
       />
     </View>
   );
@@ -1208,6 +1407,12 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: PREMIUM_COLORS.cream,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: PREMIUM_COLORS.cream,
   },
 
@@ -1273,15 +1478,12 @@ const styles = StyleSheet.create({
   },
 
   // List
-  listContainer: {
-    flex: 1,
-    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
-  },
   listHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: getSpacing(GUIDE_SPACING.sm),
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
   },
   listTitle: {
     fontSize: getFontSize(15),
@@ -1294,64 +1496,95 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: getSpacing(GUIDE_SPACING.sm),
+    paddingHorizontal: getSpacing(GUIDE_SPACING.md),
     paddingBottom: getSpacing(GUIDE_SPACING.lg),
   },
 
-  // Pin Card
+  // Pin Card - Ticket style matching EventCard
   pinCard: {
     flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#FFF",
     borderRadius: GUIDE_BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: PREMIUM_COLORS.goldLight,
-    padding: getSpacing(GUIDE_SPACING.md),
-    gap: getSpacing(GUIDE_SPACING.md),
+    overflow: "hidden",
+    minHeight: 100,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
+        shadowOpacity: 0.06,
         shadowRadius: 8,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  pinCardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
+  pinCardAccent: {
+    width: 56,
     justifyContent: "center",
     alignItems: "center",
   },
+  pinCardEmoji: {
+    fontSize: 28,
+  },
+  pinCardDivider: {
+    width: 2,
+    backgroundColor: PREMIUM_COLORS.cream,
+    marginVertical: GUIDE_SPACING.sm,
+    borderRadius: 1,
+  },
   pinCardContent: {
     flex: 1,
+    padding: GUIDE_SPACING.md,
+    paddingLeft: GUIDE_SPACING.sm,
+    justifyContent: "center",
+    gap: 4,
+  },
+  pinCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pinCardBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  pinCardIconActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+  iconActionBtn: {
+    padding: 4,
   },
   pinCardInfoRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    marginTop: 2,
+  },
+  pinCardMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   pinCardName: {
+    flex: 1,
     fontSize: getFontSize(15),
     fontWeight: "600",
     color: GUIDE_COLORS.textPrimary,
   },
-  pinCardType: {
-    fontSize: getFontSize(12),
-    color: GUIDE_COLORS.textSecondary,
-    marginTop: 2,
-  },
   pinCardDesc: {
     fontSize: getFontSize(12),
     color: GUIDE_COLORS.textMuted,
-    marginTop: 2,
   },
-  pinCardDelete: {
-    padding: getSpacing(GUIDE_SPACING.xs),
+  rejectionBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF2F2",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
   },
 
   // Empty State
@@ -1384,58 +1617,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   rejectionText: {
+    flex: 1,
     fontSize: getFontSize(11),
-    color: "#EF4444",
-    marginTop: 2,
-    fontStyle: "italic",
-  },
-  editBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 6,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#2563EB",
-    backgroundColor: "#EFF6FF",
-  },
-  editBtnText: {
-    fontSize: getFontSize(12),
-    color: "#2563EB",
-    fontWeight: "600",
-  },
-  restoreBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 6,
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#10B981",
-    backgroundColor: "#ECFDF5",
-  },
-  restoreBtnText: {
-    fontSize: getFontSize(12),
-    color: "#10B981",
-    fontWeight: "600",
+    color: "#E74C3C",
   },
 
   // Modal
   modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
-    zIndex: 100,
   },
   modalContainer: {
     backgroundColor: PREMIUM_COLORS.cream,

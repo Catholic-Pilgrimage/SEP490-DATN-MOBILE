@@ -1,8 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Animated,
   Dimensions,
@@ -46,30 +47,31 @@ const PREMIUM_COLORS = {
 // Navigation type
 type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList, 'MySiteHome'>;
 
-// Types - Updated with 4 tabs (using Vietnamese for shorter labels)
-type TabType = "Sự kiện" | "Media" | "Lịch lễ" | "Địa điểm";
+type TabType = "events" | "media" | "schedules" | "locations";
 
-// Tab icons mapping
 const TAB_ICONS: Record<TabType, keyof typeof MaterialIcons.glyphMap> = {
-  "Sự kiện": "event",
-  "Media": "photo-library",
-  "Lịch lễ": "church",
-  "Địa điểm": "place",
+  events: "event",
+  media: "photo-library",
+  schedules: "church",
+  locations: "place",
 };
 
+const ALL_TABS: TabType[] = ["events", "media", "schedules", "locations"];
 
 
-// Premium Underline Tab Component
+
 interface UnderlineTabsProps {
   tabs: TabType[];
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
+  labels: Record<TabType, string>;
 }
 
 const UnderlineTabs: React.FC<UnderlineTabsProps> = ({
   tabs,
   activeTab,
   onTabChange,
+  labels,
 }) => {
   const { fontSize, spacing, iconSize } = useResponsive();
 
@@ -104,7 +106,7 @@ const UnderlineTabs: React.FC<UnderlineTabsProps> = ({
               ]}
               numberOfLines={1}
             >
-              {tab}
+              {labels[tab]}
             </Text>
           </TouchableOpacity>
         );
@@ -114,10 +116,30 @@ const UnderlineTabs: React.FC<UnderlineTabsProps> = ({
 };
 
 // Main MySite Screen
+type MySiteHomeRouteProp = RouteProp<MySiteStackParamList, 'MySiteHome'>;
+
+const TAB_MAP: Record<string, TabType> = {
+  events: "events",
+  media: "media",
+  schedules: "schedules",
+  locations: "locations",
+};
+
 const MySiteScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<MySiteNavigationProp>();
-  const [activeTab, setActiveTab] = useState<TabType>("Sự kiện");
+  const route = useRoute<MySiteHomeRouteProp>();
+  const initialTab = route.params?.initialTab;
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<TabType>(
+    (initialTab && TAB_MAP[initialTab]) || "events"
+  );
+
+  useEffect(() => {
+    if (initialTab && TAB_MAP[initialTab]) {
+      setActiveTab(TAB_MAP[initialTab]);
+    }
+  }, [initialTab]);
   const { spacing, fontSize, iconSize } = useResponsive();
   const fabScale = useRef(new Animated.Value(1)).current;
 
@@ -131,10 +153,17 @@ const MySiteScreen: React.FC = () => {
     },
   });
 
-  const siteName = siteData?.name || 'Đang tải...';
+  const tabLabels = useMemo<Record<TabType, string>>(() => ({
+    events: t("mySiteScreen.tabs.events"),
+    media: t("mySiteScreen.tabs.media"),
+    schedules: t("mySiteScreen.tabs.schedules"),
+    locations: t("mySiteScreen.tabs.locations"),
+  }), [t]);
+
+  const siteName = siteData?.name || t("mySiteScreen.loading");
   const siteAddress = siteData?.address
     ? `${siteData.district ? siteData.district + ', ' : ''}${siteData.province || siteData.address}`
-    : 'Chưa có địa chỉ';
+    : t("mySiteScreen.noAddress");
 
   // FAB animation
   const handleFabPressIn = () => {
@@ -172,9 +201,9 @@ const MySiteScreen: React.FC = () => {
 
   // FAB handler
   const handleAddNew = useCallback(() => {
-    if (activeTab === "Media") {
+    if (activeTab === "media") {
       navigation.navigate('MediaUpload');
-    } else if (activeTab === "Sự kiện") {
+    } else if (activeTab === "events") {
       navigation.navigate('EventDetail', { event: undefined });
     }
   }, [navigation, activeTab]);
@@ -214,14 +243,15 @@ const MySiteScreen: React.FC = () => {
       {/* Pill Tabs - Premium Design */}
       <View style={styles.tabsWrapper}>
         <UnderlineTabs
-          tabs={["Sự kiện", "Media", "Lịch lễ", "Địa điểm"]}
+          tabs={ALL_TABS}
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          labels={tabLabels}
         />
       </View>
 
       {/* Media Tab - Rendered outside ScrollView to avoid nesting VirtualizedList */}
-      {activeTab === "Media" && (
+      {activeTab === "media" && (
         <View style={styles.mediaTabContainer}>
           <MediaTab
             onMediaPress={handleMediaPress}
@@ -231,7 +261,7 @@ const MySiteScreen: React.FC = () => {
       )}
 
       {/* Events Tab - Also uses FlatList, render outside ScrollView */}
-      {activeTab === "Sự kiện" && (
+      {activeTab === "events" && (
         <View style={styles.mediaTabContainer}>
           <EventsTab
             onEventPress={handleEventPress}
@@ -241,7 +271,7 @@ const MySiteScreen: React.FC = () => {
       )}
 
       {/* Locations Tab - Map with pin points */}
-      {activeTab === "Địa điểm" && (
+      {activeTab === "locations" && (
         <View style={styles.mediaTabContainer}>
           <LocationsTab 
             siteLocation={
@@ -259,14 +289,14 @@ const MySiteScreen: React.FC = () => {
       )}
 
       {/* Schedules Tab - Mass Schedule management */}
-      {activeTab === "Lịch lễ" && (
+      {activeTab === "schedules" && (
         <View style={styles.mediaTabContainer}>
           <SchedulesTab />
         </View>
       )}
 
       {/* Other tabs use ScrollView */}
-      {activeTab !== "Media" && activeTab !== "Sự kiện" && activeTab !== "Địa điểm" && activeTab !== "Lịch lễ" && (
+      {activeTab !== "media" && activeTab !== "events" && activeTab !== "locations" && activeTab !== "schedules" && (
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -282,7 +312,7 @@ const MySiteScreen: React.FC = () => {
 
       {/* Floating Action Button - Premium with better shadow */}
       {/* Only show for tabs that don't have their own FAB */}
-      {activeTab !== "Lịch lễ" && activeTab !== "Địa điểm" && (
+      {activeTab !== "schedules" && activeTab !== "locations" && (
         <Animated.View style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}>
           <TouchableOpacity
             style={styles.fab}

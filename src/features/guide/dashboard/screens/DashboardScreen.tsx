@@ -339,13 +339,22 @@ const DashboardScreen: React.FC = () => {
         navigation.navigate("SOSList");
         break;
       case "post-news":
-        // navigation.navigate("PostNews");
+        navigation.navigate("MySite", {
+          screen: "MySiteHome",
+          params: { initialTab: "events" },
+        } as any);
         break;
       case "add-schedule":
-        // navigation.navigate("AddSchedule");
+        navigation.navigate("MySite", {
+          screen: "MySiteHome",
+          params: { initialTab: "schedules" },
+        } as any);
         break;
       case "upload-media":
-        // navigation.navigate("UploadMedia");
+        navigation.navigate("MySite", {
+          screen: "MySiteHome",
+          params: { initialTab: "media" },
+        } as any);
         break;
       default:
         console.warn(`Unhandled quick action: ${actionId}`);
@@ -426,15 +435,6 @@ const DashboardScreen: React.FC = () => {
                   { paddingTop: insets.top + getSpacing(GUIDE_SPACING.sm) },
                 ]}
               >
-                <TouchableOpacity style={styles.appBarButton}>
-                  <LinearGradient
-                    colors={["rgba(255,255,255,0.25)", "rgba(255,255,255,0.1)"]}
-                    style={styles.appBarButtonGradient}
-                  >
-                    <Ionicons name="person" size={20} color="#FFFFFF" />
-                  </LinearGradient>
-                </TouchableOpacity>
-
                 <View style={styles.appBarTitleContainer}>
                   <Text style={styles.appBarTitle}>
                     {t("dashboard.cathedralGuide")}
@@ -745,20 +745,65 @@ const DashboardScreen: React.FC = () => {
               recentActivity.slice(0, 5).map((activity) => (
                 <TouchableOpacity key={activity.id} style={styles.activityItem}>
                   <View style={styles.activityImageContainer}>
-                    <Image
-                      source={{
-                        uri:
-                          activity.thumbnail ||
-                          "https://via.placeholder.com/50",
-                      }}
-                      style={[
-                        styles.activityImage,
-                        {
-                          width: moderateScale(56, 0.3),
-                          height: moderateScale(56, 0.3),
-                        },
-                      ]}
-                    />
+                    {activity.thumbnail ? (
+                      <Image
+                        source={{ uri: activity.thumbnail }}
+                        style={[
+                          styles.activityImage,
+                          {
+                            width: moderateScale(56, 0.3),
+                            height: moderateScale(56, 0.3),
+                          },
+                        ]}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.activityImage,
+                          styles.activityImagePlaceholder,
+                          {
+                            width: moderateScale(56, 0.3),
+                            height: moderateScale(56, 0.3),
+                            backgroundColor:
+                              activity.type === "nearby_place"
+                                ? activity.originalData?.category === "accommodation"
+                                  ? "#DBEAFE"
+                                  : activity.originalData?.category === "medical"
+                                    ? "#FEE2E2"
+                                    : "#D1FAE5"
+                                : activity.type === "media"
+                                  ? "#FEF3C7"
+                                  : "#DBEAFE",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={
+                            activity.type === "nearby_place"
+                              ? activity.originalData?.category === "accommodation"
+                                ? "bed"
+                                : activity.originalData?.category === "medical"
+                                  ? "medkit"
+                                  : "restaurant"
+                              : activity.type === "media"
+                                ? "image"
+                                : "calendar"
+                          }
+                          size={moderateScale(24, 0.3)}
+                          color={
+                            activity.type === "nearby_place"
+                              ? activity.originalData?.category === "accommodation"
+                                ? "#3B82F6"
+                                : activity.originalData?.category === "medical"
+                                  ? "#EF4444"
+                                  : "#10B981"
+                              : activity.type === "media"
+                                ? PREMIUM_COLORS.gold
+                                : PREMIUM_COLORS.sapphire
+                          }
+                        />
+                      </View>
+                    )}
                     <View
                       style={[
                         styles.activityImageOverlay,
@@ -766,12 +811,28 @@ const DashboardScreen: React.FC = () => {
                           backgroundColor:
                             activity.type === "media"
                               ? PREMIUM_COLORS.gold
-                              : PREMIUM_COLORS.sapphire,
+                              : activity.type === "nearby_place"
+                                ? activity.originalData?.category === "accommodation"
+                                  ? "#3B82F6"
+                                  : activity.originalData?.category === "medical"
+                                    ? "#EF4444"
+                                    : "#10B981"
+                                : PREMIUM_COLORS.sapphire,
                         },
                       ]}
                     >
                       <Ionicons
-                        name={activity.type === "media" ? "image" : "calendar"}
+                        name={
+                          activity.type === "media"
+                            ? "image"
+                            : activity.type === "nearby_place"
+                              ? activity.originalData?.category === "accommodation"
+                                ? "bed"
+                                : activity.originalData?.category === "medical"
+                                  ? "medkit"
+                                  : "restaurant"
+                              : "calendar"
+                        }
                         size={moderateScale(12, 0.3)}
                         color="#FFFFFF"
                       />
@@ -1334,8 +1395,11 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   activityImage: {
-    // width and height are now set dynamically in the component
     borderRadius: GUIDE_BORDER_RADIUS.lg,
+  },
+  activityImagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   activityImageOverlay: {
     position: "absolute",

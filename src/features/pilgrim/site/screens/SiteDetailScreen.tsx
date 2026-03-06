@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import FullMapModal from "../../../../components/map/FullMapModal";
 import {
   MapPin,
   VietmapView,
@@ -50,6 +51,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isSOSModalVisible, setSOSModalVisible] = useState(false);
+  const [showFullMap, setShowFullMap] = useState(false);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -683,6 +685,12 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     showUserLocation
                     style={styles.mapImage}
                   />
+                  <TouchableOpacity
+                    style={styles.fullMapButton}
+                    onPress={() => setShowFullMap(true)}
+                  >
+                    <Ionicons name="expand" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <View style={[styles.mapPlaceholder, styles.mapNoLocation]}>
@@ -745,6 +753,50 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               ? { latitude: site.latitude, longitude: site.longitude }
               : undefined
           }
+        />
+      )}
+
+      {site.latitude && site.longitude && (
+        <FullMapModal
+          visible={showFullMap}
+          onClose={() => setShowFullMap(false)}
+          pins={[
+            {
+              id: site.id,
+              latitude: site.latitude,
+              longitude: site.longitude,
+              title: site.name,
+              subtitle: [site.address, site.district, site.province]
+                .filter(Boolean)
+                .join(", "),
+              color: "#DC2626",
+              icon: "⛪",
+            },
+            ...(places || [])
+              .filter((p) => p.latitude && p.longitude)
+              .map((place) => {
+                const catCfg: Record<string, { color: string; emoji: string }> = {
+                  food: { color: "#F97316", emoji: "🍜" },
+                  lodging: { color: "#2563EB", emoji: "🏨" },
+                  medical: { color: "#10B981", emoji: "🏥" },
+                };
+                const cfg = catCfg[place.category] || catCfg.food;
+                return {
+                  id: place.id,
+                  latitude: place.latitude,
+                  longitude: place.longitude,
+                  title: place.name,
+                  subtitle: place.address,
+                  color: cfg.color,
+                  icon: cfg.emoji,
+                };
+              }),
+          ]}
+          initialRegion={{
+            latitude: site.latitude,
+            longitude: site.longitude,
+            zoom: 15,
+          }}
         />
       )}
     </View>
@@ -1246,7 +1298,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
   },
   mapPlaceholder: {
-    height: 200,
+    height: 280,
     backgroundColor: COLORS.backgroundDark,
     position: "relative",
     borderRadius: BORDER_RADIUS.md,
@@ -1264,6 +1316,15 @@ const styles = StyleSheet.create({
   mapImage: {
     width: "100%",
     height: "100%",
+  },
+  fullMapButton: {
+    position: "absolute",
+    bottom: 10,
+    left: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 8,
+    padding: 8,
+    ...SHADOWS.small,
   },
   mapOverlay: {
     ...StyleSheet.absoluteFillObject,
