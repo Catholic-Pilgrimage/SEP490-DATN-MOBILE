@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { CommonActions, useScrollToTop } from '@react-navigation/native';
+import { useScrollToTop } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     Dimensions,
     ImageBackground,
@@ -20,6 +19,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GuestLoginModal } from '../../../../components/ui/GuestLoginModal';
 import { COLORS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useFavorites } from '../../../../hooks/useFavorites';
@@ -55,6 +55,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showGuestLogin, setShowGuestLogin] = useState(false);
 
     // Auth context
     const { isAuthenticated, isGuest } = useAuth();
@@ -113,22 +114,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
 
     const handleFavoriteToggle = (siteId: string) => {
         if (!isAuthenticated || isGuest) {
-            Alert.alert(
-                'Yêu cầu đăng nhập',
-                'Vui lòng đăng nhập để lưu địa điểm yêu thích.',
-                [
-                    { text: 'Để sau', style: 'cancel' },
-                    {
-                        text: 'Đăng nhập',
-                        onPress: () => navigation.dispatch(
-                            CommonActions.reset({
-                                index: 0,
-                                routes: [{ name: 'Auth' }],
-                            })
-                        )
-                    },
-                ]
-            );
+            setShowGuestLogin(true);
             return;
         }
         toggleFavorite(siteId);
@@ -306,7 +292,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     style={styles.iconButton}
                                     onPress={() => {
                                         if (!isAuthenticated || isGuest) {
-                                            alert('Vui lòng đăng nhập để xem thông báo');
+                                            setShowGuestLogin(true);
                                             return;
                                         }
                                         setShowNotifications(true);
@@ -342,6 +328,11 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
             <NotificationModal
                 visible={showNotifications}
                 onClose={() => setShowNotifications(false)}
+            />
+
+            <GuestLoginModal
+                visible={showGuestLogin}
+                onClose={() => setShowGuestLogin(false)}
             />
 
             {/* --- MAIN SCROLLVIEW --- */}

@@ -24,6 +24,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useFavorites } from "../../../../hooks/useFavorites";
@@ -119,6 +120,7 @@ const ProfileScreen = () => {
   } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showGuestLogin, setShowGuestLogin] = useState(false);
   const { t } = useI18n();
 
   // React Query for real-time profile updates
@@ -235,14 +237,7 @@ const ProfileScreen = () => {
 
   const handleMenuPress = (item: (typeof menuItems)[0]) => {
     if (item.requireAuth && isGuest) {
-      Alert.alert(
-        t("profile.loginRequired"),
-        t("profile.loginRequiredMessage"),
-        [
-          { text: t("profile.loginLater"), style: "cancel" },
-          { text: t("profile.login"), onPress: () => handleLogin() },
-        ],
-      );
+      setShowGuestLogin(true);
       return;
     }
 
@@ -492,6 +487,11 @@ const ProfileScreen = () => {
       <NotificationModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      <GuestLoginModal
+        visible={showGuestLogin}
+        onClose={() => setShowGuestLogin(false)}
       />
     </ImageBackground>
   );

@@ -1,10 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { CommonActions } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
   RefreshControl,
@@ -13,7 +11,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FullMapModal from "../../../../components/map/FullMapModal";
@@ -22,6 +20,7 @@ import {
   VietmapView,
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
+import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -52,6 +51,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isSOSModalVisible, setSOSModalVisible] = useState(false);
   const [showFullMap, setShowFullMap] = useState(false);
+  const [showGuestLogin, setShowGuestLogin] = useState(false);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -110,26 +110,10 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   };
 
   const handleBack = () => navigation.goBack();
-  const handleShare = () => {};
+  const handleShare = () => { };
   const handleBookmark = () => {
     if (!isAuthenticated || isGuest) {
-      Alert.alert(
-        "Yêu cầu đăng nhập",
-        "Vui lòng đăng nhập để lưu địa điểm yêu thích.",
-        [
-          { text: "Để sau", style: "cancel" },
-          {
-            text: "Đăng nhập",
-            onPress: () =>
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: "Auth" }],
-                }),
-              ),
-          },
-        ],
-      );
+      setShowGuestLogin(true);
       return;
     }
     toggleFav(siteId);
@@ -205,8 +189,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     heroImages.length > 0
       ? heroImages
       : [
-          "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
-        ];
+        "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
+      ];
 
   if (isLoading && !site) {
     return (
@@ -472,7 +456,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
 
             {formattedSchedules.sunday ||
-            formattedSchedules.others.length > 0 ? (
+              formattedSchedules.others.length > 0 ? (
               <View style={styles.premiumScheduleWrapper}>
                 {/* Sunday Special Card */}
                 {formattedSchedules.sunday && (
@@ -799,6 +783,11 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           }}
         />
       )}
+
+      <GuestLoginModal
+        visible={showGuestLogin}
+        onClose={() => setShowGuestLogin(false)}
+      />
     </View>
   );
 };
