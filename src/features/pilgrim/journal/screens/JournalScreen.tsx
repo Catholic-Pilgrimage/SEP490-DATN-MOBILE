@@ -22,6 +22,7 @@ import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/t
 import { useAuth } from '../../../../contexts/AuthContext';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import { JournalEntry } from '../../../../types/pilgrim/journal.types';
+import { normalizeImageUrls } from '../../../../utils/postgresArrayParser';
 
 const { width } = Dimensions.get('window');
 
@@ -69,7 +70,7 @@ const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any
 export const JournalScreen = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { isGuest, exitGuestMode } = useAuth();
+    const { isGuest, exitGuestMode, user } = useAuth();
     const { t } = useTranslation();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(!isGuest);
@@ -113,7 +114,8 @@ export const JournalScreen = () => {
 
     const renderItem = ({ item }: { item: JournalEntry }) => {
         const isPrivate = item.privacy === 'private';
-        const images = item.image_url || [];
+        const images = normalizeImageUrls(item.image_url);
+        const avatarUrl = item.author?.avatar_url || user?.avatar || 'https://via.placeholder.com/50';
 
         return (
             <TouchableOpacity
@@ -131,7 +133,7 @@ export const JournalScreen = () => {
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarContainer}>
                         <Image
-                            source={{ uri: item.author?.avatar_url || 'https://via.placeholder.com/50' }}
+                            source={{ uri: avatarUrl }}
                             style={styles.avatar}
                         />
                     </View>

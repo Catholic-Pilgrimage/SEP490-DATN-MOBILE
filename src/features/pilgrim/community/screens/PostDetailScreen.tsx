@@ -7,7 +7,7 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
@@ -225,7 +225,8 @@ export default function PostDetailScreen() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
 
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -308,7 +309,7 @@ export default function PostDetailScreen() {
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
     );
 }
 
@@ -322,7 +323,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.sm,
+        paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + SPACING.sm : SPACING.sm,
+        paddingBottom: SPACING.sm,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.borderLight,
         backgroundColor: COLORS.white,

@@ -23,10 +23,10 @@ import {
   AddPlanItemRequest,
   AddPlanItemResponse,
   AISuggestionRequest,
+  CheckInEntity,
   CheckInItemRequest,
   CheckInItemResponse,
   CreatePlanRequest,
-  GetCheckInsResponse,
   GetPlanMessagesResponse,
   GetPlansResponse,
   InviteParticipantRequest,
@@ -277,11 +277,12 @@ export const uploadPlanMessageImage = async (
 
 /**
  * Get my check-ins
+ * API returns array directly in data field, not wrapped in check_ins key
  */
 export const getMyCheckIns = async (
   params?: PaginationParams,
-): Promise<ApiResponse<GetCheckInsResponse>> => {
-  const response = await apiClient.get<ApiResponse<GetCheckInsResponse>>(
+): Promise<ApiResponse<CheckInEntity[]>> => {
+  const response = await apiClient.get<ApiResponse<CheckInEntity[]>>(
     PILGRIM_ENDPOINTS.PLANNER.CHECKINS_ME,
     { params },
   );

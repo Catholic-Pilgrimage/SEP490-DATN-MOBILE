@@ -1,8 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
+    Alert,
     Animated,
     Dimensions,
     Image,
@@ -16,8 +18,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../hooks/useAuth';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import { JournalEntry } from '../../../../types/pilgrim/journal.types';
+import { normalizeImageUrls } from '../../../../utils/postgresArrayParser';
 
 const { width, height } = Dimensions.get('window');
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
@@ -62,11 +66,18 @@ export default function JournalDetailScreen() {
     const route = useRoute<any>();
     const { journalId } = route.params || {};
     const insets = useSafeAreaInsets();
+    const { user } = useAuth();
     const scrollY = new Animated.Value(0);
     const [activeSlide, setActiveSlide] = useState(0);
 
     const [journal, setJournal] = useState<JournalEntry | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Audio playback state
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [audioDuration, setAudioDuration] = useState(0);
+    const [audioPosition, setAudioPosition] = useState(0);
 
     // Fetch Journal Detail
     useEffect(() => {
@@ -90,18 +101,119 @@ export default function JournalDetailScreen() {
     };
 
     const handleDelete = async () => {
-        try {
-            await pilgrimJournalApi.deleteJournal(journalId);
-            navigation.goBack();
-        } catch (error) {
-            console.error("Failed to delete journal", error);
-        }
+        Alert.alert(
+            'Xóa nhật ký',
+            'Bạn có chắc chắn muốn xóa nhật ký này không?',
+            [
+                {
+                    text: 'Hủy',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const response = await pilgrimJournalApi.deleteJournal(journalId);
+                            if (response.success) {
+                                Alert.alert('Thành công', 'Đã xóa nhật ký');
+                                navigation.goBack();
+                            } else {
+                                Alert.alert('Lỗi', 'Không thể xóa nhật ký');
+                            }
+                        } catch (error) {
+                            console.error("Failed to delete journal", error);
+                            Alert.alert('Lỗi', 'Không thể xóa nhật ký');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const handleEdit = () => {
         if (journal) {
-            navigation.navigate('CreateJournal', { journalId: journal.id });
+            navigation.navigate('CreateJournalScreen', { journalId: journal.id });
         }
+    };
+
+    // Audio playback handlers
+    const handlePlayAudio = async () => {
+        if (!journal?.audio_url) {
+            console.log('No audio URL available');
+            return;
+        }
+
+        try {
+            // If already playing, pause it
+            if (sound && isPlaying) {
+                console.log('Pausing audio');
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                return;
+            }
+
+            // If paused, resume it
+            if (sound && !isPlaying) {
+                console.log('Resuming audio');
+                await sound.playAsync();
+                setIsPlaying(true);
+                return;
+            }
+
+            // First time playing - create sound
+            console.log('Playing audio from URL:', journal.audio_url);
+
+            // Set audio mode for playback
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+                shouldDuckAndroid: true,
+            });
+
+            console.log('Creating audio sound...');
+            const { sound: newSound, status: loadStatus } = await Audio.Sound.createAsync(
+                { uri: journal.audio_url },
+                { shouldPlay: true },
+                (status) => {
+                    if (status.isLoaded) {
+                        setAudioDuration(status.durationMillis || 0);
+                        setAudioPosition(status.positionMillis || 0);
+                        
+                        // Auto stop when finished
+                        if (status.didJustFinish) {
+                            setIsPlaying(false);
+                            setAudioPosition(0);
+                        }
+                    }
+                }
+            );
+
+            console.log('Audio sound created successfully', loadStatus);
+            setSound(newSound);
+            setIsPlaying(true);
+        } catch (error) {
+            console.error('Error playing audio:', error);
+            alert('Không thể phát audio. Vui lòng thử lại.');
+        }
+    };
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            if (sound) {
+                console.log('Cleaning up audio sound on unmount');
+                sound.unloadAsync().catch((err) => console.log('Error unloading sound:', err));
+            }
+        };
+    }, [sound]);
+
+    // Format audio duration from milliseconds to mm:ss
+    const formatAudioDuration = (millis: number) => {
+        const minutes = Math.floor(millis / 60000);
+        const seconds = Math.floor((millis % 60000) / 1000);
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
 
     // Animation values
@@ -144,7 +256,7 @@ export default function JournalDetailScreen() {
         );
     }
 
-    const images = journal.image_url || [];
+    const images = normalizeImageUrls(journal.image_url);
     // If no images, use a placeholder or handle gracefully
     // For now, we'll assume at least one or use a placeholder if empty for the hero
     const heroImageUri = images.length > 0 ? images[0] : 'https://via.placeholder.com/400x300';
@@ -260,11 +372,11 @@ export default function JournalDetailScreen() {
                     <View style={styles.authorSection}>
                         <View style={styles.authorInfo}>
                             <Image
-                                source={{ uri: journal.author?.avatar_url || 'https://via.placeholder.com/50' }}
+                                source={{ uri: journal.author?.avatar_url || user?.avatar || 'https://via.placeholder.com/50' }}
                                 style={styles.authorAvatar}
                             />
                             <View>
-                                <Text style={styles.authorName}>{journal.author?.full_name}</Text>
+                                <Text style={styles.authorName}>{journal.author?.full_name || user?.fullName || 'Unknown'}</Text>
                                 <Text style={styles.authorLevel}>Pilgrim</Text>
                             </View>
                         </View>
@@ -289,16 +401,30 @@ export default function JournalDetailScreen() {
                                 <Text style={styles.audioTitleLabel}>VOICE NOTE</Text>
                             </View>
                             <View style={styles.audioContent}>
-                                <TouchableOpacity style={styles.playButton}>
-                                    <MaterialIcons name="play-arrow" size={28} color={COLORS.textPrimary} />
+                                <TouchableOpacity 
+                                    style={[styles.playButton, isPlaying && styles.playBtnActive]} 
+                                    onPress={handlePlayAudio}
+                                >
+                                    <MaterialIcons 
+                                        name={isPlaying ? "pause" : "play-arrow"} 
+                                        size={28} 
+                                        color={COLORS.textPrimary} 
+                                    />
                                 </TouchableOpacity>
                                 <View style={styles.audioInfo}>
                                     <View style={styles.audioMeta}>
-                                        <Text style={styles.audioTrackTitle} numberOfLines={1}>Audio Recording</Text>
-                                        <Text style={styles.audioDuration}>--:--</Text>
+                                        <Text style={styles.audioTrackTitle} numberOfLines={1}>
+                                            {isPlaying ? "Đang phát..." : "Audio Recording"}
+                                        </Text>
+                                        <Text style={[styles.audioDuration, isPlaying && styles.audioDurationActive]}>
+                                            {audioDuration > 0 ? formatAudioDuration(audioPosition) + ' / ' + formatAudioDuration(audioDuration) : '--:--'}
+                                        </Text>
                                     </View>
                                     <View style={styles.progressBarBg}>
-                                        <View style={[styles.progressBarFill, { width: `0%` }]} />
+                                        <View style={[
+                                            styles.progressBarFill, 
+                                            { width: `${audioDuration > 0 ? (audioPosition / audioDuration) * 100 : 0}%` }
+                                        ]} />
                                     </View>
                                 </View>
                             </View>
@@ -600,6 +726,13 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
         color: COLORS.textSecondary,
+    },
+    playBtnActive: {
+        backgroundColor: '#FFD700',
+    },
+    audioDurationActive: {
+        color: '#FFD700',
+        fontWeight: '700',
     },
     progressBarBg: {
         height: 6,

@@ -7,8 +7,8 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
@@ -92,7 +92,8 @@ export default function CreatePostScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -122,12 +123,14 @@ export default function CreatePostScreen() {
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
           style={styles.contentContainer}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: SPACING.xl }}
         >
           {/* User Info */}
           <View style={styles.userInfo}>
@@ -223,7 +226,7 @@ export default function CreatePostScreen() {
         selectionLimit={4}
         title="Thêm ảnh vào bài viết"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -237,7 +240,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingTop: Platform.OS === "android" ? (StatusBar.currentHeight || 0) + SPACING.sm : SPACING.md,
+    paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
     backgroundColor: COLORS.white,
