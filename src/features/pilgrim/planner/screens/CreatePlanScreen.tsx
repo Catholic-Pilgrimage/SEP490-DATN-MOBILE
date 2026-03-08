@@ -101,7 +101,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
     try {
       setLoading(true);
       if (new Date(startDate) >= new Date(endDate)) {
-        Alert.alert(t("common.error"), "Ngày kết thúc phải sau ngày bắt đầu");
+        Alert.alert(t("common.error"), t("planner.endDateMustAfterStart"));
         setLoading(false);
         return;
       }
@@ -127,16 +127,21 @@ const CreatePlanScreen = ({ navigation }: any) => {
         );
         navigation.goBack();
       } else {
-        throw new Error(response.message || t("planner.createFailed", { defaultValue: "Tạo kế hoạch thất bại" }));
+        throw new Error(
+          response.message ||
+            t("planner.createFailed", {
+              defaultValue: "Tạo kế hoạch thất bại",
+            }),
+        );
       }
     } catch (error: any) {
       console.error("Create plan error:", error);
       Alert.alert(
         t("common.error"),
         error.message ||
-        t("planner.createError", {
-          defaultValue: "Không thể tạo kế hoạch. Vui lòng thử lại.",
-        }),
+          t("planner.createError", {
+            defaultValue: "Không thể tạo kế hoạch. Vui lòng thử lại.",
+          }),
       );
     } finally {
       setLoading(false);
@@ -165,7 +170,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
               {t("common.cancel", { defaultValue: "Cancel" })}
             </Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Hành trình mới</Text>
+          <Text style={styles.headerTitle}>{t("planner.newJourney")}</Text>
           <View style={{ width: 60 }} />
         </View>
 
@@ -175,10 +180,10 @@ const CreatePlanScreen = ({ navigation }: any) => {
         >
           {/* Section 1: Name */}
           <View style={styles.section}>
-            <Text style={styles.label}>Tên hành trình</Text>
+            <Text style={styles.label}>{t("planner.journeyName")}</Text>
             <TextInput
               style={styles.input}
-              placeholder="VD: Hành hương La Vang 2026"
+              placeholder={t("planner.journeyNamePlaceholder")}
               placeholderTextColor={COLORS.textSecondary}
               value={name}
               onChangeText={setName}
@@ -187,7 +192,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Section 2: Start Date Picker */}
           <View style={styles.section}>
-            <Text style={styles.label}>Ngày bắt đầu</Text>
+            <Text style={styles.label}>{t("planner.startDate")}</Text>
             <TouchableOpacity
               style={styles.card}
               onPress={() => setShowStartPicker(!showStartPicker)}
@@ -199,7 +204,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   color={COLORS.accent}
                 />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>Ngày đã chọn</Text>
+                  <Text style={styles.dateDisplayLabel}>
+                    {t("planner.selectedDate")}
+                  </Text>
                   <Text style={styles.dateDisplayValue}>
                     {new Date(startDate).toLocaleDateString("vi-VN", {
                       weekday: "short",
@@ -309,8 +316,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             styles.calendarDayText,
                             isSelected && styles.calendarDayTextSelected,
                             isToday &&
-                            !isSelected &&
-                            styles.calendarDayTextToday,
+                              !isSelected &&
+                              styles.calendarDayTextToday,
                             isPast && styles.calendarDayTextDisabled,
                           ]}
                         >
@@ -326,7 +333,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Section 3: End Date Picker */}
           <View style={styles.section}>
-            <Text style={styles.label}>Ngày kết thúc</Text>
+            <Text style={styles.label}>{t("planner.endDate")}</Text>
             <TouchableOpacity
               style={styles.card}
               onPress={() => setShowEndPicker(!showEndPicker)}
@@ -338,7 +345,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   color={COLORS.accent}
                 />
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>Ngày đã chọn</Text>
+                  <Text style={styles.dateDisplayLabel}>
+                    {t("planner.selectedDate")}
+                  </Text>
                   <Text style={styles.dateDisplayValue}>
                     {new Date(endDate).toLocaleDateString("vi-VN", {
                       weekday: "short",
@@ -448,8 +457,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             styles.calendarDayText,
                             isSelected && styles.calendarDayTextSelected,
                             isToday &&
-                            !isSelected &&
-                            styles.calendarDayTextToday,
+                              !isSelected &&
+                              styles.calendarDayTextToday,
                             isPast && styles.calendarDayTextDisabled,
                           ]}
                         >
@@ -467,7 +476,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
           <View style={[styles.section, { flexDirection: "row", gap: 12 }]}>
             {/* People Counter */}
             <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>Số người</Text>
+              <Text style={styles.labelSmall}>
+                {t("planner.numberOfPeople")}
+              </Text>
               <View style={styles.counterRow}>
                 <TouchableOpacity
                   onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
@@ -491,20 +502,32 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
             {/* Transport Selector (Simplified) */}
             <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>Phương tiện</Text>
+              <Text style={styles.labelSmall}>
+                {t("planner.transportation")}
+              </Text>
               <View style={styles.transportRow}>
-                {([
-                  { value: "bus", icon: "bus" as const, emoji: null, color: "#FA8C16" },
-                  { value: "car", icon: "car" as const, emoji: null, color: "#1890FF" },
+                {[
+                  {
+                    value: "bus",
+                    icon: "bus" as const,
+                    emoji: null,
+                    color: "#FA8C16",
+                  },
+                  {
+                    value: "car",
+                    icon: "car" as const,
+                    emoji: null,
+                    color: "#1890FF",
+                  },
                   { value: "other", icon: null, emoji: "🏍️", color: null },
-                ]).map((item) => (
+                ].map((item) => (
                   <TouchableOpacity
                     key={item.value}
                     style={[
                       styles.transportIcon,
                       transportation === item.value
                         ? styles.transportIconSelected
-                        : { backgroundColor: '#F5F5F5' },
+                        : { backgroundColor: "#F5F5F5" },
                     ]}
                     onPress={() => setTransportation(item.value)}
                   >
@@ -514,7 +537,11 @@ const CreatePlanScreen = ({ navigation }: any) => {
                       <Ionicons
                         name={item.icon!}
                         size={20}
-                        color={transportation === item.value ? COLORS.white : item.color!}
+                        color={
+                          transportation === item.value
+                            ? COLORS.white
+                            : item.color!
+                        }
                       />
                     )}
                   </TouchableOpacity>
@@ -541,7 +568,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
             {loading ? (
               <ActivityIndicator color={COLORS.textPrimary} />
             ) : (
-              <Text style={styles.createButtonText}>Tạo & Lên lịch trình</Text>
+              <Text style={styles.createButtonText}>
+                {t("planner.createAndPlan")}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
