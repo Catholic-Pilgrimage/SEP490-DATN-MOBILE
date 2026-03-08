@@ -228,8 +228,9 @@ export interface CheckInEntity {
 }
 
 export interface GetCheckInsResponse {
-  check_ins: CheckInEntity[];
-  pagination: {
+  check_ins?: CheckInEntity[]; // Legacy format (optional)
+  // OR can be directly an array when used with ApiResponse<CheckInEntity[]>
+  pagination?: {
     page: number;
     limit: number;
     total: number;

@@ -45,12 +45,12 @@ export const createJournal = async (
 ): Promise<ApiResponse<JournalEntry>> => {
   const formData = new FormData();
 
-  // 1. Append Text Fields
+  // 1. Append Text Fields (Required)
   formData.append("title", data.title);
   formData.append("content", data.content);
-  if (data.planner_item_id) {
-    formData.append("planner_item_id", data.planner_item_id);
-  }
+  formData.append("planner_item_id", data.planner_item_id); // Required - must be from checked-in location
+  
+  // Optional fields
   if (data.privacy) {
     formData.append("privacy", data.privacy);
   }

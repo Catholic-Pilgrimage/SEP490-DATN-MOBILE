@@ -1,5 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Audio } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
@@ -18,10 +20,12 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MediaPickerModal } from '../../../../components/common/MediaPickerModal';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
-import { PlanItem } from '../../../../types/pilgrim/planner.types';
+import { CheckInEntity } from '../../../../types/pilgrim/planner.types';
+import { normalizeImageUrls } from '../../../../utils/postgresArrayParser';
 
 const { width } = Dimensions.get('window');
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
@@ -40,43 +44,273 @@ export default function CreateJournalScreen() {
     const [initialLoading, setInitialLoading] = useState(false);
     const [existingImages, setExistingImages] = useState<string[]>([]);
 
-    // Planner Item Logic
+    // Media State
+    const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
+    const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
+    const [mediaType, setMediaType] = useState<'images' | 'videos'>('images');
+
+    // Audio Recording State
+    const [recording, setRecording] = useState<Audio.Recording | undefined>();
+    const [recordingUri, setRecordingUri] = useState<string | undefined>();
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
+    const [sound, setSound] = useState<Audio.Sound | undefined>();
+    const [isPlaying, setIsPlaying] = useState(false);
+
+    // Check-in Logic
     const [selectedPlannerItemId, setSelectedPlannerItemId] = useState<string | null>(paramPlannerItemId || null);
-    const [recentPlanItems, setRecentPlanItems] = useState<PlanItem[]>([]);
+    const [checkedInLocations, setCheckedInLocations] = useState<CheckInEntity[]>([]);
 
     useEffect(() => {
-        fetchRecentPlanItems();
+        fetchMyCheckIns();
         if (journalId) fetchJournalDetails();
     }, [journalId]);
 
-    const fetchRecentPlanItems = async () => {
+    const fetchMyCheckIns = async () => {
         try {
-            const response = await pilgrimPlannerApi.getPlans();
-            if (response.data && response.data.planners) {
-                const items: PlanItem[] = [];
-                response.data.planners.forEach(plan => {
-                    if (plan.items_by_day) {
-                        Object.values(plan.items_by_day).forEach((dayItems: PlanItem[]) => {
-                            if (Array.isArray(dayItems)) items.push(...dayItems);
-                        });
-                    }
-                });
-                setRecentPlanItems(items.slice(0, 10)); // Top 10 recent
+            const response = await pilgrimPlannerApi.getMyCheckIns();
+            
+            if (response.success && response.data) {
+                // API returns data as CheckInEntity[] directly
+                const checkIns = response.data;
+                // Filter out check-ins without site info
+                const validCheckIns = checkIns.filter(c => c.site && c.site.name);
+                setCheckedInLocations(validCheckIns);
 
+                // If coming from a specific planner item, set the location
                 if (paramPlannerItemId) {
-                    const found = items.find(i => i.id === paramPlannerItemId);
-                    if (found && found.site) setLocation(found.site.name);
+                    const found = validCheckIns.find(c => c.planner_item_id === paramPlannerItemId);
+                    if (found && found.site) {
+                        setLocation(found.site.name);
+                        setSelectedPlannerItemId(found.planner_item_id);
+                    }
                 }
             }
         } catch (error) {
-            console.error("Failed to fetch plan items", error);
+            console.error("Failed to fetch check-ins", error);
         }
     };
 
-    const handleSelectLocation = (item: PlanItem) => {
-        setLocation(item.site.name);
-        setSelectedPlannerItemId(item.id);
+    const handleSelectLocation = (checkIn: CheckInEntity) => {
+        if (checkIn.site) {
+            setLocation(checkIn.site.name);
+            setSelectedPlannerItemId(checkIn.planner_item_id);
+        }
     };
+
+    const handlePickMedia = (type: 'images' | 'videos') => {
+        setMediaType(type);
+        setMediaPickerVisible(true);
+    };
+
+    const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
+        if (!result.canceled) {
+            if (mediaType === 'images') {
+                setSelectedImages((prev) => [...prev, ...result.assets].slice(0, 10)); // Max 10 images
+            } else {
+                // Video handling - for now just add to images array
+                setSelectedImages((prev) => [...prev, ...result.assets].slice(0, 10));
+            }
+        }
+        setMediaPickerVisible(false);
+    };
+
+    const handleRemoveMedia = (index: number) => {
+        setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRecordAudio = async () => {
+        try {
+            console.log('Starting audio recording...');
+            // Request permissions
+            const permission = await Audio.requestPermissionsAsync();
+            console.log('Audio permission:', permission);
+            if (!permission.granted) {
+                Alert.alert(
+                    'Quyền truy cập',
+                    'Cần quyền truy cập microphone để ghi âm. Vui lòng cấp quyền trong cài đặt.'
+                );
+                return;
+            }
+
+            // If already recording, stop it
+            if (recording) {
+                await handleStopRecording();
+                return;
+            }
+
+            // Configure audio mode
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+                interruptionModeIOS: 1, // DoNotMix
+                shouldDuckAndroid: true,
+                interruptionModeAndroid: 1, // DoNotMix
+                playThroughEarpieceAndroid: false,
+            });
+
+            console.log('Creating recording...');
+            // Start recording
+            const { recording: newRecording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            console.log('Recording created successfully');
+
+            setRecording(newRecording);
+            setIsRecording(true);
+            setRecordingDuration(0);
+
+            // Update duration every second
+            newRecording.setOnRecordingStatusUpdate((status) => {
+                if (status.isRecording && status.durationMillis) {
+                    setRecordingDuration(Math.floor(status.durationMillis / 1000));
+                }
+            });
+        } catch (error) {
+            console.error('Failed to start recording:', error);
+            Alert.alert('Lỗi', 'Không thể bắt đầu ghi âm. Vui lòng thử lại.');
+        }
+    };
+
+    const handleStopRecording = async () => {
+        if (!recording) return;
+
+        try {
+            const status = await recording.getStatusAsync();
+            console.log('Recording status before stop:', status);
+            
+            // Save final duration
+            if (status.durationMillis) {
+                setRecordingDuration(Math.floor(status.durationMillis / 1000));
+            }
+            
+            // Get URI before stopping
+            const uri = recording.getURI();
+            console.log('Recording URI:', uri);
+            
+            // Only unload if recording is still loaded
+            if (status.canRecord || status.isRecording) {
+                await recording.stopAndUnloadAsync();
+            }
+            
+            setRecordingUri(uri || undefined);
+            setRecording(undefined);
+            setIsRecording(false);
+
+            if (uri) {
+                Alert.alert('Thành công', 'Đã lưu ghi âm. Nhấn nút play để nghe lại.');
+            }
+
+            // Reset audio mode
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+            });
+        } catch (error) {
+            console.error('Failed to stop recording:', error);
+            setRecording(undefined);
+            setIsRecording(false);
+            Alert.alert('Lỗi', 'Không thể dừng ghi âm.');
+        }
+    };
+
+    const handlePlayAudio = async () => {
+        if (!recordingUri) {
+            console.warn('No recording URI available');
+            return;
+        }
+
+        console.log('Playing audio from URI:', recordingUri);
+
+        try {
+            // If sound exists and is playing, pause it
+            if (sound && isPlaying) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                return;
+            }
+
+            // If sound exists and is paused, resume it
+            if (sound && !isPlaying) {
+                await sound.playAsync();
+                setIsPlaying(true);
+                return;
+            }
+
+            // Set audio mode for playback
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+                shouldDuckAndroid: true,
+            });
+
+            // Create new sound if doesn't exist
+            console.log('Creating audio sound...');
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: recordingUri },
+                { shouldPlay: true }
+            );
+            console.log('Audio sound created successfully');
+            setSound(newSound);
+            setIsPlaying(true);
+
+            // Auto cleanup when finished
+            newSound.setOnPlaybackStatusUpdate((status) => {
+                if (status.isLoaded && status.didJustFinish) {
+                    newSound.unloadAsync().catch(console.error);
+                    setSound(undefined);
+                    setIsPlaying(false);
+                }
+            });
+        } catch (error) {
+            console.error('Failed to play audio:', error);
+            setIsPlaying(false);
+            Alert.alert('Lỗi', 'Không thể phát âm thanh. Vui lòng thử ghi âm lại.');
+        }
+    };
+
+    const handleDeleteAudio = () => {
+        Alert.alert(
+            'Xóa ghi âm',
+            'Bạn có chắc muốn xóa ghi âm này?',
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Xóa',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            if (sound) {
+                                await sound.unloadAsync();
+                                setSound(undefined);
+                            }
+                        } catch (error) {
+                            console.error('Failed to unload sound:', error);
+                        }
+                        setRecordingUri(undefined);
+                        setRecordingDuration(0);
+                        setIsPlaying(false);
+                    },
+                },
+            ]
+        );
+    };
+
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            if (recording) {
+                recording.getStatusAsync().then((status) => {
+                    if (status.canRecord || status.isRecording) {
+                        recording.stopAndUnloadAsync().catch(console.error);
+                    }
+                }).catch(console.error);
+            }
+            if (sound) {
+                sound.unloadAsync().catch(console.error);
+            }
+        };
+    }, [recording, sound]);
 
     const fetchJournalDetails = async () => {
         try {
@@ -90,7 +324,13 @@ export default function CreateJournalScreen() {
                     setLocation(data.site.name);
                 }
                 if (data.image_url) {
-                    setExistingImages(data.image_url);
+                    setExistingImages(normalizeImageUrls(data.image_url));
+                }
+                // Load existing audio if available
+                if (data.audio_url) {
+                    setRecordingUri(data.audio_url);
+                    // Optionally set duration if backend provides it
+                    // setRecordingDuration(data.audio_duration || 0);
                 }
             }
         } catch (error) {
@@ -104,13 +344,13 @@ export default function CreateJournalScreen() {
 
     const handleSave = async (privacy: 'private' | 'public') => {
         if (!title.trim() || !content.trim()) {
-            Alert.alert('Missing Information', 'Please enter a title and content');
+            Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề và nội dung');
             return;
         }
 
-        // Validate Planner Item ID for creation (Backend requirement)
+        // Validate Planner Item ID for creation (Backend requirement - MUST have checked-in location)
         if (!journalId && !selectedPlannerItemId) {
-            Alert.alert('Yêu cầu địa điểm', 'Vui lòng chọn một địa điểm từ kế hoạch của bạn để viết nhật ký.');
+            Alert.alert('Yêu cầu check-in trước', 'Vui lòng chọn một địa điểm mà bạn đã check-in để viết nhật ký tâm linh.');
             return;
         }
 
@@ -118,38 +358,60 @@ export default function CreateJournalScreen() {
         try {
             if (journalId) {
                 // UPDATE
+                // Prepare new image URIs (only send newly selected images)
+                const imageUris = selectedImages.map(img => img.uri);
+
                 await pilgrimJournalApi.updateJournal(journalId, {
                     title,
                     content,
                     privacy,
-                    // images: newImages // If we had image picker
+                    images: imageUris.length > 0 ? imageUris : undefined,
+                    audio: recordingUri,
                 });
-                Alert.alert("Success", "Journal updated successfully");
+                Alert.alert(
+                    "Thành công", 
+                    `Đã cập nhật nhật ký${
+                        imageUris.length > 0 ? ` (+${imageUris.length} ảnh mới)` : ''
+                    }${recordingUri ? ' với audio' : ''}`
+                );
             } else {
-                // CREATE
-                const createData: any = {
-                    title,
-                    content,
-                    privacy,
-                };
-                if (selectedPlannerItemId) {
-                    createData.planner_item_id = selectedPlannerItemId;
+                // CREATE - planner_item_id is required
+                if (!selectedPlannerItemId) {
+                    Alert.alert('Lỗi', 'Không thể tạo nhật ký mà không có địa điểm đã check-in');
+                    return;
                 }
 
-                await pilgrimJournalApi.createJournal(createData);
-                Alert.alert("Success", "Journal created successfully");
+                // Prepare image URIs
+                const imageUris = selectedImages.map(img => img.uri);
+
+                await pilgrimJournalApi.createJournal({
+                    title: title.trim(),
+                    content: content.trim(),
+                    planner_item_id: selectedPlannerItemId,
+                    privacy,
+                    images: imageUris.length > 0 ? imageUris : undefined,
+                    audio: recordingUri,
+                });
+                Alert.alert(
+                    "Đã tạo", 
+                    `Đã tạo nhật ký tâm linh${
+                        imageUris.length > 0 ? ` với ${imageUris.length} ảnh` : ''
+                    }${recordingUri ? ' và ghi âm' : ''}`
+                );
             }
             navigation.goBack();
         } catch (error: any) {
             console.error(error);
-            Alert.alert("Error", error?.message || "Failed to save journal");
+            Alert.alert("Lỗi", error?.message || "Không thể lưu nhật ký");
         } finally {
             setLoading(false);
         }
     };
 
     // Mock images for UI if empty
-    const displayImages = existingImages.length > 0 ? existingImages.map(uri => ({ id: uri, uri })) : [];
+    const displayImages = selectedImages.length > 0 
+        ? selectedImages.map((img, i) => ({ id: `new-${i}`, uri: img.uri })) 
+        : existingImages.map(uri => ({ id: uri, uri }));
 
     if (initialLoading) {
         return (
@@ -191,41 +453,43 @@ export default function CreateJournalScreen() {
                     {/* Location Section */}
                     <View style={styles.section}>
                         <Text style={styles.label}>Địa điểm hành hương</Text>
-                        <TouchableOpacity style={styles.locationInput}>
+                        <View style={styles.locationInput}>
                             <MaterialIcons name="location-on" size={20} color={COLORS.textSecondary} style={styles.locationIcon} />
                             <Text style={[styles.locationPlaceholder, location ? { color: COLORS.textPrimary } : {}]}>
-                                {location || "Chọn từ kế hoạch của bạn"}
+                                {location || "Chọn địa điểm bên dưới"}
                             </Text>
-                            <MaterialIcons name="expand-more" size={24} color={COLORS.textSecondary} style={styles.chevronIcon} />
-                        </TouchableOpacity>
+                        </View>
 
+                        <Text style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 8, marginBottom: 4 }}>
+                            Chọn địa điểm đã check-in:
+                        </Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipContainer}>
-                            {recentPlanItems.length > 0 ? (
-                                recentPlanItems.map((item, index) => (
+                            {checkedInLocations.length > 0 ? (
+                                checkedInLocations.map((checkIn, index) => (
                                     <TouchableOpacity
-                                        key={index}
+                                        key={checkIn.id || index}
                                         style={[
                                             styles.chip,
-                                            selectedPlannerItemId === item.id && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                                            selectedPlannerItemId === checkIn.planner_item_id && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                                         ]}
-                                        onPress={() => handleSelectLocation(item)}
+                                        onPress={() => handleSelectLocation(checkIn)}
                                     >
                                         <MaterialIcons
-                                            name="history"
+                                            name="check-circle"
                                             size={16}
-                                            color={selectedPlannerItemId === item.id ? COLORS.white : COLORS.textSecondary}
+                                            color={selectedPlannerItemId === checkIn.planner_item_id ? COLORS.white : COLORS.accent}
                                         />
                                         <Text style={[
                                             styles.chipText,
-                                            selectedPlannerItemId === item.id && { color: COLORS.white }
+                                            selectedPlannerItemId === checkIn.planner_item_id && { color: COLORS.white }
                                         ]}>
-                                            {item.site.name}
+                                            {checkIn.site?.name || 'Địa điểm'}
                                         </Text>
                                     </TouchableOpacity>
                                 ))
                             ) : (
                                 <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', padding: 10 }}>
-                                    Không có địa điểm nào trong kế hoạch gần đây
+                                    Không có địa điểm đã check-in. Hãy check-in tại một địa điểm trước!
                                 </Text>
                             )}
                         </ScrollView>
@@ -258,11 +522,21 @@ export default function CreateJournalScreen() {
 
                             <View style={styles.toolbarDivider} />
 
-                            <TouchableOpacity style={[styles.toolbarBtn, styles.micBtnMini]}>
-                                <MaterialIcons name="mic" size={20} color={COLORS.accent} />
+                            <TouchableOpacity 
+                                style={[styles.toolbarBtn, styles.micBtnMini]}
+                                onPress={handleRecordAudio}
+                            >
+                                <MaterialIcons 
+                                    name={isRecording ? "stop" : "mic"} 
+                                    size={20} 
+                                    color={isRecording ? "#FF0000" : COLORS.accent} 
+                                />
                             </TouchableOpacity>
 
-                            <TouchableOpacity style={[styles.toolbarBtn, { marginLeft: 'auto' }]}>
+                            <TouchableOpacity 
+                                style={[styles.toolbarBtn, { marginLeft: 'auto' }]}
+                                onPress={() => handlePickMedia('images')}
+                            >
                                 <MaterialIcons name="add-photo-alternate" size={20} color={COLORS.textSecondary} />
                             </TouchableOpacity>
                         </View>
@@ -282,36 +556,121 @@ export default function CreateJournalScreen() {
                     <View style={styles.section}>
                         <View style={styles.mediaHeader}>
                             <Text style={styles.label}>Hình ảnh & Video</Text>
-                            <TouchableOpacity>
+                            <TouchableOpacity onPress={() => handlePickMedia('images')}>
                                 <Text style={styles.linkText}>Xem tất cả</Text>
                             </TouchableOpacity>
                         </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-                            <TouchableOpacity style={styles.addMediaBtn}>
+                            <TouchableOpacity 
+                                style={styles.addMediaBtn}
+                                onPress={() => handlePickMedia('images')}
+                            >
                                 <MaterialIcons name="add-circle" size={24} color={COLORS.accent} />
                                 <Text style={styles.addMediaText}>Thêm</Text>
                             </TouchableOpacity>
 
                             {displayImages.map((img, index) => (
-                                <View key={index} style={styles.mediaItem}>
+                                <View key={img.id || index} style={styles.mediaItem}>
                                     <Image source={{ uri: img.uri }} style={styles.mediaImage} />
-                                    <TouchableOpacity style={styles.removeMediaBtn}>
+                                    <TouchableOpacity 
+                                        style={styles.removeMediaBtn}
+                                        onPress={() => handleRemoveMedia(index)}
+                                    >
                                         <MaterialIcons name="close" size={14} color="#fff" />
                                     </TouchableOpacity>
                                 </View>
                             ))}
                         </ScrollView>
                     </View>
+
+                    {/* Audio Recording Section */}
+                    {(isRecording || recordingUri) && (
+                        <View style={styles.section}>
+                            <Text style={styles.label}>Ghi âm</Text>
+                            {isRecording ? (
+                                <View style={styles.recordingIndicator}>
+                                    <View style={styles.recordingDot} />
+                                    <Text style={styles.recordingText}>
+                                        Đang ghi âm... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                                    </Text>
+                                    <TouchableOpacity 
+                                        style={styles.stopRecordingBtn}
+                                        onPress={handleStopRecording}
+                                    >
+                                        <MaterialIcons name="stop" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : recordingUri ? (
+                                <View style={styles.audioPlayer}>
+                                    <TouchableOpacity 
+                                        style={[
+                                            styles.playBtn,
+                                            isPlaying && styles.playBtnActive
+                                        ]}
+                                        onPress={handlePlayAudio}
+                                    >
+                                        <MaterialIcons 
+                                            name={isPlaying ? "pause" : "play-arrow"} 
+                                            size={28} 
+                                            color={isPlaying ? "#fff" : COLORS.accent} 
+                                        />
+                                    </TouchableOpacity>
+                                    <View style={styles.audioInfo}>
+                                        <Text style={styles.audioTitle}>Ghi âm của bạn</Text>
+                                        <Text style={[
+                                            styles.audioDuration,
+                                            isPlaying && styles.audioDurationActive
+                                        ]}>
+                                            {isPlaying 
+                                                ? "Đang phát..." 
+                                                : recordingDuration > 0 
+                                                    ? `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, '0')}`
+                                                    : '0:00'
+                                            }
+                                        </Text>
+                                    </View>
+                                    <TouchableOpacity 
+                                        style={styles.deleteAudioBtn}
+                                        onPress={handleDeleteAudio}
+                                    >
+                                        <MaterialIcons name="delete-outline" size={24} color="#FF6B6B" />
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null}
+                        </View>
+                    )}
                 </ScrollView>
             </KeyboardAvoidingView>
 
             {/* Floating Mic Button */}
             <View style={styles.floatingMicContainer} pointerEvents="box-none">
-                <TouchableOpacity style={styles.floatingMicBtn} activeOpacity={0.9}>
-                    <MaterialIcons name="mic" size={32} color={COLORS.textPrimary} />
+                <TouchableOpacity 
+                    style={[
+                        styles.floatingMicBtn,
+                        isRecording && styles.floatingMicBtnRecording
+                    ]} 
+                    activeOpacity={0.9}
+                    onPress={handleRecordAudio}
+                >
+                    <MaterialIcons 
+                        name={isRecording ? "stop" : "mic"} 
+                        size={32} 
+                        color={isRecording ? "#fff" : COLORS.textPrimary} 
+                    />
                 </TouchableOpacity>
             </View>
+
+            {/* Media Picker Modal */}
+            <MediaPickerModal
+                visible={isMediaPickerVisible}
+                onClose={() => setMediaPickerVisible(false)}
+                onMediaPicked={handleMediaPicked}
+                mediaTypes={mediaType}
+                allowsMultipleSelection={true}
+                selectionLimit={10}
+                title={mediaType === 'images' ? 'Thêm ảnh' : 'Thêm video'}
+            />
 
             {/* Fixed Footer */}
             <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
@@ -561,6 +920,10 @@ const styles = StyleSheet.create({
         borderWidth: 4,
         borderColor: COLORS.surface0,
     },
+    floatingMicBtnRecording: {
+        backgroundColor: '#FF0000',
+        shadowColor: '#FF0000',
+    },
     footer: {
         position: 'absolute',
         bottom: 0,
@@ -607,5 +970,79 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
         color: COLORS.textPrimary, // Or White depending on contrast, Mockup has dark text
+    },
+    // Audio Recording Styles
+    recordingIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 0, 0, 0.1)',
+        borderRadius: 12,
+        padding: SPACING.md,
+        marginTop: SPACING.sm,
+    },
+    recordingDot: {
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#FF0000',
+        marginRight: SPACING.sm,
+    },
+    recordingText: {
+        flex: 1,
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#FF0000',
+    },
+    stopRecordingBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#FF0000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    audioPlayer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        borderRadius: 12,
+        padding: SPACING.md,
+        marginTop: SPACING.sm,
+        ...SHADOWS.subtle,
+    },
+    playBtn: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: 'rgba(212, 175, 55, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: SPACING.md,
+    },
+    playBtnActive: {
+        backgroundColor: COLORS.accent,
+    },
+    audioInfo: {
+        flex: 1,
+    },
+    audioTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.textPrimary,
+        marginBottom: 4,
+    },
+    audioDuration: {
+        fontSize: 13,
+        color: COLORS.textSecondary,
+    },
+    audioDurationActive: {
+        color: COLORS.accent,
+        fontWeight: '600',
+    },
+    deleteAudioBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 });

@@ -57,7 +57,7 @@ export interface JournalEntry {
   video_url?: string;
   image_url?: string[]; // Response has image_url array
   privacy: JournalVisibility;
-  author: {
+  author?: {
     id: string;
     full_name: string;
     email: string;
@@ -88,11 +88,11 @@ export interface JournalSummary extends JournalEntry { } // Assuming summary has
 export interface CreateJournalRequest {
   title: string;
   content: string;
-  planner_item_id?: string; // Optional if not part of a plan
+  planner_item_id: string; // Required - ID của planner item đã check-in
   privacy?: JournalVisibility;
-  images?: string[]; // Local URIs to upload
-  audio?: string; // Local URI to upload
-  video?: string; // Local URI to upload
+  images?: string[]; // Local URIs to upload - Tối đa 10 ảnh (jpg, png, jpeg, webp), max 10MB
+  audio?: string; // Local URI to upload - File audio (mp3, wav, m4a, ogg, aac), max 100MB
+  video?: string; // Local URI to upload - File video (mp4, mov, avi, webm), max 100MB
 }
 
 /**
