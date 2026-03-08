@@ -76,19 +76,23 @@ export const calculateRoute = async (
  * Calculate estimated arrival time based on departure time and travel duration
  * @param departureTime Format "HH:MM"
  * @param durationMinutes Travel duration in minutes
- * @returns Estimated arrival time in "HH:MM" format
+ * @returns Object containing the formatted arrival time "HH:MM" and number of days added if it crosses midnight
  */
 export const calculateArrivalTime = (
   departureTime: string,
   durationMinutes: number,
-): string => {
+): { time: string; daysAdded: number } => {
   const [hours, minutes] = departureTime.split(':').map(Number);
   const totalMinutes = hours * 60 + minutes + durationMinutes;
-  
+
+  const daysAdded = Math.floor(totalMinutes / (24 * 60));
   const arrivalHours = Math.floor(totalMinutes / 60) % 24;
   const arrivalMinutes = totalMinutes % 60;
-  
-  return `${arrivalHours.toString().padStart(2, '0')}:${arrivalMinutes.toString().padStart(2, '0')}`;
+
+  return {
+    time: `${arrivalHours.toString().padStart(2, '0')}:${arrivalMinutes.toString().padStart(2, '0')}`,
+    daysAdded
+  };
 };
 
 export default {

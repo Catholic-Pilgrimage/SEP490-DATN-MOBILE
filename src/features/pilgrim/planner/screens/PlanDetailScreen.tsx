@@ -30,7 +30,7 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
-import { SiteSummary } from "../../../../types/pilgrim";
+import { NearbyPlaceCategory, SiteEvent, SiteNearbyPlace, SiteSummary } from "../../../../types/pilgrim";
 import { PlanEntity, PlanItem, PlanParticipant, UpdatePlanItemRequest } from "../../../../types/pilgrim/planner.types";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -45,8 +45,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const { sites, isLoading: isLoadingSites, fetchSites } = useSites();
   const [favorites, setFavorites] = useState<SiteSummary[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
-  const [activeTab, setActiveTab] = useState<"all" | "favorites">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "favorites" | "events">("all");
+
+  // Events tab state
+  const [showEventListModal, setShowEventListModal] = useState(false);
+  const [eventSite, setEventSite] = useState<SiteSummary | null>(null);
+  const [siteEvents, setSiteEvents] = useState<SiteEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [eventSitesList, setEventSitesList] = useState<SiteSummary[]>([]);
+  const [isLoadingEventSites, setIsLoadingEventSites] = useState(false);
+  const [hasLoadedEventSites, setHasLoadedEventSites] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   // Time input state for all sites
   const [showTimeInputModal, setShowTimeInputModal] = useState(false);
@@ -57,6 +67,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [tempTime, setTempTime] = useState(new Date());
   const [calculatingRoute, setCalculatingRoute] = useState(false);
   const [routeInfo, setRouteInfo] = useState<string>("");
+  const [travelTimeMinutes, setTravelTimeMinutes] = useState<number | undefined>(undefined);
   const [note, setNote] = useState("");
 
   // Share/Participants state
@@ -67,6 +78,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("viewer");
   const [inviting, setInviting] = useState(false);
 
+  // Cross-day auto-push states
+  const [crossDayWarning, setCrossDayWarning] = useState<string | null>(null);
+  const [crossDaysAdded, setCrossDaysAdded] = useState<number>(0);
+
   // Edit Item State
   const [showEditItemModal, setShowEditItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<PlanItem | null>(null);
@@ -76,9 +91,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [showEditTimePicker, setShowEditTimePicker] = useState(false);
   const [editTempTime, setEditTempTime] = useState(new Date());
   const [savingEdit, setSavingEdit] = useState(false);
+  const [editRouteInfo, setEditRouteInfo] = useState<string>('');
+  const [calculatingEditRoute, setCalculatingEditRoute] = useState(false);
 
   // Check-in state
   const [checkingInItemId, setCheckingInItemId] = useState<string | null>(null);
+  // Item detail sheet state
+  const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
+
+  // Nearby Places state
+  const [showNearbyModal, setShowNearbyModal] = useState(false);
+  const [nearbyPlaces, setNearbyPlaces] = useState<SiteNearbyPlace[]>([]);
+  const [loadingNearby, setLoadingNearby] = useState(false);
+  const [nearbyCategory, setNearbyCategory] = useState<NearbyPlaceCategory | 'all'>('all');
+  const [nearbySiteName, setNearbySiteName] = useState('');
+  const [nearbyContextItem, setNearbyContextItem] = useState<PlanItem | null>(null);
+  const [savingNearbyPlaceId, setSavingNearbyPlaceId] = useState<string | null>(null);
+  const [savedNearbyPlaceIds, setSavedNearbyPlaceIds] = useState<Set<string>>(new Set());
+  const [removingNearbyPlaceId, setRemovingNearbyPlaceId] = useState<string | null>(null);
+
+  // Saved nearby places, and event details for Item Detail view
+  const [selectedItemNearbyPlaces, setSelectedItemNearbyPlaces] = useState<SiteNearbyPlace[]>([]);
+  const [loadingSelectedItemNearby, setLoadingSelectedItemNearby] = useState(false);
+  const [selectedItemEvent, setSelectedItemEvent] = useState<SiteEvent | null>(null);
+  const [loadingSelectedItemEvent, setLoadingSelectedItemEvent] = useState(false);
+
+  // Edit Plan Modal
+  const [showEditPlanModal, setShowEditPlanModal] = useState(false);
+  const [editPlanName, setEditPlanName] = useState('');
+  const [editPlanStartDate, setEditPlanStartDate] = useState('');
+  const [editPlanEndDate, setEditPlanEndDate] = useState('');
+  const [editPlanPeople, setEditPlanPeople] = useState(1);
+  const [editPlanTransportation, setEditPlanTransportation] = useState('bus');
+  const [savingPlan, setSavingPlan] = useState(false);
+  const [showEditStartDatePicker, setShowEditStartDatePicker] = useState(false);
+  const [showEditEndDatePicker, setShowEditEndDatePicker] = useState(false);
 
   useEffect(() => {
     loadPlan();
@@ -93,6 +140,50 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }
     }
   }, [isAddModalVisible, activeTab]);
+
+  // Fetch nearby places, and event detail when item detail modal opens
+  useEffect(() => {
+    if (!selectedItem) {
+      setSelectedItemNearbyPlaces([]);
+      setSelectedItemEvent(null);
+      return;
+    }
+    const siteId = selectedItem.site_id || selectedItem.site?.id || '';
+    if (!siteId) return;
+
+    // Load Event details if there's an event_id
+    if (selectedItem.event_id) {
+      setLoadingSelectedItemEvent(true);
+      pilgrimSiteApi.getSiteEvents(siteId)
+        .then(res => {
+          if (res.success && res.data?.data) {
+            const ev = res.data.data.find(e => e.id === selectedItem.event_id);
+            setSelectedItemEvent(ev || null);
+          }
+        })
+        .catch(err => console.error('Load event error:', err))
+        .finally(() => setLoadingSelectedItemEvent(false));
+    } else {
+      setSelectedItemEvent(null);
+    }
+
+    // Load Nearby Places
+    const ids = selectedItem.nearby_amenity_ids;
+    if (!ids || ids.length === 0) {
+      setSelectedItemNearbyPlaces([]);
+      return;
+    }
+    setLoadingSelectedItemNearby(true);
+    pilgrimSiteApi.getSiteNearbyPlaces(siteId)
+      .then(res => {
+        if (res.success && res.data?.data) {
+          const filtered = res.data.data.filter((p: SiteNearbyPlace) => ids.includes(p.id));
+          setSelectedItemNearbyPlaces(filtered);
+        }
+      })
+      .catch(err => console.error('Load saved nearby error:', err))
+      .finally(() => setLoadingSelectedItemNearby(false));
+  }, [selectedItem]);
 
   const fetchFavorites = async () => {
     try {
@@ -136,6 +227,44 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       Alert.alert("Error", "Failed to load plan details");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenEditPlan = () => {
+    if (!plan) return;
+    setEditPlanName(plan.name || '');
+    setEditPlanStartDate(plan.start_date || '');
+    setEditPlanEndDate(plan.end_date || '');
+    setEditPlanPeople(plan.number_of_people || 1);
+    setEditPlanTransportation(plan.transportation || 'bus');
+    setShowEditPlanModal(true);
+  };
+
+  const handleSavePlan = async () => {
+    if (!editPlanName.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập tên kế hoạch');
+      return;
+    }
+    try {
+      setSavingPlan(true);
+      const response = await pilgrimPlannerApi.updatePlan(planId, {
+        name: editPlanName.trim(),
+        start_date: editPlanStartDate,
+        end_date: editPlanEndDate,
+        number_of_people: editPlanPeople,
+        transportation: editPlanTransportation,
+      });
+      if (response.success) {
+        setShowEditPlanModal(false);
+        await loadPlan();
+        Alert.alert('Thành công', 'Đã cập nhật kế hoạch');
+      } else {
+        Alert.alert('Lỗi', response.message || 'Không thể cập nhật kế hoạch');
+      }
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể cập nhật kế hoạch');
+    } finally {
+      setSavingPlan(false);
     }
   };
 
@@ -186,6 +315,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       Alert.alert("Error", error.message || "Failed to send invitation");
     } finally {
       setInviting(false);
+    }
+  };
+
+  const loadEventSites = async () => {
+    if (hasLoadedEventSites) return;
+    try {
+      setIsLoadingEventSites(true);
+      const params: any = { has_events: 'true', limit: 100 };
+      if (plan?.start_date && plan?.end_date) {
+        params.start_date = plan.start_date.substring(0, 10);
+        params.end_date = plan.end_date.substring(0, 10);
+      }
+
+      const res = await pilgrimSiteApi.getSites(params);
+      if (res && res.success && res.data) {
+        const rawData = (res.data as any).data || (res.data as any).items || [];
+        const siteData = rawData.map((site: any) => ({
+          id: site.id,
+          name: site.name,
+          address: site.address || '',
+          coverImage: site.cover_image || site.coverImage || '',
+          rating: site.rating || 0,
+          reviewCount: site.review_count || site.reviewCount || 0,
+          isFavorite: site.is_favorite || site.isFavorite || false,
+          type: site.type,
+          latitude: site.latitude || 0,
+          longitude: site.longitude || 0,
+        }));
+        setEventSitesList(siteData);
+      }
+      setHasLoadedEventSites(true);
+    } catch (e) {
+      console.error('Fetch event sites error:', e);
+    } finally {
+      setIsLoadingEventSites(false);
     }
   };
 
@@ -258,7 +422,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     );
   };
 
-  const handleOpenEditItem = (item: PlanItem) => {
+  const handleOpenEditItem = async (item: PlanItem) => {
     setEditingItem(item);
     // Parse existing estimated_time
     const timeVal = typeof item.estimated_time === "string" ? item.estimated_time : "10:00";
@@ -276,7 +440,46 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
     setEditRestDuration(Math.max(60, Math.min(240, minutes)));
     setEditNote(item.note || "");
+    setEditRouteInfo('');
     setShowEditItemModal(true);
+
+    // Calculate route from previous item to this item using VietMap
+    const dayItems: PlanItem[] = plan?.items_by_day?.[String(item.day_number)] || [];
+    const currentIndex = dayItems.findIndex(i => i.id === item.id);
+    if (currentIndex > 0) {
+      const prevItem = dayItems[currentIndex - 1];
+      const prevSiteId = prevItem.site_id || prevItem.site?.id;
+      const currSiteId = item.site_id || item.site?.id;
+      if (prevSiteId && currSiteId) {
+        try {
+          setCalculatingEditRoute(true);
+          const [prevDetail, currDetail] = await Promise.all([
+            pilgrimSiteApi.getSiteDetail(prevSiteId),
+            pilgrimSiteApi.getSiteDetail(currSiteId),
+          ]);
+          const prevSite = prevDetail?.data;
+          const currSite = currDetail?.data;
+          if (prevSite?.latitude && prevSite?.longitude && currSite?.latitude && currSite?.longitude) {
+            const route = await vietmapService.calculateRoute(
+              { latitude: prevSite.latitude, longitude: prevSite.longitude },
+              { latitude: currSite.latitude, longitude: currSite.longitude },
+            );
+            const distanceDisplay = route.distance < 1000
+              ? `${Math.round(route.distance)} m`
+              : `${route.distanceKm.toFixed(1)} km`;
+            setEditRouteInfo(`📍 ${distanceDisplay}  ⏱️ ${route.durationText} di chuyển từ điểm trước`);
+          } else {
+            setEditRouteInfo('Không có tọa độ để tính toán lộ trình');
+          }
+        } catch {
+          setEditRouteInfo('Không thể tính toán lộ trình');
+        } finally {
+          setCalculatingEditRoute(false);
+        }
+      }
+    } else if (currentIndex === 0) {
+      setEditRouteInfo('Điểm đầu tiên trong ngày');
+    }
   };
 
   const handleEditTimeChange = (event: any, selectedDate?: Date) => {
@@ -372,7 +575,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  // Format time/duration values to ensure they're strings
   const formatTimeValue = (value: any): string => {
     if (!value) return "";
     if (typeof value === "string") return value;
@@ -391,10 +593,36 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     return String(value);
   };
 
-  const handleAddItem = async (siteId: string) => {
+  const parseDurationToMinutes = (durationStr: any): number => {
+    if (!durationStr) return 0; // Default if nil
+    const durStr = formatTimeValue(durationStr).toLowerCase();
+    let minutes = 0;
+    const hourMatch = durStr.match(/(\d+)\s*hour|(\d+)\s*gi[oờ]/);
+    const minMatch = durStr.match(/(\d+)\s*minute|(\d+)\s*ph[uút]/);
+
+    if (hourMatch) {
+      minutes += parseInt(hourMatch[1] || hourMatch[2]) * 60;
+    }
+    if (minMatch) {
+      minutes += parseInt(minMatch[1] || minMatch[2]);
+    }
+    // Fallback if just a number
+    if (!hourMatch && !minMatch) {
+      const rawMatch = durStr.match(/(\d+)/);
+      if (rawMatch) minutes = parseInt(rawMatch[1]);
+    }
+    return minutes;
+  };
+
+  const handleAddItem = async (siteId: string, eventId?: string) => {
     setSelectedSiteId(siteId);
+    setSelectedEventId(eventId || null);
     setCalculatingRoute(true);
     setRouteInfo("");
+    setCrossDayWarning(null);
+    setCrossDaysAdded(0);
+
+    setTravelTimeMinutes(undefined);
 
     // Check if there are previous sites in the day
     const itemsForDay = plan?.items_by_day?.[selectedDay.toString()] || [];
@@ -432,17 +660,30 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             },
           );
 
-          // Calculate arrival time based on last site's departure time or estimated time
-          const lastSiteTime = lastItem.departure_time || lastItem.arrival_time || "10:00";
-          const arrivalTime = vietmapService.calculateArrivalTime(
+          // Calculate arrival time based on last site's departure time + previous rest duration + travel time
+          const lastSiteTime = lastItem.estimated_time || "10:00";
+          const previousRestMinutes = parseDurationToMinutes(lastItem.rest_duration);
+
+          const arrivalResult = vietmapService.calculateArrivalTime(
             lastSiteTime,
-            routeResult.durationMinutes,
+            previousRestMinutes + routeResult.durationMinutes,
           );
 
-          setEstimatedTime(arrivalTime);
+          setTravelTimeMinutes(routeResult.durationMinutes);
+          setEstimatedTime(arrivalResult.time);
+
+          const distanceDisplay = routeResult.distance < 1000
+            ? `${Math.round(routeResult.distance)} m`
+            : `${routeResult.distanceKm.toFixed(1)} km`;
+
           setRouteInfo(
-            `Khoảng cách: ${routeResult.distanceKm.toFixed(1)} km • Thời gian di chuyển: ${routeResult.durationText}`,
+            `Khoảng cách: ${distanceDisplay} • Thời gian di chuyển: ${routeResult.durationText}`,
           );
+
+          if (arrivalResult.daysAdded > 0) {
+            setCrossDaysAdded(arrivalResult.daysAdded);
+            setCrossDayWarning(`Thời gian di chuyển vượt qua ngày hiện tại. Vui lòng chọn ngày khác cho địa điểm này.`);
+          }
         } else {
           // No coordinates available, use default
           setEstimatedTime("10:00");
@@ -465,14 +706,27 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const addItemToItinerary = async (siteId: string) => {
+    if (crossDaysAdded > 0) {
+      Alert.alert("Lỗi", "Không thể thêm địa điểm vì thời gian đến vượt qua ngày hiện tại. Vui lòng thêm sang ngày khác.");
+      return;
+    }
+
     try {
       setAddingItem(true);
       const payload: any = {
         site_id: siteId,
         day_number: selectedDay,
-        note: note.trim() || "Visited",
+        note: note.trim() || undefined,
         estimated_time: estimatedTime,
       };
+
+      if (selectedEventId) {
+        payload.event_id = selectedEventId;
+      }
+
+      if (travelTimeMinutes !== undefined) {
+        payload.travel_time_minutes = travelTimeMinutes;
+      }
 
       // Convert minutes to duration format with proper singular/plural
       const totalMinutes = restDuration;
@@ -480,17 +734,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const remainingMinutes = totalMinutes % 60;
 
       if (durationHours > 0 && remainingMinutes > 0) {
-        const hourText = durationHours === 1 ? "hour" : "hours";
-        const minuteText = remainingMinutes === 1 ? "minute" : "minutes";
-        payload.rest_duration = `${durationHours} ${hourText} ${remainingMinutes} ${minuteText}`;
+        payload.rest_duration = `${durationHours} hour${durationHours > 1 ? 's' : ''} ${remainingMinutes} minute${remainingMinutes > 1 ? 's' : ''}`;
       } else if (durationHours > 0) {
-        const hourText = durationHours === 1 ? "hour" : "hours";
-        payload.rest_duration = `${durationHours} ${hourText}`;
+        payload.rest_duration = `${durationHours} hour${durationHours > 1 ? 's' : ''}`;
       } else {
-        const minuteText = totalMinutes === 1 ? "minute" : "minutes";
-        payload.rest_duration = `${totalMinutes} ${minuteText}`;
+        payload.rest_duration = `${totalMinutes} minute${totalMinutes > 1 ? 's' : ''}`;
       }
 
+      console.log("🚀 SENDING PAYLOAD:", payload);
       const response = await pilgrimPlannerApi.addPlanItem(planId, payload);
 
       if (response.success) {
@@ -499,14 +750,106 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setNote("");
         loadPlan();
       } else {
-        Alert.alert("Error", response.message || "Failed to add item");
+        Alert.alert("Lỗi", response.message || "Không thể thêm địa điểm");
       }
     } catch (error: any) {
       console.error("Add item error:", error);
-      Alert.alert("Error", error.message || "Failed to add item");
+      Alert.alert("Lỗi", error.message || "Không thể thêm địa điểm");
     } finally {
       setAddingItem(false);
     }
+  };
+
+  const handleOpenNearbyPlaces = async (item: PlanItem) => {
+    setNearbyContextItem(item);
+    setNearbySiteName(item.site.name);
+    setNearbyCategory('all');
+    setNearbyPlaces([]);
+    setSavedNearbyPlaceIds(new Set(item.nearby_amenity_ids || [])); // pre-mark already saved places
+    setShowNearbyModal(true);
+    try {
+      setLoadingNearby(true);
+      const siteId = item.site_id || item.site?.id || '';
+      const response = await pilgrimSiteApi.getSiteNearbyPlaces(siteId);
+      if (response.success && response.data?.data) {
+        setNearbyPlaces(response.data.data);
+      }
+    } catch (error) {
+      console.error('Load nearby places error:', error);
+    } finally {
+      setLoadingNearby(false);
+    }
+  };
+
+  const handleSaveNearbyPlace = async (place: SiteNearbyPlace) => {
+    if (!nearbyContextItem) return;
+    // Lấy danh sách UUID hiện tại, thêm UUID mới vào (tránh trùng)
+    const existingIds: string[] = nearbyContextItem.nearby_amenity_ids || [];
+    if (existingIds.includes(place.id)) {
+      // Đã lưu rồi, chỉ mark UI
+      setSavedNearbyPlaceIds(prev => new Set([...prev, place.id]));
+      return;
+    }
+    try {
+      setSavingNearbyPlaceId(place.id);
+      const newIds = [...existingIds, place.id];
+      const response = await pilgrimPlannerApi.updatePlanItem(planId, nearbyContextItem.id, {
+        nearby_amenity_ids: newIds,
+      });
+      if (response.success) {
+        // Mark as saved — keep modal open so user can save more places
+        setSavedNearbyPlaceIds(prev => new Set([...prev, place.id]));
+        // Update contextItem so next save chains correctly
+        setNearbyContextItem(prev => prev ? { ...prev, nearby_amenity_ids: newIds } : prev);
+        // Also update selectedItem so reopening the nearby modal shows correct saved state
+        setSelectedItem(prev => prev && prev.id === nearbyContextItem.id
+          ? { ...prev, nearby_amenity_ids: newIds }
+          : prev
+        );
+        loadPlan();
+      } else {
+        Alert.alert('Lỗi', response.message || 'Không thể lưu địa điểm');
+      }
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Không thể lưu địa điểm');
+    } finally {
+      setSavingNearbyPlaceId(null);
+    }
+  };
+
+  const handleRemoveNearbyPlace = async (placeId: string) => {
+    if (!selectedItem) return;
+    Alert.alert(
+      'Xóa địa điểm',
+      'Bạn có muốn xóa địa điểm lân cận này khỏi lịch trình?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setRemovingNearbyPlaceId(placeId);
+              const newIds = (selectedItem.nearby_amenity_ids || []).filter(id => id !== placeId);
+              const response = await pilgrimPlannerApi.updatePlanItem(planId, selectedItem.id, {
+                nearby_amenity_ids: newIds,
+              });
+              if (response.success) {
+                setSelectedItem(prev => prev ? { ...prev, nearby_amenity_ids: newIds } : prev);
+                setSelectedItemNearbyPlaces(prev => prev.filter(p => p.id !== placeId));
+                loadPlan();
+              } else {
+                Alert.alert('Lỗi', response.message || 'Không thể xóa địa điểm');
+              }
+            } catch (error: any) {
+              Alert.alert('Lỗi', error.message || 'Không thể xóa địa điểm');
+            } finally {
+              setRemovingNearbyPlaceId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleCheckIn = async (itemId: string, siteName: string) => {
@@ -565,21 +908,34 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   if (!plan) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>Plan not found</Text>
+        <Text style={styles.errorText}>Không tìm thấy kế hoạch</Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  // Translate plan status to Vietnamese
+  const translateStatus = (status?: string) => {
+    switch (status?.toLowerCase()) {
+      case 'planning': return 'Đang lên kế hoạch';
+      case 'planned': return 'Đã lên kế hoạch';
+      case 'ongoing': return 'Đang thực hiện';
+      case 'completed': return 'Hoàn thành';
+      case 'cancelled': return 'Đã hủy';
+      case 'draft': return 'Nháp';
+      default: return status || 'Đã lên kế hoạch';
+    }
+  };
+
   // Sort days
-  const sortedDays = plan.items_by_day
-    ? Object.keys(plan.items_by_day).sort((a, b) => Number(a) - Number(b))
-    : [];
+  // Always show all days from 1 to number_of_days, even empty ones
+  const totalDays = plan.number_of_days || (plan.items_by_day ? Object.keys(plan.items_by_day).length : 1);
+  const sortedDays = Array.from({ length: totalDays }, (_, i) => String(i + 1));
 
   return (
     <View style={styles.container}>
@@ -620,7 +976,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             >
               <Ionicons name="people-outline" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.navButton}>
+            <TouchableOpacity style={styles.navButton} onPress={handleOpenEditPlan}>
               <Ionicons name="create-outline" size={24} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -630,7 +986,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         <View style={styles.headerContent}>
           <View style={styles.badgeContainer}>
             <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>{plan.status || "Planned"}</Text>
+              <Text style={styles.statusText}>{translateStatus(plan.status)}</Text>
             </View>
             {plan.is_public && (
               <View
@@ -645,7 +1001,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="#fff"
                   style={{ marginRight: 4 }}
                 />
-                <Text style={styles.statusText}>Public</Text>
+                <Text style={styles.statusText}>Công khai</Text>
               </View>
             )}
           </View>
@@ -668,7 +1024,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 size={16}
                 color="rgba(255,255,255,0.9)"
               />
-              <Text style={styles.metaText}>{plan.number_of_days} Days</Text>
+              <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
             </View>
             <View style={styles.metaDivider} />
             <View style={styles.metaItem}>
@@ -678,7 +1034,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 color="rgba(255,255,255,0.9)"
               />
               <Text style={styles.metaText}>
-                {plan.number_of_people} People
+                {plan.number_of_people} Người
               </Text>
             </View>
           </View>
@@ -691,11 +1047,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         showsVerticalScrollIndicator={false}
       >
         {/* Itinerary Section */}
-        <Text style={styles.sectionTitle}>Itinerary</Text>
+        <Text style={styles.sectionTitle}>Lịch trình</Text>
 
         {sortedDays.length > 0 ? (
           sortedDays.map((dayKey) => {
-            const items = plan.items_by_day![dayKey];
+            const items = plan.items_by_day?.[dayKey] || [];
             return (
               <View key={dayKey} style={styles.dayContainer}>
                 <View style={styles.dayHeader}>
@@ -708,12 +1064,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 <View style={styles.timelineContainer}>
                   <View style={styles.timelineLine} />
                   <View style={styles.timelineItems}>
+                    {items.length === 0 && (
+                      <Text style={{ color: COLORS.textTertiary, fontSize: 13, marginBottom: 8, marginLeft: 4 }}>
+                        Chưa có địa điểm nào cho ngày này
+                      </Text>
+                    )}
                     {items.map((item: PlanItem, index) => (
                       <TouchableOpacity
                         key={item.id || index}
                         style={styles.timelineItem}
-                        onLongPress={() => handleDeleteItem(item.id)}
-                        delayLongPress={500}
+                        onPress={() => setSelectedItem(item)}
                       >
                         <View style={styles.timelineDot} />
                         <View style={styles.itemCard}>
@@ -764,49 +1124,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                 </View>
                               )}
                             </View>
-                            {item.note && (
+                            {item.note && item.note !== "Visited" && (
                               <Text style={styles.itemNote} numberOfLines={1}>
                                 {item.note}
                               </Text>
                             )}
                           </View>
-                          <View style={styles.itemActions}>
-                            <TouchableOpacity
-                              onPress={() => handleCheckIn(item.id, item.site.name)}
-                              style={styles.checkInButton}
-                              disabled={checkingInItemId === item.id}
-                            >
-                              {checkingInItemId === item.id ? (
-                                <ActivityIndicator size="small" color={COLORS.accent} />
-                              ) : (
-                                <Ionicons
-                                  name="checkmark-circle-outline"
-                                  size={20}
-                                  color={COLORS.accent}
-                                />
-                              )}
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => handleOpenEditItem(item)}
-                              style={{ padding: 4 }}
-                            >
-                              <Ionicons
-                                name="create-outline"
-                                size={18}
-                                color={COLORS.primary}
-                              />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => handleDeleteItem(item.id)}
-                              style={{ padding: 4 }}
-                            >
-                              <Ionicons
-                                name="trash-outline"
-                                size={18}
-                                color={COLORS.textTertiary}
-                              />
-                            </TouchableOpacity>
-                          </View>
+                          <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
                         </View>
                       </TouchableOpacity>
                     ))}
@@ -830,31 +1154,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               color={COLORS.textTertiary}
             />
             <Text style={styles.emptyStateText}>
-              No items added to this plan yet.
+              Chưa có địa điểm nào trong kế hoạch này.
             </Text>
             <TouchableOpacity
               style={styles.addItemsButton}
               onPress={() => openAddModal(1)}
             >
               <Text style={styles.addItemsButtonText}>
-                Add Destination to Day 1
+                Thêm địa điểm cho Ngày 1
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Add Next Day Button */}
-        {sortedDays.length > 0 && plan.number_of_days && sortedDays.length < plan.number_of_days && (
-          <TouchableOpacity
-            style={styles.addNextDayButton}
-            onPress={() => openAddModal(sortedDays.length + 1)}
-          >
-            <Ionicons name="add-circle-outline" size={24} color={COLORS.accent} />
-            <Text style={styles.addNextDayButtonText}>
-              Thêm địa điểm cho Ngày {sortedDays.length + 1}
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* All days are always displayed above — each day has its own Add Stop button */}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -868,9 +1181,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Destination</Text>
+            <Text style={styles.modalTitle}>Chọn địa điểm</Text>
             <TouchableOpacity onPress={() => setIsAddModalVisible(false)}>
-              <Text style={styles.modalClose}>Close</Text>
+              <Text style={styles.modalClose}>Đóng</Text>
             </TouchableOpacity>
           </View>
 
@@ -889,7 +1202,26 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   activeTab === "all" && styles.activeTabText,
                 ]}
               >
-                All Sites
+                Tất cả địa điểm
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                activeTab === "events" && styles.activeTabButton,
+              ]}
+              onPress={() => {
+                setActiveTab("events");
+                loadEventSites();
+              }}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeTab === "events" && styles.activeTabText,
+                ]}
+              >
+                Sự kiện
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -905,17 +1237,72 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   activeTab === "favorites" && styles.activeTabText,
                 ]}
               >
-                My Favorites
+                Yêu thích của tôi
               </Text>
             </TouchableOpacity>
           </View>
 
-          {isLoadingSites || isLoadingFavorites ? (
+          {isLoadingSites || isLoadingFavorites || (activeTab === 'events' && isLoadingEventSites) ? (
             <ActivityIndicator
               size="large"
               color={COLORS.accent}
               style={{ marginTop: 20 }}
             />
+          ) : activeTab === 'events' ? (
+            /* Events tab: pick a site to see its events */
+            eventSitesList.length === 0 ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+                <Ionicons name="calendar-outline" size={48} color={COLORS.textTertiary} />
+                <Text style={{ color: COLORS.textSecondary, marginTop: 12, fontSize: 15, textAlign: 'center' }}>
+                  Hiện tại không có địa điểm nào có sự kiện diễn ra trong thời gian lịch trình của bạn.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={eventSitesList}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ padding: 16 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.siteItem}
+                    onPress={async () => {
+                      setEventSite(item);
+                      setShowEventListModal(true);
+                      setSiteEvents([]);
+                      try {
+                        setIsLoadingEvents(true);
+                        const eventParams: any = { limit: 20 };
+                        if (plan?.start_date && plan?.end_date) {
+                          eventParams.start_date = plan.start_date.substring(0, 10);
+                          eventParams.end_date = plan.end_date.substring(0, 10);
+                        } else {
+                          eventParams.upcoming = 'true';
+                        }
+
+                        const res = await pilgrimSiteApi.getSiteEvents(item.id, eventParams);
+                        if (res.success && res.data?.data) {
+                          setSiteEvents(res.data.data);
+                        }
+                      } catch (e) {
+                        console.error('Load site events error:', e);
+                      } finally {
+                        setIsLoadingEvents(false);
+                      }
+                    }}
+                  >
+                    <Image
+                      source={{ uri: item.coverImage || 'https://via.placeholder.com/60' }}
+                      style={styles.siteItemImage}
+                    />
+                    <View style={styles.siteItemContent}>
+                      <Text style={styles.siteItemName}>{item.name}</Text>
+                      <Text style={styles.siteItemAddress} numberOfLines={1}>Chọn để xem sự kiện</Text>
+                    </View>
+                    <Ionicons name="calendar-outline" size={24} color={COLORS.accent} />
+                  </TouchableOpacity>
+                )}
+              />
+            )
           ) : (
             <FlatList
               data={activeTab === "all" ? sites : favorites}
@@ -946,6 +1333,88 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   />
                 </TouchableOpacity>
               )}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Site Events Modal */}
+      <Modal
+        visible={showEventListModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowEventListModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              {eventSite?.name || 'Sự kiện'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowEventListModal(false)}>
+              <Text style={styles.modalClose}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+
+          {isLoadingEvents ? (
+            <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 40 }} />
+          ) : siteEvents.length === 0 ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+              <Ionicons name="calendar-outline" size={48} color={COLORS.textSecondary} />
+              <Text style={{ color: COLORS.textSecondary, marginTop: 12, fontSize: 15, textAlign: 'center' }}>
+                Không có sự kiện sắp tới tại địa điểm này
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={siteEvents}
+              keyExtractor={(ev) => ev.id}
+              contentContainerStyle={{ padding: 16 }}
+              renderItem={({ item: ev }) => {
+                const dateStr = ev.start_date
+                  ? new Date(ev.start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  : '';
+                const endStr = ev.end_date && ev.end_date !== ev.start_date
+                  ? ` – ${new Date(ev.end_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+                  : '';
+                const timeStr = ev.start_time ? ` lúc ${ev.start_time}` : '';
+                return (
+                  <TouchableOpacity
+                    style={[styles.siteItem, { alignItems: 'flex-start', paddingVertical: 14 }]}
+                    onPress={() => {
+                      // Pre-fill note with event info and open time setup modal
+                      const noteText = `🎉 Chọn Sự kiện: ${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ''}${ev.description ? `\n${ev.description}` : ''}`;
+                      setNote(noteText);
+                      setShowEventListModal(false);
+                      if (eventSite) {
+                        handleAddItem(eventSite.id, ev.id);
+                      }
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <View style={{ backgroundColor: COLORS.accent, borderRadius: 6, padding: 6 }}>
+                          <Ionicons name="calendar" size={16} color={COLORS.textPrimary} />
+                        </View>
+                        <Text style={[styles.siteItemName, { flex: 1 }]} numberOfLines={2}>{ev.name}</Text>
+                      </View>
+                      <Text style={[styles.siteItemAddress, { marginLeft: 38 }]}>
+                        📅 {dateStr}{endStr}{timeStr}
+                      </Text>
+                      {ev.location && (
+                        <Text style={[styles.siteItemAddress, { marginLeft: 38 }]} numberOfLines={1}>
+                          📍 {ev.location}
+                        </Text>
+                      )}
+                      {ev.description && (
+                        <Text style={[styles.siteItemAddress, { marginLeft: 38 }]} numberOfLines={2}>
+                          {ev.description}
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="add-circle-outline" size={24} color={COLORS.accent} style={{ marginTop: 2, alignSelf: 'center' }} />
+                  </TouchableOpacity>
+                );
+              }}
             />
           )}
         </View>
@@ -984,6 +1453,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               <View style={styles.routeInfoContainer}>
                 <Ionicons name="car-outline" size={20} color={COLORS.textPrimary} />
                 <Text style={styles.routeInfoText}>{routeInfo}</Text>
+              </View>
+            ) : null}
+
+            {crossDayWarning ? (
+              <View style={[styles.routeInfoContainer, { backgroundColor: '#E8F5E9' }]}>
+                <Ionicons name="information-circle-outline" size={20} color="#4CAF50" />
+                <Text style={[styles.routeInfoText, { color: '#4CAF50' }]}>{crossDayWarning}</Text>
               </View>
             ) : null}
 
@@ -1044,9 +1520,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             </View>
 
             <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={() => addItemToItinerary(selectedSiteId)}
-              disabled={addingItem}
+              style={[
+                styles.confirmButton,
+                addingItem && styles.saveTimeButtonDisabled,
+              ]}
+              onPress={() => addItemToItinerary(selectedSiteId!)}
+              disabled={addingItem || !selectedSiteId}
             >
               {addingItem ? (
                 <ActivityIndicator color={COLORS.textPrimary} />
@@ -1081,6 +1560,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 {editingItem.site.name}
               </Text>
             )}
+
+            {/* Route Calculation Info */}
+            {calculatingEditRoute ? (
+              <View style={styles.routeInfoContainer}>
+                <ActivityIndicator size="small" color={COLORS.textPrimary} />
+                <Text style={styles.routeInfoText}>Đang tính toán lộ trình...</Text>
+              </View>
+            ) : editRouteInfo ? (
+              <View style={styles.routeInfoContainer}>
+                <Ionicons name="car-outline" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.routeInfoText}>{editRouteInfo}</Text>
+              </View>
+            ) : null}
 
             {/* Estimated Time */}
             <View style={styles.timeInputContainer}>
@@ -1145,6 +1637,320 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             </TouchableOpacity>
           </ScrollView>
         </View>
+      </Modal>
+
+      {/* Nearby Places Modal */}
+      <Modal
+        visible={showNearbyModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowNearbyModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Địa điểm lân cận - {nearbySiteName}
+            </Text>
+            <TouchableOpacity onPress={() => setShowNearbyModal(false)}>
+              <Text style={styles.modalClose}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Category Filter Tabs */}
+          <View style={[styles.tabContainer, { paddingHorizontal: 16 }]}>
+            {(['all', 'food', 'lodging', 'medical'] as const).map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.tabButton, nearbyCategory === cat && styles.activeTabButton]}
+                onPress={() => setNearbyCategory(cat)}
+              >
+                <Text style={[styles.tabText, nearbyCategory === cat && styles.activeTabText]}>
+                  {cat === 'all' ? 'Tất cả' : cat === 'food' ? '🍜 Ăn uống' : cat === 'lodging' ? '🏨 Lưu trú' : '🏥 Y tế'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {loadingNearby ? (
+            <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 40 }} />
+          ) : (
+            <FlatList
+              data={nearbyCategory === 'all' ? nearbyPlaces : nearbyPlaces.filter(p => p.category === nearbyCategory)}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ padding: 16 }}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Ionicons name="location-outline" size={48} color={COLORS.textTertiary} />
+                  <Text style={styles.emptyStateText}>Không có địa điểm lân cận</Text>
+                </View>
+              }
+              renderItem={({ item }) => (
+                <View style={styles.nearbyPlaceCard}>
+                  <View style={styles.nearbyPlaceCategoryBadge}>
+                    <Text style={styles.nearbyPlaceCategoryText}>
+                      {item.category === 'food' ? '🍜' : item.category === 'lodging' ? '🏨' : '🏥'}
+                    </Text>
+                  </View>
+                  <View style={styles.nearbyPlaceContent}>
+                    <Text style={styles.nearbyPlaceName}>{item.name}</Text>
+                    {item.address ? (
+                      <Text style={styles.nearbyPlaceAddress} numberOfLines={1}>{item.address}</Text>
+                    ) : null}
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+                      {item.distance_meters ? (
+                        <Text style={styles.nearbyPlaceMeta}>
+                          📍 {item.distance_meters >= 1000
+                            ? `${(item.distance_meters / 1000).toFixed(1)} km`
+                            : `${item.distance_meters} m`}
+                        </Text>
+                      ) : null}
+                      {item.phone ? (
+                        <Text style={styles.nearbyPlaceMeta}>📞 {item.phone}</Text>
+                      ) : null}
+                    </View>
+                    {item.description ? (
+                      <Text style={styles.nearbyPlaceDescription} numberOfLines={2}>{item.description}</Text>
+                    ) : null}
+                    <TouchableOpacity
+                      style={[
+                        styles.nearbyPlaceSelectBtn,
+                        savedNearbyPlaceIds.has(item.id) && { backgroundColor: '#4CAF50' },
+                      ]}
+                      onPress={() => handleSaveNearbyPlace(item)}
+                      disabled={savingNearbyPlaceId === item.id || savedNearbyPlaceIds.has(item.id)}
+                    >
+                      {savingNearbyPlaceId === item.id ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : savedNearbyPlaceIds.has(item.id) ? (
+                        <>
+                          <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                          <Text style={styles.nearbyPlaceSelectBtnText}>Đã lưu</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="bookmark-outline" size={14} color="#fff" />
+                          <Text style={styles.nearbyPlaceSelectBtnText}>Lưu vào lịch trình</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
+
+      {/* Item Detail Modal */}
+      <Modal
+        visible={!!selectedItem}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setSelectedItem(null)}
+      >
+        {selectedItem && (
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={1}>Chi tiết địa điểm</Text>
+              <TouchableOpacity onPress={() => setSelectedItem(null)}>
+                <Text style={styles.modalClose}>Đóng</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={{ padding: 16 }}>
+              {/* Site image + name */}
+              <View style={styles.itemDetailHero}>
+                <Image
+                  source={{ uri: selectedItem.site.cover_image || selectedItem.site.image || 'https://via.placeholder.com/300x150' }}
+                  style={styles.itemDetailImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.itemDetailOverlay} />
+                <Text style={styles.itemDetailSiteName}>{selectedItem.site.name}</Text>
+              </View>
+
+              {/* Info rows */}
+              {selectedItem.site.address ? (
+                <View style={styles.itemDetailRow}>
+                  <Ionicons name="location-outline" size={18} color={COLORS.accent} />
+                  <Text style={styles.itemDetailRowText}>{selectedItem.site.address}</Text>
+                </View>
+              ) : null}
+
+              {(selectedItem.estimated_time || selectedItem.arrival_time) ? (
+                <View style={styles.itemDetailRow}>
+                  <Ionicons name="time-outline" size={18} color={COLORS.accent} />
+                  <Text style={styles.itemDetailRowText}>
+                    Giờ dự kiến: {formatTimeValue(selectedItem.estimated_time || selectedItem.arrival_time)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {selectedItem.rest_duration ? (
+                <View style={styles.itemDetailRow}>
+                  <Ionicons name="hourglass-outline" size={18} color={COLORS.accent} />
+                  <Text style={styles.itemDetailRowText}>
+                    Thời gian nghỉ: {formatTimeValue(selectedItem.rest_duration)}
+                  </Text>
+                </View>
+              ) : null}
+
+              {selectedItem.note ? (
+                <View style={[styles.itemDetailRow, { alignItems: 'flex-start' }]}>
+                  <Ionicons name="document-text-outline" size={18} color={COLORS.accent} />
+                  <Text style={[styles.itemDetailRowText, { flex: 1 }]}>{selectedItem.note}</Text>
+                </View>
+              ) : null}
+
+              {/* Event Details */}
+              {loadingSelectedItemEvent ? (
+                <View style={[styles.itemDetailRow, { justifyContent: 'center', marginTop: 8 }]}>
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                  <Text style={[styles.itemDetailRowText, { marginLeft: 8 }]}>Đang tải thông tin sự kiện...</Text>
+                </View>
+              ) : selectedItemEvent ? (
+                <View style={{ marginTop: 8, marginBottom: 8, padding: 12, backgroundColor: '#E3F2FD', borderRadius: 12, borderWidth: 1, borderColor: '#BBDEFB' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Ionicons name="calendar" size={18} color="#1976D2" />
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#1565C0', marginLeft: 8 }}>
+                      {selectedItemEvent.name}
+                    </Text>
+                  </View>
+
+                  {selectedItemEvent.description ? (
+                    <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginBottom: 8 }}>
+                      {selectedItemEvent.description}
+                    </Text>
+                  ) : null}
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Ionicons name="time-outline" size={14} color={COLORS.textTertiary} />
+                    <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginLeft: 6 }}>
+                      Bắt đầu: {selectedItemEvent.start_date ? new Date(selectedItemEvent.start_date).toLocaleDateString('vi-VN') : ''} {selectedItemEvent.start_time ? `lúc ${selectedItemEvent.start_time}` : ''}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Ionicons name="flag-outline" size={14} color={COLORS.textTertiary} />
+                    <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginLeft: 6 }}>
+                      Kết thúc: {selectedItemEvent.end_date ? new Date(selectedItemEvent.end_date).toLocaleDateString('vi-VN') : ''} {selectedItemEvent.end_time ? `lúc ${selectedItemEvent.end_time}` : ''}
+                    </Text>
+                  </View>
+
+                  {selectedItemEvent.location ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="location-outline" size={14} color={COLORS.textTertiary} />
+                      <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginLeft: 6 }}>
+                        Địa điểm: {selectedItemEvent.location}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              {/* Saved Nearby Places */}
+              {loadingSelectedItemNearby ? (
+                <View style={[styles.itemDetailRow, { justifyContent: 'center' }]}>
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                  <Text style={[styles.itemDetailRowText, { marginLeft: 8 }]}>Đang tải địa điểm lân cận...</Text>
+                </View>
+              ) : selectedItemNearbyPlaces.length > 0 ? (
+                <View style={{ marginTop: 4, marginBottom: 4 }}>
+                  <View style={styles.itemDetailRow}>
+                    <Ionicons name="map-outline" size={18} color={COLORS.accent} />
+                    <Text style={[styles.itemDetailRowText, { fontWeight: '600' }]}>
+                      Địa điểm lân cận đã lưu ({selectedItemNearbyPlaces.length})
+                    </Text>
+                  </View>
+                  {selectedItemNearbyPlaces.map((place) => (
+                    <View key={place.id} style={styles.savedNearbyPlaceRow}>
+                      <Text style={styles.savedNearbyPlaceEmoji}>
+                        {place.category === 'food' ? '🍜' : place.category === 'lodging' ? '🏨' : '🏥'}
+                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.savedNearbyPlaceName}>{place.name}</Text>
+                        {place.address ? (
+                          <Text style={styles.savedNearbyPlaceAddress} numberOfLines={1}>{place.address}</Text>
+                        ) : null}
+                        {place.phone ? (
+                          <Text style={styles.savedNearbyPlaceAddress}>📞 {place.phone}</Text>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveNearbyPlace(place.id)}
+                        disabled={removingNearbyPlaceId === place.id}
+                        style={{ padding: 4 }}
+                      >
+                        {removingNearbyPlaceId === place.id ? (
+                          <ActivityIndicator size="small" color="#e53e3e" />
+                        ) : (
+                          <Ionicons name="trash-outline" size={16} color="#e53e3e" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.itemDetailDivider} />
+
+              {/* Action buttons */}
+              <TouchableOpacity
+                style={styles.itemDetailActionBtn}
+                disabled={checkingInItemId === selectedItem.id}
+                onPress={() => {
+                  setSelectedItem(null);
+                  handleCheckIn(selectedItem.id, selectedItem.site.name);
+                }}
+              >
+                {checkingInItemId === selectedItem.id ? (
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={22} color={COLORS.accent} />
+                )}
+                <Text style={styles.itemDetailActionText}>Check-in</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.itemDetailActionBtn}
+                onPress={() => {
+                  setSelectedItem(null);
+                  handleOpenNearbyPlaces(selectedItem);
+                }}
+              >
+                <Ionicons name="map-outline" size={22} color={COLORS.accent} />
+                <Text style={styles.itemDetailActionText}>Địa điểm lân cận</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.itemDetailActionBtn}
+                onPress={() => {
+                  const item = selectedItem;
+                  setSelectedItem(null);
+                  handleOpenEditItem(item);
+                }}
+              >
+                <Ionicons name="create-outline" size={22} color={COLORS.primary} />
+                <Text style={styles.itemDetailActionText}>Chỉnh sửa thời gian & ghi chú</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.textTertiary} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.itemDetailActionBtn, { borderColor: '#FF6B6B22' }]}
+                onPress={() => {
+                  const itemId = selectedItem.id;
+                  setSelectedItem(null);
+                  handleDeleteItem(itemId);
+                }}
+              >
+                <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
+                <Text style={[styles.itemDetailActionText, { color: '#FF6B6B' }]}>Xóa khỏi lịch trình</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        )}
       </Modal>
 
       {/* Edit Time Picker */}
@@ -1331,6 +2137,170 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               )}
             </View>
           </ScrollView>
+        </View>
+      </Modal>
+      {/* Edit Plan Modal */}
+      <Modal
+        visible={showEditPlanModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditPlanModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }}>
+            <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.textPrimary }}>Chỉnh sửa kế hoạch</Text>
+                <TouchableOpacity onPress={() => setShowEditPlanModal(false)}>
+                  <Ionicons name="close" size={24} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Name */}
+              <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 }}>Tên kế hoạch</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: COLORS.textPrimary, marginBottom: 16, backgroundColor: '#FAFAFA' }}
+                value={editPlanName}
+                onChangeText={setEditPlanName}
+                placeholder="Tên kế hoạch"
+                placeholderTextColor={COLORS.textSecondary}
+              />
+
+              {/* Dates */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                {/* Start Date */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 }}>Ngày bắt đầu</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowEditStartDatePicker(true)}
+                    style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FAFAFA', flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
+                    <Text style={{ fontSize: 14, color: editPlanStartDate ? COLORS.textPrimary : COLORS.textSecondary }}>
+                      {editPlanStartDate
+                        ? new Date(editPlanStartDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        : 'Chọn ngày'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEditStartDatePicker && (
+                    <DateTimePicker
+                      value={editPlanStartDate ? new Date(editPlanStartDate) : new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                      onChange={(_, selectedDate) => {
+                        setShowEditStartDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) {
+                          const iso = selectedDate.toISOString().split('T')[0];
+                          setEditPlanStartDate(iso);
+                          // Auto-adjust end date if it's before start date
+                          if (editPlanEndDate && editPlanEndDate < iso) {
+                            setEditPlanEndDate(iso);
+                          }
+                        }
+                      }}
+                      minimumDate={new Date()}
+                      locale="vi"
+                    />
+                  )}
+                </View>
+
+                {/* End Date */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 }}>Ngày kết thúc</Text>
+                  <TouchableOpacity
+                    onPress={() => setShowEditEndDatePicker(true)}
+                    style={{ borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#FAFAFA', flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color={COLORS.primary} />
+                    <Text style={{ fontSize: 14, color: editPlanEndDate ? COLORS.textPrimary : COLORS.textSecondary }}>
+                      {editPlanEndDate
+                        ? new Date(editPlanEndDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                        : 'Chọn ngày'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showEditEndDatePicker && (
+                    <DateTimePicker
+                      value={editPlanEndDate ? new Date(editPlanEndDate) : new Date()}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                      onChange={(_, selectedDate) => {
+                        setShowEditEndDatePicker(Platform.OS === 'ios');
+                        if (selectedDate) {
+                          setEditPlanEndDate(selectedDate.toISOString().split('T')[0]);
+                        }
+                      }}
+                      minimumDate={editPlanStartDate ? new Date(editPlanStartDate) : new Date()}
+                      locale="vi"
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* People Count */}
+              <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 6 }}>Số người</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24, backgroundColor: '#F5F5F5', borderRadius: 12, padding: 8, alignSelf: 'flex-start' }}>
+                <TouchableOpacity
+                  onPress={() => setEditPlanPeople(Math.max(1, editPlanPeople - 1))}
+                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}
+                >
+                  <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                </TouchableOpacity>
+                <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, minWidth: 28, textAlign: 'center' }}>{editPlanPeople}</Text>
+                <TouchableOpacity
+                  onPress={() => setEditPlanPeople(Math.min(50, editPlanPeople + 1))}
+                  style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' }}
+                >
+                  <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Transport */}
+              <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 8, marginTop: 4 }}>Phương tiện</Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                {[
+                  { value: 'bus', label: 'Xe khách', icon: 'bus' as const },
+                  { value: 'car', label: 'Xe hơi', icon: 'car' as const },
+                  { value: 'other', label: 'Xe máy', icon: null },
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.value}
+                    onPress={() => setEditPlanTransportation(item.value)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 10,
+                      borderRadius: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: editPlanTransportation === item.value ? COLORS.accent : '#F5F5F5',
+                      borderWidth: editPlanTransportation === item.value ? 0 : 1,
+                      borderColor: COLORS.border,
+                      gap: 4,
+                    }}
+                  >
+                    {item.icon
+                      ? <Ionicons name={item.icon} size={20} color={editPlanTransportation === item.value ? COLORS.textPrimary : COLORS.textSecondary} />
+                      : <Text style={{ fontSize: 18 }}>🏍️</Text>
+                    }
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: editPlanTransportation === item.value ? COLORS.textPrimary : COLORS.textSecondary }}>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                onPress={handleSavePlan}
+                disabled={savingPlan}
+                style={{ backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 15, alignItems: 'center', opacity: savingPlan ? 0.7 : 1 }}
+              >
+                {savingPlan
+                  ? <ActivityIndicator color={COLORS.textPrimary} />
+                  : <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }}>Lưu thay đổi</Text>
+                }
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -1832,6 +2802,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
     ...SHADOWS.small,
   },
+  saveTimeButtonDisabled: {
+    opacity: 0.5,
+  },
   confirmButtonText: {
     color: COLORS.textPrimary,
     fontSize: 16,
@@ -1952,6 +2925,157 @@ const styles = StyleSheet.create({
   },
   ownerBadge: {
     padding: SPACING.xs,
+  },
+  // Nearby Places
+  nearbyPlaceCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.small,
+  },
+  nearbyPlaceCategoryBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: SPACING.sm,
+  },
+  nearbyPlaceCategoryText: {
+    fontSize: 20,
+  },
+  nearbyPlaceContent: {
+    flex: 1,
+  },
+  nearbyPlaceName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  nearbyPlaceAddress: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  nearbyPlaceMeta: {
+    fontSize: 12,
+    color: COLORS.textTertiary,
+  },
+  nearbyPlaceDescription: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  nearbyPlaceSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: COLORS.accent,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  nearbyPlaceSelectBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // Item Detail Modal
+  itemDetailHero: {
+    borderRadius: BORDER_RADIUS.md,
+    overflow: 'hidden',
+    height: 160,
+    marginBottom: SPACING.md,
+    position: 'relative',
+    justifyContent: 'flex-end',
+  },
+  itemDetailImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  itemDetailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  itemDetailSiteName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    padding: SPACING.md,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  itemDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  itemDetailRowText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    flexShrink: 1,
+  },
+  itemDetailDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.md,
+  },
+  itemDetailActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
+  },
+  itemDetailActionText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: COLORS.textPrimary,
+  },
+  // Saved nearby places in item detail
+  savedNearbyPlaceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    marginBottom: 4,
+    backgroundColor: COLORS.backgroundCard,
+    borderRadius: BORDER_RADIUS.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.accent,
+  },
+  savedNearbyPlaceEmoji: {
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  savedNearbyPlaceName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  savedNearbyPlaceAddress: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 });
 

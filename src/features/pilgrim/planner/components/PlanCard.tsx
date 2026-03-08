@@ -40,6 +40,18 @@ const getTransportIcon = (type: TransportationType): keyof typeof Ionicons.glyph
     }
 };
 
+const translateStatus = (status?: string): string => {
+    switch (status?.toLowerCase()) {
+        case 'planning': return 'Đang lên kế hoạch';
+        case 'planned': return 'Đã lên kế hoạch';
+        case 'ongoing': return 'Đang thực hiện';
+        case 'completed': return 'Hoàn thành';
+        case 'cancelled': return 'Đã hủy';
+        case 'draft': return 'Nháp';
+        default: return status || 'Đang lên kế hoạch';
+    }
+};
+
 export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
     const { t } = useTranslation();
 
@@ -51,25 +63,32 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
 
     // Status Badge Logic
     const renderStatus = () => {
-        if (plan.status === 'draft') {
-            return (
-                <View style={[styles.statusTag, { backgroundColor: '#F0F0F0' }]}>
-                    <Text style={[styles.statusText, { color: '#888' }]}>{t('planner.draft', 'Bản nháp')}</Text>
-                </View>
-            );
-        }
-        if (plan.isShared) {
-            return (
-                <View style={[styles.statusTag, { backgroundColor: '#FFF7E6', borderColor: '#FFD591', borderWidth: 1 }]}>
-                    <Ionicons name="people-outline" size={12} color="#FA8C16" style={{ marginRight: 4 }} />
-                    <Text style={[styles.statusText, { color: '#FA8C16' }]}>{t('planner.shared', 'Chia sẻ')}</Text>
-                </View>
-            );
-        }
+        const statusColors: Record<string, { bg: string; border: string; text: string; icon: keyof typeof Ionicons.glyphMap }> = {
+            planning: { bg: '#FFF7E6', border: '#FFD591', text: '#FA8C16', icon: 'time-outline' },
+            planned: { bg: '#F6FFED', border: '#B7EB8F', text: '#52C41A', icon: 'checkmark-circle-outline' },
+            ongoing: { bg: '#E6F7FF', border: '#91D5FF', text: '#1890FF', icon: 'navigate-outline' },
+            completed: { bg: '#F9F0FF', border: '#D3ADF7', text: '#722ED1', icon: 'trophy-outline' },
+            cancelled: { bg: '#FFF1F0', border: '#FFA39E', text: '#FF4D4F', icon: 'close-circle-outline' },
+            draft: { bg: '#F5F5F5', border: '#D9D9D9', text: '#8C8C8C', icon: 'document-outline' },
+        };
+
+        const key = (plan.status || 'planning').toLowerCase();
+        const colors = statusColors[key] || statusColors['planning'];
+
         return (
-            <View style={[styles.statusTag, { backgroundColor: '#E6FFFB', borderColor: '#87E8DE', borderWidth: 1 }]}>
-                <Ionicons name="checkmark-circle-outline" size={12} color="#13C2C2" style={{ marginRight: 4 }} />
-                <Text style={[styles.statusText, { color: '#13C2C2' }]}>{plan.status || 'Planned'}</Text>
+            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                {plan.isShared && (
+                    <View style={[styles.statusTag, { backgroundColor: '#FFF7E6', borderColor: '#FFD591', borderWidth: 1 }]}>
+                        <Ionicons name="people-outline" size={12} color="#FA8C16" style={{ marginRight: 4 }} />
+                        <Text style={[styles.statusText, { color: '#FA8C16' }]}>Chia sẻ</Text>
+                    </View>
+                )}
+                <View style={[styles.statusTag, { backgroundColor: colors.bg, borderColor: colors.border, borderWidth: 1 }]}>
+                    <Ionicons name={colors.icon} size={12} color={colors.text} style={{ marginRight: 4 }} />
+                    <Text style={[styles.statusText, { color: colors.text }]} numberOfLines={1}>
+                        {translateStatus(plan.status)}
+                    </Text>
+                </View>
             </View>
         );
     };
@@ -126,13 +145,15 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress }) => {
                 <View style={styles.divider} />
 
                 <View style={styles.footerRow}>
-                    <View style={styles.transportContainer}>
-                        {(plan.transportation || []).slice(0, 3).map((type, idx) => (
-                            <View key={idx} style={styles.transportIcon}>
-                                <Ionicons name={getTransportIcon(type)} size={12} color={COLORS.textTertiary} />
-                            </View>
-                        ))}
-                    </View>
+                    {(plan.transportation || []).length > 0 && (
+                        <View style={styles.transportContainer}>
+                            {(plan.transportation || []).slice(0, 3).map((type, idx) => (
+                                <View key={idx} style={styles.transportIcon}>
+                                    <Ionicons name={getTransportIcon(type)} size={12} color={COLORS.textTertiary} />
+                                </View>
+                            ))}
+                        </View>
+                    )}
                     {renderStatus()}
                 </View>
 
@@ -149,7 +170,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         marginBottom: SPACING.md,
         flexDirection: 'row',
-        height: 150,
+        height: 165,
         ...SHADOWS.medium,
         overflow: 'hidden',
         borderWidth: 1,
@@ -208,6 +229,7 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 12,
         paddingLeft: 16,
+        paddingRight: 16,
         justifyContent: 'space-between',
     },
     headerRow: {
