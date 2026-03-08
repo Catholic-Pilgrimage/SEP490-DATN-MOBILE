@@ -53,7 +53,9 @@ export const login = async (data: LoginRequest): Promise<LoginResponse> => {
 /**
  * Register new user
  */
-export const register = async (data: RegisterRequest): Promise<RegisterResponse> => {
+export const register = async (
+  data: RegisterRequest,
+): Promise<RegisterResponse> => {
   const response = await apiClient.post<RegisterResponse>(
     AUTH_ENDPOINTS.REGISTER,
     data,
@@ -97,7 +99,7 @@ const mapUserResponse = (data: any): any => {
     address: data.address,
     bio: data.bio,
     isVerified: !!data.verified_at || data.isVerified,
-    isActive: data.status === 'active' || data.isActive,
+    isActive: data.status === "active" || data.isActive,
     createdAt: data.created_at || data.createdAt,
     updatedAt: data.updated_at || data.updatedAt,
     dateOfBirth: data.date_of_birth || data.dateOfBirth,
@@ -118,6 +120,7 @@ const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
   if (data.dateOfBirth !== undefined) mapped.date_of_birth = data.dateOfBirth;
   if (data.gender !== undefined) mapped.gender = data.gender;
   if (data.nationality !== undefined) mapped.nationality = data.nationality;
+  if (data.language !== undefined) mapped.language = data.language;
   return mapped;
 };
 
@@ -125,9 +128,7 @@ const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
  * Get auth profile
  */
 export const getProfile = async (): Promise<ProfileResponse> => {
-  const response = await apiClient.get<ProfileResponse>(
-    AUTH_ENDPOINTS.PROFILE,
-  );
+  const response = await apiClient.get<ProfileResponse>(AUTH_ENDPOINTS.PROFILE);
 
   if (response.data && response.data.data) {
     // Map the inner data object
@@ -143,11 +144,51 @@ export const getProfile = async (): Promise<ProfileResponse> => {
 export const updateProfile = async (
   data: UpdateProfileRequest,
 ): Promise<ProfileResponse> => {
-  const snakeCaseData = mapUpdateProfileRequest(data);
-  const response = await apiClient.put<ProfileResponse>(
-    AUTH_ENDPOINTS.PROFILE,
-    snakeCaseData,
-  );
+  let response;
+
+  if (data.avatar) {
+    // Send as multipart/form-data when avatar is included
+    const formData = new FormData();
+    if (data.fullName !== undefined)
+      formData.append("full_name", data.fullName);
+    if (data.phone !== undefined) formData.append("phone", data.phone);
+    if (data.address !== undefined) formData.append("address", data.address);
+    if (data.bio !== undefined) formData.append("bio", data.bio);
+    if (data.dateOfBirth !== undefined)
+      formData.append("date_of_birth", data.dateOfBirth);
+    if (data.gender !== undefined) formData.append("gender", data.gender);
+    if (data.nationality !== undefined)
+      formData.append("nationality", data.nationality);
+    if (data.language !== undefined) formData.append("language", data.language);
+
+    const filename = data.avatar.split("/").pop() || "avatar.jpg";
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const mimeType =
+      ext === "png"
+        ? "image/png"
+        : ext === "webp"
+          ? "image/webp"
+          : "image/jpeg";
+    formData.append("avatar", {
+      uri: data.avatar,
+      name: filename,
+      type: mimeType,
+    } as any);
+
+    response = await apiClient.put<ProfileResponse>(
+      AUTH_ENDPOINTS.PROFILE,
+      formData,
+      {
+        headers: { "Content-Type": "multipart/form-data" },
+      },
+    );
+  } else {
+    const snakeCaseData = mapUpdateProfileRequest(data);
+    response = await apiClient.put<ProfileResponse>(
+      AUTH_ENDPOINTS.PROFILE,
+      snakeCaseData,
+    );
+  }
 
   if (response.data && response.data.data) {
     response.data.data = mapUserResponse(response.data.data);
@@ -230,6 +271,20 @@ export const resendOtp = async (email: string): Promise<ApiResponse<void>> => {
   return response.data;
 };
 
+/**
+ * Verify OTP for forgot password
+ * Calls /api/auth/verify-otp with { email, otp }
+ */
+export const verifyOtp = async (
+  data: VerifyEmailRequest,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.post<ApiResponse<void>>(
+    AUTH_ENDPOINTS.VERIFY_OTP,
+    data,
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -245,6 +300,7 @@ const authApi = {
   forgotPassword,
   resetPassword,
   verifyEmail,
+  verifyOtp,
   resendOtp,
 };
 

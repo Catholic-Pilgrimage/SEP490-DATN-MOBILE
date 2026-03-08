@@ -12,7 +12,8 @@
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -57,52 +58,33 @@ const PREMIUM_COLORS = {
   brownLight: "#E8E0D5",
 };
 
-// Status config
-const STATUS_CONFIG: Record<MassScheduleStatus, {
-  label: string;
-  bgColor: string;
-  textColor: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-}> = {
-  pending: {
-    label: "Chờ duyệt",
-    bgColor: "#FEF3C7",
-    textColor: "#D97706",
-    icon: "schedule",
-  },
-  approved: {
-    label: "Đã duyệt",
-    bgColor: "#D1FAE5",
-    textColor: "#059669",
-    icon: "check-circle",
-  },
-  rejected: {
-    label: "Từ chối",
-    bgColor: "#FEE2E2",
-    textColor: "#DC2626",
-    icon: "cancel",
-  },
-};
+type StatusConfigItem = { label: string; bgColor: string; textColor: string; icon: keyof typeof MaterialIcons.glyphMap };
+type StatusFilterItem = { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string };
+type DayMapItem = { value: DayOfWeek; label: string; color: string };
 
-// Days mapping - 0=CN (Sunday) is red, 6=T7 (Saturday) is blue
-const DAYS_MAP: { value: DayOfWeek; label: string; color: string }[] = [
-  { value: 0, label: "CN", color: "#DC2626" }, // Chủ Nhật - Red
-  { value: 1, label: "T2", color: GUIDE_COLORS.textPrimary },
-  { value: 2, label: "T3", color: GUIDE_COLORS.textPrimary },
-  { value: 3, label: "T4", color: GUIDE_COLORS.textPrimary },
-  { value: 4, label: "T5", color: GUIDE_COLORS.textPrimary },
-  { value: 5, label: "T6", color: GUIDE_COLORS.textPrimary },
-  { value: 6, label: "T7", color: "#2563EB" }, // Thứ 7 - Blue
+const getStatusConfig = (t: (key: string) => string): Record<MassScheduleStatus, StatusConfigItem> => ({
+  pending: { label: t("schedulesTab.statusPending"), bgColor: "#FEF3C7", textColor: "#D97706", icon: "schedule" },
+  approved: { label: t("schedulesTab.statusApproved"), bgColor: "#D1FAE5", textColor: "#059669", icon: "check-circle" },
+  rejected: { label: t("schedulesTab.statusRejected"), bgColor: "#FEE2E2", textColor: "#DC2626", icon: "cancel" },
+});
+
+const getDaysMap = (t: (key: string) => string): DayMapItem[] => [
+  { value: 0, label: t("schedulesTab.day0"), color: "#DC2626" },
+  { value: 1, label: t("schedulesTab.day1"), color: GUIDE_COLORS.textPrimary },
+  { value: 2, label: t("schedulesTab.day2"), color: GUIDE_COLORS.textPrimary },
+  { value: 3, label: t("schedulesTab.day3"), color: GUIDE_COLORS.textPrimary },
+  { value: 4, label: t("schedulesTab.day4"), color: GUIDE_COLORS.textPrimary },
+  { value: 5, label: t("schedulesTab.day5"), color: GUIDE_COLORS.textPrimary },
+  { value: 6, label: t("schedulesTab.day6"), color: "#2563EB" },
 ];
 
-// Filter options
 type StatusFilter = "all" | MassScheduleStatus;
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string }[] = [
-  { key: "all", label: "Tất cả", color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: "Hiển thị tất cả lịch lễ" },
-  { key: "pending", label: "Chờ duyệt", color: "#D97706", bgColor: "#FEF3C7", icon: "schedule", description: "Lịch lễ đang chờ phê duyệt" },
-  { key: "approved", label: "Đã duyệt", color: "#059669", bgColor: "#D1FAE5", icon: "check-circle", description: "Lịch lễ đã được phê duyệt" },
-  { key: "rejected", label: "Từ chối", color: "#DC2626", bgColor: "#FEE2E2", icon: "cancel", description: "Lịch lễ bị từ chối" },
+const getStatusFilters = (t: (key: string) => string): StatusFilterItem[] => [
+  { key: "all", label: t("schedulesTab.statusAll"), color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: t("schedulesTab.statusAllDesc") },
+  { key: "pending", label: t("schedulesTab.statusPending"), color: "#D97706", bgColor: "#FEF3C7", icon: "schedule", description: t("schedulesTab.statusPendingDesc") },
+  { key: "approved", label: t("schedulesTab.statusApproved"), color: "#059669", bgColor: "#D1FAE5", icon: "check-circle", description: t("schedulesTab.statusApprovedDesc") },
+  { key: "rejected", label: t("schedulesTab.statusRejected"), color: "#DC2626", bgColor: "#FEE2E2", icon: "cancel", description: t("schedulesTab.statusRejectedDesc") },
 ];
 
 // ============================================
@@ -114,6 +96,7 @@ interface FilterBottomSheetProps {
   activeFilter: StatusFilter;
   onFilterChange: (filter: StatusFilter) => void;
   onClose: () => void;
+  filters: StatusFilterItem[];
 }
 
 const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
@@ -121,7 +104,9 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   activeFilter,
   onFilterChange,
   onClose,
+  filters,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
 
@@ -154,7 +139,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>Lọc lịch lễ</Text>
+                <Text style={styles.bottomSheetTitle}>{t("schedulesTab.filterTitle")}</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
@@ -162,7 +147,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Filter Options */}
               <View style={styles.filterOptionsContainer}>
-                {STATUS_FILTERS.map((filter) => {
+                {filters.map((filter) => {
                   const isSelected = selectedFilter === filter.key;
                   return (
                     <TouchableOpacity
@@ -208,7 +193,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   onPress={handleApply}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                  <Text style={styles.applyButtonText}>{t("schedulesTab.apply")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -223,10 +208,12 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 interface FilterTriggerProps {
   activeFilter: StatusFilter;
   onPress: () => void;
+  filters: StatusFilterItem[];
 }
 
-const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) => {
-  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
+const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress, filters }) => {
+  const { t } = useTranslation();
+  const activeFilterInfo = filters.find(f => f.key === activeFilter);
   const isFiltered = activeFilter !== "all";
 
   return (
@@ -247,7 +234,7 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) 
         styles.filterTriggerText,
         isFiltered && { color: activeFilterInfo?.color },
       ]}>
-        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+        {isFiltered ? activeFilterInfo?.label : t("schedulesTab.filter")}
       </Text>
       <Ionicons
         name="chevron-down"
@@ -264,10 +251,11 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) 
 
 interface StatusBadgeProps {
   status: MassScheduleStatus;
+  statusConfig: Record<MassScheduleStatus, StatusConfigItem>;
 }
 
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const config = STATUS_CONFIG[status];
+const StatusBadge: React.FC<StatusBadgeProps> = ({ status, statusConfig }) => {
+  const config = statusConfig[status];
   return (
     <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
       <View style={[styles.statusDot, { backgroundColor: config.textColor }]} />
@@ -287,10 +275,11 @@ interface DayChipProps {
   size?: "small" | "normal";
   selected?: boolean;
   onPress?: () => void;
+  daysMap: DayMapItem[];
 }
 
-const DayChip: React.FC<DayChipProps> = ({ day, size = "normal", selected, onPress }) => {
-  const dayInfo = DAYS_MAP.find(d => d.value === day) || DAYS_MAP[0];
+const DayChip: React.FC<DayChipProps> = ({ day, size = "normal", selected, onPress, daysMap }) => {
+  const dayInfo = daysMap.find(d => d.value === day) || daysMap[0];
   const isSmall = size === "small";
 
   const chipStyle = [
@@ -328,9 +317,12 @@ interface ScheduleCardProps {
   schedule: MassSchedule;
   onEdit: () => void;
   onDelete: () => void;
+  statusConfig: Record<MassScheduleStatus, StatusConfigItem>;
+  daysMap: DayMapItem[];
 }
 
-const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete }) => {
+const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete, statusConfig, daysMap }) => {
+  const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const canEdit = schedule.status !== "approved";
   const isRejected = schedule.status === "rejected";
@@ -367,11 +359,11 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
   const handleDelete = () => {
     setShowMenu(false);
     Alert.alert(
-      "Xoá lịch lễ",
-      "Bạn có chắc chắn muốn xoá lịch lễ này?",
+      t("schedulesTab.deleteTitle"),
+      t("schedulesTab.deleteMessage"),
       [
-        { text: "Huỷ", style: "cancel" },
-        { text: "Xoá", style: "destructive", onPress: onDelete },
+        { text: t("schedulesTab.cancel"), style: "cancel" },
+        { text: t("schedulesTab.delete"), style: "destructive", onPress: onDelete },
       ]
     );
   };
@@ -379,7 +371,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
   return (
     <View style={styles.scheduleCard}>
       {/* Decorative left border */}
-      <View style={[styles.cardLeftBorder, { backgroundColor: STATUS_CONFIG[schedule.status].textColor }]} />
+      <View style={[styles.cardLeftBorder, { backgroundColor: statusConfig[schedule.status].textColor }]} />
 
       <View style={styles.cardContent}>
         {/* Header: Time + Status */}
@@ -388,7 +380,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
             <Ionicons name="time-outline" size={18} color={PREMIUM_COLORS.gold} />
             <Text style={styles.timeText}>{formatTime(schedule.time)}</Text>
           </View>
-          <StatusBadge status={schedule.status} />
+          <StatusBadge status={schedule.status} statusConfig={statusConfig} />
         </View>
 
         {/* Days chips row */}
@@ -396,7 +388,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
           {schedule.days_of_week
             .sort((a, b) => a - b)
             .map((day) => (
-              <DayChip key={day} day={day} size="small" />
+              <DayChip key={day} day={day} size="small" daysMap={daysMap} />
             ))}
         </View>
 
@@ -415,7 +407,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
           <View style={styles.rejectionBox}>
             <Ionicons name="warning" size={16} color="#DC2626" />
             <Text style={styles.rejectionText}>
-              Lý do: {schedule.rejection_reason}
+              {t("schedulesTab.reason", { reason: schedule.rejection_reason })}
             </Text>
           </View>
         )}
@@ -438,11 +430,11 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete 
             <View style={styles.actionsRow}>
               <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
                 <Ionicons name="create-outline" size={16} color={PREMIUM_COLORS.gold} />
-                <Text style={styles.actionText}>Sửa</Text>
+                <Text style={styles.actionText}>{t("schedulesTab.edit")}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
                 <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                <Text style={[styles.actionText, { color: "#DC2626" }]}>Xoá</Text>
+                <Text style={[styles.actionText, { color: "#DC2626" }]}>{t("schedulesTab.delete")}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -468,6 +460,7 @@ interface ScheduleModalProps {
   onClose: () => void;
   onSubmit: (data: ScheduleFormData) => void;
   loading?: boolean;
+  daysMap: DayMapItem[];
 }
 
 const ScheduleModal: React.FC<ScheduleModalProps> = ({
@@ -476,8 +469,11 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   onClose,
   onSubmit,
   loading = false,
+  daysMap,
 }) => {
+  const { t } = useTranslation();
   const isEdit = !!schedule;
+  const insets = useSafeAreaInsets();
   const [formData, setFormData] = useState<ScheduleFormData>({
     days_of_week: [],
     time: "",
@@ -533,22 +529,22 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (formData.days_of_week.length === 0) {
-      newErrors.days_of_week = "Vui lòng chọn ít nhất 1 ngày";
+      newErrors.days_of_week = t("schedulesTab.errorDaysRequired");
     }
 
     if (!formData.time) {
-      newErrors.time = "Vui lòng nhập giờ";
+      newErrors.time = t("schedulesTab.errorTimeRequired");
     } else if (!/^\d{2}:\d{2}$/.test(formData.time)) {
-      newErrors.time = "Giờ không hợp lệ (HH:MM)";
+      newErrors.time = t("schedulesTab.errorTimeInvalid");
     } else {
       const [hours, minutes] = formData.time.split(":").map(Number);
       if (hours > 23 || minutes > 59) {
-        newErrors.time = "Giờ không hợp lệ";
+        newErrors.time = t("schedulesTab.errorTimeRange");
       }
     }
 
     if (formData.note && formData.note.length > 500) {
-      newErrors.note = "Ghi chú tối đa 500 ký tự";
+      newErrors.note = t("schedulesTab.errorNoteMax");
     }
 
     setErrors(newErrors);
@@ -575,7 +571,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               {/* Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  {isEdit ? "Sửa lịch lễ" : "Thêm lịch lễ mới"}
+                  {isEdit ? t("schedulesTab.modalTitleEdit") : t("schedulesTab.modalTitleCreate")}
                 </Text>
                 <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textPrimary} />
@@ -587,7 +583,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 <View style={styles.rejectionNotice}>
                   <Ionicons name="information-circle" size={18} color="#D97706" />
                   <Text style={styles.rejectionNoticeText}>
-                    Sau khi sửa, trạng thái sẽ chuyển về "Chờ duyệt"
+                    {t("schedulesTab.rejectionNotice")}
                   </Text>
                 </View>
               )}
@@ -596,15 +592,16 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 {/* Days of week selection */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>
-                    Ngày trong tuần <Text style={styles.required}>*</Text>
+                    {t("schedulesTab.formDaysLabel")} <Text style={styles.required}>*</Text>
                   </Text>
                   <View style={styles.daysGrid}>
-                    {DAYS_MAP.map((day) => (
+                    {daysMap.map((day) => (
                       <DayChip
                         key={day.value}
                         day={day.value}
                         selected={formData.days_of_week.includes(day.value)}
                         onPress={() => toggleDay(day.value)}
+                        daysMap={daysMap}
                       />
                     ))}
                   </View>
@@ -616,7 +613,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 {/* Time input */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>
-                    Giờ lễ <Text style={styles.required}>*</Text>
+                    {t("schedulesTab.formTimeLabel")} <Text style={styles.required}>*</Text>
                   </Text>
                   <View style={[styles.inputContainer, errors.time && styles.inputError]}>
                     <Ionicons name="time-outline" size={20} color={PREMIUM_COLORS.gold} />
@@ -624,7 +621,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                       style={styles.textInput}
                       value={formData.time}
                       onChangeText={handleTimeChange}
-                      placeholder="HH:MM (vd: 06:00)"
+                      placeholder={t("schedulesTab.formTimePlaceholder")}
                       placeholderTextColor={GUIDE_COLORS.gray400}
                       keyboardType="numeric"
                       maxLength={5}
@@ -637,13 +634,13 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
                 {/* Note input */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>Ghi chú</Text>
+                  <Text style={styles.formLabel}>{t("schedulesTab.formNoteLabel")}</Text>
                   <View style={[styles.inputContainer, styles.textAreaContainer]}>
                     <TextInput
                       style={[styles.textInput, styles.textArea]}
                       value={formData.note}
                       onChangeText={(text) => setFormData(prev => ({ ...prev, note: text }))}
-                      placeholder="Vd: Lễ sáng trong tuần..."
+                      placeholder={t("schedulesTab.formNotePlaceholder")}
                       placeholderTextColor={GUIDE_COLORS.gray400}
                       multiline
                       numberOfLines={3}
@@ -658,13 +655,13 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </ScrollView>
 
               {/* Footer buttons */}
-              <View style={styles.modalFooter}>
+              <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.md) }]}>
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={onClose}
                   disabled={loading}
                 >
-                  <Text style={styles.cancelButtonText}>Huỷ</Text>
+                  <Text style={styles.cancelButtonText}>{t("schedulesTab.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -677,7 +674,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                     <>
                       <Ionicons name="checkmark" size={20} color="#FFF" />
                       <Text style={styles.submitButtonText}>
-                        {isEdit ? "Cập nhật" : "Tạo mới"}
+                        {isEdit ? t("schedulesTab.update") : t("schedulesTab.create")}
                       </Text>
                     </>
                   )}
@@ -701,16 +698,13 @@ interface EmptyStateProps {
 }
 
 const EmptyState: React.FC<EmptyStateProps> = ({ filter, onCreatePress }) => {
+  const { t } = useTranslation();
   const getMessage = () => {
     switch (filter) {
-      case "pending":
-        return "Không có lịch lễ chờ duyệt";
-      case "approved":
-        return "Không có lịch lễ đã duyệt";
-      case "rejected":
-        return "Không có lịch lễ bị từ chối";
-      default:
-        return "Chưa có lịch lễ nào";
+      case "pending": return t("schedulesTab.emptyPending");
+      case "approved": return t("schedulesTab.emptyApproved");
+      case "rejected": return t("schedulesTab.emptyRejected");
+      default: return t("schedulesTab.empty");
     }
   };
 
@@ -720,13 +714,11 @@ const EmptyState: React.FC<EmptyStateProps> = ({ filter, onCreatePress }) => {
         <MaterialIcons name="church" size={48} color={PREMIUM_COLORS.goldLight} />
       </View>
       <Text style={styles.emptyTitle}>{getMessage()}</Text>
-      <Text style={styles.emptySubtitle}>
-        Thêm lịch lễ mới để quản lý thời gian cử hành thánh lễ
-      </Text>
+      <Text style={styles.emptySubtitle}>{t("schedulesTab.emptyDesc")}</Text>
       {filter === "all" && (
         <TouchableOpacity style={styles.emptyButton} onPress={onCreatePress}>
           <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.emptyButtonText}>Thêm lịch lễ</Text>
+          <Text style={styles.emptyButtonText}>{t("schedulesTab.addSchedule")}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -742,6 +734,10 @@ interface SchedulesTabProps {
 }
 
 const SchedulesTab: React.FC<SchedulesTabProps> = () => {
+  const { t } = useTranslation();
+  const statusConfig = useMemo(() => getStatusConfig(t), [t]);
+  const daysMap = useMemo(() => getDaysMap(t), [t]);
+  const statusFilters = useMemo(() => getStatusFilters(t), [t]);
   const {
     filteredSchedules,
     loading,
@@ -781,7 +777,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const handleDeletePress = async (schedule: MassSchedule) => {
     const success = await remove(schedule.id);
     if (success) {
-      Alert.alert("Thành công", "Đã xoá lịch lễ");
+      Alert.alert(t("common.success"), t("schedulesTab.deleteSuccess"));
     }
   };
 
@@ -795,10 +791,9 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        Alert.alert("Thành công", "Đã cập nhật lịch lễ");
+        Alert.alert(t("common.success"), t("schedulesTab.updateSuccess"));
       }
     } else {
-      // Create
       const result = await create({
         days_of_week: data.days_of_week,
         time: data.time,
@@ -806,7 +801,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        Alert.alert("Thành công", "Đã tạo lịch lễ mới");
+        Alert.alert(t("common.success"), t("schedulesTab.createSuccess"));
       }
     }
   };
@@ -816,6 +811,8 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       schedule={item}
       onEdit={() => handleEditPress(item)}
       onDelete={() => handleDeletePress(item)}
+      statusConfig={statusConfig}
+      daysMap={daysMap}
     />
   );
 
@@ -824,7 +821,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={PREMIUM_COLORS.gold} />
-        <Text style={styles.loadingText}>Đang tải lịch lễ...</Text>
+        <Text style={styles.loadingText}>{t("schedulesTab.loading")}</Text>
       </View>
     );
   }
@@ -833,11 +830,11 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
     <View style={styles.container}>
       {/* Header Row */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Danh sách lịch lễ</Text>
-        {/* Filter Trigger Button */}
+        <Text style={styles.sectionTitle}>{t("schedulesTab.listTitle")}</Text>
         <FilterTrigger
           activeFilter={statusFilter}
           onPress={() => setShowFilterSheet(true)}
+          filters={statusFilters}
         />
       </View>
 
@@ -847,6 +844,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
         activeFilter={statusFilter}
         onFilterChange={setStatusFilter}
         onClose={() => setShowFilterSheet(false)}
+        filters={statusFilters}
       />
 
       {/* Schedule list */}
@@ -886,6 +884,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
         onClose={() => setModalVisible(false)}
         onSubmit={handleModalSubmit}
         loading={creating || updating}
+        daysMap={daysMap}
       />
     </View>
   );

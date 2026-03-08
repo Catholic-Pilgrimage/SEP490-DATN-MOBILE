@@ -11,8 +11,8 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#C9A84C"
+      "resizeMode": "cover",
+      "backgroundColor": "#cfaa3a"
     },
     "ios": {
       "supportsTablet": true,
@@ -25,6 +25,11 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
+        "backgroundColor": "#cfaa3a"
+      },
+      "splash": {
+        "image": "./assets/images/logo.png",
+        "resizeMode": "contain",
         "backgroundColor": "#cfaa3a"
       },
       "package": "com.anonymous.PilgrimApp",
@@ -45,14 +50,29 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "@rnmapbox/maps",
+      [
+        "@rnmapbox/maps",
+        {
+          "RNMapboxMapsVersion": "11.16.2"
+        }
+      ],
       [
         "expo-notifications",
         {
           "icon": "./assets/images/logo.png",
           "color": "#ffffff"
         }
-      ]
+      ],
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ứng dụng cần cấp quyền truy cập thư viện ảnh để thêm ảnh vào bài viết.",
+          "cameraPermission": "Ứng dụng cần cấp quyền truy cập máy ảnh để chụp ảnh và quay video.",
+          "microphonePermission": "Ứng dụng cần cấp quyền truy cập micro để quay video."
+        }
+      ],
+      "expo-video"
     ],
     "experiments": {
       "reactCompiler": true

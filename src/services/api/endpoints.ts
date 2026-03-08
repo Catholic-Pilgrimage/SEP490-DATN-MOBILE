@@ -21,6 +21,7 @@ export const AUTH_ENDPOINTS = {
   FORGOT_PASSWORD: `${API_BASE}/auth/forgot-password`,
   RESET_PASSWORD: `${API_BASE}/auth/reset-password`,
   VERIFY_EMAIL: `${API_BASE}/auth/verify-email`,
+  VERIFY_OTP: `${API_BASE}/auth/verify-otp`,
   RESEND_OTP: `${API_BASE}/auth/resend-otp`,
 } as const;
 
@@ -198,6 +199,16 @@ export const GUIDE_ENDPOINTS = {
     RESTORE: (id: string) => `${API_BASE}/local-guide/media/${id}/restore`,
   },
 
+  // Local Guide Nearby Places - Đề xuất địa điểm lân cận (ăn uống, lưu trú, y tế)
+  LOCAL_GUIDE_NEARBY_PLACES: {
+    LIST: `${API_BASE}/local-guide/nearby-places`,
+    CREATE: `${API_BASE}/local-guide/nearby-places`,
+    UPDATE: (id: string) => `${API_BASE}/local-guide/nearby-places/${id}`,
+    DELETE: (id: string) => `${API_BASE}/local-guide/nearby-places/${id}`,
+    RESTORE: (id: string) =>
+      `${API_BASE}/local-guide/nearby-places/${id}/restore`,
+  },
+
   // Local Guide Events - Event management for assigned site
   LOCAL_GUIDE_EVENTS: {
     LIST: `${API_BASE}/local-guide/events`,
@@ -290,6 +301,7 @@ export const SHARED_ENDPOINTS = {
     MARK_ALL_READ: `${API_BASE}/notifications/read-all`,
     DELETE: (id: string) => `${API_BASE}/notifications/${id}`,
     DELETE_ALL: `${API_BASE}/notifications`,
+    DELETE_READ: `${API_BASE}/notifications/read`,
     SETTINGS: `${API_BASE}/notifications/settings`,
     UPDATE_SETTINGS: `${API_BASE}/notifications/settings`,
     REGISTER_TOKEN: `${API_BASE}/notifications/token`,
@@ -306,6 +318,16 @@ export const SHARED_ENDPOINTS = {
   UPLOAD: {
     IMAGE: `${API_BASE}/upload/image`,
     IMAGES: `${API_BASE}/upload/images`,
+  },
+
+  // Posts
+  POSTS: {
+    BASE: `${API_BASE}/posts`,
+    DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
+    LIKE: (id: string) => `${API_BASE}/posts/${id}/like`,
+    COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
+    COMMENT_DETAIL: (id: string, commentId: string) =>
+      `${API_BASE}/posts/${id}/comments/${commentId}`,
   },
 } as const;
 

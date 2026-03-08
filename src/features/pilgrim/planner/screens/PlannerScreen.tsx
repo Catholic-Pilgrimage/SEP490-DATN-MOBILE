@@ -1,6 +1,6 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useScrollToTop } from '@react-navigation/native';
-import React, { useCallback, useRef, useState } from 'react';
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { CommonActions, useFocusEffect, useScrollToTop } from '@react-navigation/native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Animated,
     Dimensions,
@@ -14,19 +14,59 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../contexts/AuthContext';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import { PlanEntity, TransportationType } from '../../../../types/pilgrim/planner.types';
 import PlanCard, { PlanUI } from '../components/PlanCard';
 
-const { width } = Dimensions.get('window');
-
 import { useTranslation } from 'react-i18next';
+
+// Animated guest card with floating + icon pulse
+const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any }) => {
+    const cardFloat = useRef(new Animated.Value(0)).current;
+    const iconPulse = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(cardFloat, { toValue: -6, duration: 1500, useNativeDriver: true }),
+                Animated.timing(cardFloat, { toValue: 6, duration: 1500, useNativeDriver: true }),
+            ])
+        ).start();
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(iconPulse, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+                Animated.timing(iconPulse, { toValue: 1, duration: 800, useNativeDriver: true }),
+            ])
+        ).start();
+    }, []);
+
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.lg, marginTop: SPACING.xl }}>
+            <Animated.View style={[styles.guestCard, { transform: [{ translateY: cardFloat }] }]}>
+                <Animated.View style={{ transform: [{ scale: iconPulse }] }}>
+                    <MaterialIcons name="lock-outline" size={48} color="#D4AF37" />
+                </Animated.View>
+                <Text style={styles.guestTitle}>{t('profile.loginRequired')}</Text>
+                <Text style={styles.guestSubtitle}>{t('profile.loginRequiredMessage')}</Text>
+                <TouchableOpacity style={styles.guestLoginBtn} onPress={handleLogin} activeOpacity={0.8}>
+                    <View style={styles.guestLoginInner}>
+                        <MaterialIcons name="login" size={20} color="#FFFFFF" />
+                        <Text style={styles.guestLoginText}>{t('profile.loginRegister', { defaultValue: 'Đăng nhập / Đăng ký' })}</Text>
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        </View>
+    );
+};
+const { width } = Dimensions.get('window');
 
 export const PlannerScreen = ({ navigation }: any) => {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
+    const { isGuest, exitGuestMode } = useAuth();
     const [plans, setPlans] = useState<PlanUI[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!isGuest);
 
     // Fetch Plans
     const fetchPlans = useCallback(async () => {
@@ -62,9 +102,23 @@ export const PlannerScreen = ({ navigation }: any) => {
 
     useFocusEffect(
         useCallback(() => {
-            fetchPlans();
-        }, [fetchPlans])
+            if (!isGuest) {
+                fetchPlans();
+            }
+        }, [fetchPlans, isGuest])
     );
+
+    const handleLogin = async () => {
+        if (isGuest) {
+            await exitGuestMode();
+        }
+        navigation.dispatch(
+            CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+            })
+        );
+    };
 
     // Animation Values
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -117,7 +171,7 @@ export const PlannerScreen = ({ navigation }: any) => {
                 }
             ]}>
                 <View style={styles.compactHeaderContent}>
-                    <Text style={styles.compactHeaderTitle}>{t('planner.myPlans', { defaultValue: 'My Pilgrimage' })}</Text>
+                    <Text style={styles.compactHeaderTitle}>{t('planner.myPlans', { defaultValue: 'Kế hoạch của tôi' })}</Text>
                 </View>
                 {/* Border Bottom Line */}
                 <View style={styles.compactHeaderBorder} />
@@ -146,7 +200,7 @@ export const PlannerScreen = ({ navigation }: any) => {
                     }
                 ]}>
                     <View>
-                        <Text style={styles.headerSubtitle}>{t('planner.myPlans', { defaultValue: 'MY PILGRIMAGE' })}</Text>
+                        <Text style={styles.headerSubtitle}>{t('planner.myPlans', { defaultValue: 'KẾ HOẠCH CỦA TÔI' })}</Text>
                         <Text style={styles.headerTitle}>
                             {t('planner.dashboardTitle')}
                         </Text>
@@ -172,39 +226,47 @@ export const PlannerScreen = ({ navigation }: any) => {
                 </Animated.View>
 
                 {/* Plans List */}
-                <View style={{ marginTop: 10 }}>
-                    {plans.map((plan) => (
-                        <PlanCard
-                            key={plan.id}
-                            plan={plan}
-                            onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
-                        />
-                    ))}
-                </View>
+                {isGuest ? (
+                    <GuestCardAnimated handleLogin={handleLogin} t={t} />
+                ) : (
+                    <>
+                        <View style={{ marginTop: 10 }}>
+                            {plans.map((plan) => (
+                                <PlanCard
+                                    key={plan.id}
+                                    plan={plan}
+                                    onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
+                                />
+                            ))}
+                        </View>
 
-                {/* Empty State / CTA - Only shown when no plans exist */}
-                {plans.length === 0 && (
-                    <TouchableOpacity style={styles.emptyStateCard} activeOpacity={0.8} onPress={() => navigation.navigate('CreatePlanScreen')}>
-                        <View style={styles.emptyIllustration}>
-                            <Ionicons name="map-outline" size={48} color={COLORS.textTertiary} style={{ opacity: 0.5 }} />
-                            <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} style={{ position: 'absolute', bottom: -5, right: -5 }} />
-                        </View>
-                        <View style={styles.emptyTextContainer}>
-                            <Text style={styles.emptyTitle}>{t('planner.planNewJourney')}</Text>
-                            <Text style={styles.emptySubtitle}>{t('planner.startJourney')}</Text>
-                        </View>
-                    </TouchableOpacity>
+                        {/* Empty State / CTA - Only shown when no plans exist */}
+                        {plans.length === 0 && (
+                            <TouchableOpacity style={styles.emptyStateCard} activeOpacity={0.8} onPress={() => navigation.navigate('CreatePlanScreen')}>
+                                <View style={styles.emptyIllustration}>
+                                    <Ionicons name="map-outline" size={48} color={COLORS.textTertiary} style={{ opacity: 0.5 }} />
+                                    <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} style={{ position: 'absolute', bottom: -5, right: -5 }} />
+                                </View>
+                                <View style={styles.emptyTextContainer}>
+                                    <Text style={styles.emptyTitle}>{t('planner.planNewJourney', { defaultValue: 'Lên Kế Hoạch Chuyến Đi Mới' })}</Text>
+                                    <Text style={styles.emptySubtitle}>{t('planner.startJourney', { defaultValue: 'Bắt đầu hành trình tâm linh tiếp theo của bạn.' })}</Text>
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                    </>
                 )}
             </Animated.ScrollView>
 
-            {/* FAB */}
-            <TouchableOpacity
-                style={styles.fab}
-                activeOpacity={0.9}
-                onPress={() => navigation.navigate('CreatePlanScreen')}
-            >
-                <Ionicons name="add" size={32} color={COLORS.textPrimary} />
-            </TouchableOpacity>
+            {/* FAB - Hidden for guests */}
+            {!isGuest && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    activeOpacity={0.9}
+                    onPress={() => navigation.navigate('CreatePlanScreen')}
+                >
+                    <Ionicons name="add" size={32} color={COLORS.textPrimary} />
+                </TouchableOpacity>
+            )}
         </ImageBackground>
     );
 };
@@ -347,6 +409,49 @@ const styles = StyleSheet.create({
         elevation: 8,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.2)',
+    },
+    guestCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.xl,
+        alignItems: 'center',
+        gap: SPACING.md,
+        ...SHADOWS.medium,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        width: '100%',
+    },
+    guestTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+    },
+    guestSubtitle: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    guestLoginBtn: {
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginTop: SPACING.sm,
+    },
+    guestLoginInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 28,
+        borderRadius: 20,
+        backgroundColor: '#D4AF37',
+        gap: 8,
+    },
+    guestLoginText: {
+        color: COLORS.white,
+        fontWeight: '700',
+        fontSize: 16,
     },
 });
 

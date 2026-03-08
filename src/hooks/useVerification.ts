@@ -44,7 +44,7 @@ export function useVerification() {
             Toast.show({
                 type: 'success',
                 text1: 'Thành công',
-                text2: 'Đã gửi yêu cầu đăng ký làm Local Guide thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.'
+                text2: 'Đã gửi yêu cầu đăng ký quản lý điểm thành công. Chúng tôi sẽ liên hệ với bạn sớm nhất.'
             });
             queryClient.invalidateQueries({ queryKey: VERIFICATION_KEYS.all });
         },
@@ -60,7 +60,7 @@ export function useVerification() {
             Toast.show({
                 type: 'success',
                 text1: 'Thành công',
-                text2: 'Đã gửi yêu cầu đăng ký làm Local Guide thành công. Vui lòng chờ phê duyệt.'
+                text2: 'Đã gửi yêu cầu đăng ký quản lý điểm thành công. Vui lòng chờ phê duyệt.'
             });
             queryClient.invalidateQueries({ queryKey: VERIFICATION_KEYS.all });
         },

@@ -1,12 +1,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { CommonActions, useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Animated,
     Dimensions,
     FlatList,
     Image,
+    ImageBackground,
     Platform,
     StatusBar,
     StyleSheet,
@@ -16,6 +19,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import { useAuth } from '../../../../contexts/AuthContext';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import { JournalEntry } from '../../../../types/pilgrim/journal.types';
 
@@ -23,11 +27,52 @@ const { width } = Dimensions.get('window');
 
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 
+// Animated guest card with floating + icon pulse
+const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any }) => {
+    const cardFloat = useRef(new Animated.Value(0)).current;
+    const iconPulse = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(cardFloat, { toValue: -6, duration: 1500, useNativeDriver: true }),
+                Animated.timing(cardFloat, { toValue: 6, duration: 1500, useNativeDriver: true }),
+            ])
+        ).start();
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(iconPulse, { toValue: 1.15, duration: 800, useNativeDriver: true }),
+                Animated.timing(iconPulse, { toValue: 1, duration: 800, useNativeDriver: true }),
+            ])
+        ).start();
+    }, []);
+
+    return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: SPACING.xl }}>
+            <Animated.View style={[styles.guestCard, { transform: [{ translateY: cardFloat }] }]}>
+                <Animated.View style={{ transform: [{ scale: iconPulse }] }}>
+                    <MaterialIcons name="lock-outline" size={48} color="#D4AF37" />
+                </Animated.View>
+                <Text style={styles.guestTitle}>{t('profile.loginRequired')}</Text>
+                <Text style={styles.guestSubtitle}>{t('profile.loginRequiredMessage')}</Text>
+                <TouchableOpacity style={styles.guestLoginBtn} onPress={handleLogin} activeOpacity={0.8}>
+                    <View style={styles.guestLoginInner}>
+                        <MaterialIcons name="login" size={20} color="#FFFFFF" />
+                        <Text style={styles.guestLoginText}>{t('profile.loginRegister', { defaultValue: 'Đăng nhập / Đăng ký' })}</Text>
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        </View>
+    );
+};
+
 export const JournalScreen = () => {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
+    const { isGuest, exitGuestMode } = useAuth();
+    const { t } = useTranslation();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!isGuest);
 
     const scrollRef = useRef(null);
     useScrollToTop(scrollRef);
@@ -48,9 +93,23 @@ export const JournalScreen = () => {
 
     useFocusEffect(
         useCallback(() => {
-            fetchJournals();
-        }, [])
+            if (!isGuest) {
+                fetchJournals();
+            }
+        }, [isGuest])
     );
+
+    const handleLogin = async () => {
+        if (isGuest) {
+            await exitGuestMode();
+        }
+        navigation.dispatch(
+            CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+            })
+        );
+    };
 
     const renderItem = ({ item }: { item: JournalEntry }) => {
         const isPrivate = item.privacy === 'private';
@@ -158,11 +217,11 @@ export const JournalScreen = () => {
     };
 
     return (
-        <View style={styles.container}>
-            {/* Background Pattern */}
-            <View style={styles.bgPattern} pointerEvents="none">
-                {/* Could use an ImageBackground here for the pattern if assets existed */}
-            </View>
+        <ImageBackground
+            source={require('../../../../../assets/images/journal-bg.png')}
+            style={styles.container}
+            resizeMode="cover"
+        >
 
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
@@ -185,7 +244,9 @@ export const JournalScreen = () => {
                 </View>
             </View>
 
-            {loading ? (
+            {isGuest ? (
+                <GuestCardAnimated handleLogin={handleLogin} t={t} />
+            ) : loading ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                     <ActivityIndicator size="large" color={COLORS.accent} />
                 </View>
@@ -206,24 +267,25 @@ export const JournalScreen = () => {
                 />
             )}
 
-            {/* FAB */}
-            <TouchableOpacity
-                style={styles.fab}
-                activeOpacity={0.9}
-                onPress={() => navigation.navigate('CreateJournalScreen')}
-            >
-                <LinearGradient
-                    colors={[COLORS.accent, COLORS.accentDark]}
-                    style={styles.fabGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
+            {/* FAB - Hidden for guests */}
+            {!isGuest && (
+                <TouchableOpacity
+                    style={styles.fab}
+                    activeOpacity={0.9}
+                    onPress={() => navigation.navigate('CreateJournalScreen')}
                 >
-                    <MaterialIcons name="edit" size={24} color={COLORS.white} />
-                    {/* Text removed for cleaner look or keep if user prefers Extended FAB. Keeping text for now as it aids usability */}
-                    <Text style={styles.fabText}>Viết nhật ký</Text>
-                </LinearGradient>
-            </TouchableOpacity>
-        </View>
+                    <LinearGradient
+                        colors={[COLORS.accent, COLORS.accentDark]}
+                        style={styles.fabGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <MaterialIcons name="edit" size={24} color={COLORS.white} />
+                        <Text style={styles.fabText}>Viết nhật ký</Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            )}
+        </ImageBackground>
     );
 };
 
@@ -474,6 +536,49 @@ const styles = StyleSheet.create({
     },
     fabIconContainer: {
         // Removed container for cleaner look
+    },
+    guestCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.xl,
+        alignItems: 'center',
+        gap: SPACING.md,
+        ...SHADOWS.medium,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        width: '100%',
+    },
+    guestTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+    },
+    guestSubtitle: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    guestLoginBtn: {
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginTop: SPACING.sm,
+    },
+    guestLoginInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 28,
+        borderRadius: 20,
+        backgroundColor: '#D4AF37',
+        gap: 8,
+    },
+    guestLoginText: {
+        color: COLORS.white,
+        fontWeight: '700',
+        fontSize: 16,
     },
     fabText: {
         color: COLORS.white,

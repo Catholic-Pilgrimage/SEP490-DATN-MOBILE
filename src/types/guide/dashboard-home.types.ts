@@ -168,7 +168,7 @@ export interface TodayOverviewItem {
 /**
  * Recent activity type
  */
-export type RecentActivityType = 'media' | 'event';
+export type RecentActivityType = 'media' | 'event' | 'nearby_place';
 
 /**
  * Recent activity item (unified from media & events)

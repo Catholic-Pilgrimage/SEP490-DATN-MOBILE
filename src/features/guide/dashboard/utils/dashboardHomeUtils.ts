@@ -21,6 +21,7 @@ import {
   SOSRequest,
   TodayOverviewItem,
 } from '../../../../types/guide';
+import type { GuideNearbyPlace } from '../../../../services/api/guide/nearbyPlacesApi';
 import {
   compareDatesDesc,
   compareTimeStrings,
@@ -315,7 +316,37 @@ const getEventSubtitle = (event: EventItem): string => {
 };
 
 /**
- * Merge and process recent activity from media + events
+ * Map nearby place to RecentActivityItem
+ */
+const mapNearbyPlaceToActivity = (place: GuideNearbyPlace): RecentActivityItem => ({
+  id: place.id,
+  type: 'nearby_place' as RecentActivityType,
+  title: place.name,
+  subtitle: getNearbyPlaceSubtitle(place),
+  thumbnail: null,
+  created_at: place.created_at,
+  status: place.status,
+  originalData: place,
+});
+
+const getNearbyPlaceSubtitle = (place: GuideNearbyPlace): string => {
+  const categoryLabels: Record<string, string> = {
+    food: 'Ăn uống',
+    accommodation: 'Lưu trú',
+    medical: 'Y tế',
+  };
+  const statusLabels: Record<string, string> = {
+    pending: '• Chờ duyệt',
+    approved: '• Đã duyệt',
+    rejected: '• Từ chối',
+  };
+  const cat = categoryLabels[place.category] || 'Địa điểm';
+  const status = statusLabels[place.status] || '';
+  return `${cat} ${status}`.trim();
+};
+
+/**
+ * Merge and process recent activity from media + events + nearby places
  * 
  * Logic:
  * 1. Map media & events to unified format
@@ -326,28 +357,31 @@ const getEventSubtitle = (event: EventItem): string => {
 export const getRecentActivity = (
   mediaItems: MediaItem[] | undefined | null,
   eventItems: EventItem[] | undefined | null,
-  limit = 5
+  limit = 5,
+  nearbyPlaceItems?: GuideNearbyPlace[] | undefined | null,
 ): RecentActivityItem[] => {
   const activities: RecentActivityItem[] = [];
 
-  // Map media items
   if (mediaItems && Array.isArray(mediaItems)) {
     mediaItems.forEach((media) => {
       activities.push(mapMediaToActivity(media));
     });
   }
 
-  // Map event items
   if (eventItems && Array.isArray(eventItems)) {
     eventItems.forEach((event) => {
       activities.push(mapEventToActivity(event));
     });
   }
 
-  // Sort by created_at DESC
+  if (nearbyPlaceItems && Array.isArray(nearbyPlaceItems)) {
+    nearbyPlaceItems.forEach((place) => {
+      activities.push(mapNearbyPlaceToActivity(place));
+    });
+  }
+
   activities.sort((a, b) => compareDatesDesc(a.created_at, b.created_at));
 
-  // Return top N items
   return activities.slice(0, limit);
 };
 

@@ -6,6 +6,7 @@ import {
     Animated,
     Dimensions,
     Image,
+    ImageBackground,
     Platform,
     StatusBar,
     StyleSheet,
@@ -124,22 +125,22 @@ export default function JournalDetailScreen() {
 
     if (loading) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <Text style={{ color: COLORS.textSecondary }}>Loading...</Text>
-            </View>
+            </ImageBackground>
         );
     }
 
     if (!journal) {
         return (
-            <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <Text>Journal not found</Text>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
                     <Text style={{ color: COLORS.accent }}>Go Back</Text>
                 </TouchableOpacity>
-            </View>
+            </ImageBackground>
         );
     }
 
@@ -177,7 +178,7 @@ export default function JournalDetailScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={styles.container} resizeMode="cover">
             <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
             {/* Floating Header Actions (Back & Menu) */}
@@ -332,7 +333,7 @@ export default function JournalDetailScreen() {
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </ImageBackground>
     );
 }
 
@@ -453,7 +454,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.4)',
     },
     contentContainer: {
-        backgroundColor: COLORS.background,
+        backgroundColor: 'rgba(255, 255, 255, 0.85)', // Changed to semi-transparent to show background
         borderTopLeftRadius: 32,
         borderTopRightRadius: 32,
         marginTop: -32,

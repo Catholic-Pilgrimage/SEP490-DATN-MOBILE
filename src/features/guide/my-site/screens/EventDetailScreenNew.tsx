@@ -1,11 +1,11 @@
 /**
  * EventDetailScreen
  * View, Create, Edit events with real API
- * 
+ *
  * Modes:
  * - Create: No eventId passed
  * - View/Edit: eventId passed, fetch event data
- * 
+ *
  * Features:
  * - Banner image upload with compression
  * - Date/Time pickers
@@ -19,33 +19,34 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
-  GUIDE_BORDER_RADIUS,
-  GUIDE_COLORS,
-  GUIDE_SHADOWS,
-  GUIDE_SPACING,
-  GUIDE_TYPOGRAPHY,
+    GUIDE_BORDER_RADIUS,
+    GUIDE_COLORS,
+    GUIDE_SHADOWS,
+    GUIDE_SPACING,
+    GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import {
-  createEvent,
-  deleteEvent,
-  updateEvent,
+    createEvent,
+    deleteEvent,
+    updateEvent,
 } from "../../../../services/api/guide";
 import { EventStatus } from "../../../../types/guide";
 
@@ -59,9 +60,24 @@ type EventDetailRouteProp = RouteProp<MySiteStackParamList, "EventDetail">;
 
 const StatusBadge: React.FC<{ status: EventStatus }> = ({ status }) => {
   const config = {
-    pending: { bg: "#FFF3E0", color: GUIDE_COLORS.warning, label: "Chờ duyệt", icon: "schedule" },
-    approved: { bg: "#E8F5E9", color: GUIDE_COLORS.success, label: "Đã duyệt", icon: "check-circle" },
-    rejected: { bg: "#FFEBEE", color: GUIDE_COLORS.error, label: "Từ chối", icon: "cancel" },
+    pending: {
+      bg: "#FFF3E0",
+      color: GUIDE_COLORS.warning,
+      label: "Chờ duyệt",
+      icon: "schedule",
+    },
+    approved: {
+      bg: "#E8F5E9",
+      color: GUIDE_COLORS.success,
+      label: "Đã duyệt",
+      icon: "check-circle",
+    },
+    rejected: {
+      bg: "#FFEBEE",
+      color: GUIDE_COLORS.error,
+      label: "Từ chối",
+      icon: "cancel",
+    },
   }[status];
 
   return (
@@ -135,7 +151,9 @@ const InputField: React.FC<InputFieldProps> = ({
       />
     </View>
     {maxLength && (
-      <Text style={styles.charCount}>{value.length}/{maxLength}</Text>
+      <Text style={styles.charCount}>
+        {value.length}/{maxLength}
+      </Text>
     )}
   </View>
 );
@@ -243,29 +261,38 @@ export const EventDetailScreen: React.FC = () => {
 
   // Mode management
   const isCreateMode = !passedEvent; // Creating new event
-  const canBeEdited = passedEvent?.status === "pending" || passedEvent?.status === "rejected";
+  const canBeEdited =
+    passedEvent?.status === "pending" || passedEvent?.status === "rejected";
 
   // isEditing: true when creating new OR when user clicked Edit button
   const [isEditing, setIsEditing] = useState(isCreateMode);
 
   // Form state
   const [name, setName] = useState(passedEvent?.name || "");
-  const [description, setDescription] = useState(passedEvent?.description || "");
+  const [description, setDescription] = useState(
+    passedEvent?.description || "",
+  );
   const [startDate, setStartDate] = useState<Date | null>(
-    passedEvent?.start_date ? new Date(passedEvent.start_date) : null
+    passedEvent?.start_date ? new Date(passedEvent.start_date) : null,
   );
   const [endDate, setEndDate] = useState<Date | null>(
-    passedEvent?.end_date ? new Date(passedEvent.end_date) : null
+    passedEvent?.end_date ? new Date(passedEvent.end_date) : null,
   );
   const [startTime, setStartTime] = useState<Date | null>(
-    passedEvent?.start_time ? parseTime(passedEvent.start_time) : null
+    passedEvent?.start_time ? parseTime(passedEvent.start_time) : null,
   );
   const [endTime, setEndTime] = useState<Date | null>(
-    passedEvent?.end_time ? parseTime(passedEvent.end_time) : null
+    passedEvent?.end_time ? parseTime(passedEvent.end_time) : null,
   );
   const [location, setLocation] = useState(passedEvent?.location || "");
-  const [bannerUri, setBannerUri] = useState<string | null>(passedEvent?.banner_url || null);
-  const [newBannerFile, setNewBannerFile] = useState<{ uri: string; name: string; type: string } | null>(null);
+  const [bannerUri, setBannerUri] = useState<string | null>(
+    passedEvent?.banner_url || null,
+  );
+  const [newBannerFile, setNewBannerFile] = useState<{
+    uri: string;
+    name: string;
+    type: string;
+  } | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -301,9 +328,13 @@ export const EventDetailScreen: React.FC = () => {
       // Reset form to original values
       setName(passedEvent.name || "");
       setDescription(passedEvent.description || "");
-      setStartDate(passedEvent.start_date ? new Date(passedEvent.start_date) : null);
+      setStartDate(
+        passedEvent.start_date ? new Date(passedEvent.start_date) : null,
+      );
       setEndDate(passedEvent.end_date ? new Date(passedEvent.end_date) : null);
-      setStartTime(passedEvent.start_time ? parseTime(passedEvent.start_time) : null);
+      setStartTime(
+        passedEvent.start_time ? parseTime(passedEvent.start_time) : null,
+      );
       setEndTime(passedEvent.end_time ? parseTime(passedEvent.end_time) : null);
       setLocation(passedEvent.location || "");
       setBannerUri(passedEvent.banner_url || null);
@@ -312,44 +343,45 @@ export const EventDetailScreen: React.FC = () => {
     }
   }, [isCreateMode, passedEvent]);
 
+  const [isMediaPickerVisible, setIsMediaPickerVisible] = useState(false);
+
   // Pick banner image
-  const handlePickBanner = useCallback(async () => {
+  const handlePickBanner = useCallback(() => {
     if (!isEditing) return;
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [16, 9],
-      quality: 1,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-
-      // Compress image
-      try {
-        const compressed = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [{ resize: { width: 1200 } }],
-          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
-        );
-
-        setBannerUri(compressed.uri);
-        setNewBannerFile({
-          uri: compressed.uri,
-          name: `event_banner_${Date.now()}.jpg`,
-          type: "image/jpeg",
-        });
-      } catch {
-        setBannerUri(asset.uri);
-        setNewBannerFile({
-          uri: asset.uri,
-          name: `event_banner_${Date.now()}.jpg`,
-          type: "image/jpeg",
-        });
-      }
-    }
+    setIsMediaPickerVisible(true);
   }, [isEditing]);
+
+  const handleMediaPicked = useCallback(
+    async (result: ImagePicker.ImagePickerResult) => {
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+
+        // Compress image
+        try {
+          const compressed = await ImageManipulator.manipulateAsync(
+            asset.uri,
+            [{ resize: { width: 1200 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
+          );
+
+          setBannerUri(compressed.uri);
+          setNewBannerFile({
+            uri: compressed.uri,
+            name: `event_banner_${Date.now()}.jpg`,
+            type: "image/jpeg",
+          });
+        } catch {
+          setBannerUri(asset.uri);
+          setNewBannerFile({
+            uri: asset.uri,
+            name: `event_banner_${Date.now()}.jpg`,
+            type: "image/jpeg",
+          });
+        }
+      }
+    },
+    [],
+  );
 
   // Validate form
   const validateForm = (): boolean => {
@@ -405,7 +437,7 @@ export const EventDetailScreen: React.FC = () => {
         Alert.alert(
           "Thành công",
           !isCreateMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
+          [{ text: "OK", onPress: () => navigation.goBack() }],
         );
       } else {
         Alert.alert("Lỗi", result?.message || "Không thể lưu sự kiện");
@@ -415,61 +447,90 @@ export const EventDetailScreen: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [name, description, startDate, endDate, startTime, endTime, location, newBannerFile, isCreateMode, passedEvent, navigation]);
+  }, [
+    name,
+    description,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    location,
+    newBannerFile,
+    isCreateMode,
+    passedEvent,
+    navigation,
+  ]);
 
   // Handle delete
   const handleDelete = useCallback(() => {
     if (!passedEvent) return;
 
-    Alert.alert(
-      "Xóa sự kiện",
-      `Bạn có chắc muốn xóa "${passedEvent.name}"?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              const result = await deleteEvent(passedEvent.id);
-              if (result?.success) {
-                Alert.alert("Thành công", "Đã xóa sự kiện", [
-                  { text: "OK", onPress: () => navigation.goBack() },
-                ]);
-              } else {
-                Alert.alert("Lỗi", result?.message || "Không thể xóa");
-              }
-            } catch (error: any) {
-              Alert.alert("Lỗi", error.message || "Không thể xóa");
-            } finally {
-              setDeleting(false);
+    Alert.alert("Xóa sự kiện", `Bạn có chắc muốn xóa "${passedEvent.name}"?`, [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          setDeleting(true);
+          try {
+            const result = await deleteEvent(passedEvent.id);
+            if (result?.success) {
+              Alert.alert("Thành công", "Đã xóa sự kiện", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+            } else {
+              Alert.alert("Lỗi", result?.message || "Không thể xóa");
             }
-          },
+          } catch (error: any) {
+            Alert.alert("Lỗi", error.message || "Không thể xóa");
+          } finally {
+            setDeleting(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   }, [passedEvent, navigation]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <StatusBar barStyle="dark-content" backgroundColor={GUIDE_COLORS.background} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={GUIDE_COLORS.background}
+      />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <MaterialIcons name="arrow-back-ios" size={20} color={GUIDE_COLORS.textPrimary} />
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <MaterialIcons
+            name="arrow-back-ios"
+            size={20}
+            color={GUIDE_COLORS.textPrimary}
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isCreateMode ? "Tạo sự kiện mới" : (isEditing ? "Chỉnh sửa" : "Chi tiết sự kiện")}
+          {isCreateMode
+            ? "Tạo sự kiện mới"
+            : isEditing
+              ? "Chỉnh sửa"
+              : "Chi tiết sự kiện"}
         </Text>
         <View style={styles.headerRight}>
           {!isCreateMode && passedEvent && (
             <StatusBadge status={passedEvent.status} />
           )}
           {!isCreateMode && canBeEdited && !isEditing && (
-            <TouchableOpacity style={styles.editHeaderButton} onPress={handleEnableEdit}>
-              <MaterialIcons name="edit" size={20} color={GUIDE_COLORS.primary} />
+            <TouchableOpacity
+              style={styles.editHeaderButton}
+              onPress={handleEnableEdit}
+            >
+              <MaterialIcons
+                name="edit"
+                size={20}
+                color={GUIDE_COLORS.primary}
+              />
             </TouchableOpacity>
           )}
         </View>
@@ -487,15 +548,22 @@ export const EventDetailScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           {/* Rejection Reason */}
-          {passedEvent?.status === "rejected" && passedEvent.rejection_reason && (
-            <View style={styles.rejectionBox}>
-              <MaterialIcons name="error" size={20} color={GUIDE_COLORS.error} />
-              <View style={styles.rejectionContent}>
-                <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
-                <Text style={styles.rejectionText}>{passedEvent.rejection_reason}</Text>
+          {passedEvent?.status === "rejected" &&
+            passedEvent.rejection_reason && (
+              <View style={styles.rejectionBox}>
+                <MaterialIcons
+                  name="error"
+                  size={20}
+                  color={GUIDE_COLORS.error}
+                />
+                <View style={styles.rejectionContent}>
+                  <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
+                  <Text style={styles.rejectionText}>
+                    {passedEvent.rejection_reason}
+                  </Text>
+                </View>
               </View>
-            </View>
-          )}
+            )}
 
           {/* Banner Image */}
           <View style={styles.bannerSection}>
@@ -510,7 +578,11 @@ export const EventDetailScreen: React.FC = () => {
                 <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
               ) : (
                 <View style={styles.bannerPlaceholder}>
-                  <MaterialIcons name="add-photo-alternate" size={48} color={GUIDE_COLORS.gray300} />
+                  <MaterialIcons
+                    name="add-photo-alternate"
+                    size={48}
+                    color={GUIDE_COLORS.gray300}
+                  />
                   <Text style={styles.bannerPlaceholderText}>
                     {isEditing ? "Thêm ảnh bìa" : "Chưa có ảnh bìa"}
                   </Text>
@@ -518,7 +590,11 @@ export const EventDetailScreen: React.FC = () => {
               )}
               {isEditing && bannerUri && (
                 <View style={styles.bannerEditOverlay}>
-                  <MaterialIcons name="edit" size={24} color={GUIDE_COLORS.surface} />
+                  <MaterialIcons
+                    name="edit"
+                    size={24}
+                    color={GUIDE_COLORS.surface}
+                  />
                 </View>
               )}
             </TouchableOpacity>
@@ -621,7 +697,11 @@ export const EventDetailScreen: React.FC = () => {
           {/* Info for approved events */}
           {passedEvent?.status === "approved" && (
             <View style={styles.infoBox}>
-              <MaterialIcons name="lock" size={20} color={GUIDE_COLORS.textMuted} />
+              <MaterialIcons
+                name="lock"
+                size={20}
+                color={GUIDE_COLORS.textMuted}
+              />
               <Text style={styles.infoText}>
                 Sự kiện đã được duyệt không thể chỉnh sửa
               </Text>
@@ -636,7 +716,11 @@ export const EventDetailScreen: React.FC = () => {
                 onPress={handleEnableEdit}
                 activeOpacity={0.8}
               >
-                <MaterialIcons name="edit" size={22} color={GUIDE_COLORS.surface} />
+                <MaterialIcons
+                  name="edit"
+                  size={22}
+                  color={GUIDE_COLORS.surface}
+                />
                 <Text style={styles.editButtonText}>Chỉnh sửa sự kiện</Text>
               </TouchableOpacity>
             </View>
@@ -675,7 +759,11 @@ export const EventDetailScreen: React.FC = () => {
                   disabled={saving || deleting}
                   activeOpacity={0.8}
                 >
-                  <MaterialIcons name="close" size={22} color={GUIDE_COLORS.textSecondary} />
+                  <MaterialIcons
+                    name="close"
+                    size={22}
+                    color={GUIDE_COLORS.textSecondary}
+                  />
                   <Text style={styles.cancelButtonText}>Hủy chỉnh sửa</Text>
                 </TouchableOpacity>
               )}
@@ -683,7 +771,10 @@ export const EventDetailScreen: React.FC = () => {
               {/* Delete button */}
               {!isCreateMode && (
                 <TouchableOpacity
-                  style={[styles.deleteButton, deleting && styles.buttonDisabled]}
+                  style={[
+                    styles.deleteButton,
+                    deleting && styles.buttonDisabled,
+                  ]}
                   onPress={handleDelete}
                   disabled={saving || deleting}
                   activeOpacity={0.8}
@@ -692,7 +783,11 @@ export const EventDetailScreen: React.FC = () => {
                     <ActivityIndicator color={GUIDE_COLORS.error} />
                   ) : (
                     <>
-                      <MaterialIcons name="delete-outline" size={22} color={GUIDE_COLORS.error} />
+                      <MaterialIcons
+                        name="delete-outline"
+                        size={22}
+                        color={GUIDE_COLORS.error}
+                      />
                       <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
                     </>
                   )}
@@ -704,6 +799,17 @@ export const EventDetailScreen: React.FC = () => {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <MediaPickerModal
+        visible={isMediaPickerVisible}
+        onClose={() => setIsMediaPickerVisible(false)}
+        onMediaPicked={handleMediaPicked}
+        mediaTypes={"images"}
+        allowsEditing={true}
+        aspect={[16, 9]}
+        quality={1}
+        title="Thêm ảnh bìa sự kiện"
+      />
     </View>
   );
 };

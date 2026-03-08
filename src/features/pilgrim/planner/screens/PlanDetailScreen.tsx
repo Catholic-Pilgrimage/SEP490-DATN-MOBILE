@@ -2,6 +2,7 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Slider from "@react-native-community/slider";
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +36,7 @@ import { PlanEntity, PlanItem, PlanParticipant, UpdatePlanItemRequest } from "..
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
   const { planId } = route.params;
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -220,11 +222,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       if (response.success && response.data) {
         setPlan(response.data);
       } else {
-        Alert.alert("Error", response.message || "Could not load plan details");
+        Alert.alert(t("common.error"), response.message || t("planner.loadDetailError", { defaultValue: "Không thể tải chi tiết kế hoạch" }));
       }
     } catch (error) {
       console.error("Load plan detail error:", error);
-      Alert.alert("Error", "Failed to load plan details");
+      Alert.alert(t("common.error"), t("planner.loadDetailFailed", { defaultValue: "Tải chi tiết kế hoạch thất bại" }));
     } finally {
       setLoading(false);
     }
@@ -360,12 +362,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleDeletePlan = () => {
     Alert.alert(
-      "Delete Plan",
-      "Are you sure you want to delete this plan? This action cannot be undone.",
+      t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
+      t("planner.deleteConfirmMsg", { defaultValue: "Bạn có chắc chắn muốn xóa kế hoạch này? Hành động này không thể hoàn tác." }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -374,13 +376,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 navigation.goBack();
               } else {
                 Alert.alert(
-                  "Error",
-                  response.message || "Failed to delete plan",
+                  t("common.error"),
+                  response.message || t("planner.deleteFailed", { defaultValue: "Xóa kế hoạch thất bại" }),
                 );
               }
             } catch (error) {
               console.error("Delete plan error:", error);
-              Alert.alert("Error", "Failed to delete plan");
+              Alert.alert(t("common.error"), t("planner.deleteFailed", { defaultValue: "Xóa kế hoạch thất bại" }));
             }
           },
         },
@@ -390,12 +392,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleDeleteItem = (itemId: string) => {
     Alert.alert(
-      "Remove Item",
-      "Are you sure you want to remove this destination?",
+      t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
+      t("planner.removeItemConfirm", { defaultValue: "Bạn có chắc chắn muốn xóa địa điểm này khỏi lịch trình?" }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             try {
@@ -408,13 +410,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 loadPlan(); // Reload to refresh
               } else {
                 Alert.alert(
-                  "Error",
-                  response.message || "Failed to remove item",
+                  t("common.error"),
+                  response.message || t("planner.removeItemFailed", { defaultValue: "Xóa địa điểm thất bại" }),
                 );
               }
             } catch (error: any) {
               console.error("Delete item error:", error);
-              Alert.alert("Error", error.message || "Failed to remove item");
+              Alert.alert(t("common.error"), error.message || t("planner.removeItemFailed", { defaultValue: "Xóa địa điểm thất bại" }));
             }
           },
         },
@@ -1056,7 +1058,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               <View key={dayKey} style={styles.dayContainer}>
                 <View style={styles.dayHeader}>
                   <View style={styles.dayNumberContainer}>
-                    <Text style={styles.dayNumber}>Day {dayKey}</Text>
+                    <Text style={styles.dayNumber}>{t("planner.dayLabel", { defaultValue: "Ngày " })}{dayKey}</Text>
                   </View>
                   <View style={styles.dayLine} />
                 </View>
@@ -1139,7 +1141,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       onPress={() => openAddModal(Number(dayKey))}
                     >
                       <Ionicons name="add" size={16} color={COLORS.primary} />
-                      <Text style={styles.addSmallButtonText}>Add Stop</Text>
+                      <Text style={styles.addSmallButtonText}>{t("planner.addStop", { defaultValue: "Thêm điểm dừng" })}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

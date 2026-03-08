@@ -76,4 +76,5 @@ export interface UpdateProfileRequest {
   dateOfBirth?: string;
   gender?: "male" | "female" | "other";
   nationality?: string;
+  language?: "vi" | "en";
 }

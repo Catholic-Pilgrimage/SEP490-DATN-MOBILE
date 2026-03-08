@@ -14,3 +14,5 @@ export * from './guide';
 // Pilgrim Types
 export * from './pilgrim';
 
+// Shared
+export * from './post.types';

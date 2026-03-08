@@ -3,7 +3,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import React, { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { GUIDE_COLORS } from '../../../../constants/guide.constants';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
 import { dashboardApi, getShiftSubmissions, guideEventApi } from '../../../../services/api/guide';
 import { SiteScheduleShift } from '../../../../types/guide/dashboard-home.types';
@@ -287,6 +286,6 @@ export const AvailableShiftsTab: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: GUIDE_COLORS.background,
+        backgroundColor: 'transparent',
     },
 });

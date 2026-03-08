@@ -1,137 +1,737 @@
 {
-    "common": {
-        "loading": "Đang tải...",
-        "error": "Lỗi",
-        "success": "Thành công",
-        "cancel": "Hủy",
-        "confirm": "Xác nhận",
-        "save": "Lưu",
-        "delete": "Xóa",
-        "edit": "Chỉnh sửa",
-        "close": "Đóng",
-        "back": "Quay lại",
-        "next": "Tiếp theo",
-        "done": "Hoàn tất",
-        "yes": "Có",
-        "no": "Không",
-        "ok": "Đồng ý",
-        "retry": "Thử lại",
-        "search": "Tìm kiếm",
-        "filter": "Lọc",
-        "sortBy": "Sắp xếp theo",
-        "viewAll": "Xem tất cả",
-        "seeMore": "Xem thêm",
-        "noData": "Không có dữ liệu",
-        "notAssigned": "Chưa được gán",
-        "or": "Hoặc"
+  "common": {
+    "loading": "Đang tải...",
+    "error": "Lỗi",
+    "success": "Thành công",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "save": "Lưu",
+    "delete": "Xóa",
+    "edit": "Chỉnh sửa",
+    "close": "Đóng",
+    "back": "Quay lại",
+    "next": "Tiếp theo",
+    "done": "Hoàn tất",
+    "yes": "Có",
+    "no": "Không",
+    "ok": "Đồng ý",
+    "retry": "Thử lại",
+    "search": "Tìm kiếm",
+    "filter": "Lọc",
+    "sortBy": "Sắp xếp theo",
+    "viewAll": "Xem tất cả",
+    "seeMore": "Xem thêm",
+    "noData": "Không có dữ liệu",
+    "notAssigned": "Chưa được gán",
+    "or": "Hoặc"
+  },
+  "auth": {
+    "login": "Đăng nhập",
+    "logout": "Đăng xuất",
+    "register": "Đăng ký",
+    "forgotPassword": "Quên mật khẩu?",
+    "email": "Email",
+    "password": "Mật khẩu",
+    "confirmPassword": "Xác nhận mật khẩu",
+    "fullName": "Họ và tên",
+    "phoneNumber": "Số điện thoại",
+    "welcomeBack": "Chào mừng trở lại",
+    "continueJourney": "Tiếp tục hành trình đức tin của bạn",
+    "loginFailed": "Đăng nhập thất bại",
+    "checkCredentials": "Vui lòng kiểm tra lại thông tin đăng nhập.",
+    "noAccount": "Chưa có tài khoản?",
+    "registerNow": "Đăng ký ngay",
+    "continueAsGuest": "Tiếp tục với tư cách Khách",
+    "guestSuccess": "Đang tiếp tục với tư cách khách",
+    "loginSuccess": "Đăng nhập thành công",
+    "validation": {
+      "emailRequired": "Vui lòng nhập email",
+      "emailInvalid": "Email không hợp lệ",
+      "passwordRequired": "Vui lòng nhập mật khẩu",
+      "passwordMinLength": "Mật khẩu phải có ít nhất {{count}} ký tự"
     },
-    "auth": {
-        "login": "Đăng nhập",
-        "logout": "Đăng xuất",
-        "register": "Đăng ký",
-        "forgotPassword": "Quên mật khẩu?",
-        "email": "Email",
-        "password": "Mật khẩu",
-        "confirmPassword": "Xác nhận mật khẩu",
-        "fullName": "Họ và tên",
-        "phoneNumber": "Số điện thoại",
-        "welcomeBack": "Chào mừng trở lại",
-        "continueJourney": "Tiếp tục hành trình đức tin của bạn",
-        "loginFailed": "Đăng nhập thất bại",
-        "checkCredentials": "Vui lòng kiểm tra lại thông tin đăng nhập.",
-        "noAccount": "Chưa có tài khoản?",
-        "registerNow": "Đăng ký ngay",
-        "continueAsGuest": "Tiếp tục với tư cách Khách",
-        "guestSuccess": "Đang tiếp tục với tư cách khách",
-        "loginSuccess": "Đăng nhập thành công",
-        "validation": {
-            "emailRequired": "Vui lòng nhập email",
-            "emailInvalid": "Email không hợp lệ",
-            "passwordRequired": "Vui lòng nhập mật khẩu",
-            "passwordMinLength": "Mật khẩu phải có ít nhất {{count}} ký tự"
-        },
-        "errors": {
-            "loginFailed": "Đăng nhập thất bại",
-            "guestError": "Không thể tiếp tục. Vui lòng thử lại."
-        }
+    "errors": {
+      "loginFailed": "Đăng nhập thất bại",
+      "guestError": "Không thể tiếp tục. Vui lòng thử lại.",
+      "invalidCredentials": "Tài khoản hoặc mật khẩu không chính xác."
+    }
+  },
+  "navigation": {
+    "home": "Trang chủ",
+    "mySite": "Site của tôi",
+    "profile": "Hồ sơ",
+    "explore": "Khám phá",
+    "schedule": "Lịch trình",
+    "community": "Cộng đồng",
+    "notifications": "Thông báo"
+  },
+  "dashboard": {
+    "cathedralGuide": "HƯỚNG DẪN NHÀ THỜ",
+    "greetings": {
+      "morning": "Chào buổi sáng",
+      "afternoon": "Chào buổi chiều",
+      "evening": "Chào buổi tối"
     },
-    "navigation": {
-        "home": "Trang chủ",
-        "mySite": "Site của tôi",
-        "profile": "Hồ sơ",
-        "explore": "Khám phá",
-        "schedule": "Lịch trình",
-        "community": "Cộng đồng",
-        "notifications": "Thông báo"
+    "guide": "Local Guide",
+    "status": {
+      "open": "MỞ CỬA",
+      "closed": "ĐÓNG CỬA"
     },
-    "dashboard": {
-        "cathedralGuide": "HƯỚNG DẪN NHÀ THỜ",
-        "greetings": {
-            "morning": "Chào buổi sáng",
-            "afternoon": "Chào buổi chiều",
-            "evening": "Chào buổi tối"
-        },
-        "guide": "Local Guide",
-        "status": {
-            "open": "MỞ CỬA",
-            "closed": "ĐÓNG CỬA"
-        },
-        "patron": "Bổn mạng",
-        "notAssignedSite": "Chưa được gán site"
+    "patron": "Bổn mạng",
+    "notAssignedSite": "Chưa được gán site"
+  },
+  "quickActions": {
+    "postNews": "Đăng tin",
+    "schedule": "Lịch trình",
+    "upload": "Tải lên",
+    "goLive": "Phát trực tiếp",
+    "sosLog": "Hỗ trợ khẩn cấp"
+  },
+  "pilgrimInsights": {
+    "sectionLabel": "CỘNG ĐỒNG",
+    "title": "Thống kê hành hương",
+    "currentPilgrims": "Đang hành hương",
+    "todayVisitors": "Khách hôm nay"
+  },
+  "todayOverview": {
+    "sectionLabel": "LỊCH TRÌNH",
+    "title": "Tổng quan hôm nay",
+    "activeShift": "CA HOẠT ĐỘNG",
+    "noSchedule": "Không có lịch trình hôm nay",
+    "now": "ĐANG DIỄN RA",
+    "mainArea": "Khu vực chính"
+  },
+  "recentActivity": {
+    "title": "Hoạt động gần đây",
+    "noActivity": "Chưa có hoạt động gần đây"
+  },
+  "reviews": {
+    "sectionLabel": "PHẢN HỒI",
+    "title": "Đánh giá gần đây",
+    "aiSummary": "Tóm tắt AI",
+    "replied": "Đã phản hồi",
+    "reply": "Phản hồi",
+    "noReviews": "Chưa có đánh giá nào",
+    "timeAgo": {
+      "justNow": "Vừa xong",
+      "hoursAgo": "{{count}}h trước",
+      "daysAgo": "{{count}} ngày trước"
+    }
+  },
+  "time": {
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua",
+    "tomorrow": "Ngày mai",
+    "thisWeek": "Tuần này",
+    "thisMonth": "Tháng này"
+  },
+  "planner": {
+    "myPlans": "Kế hoạch của tôi",
+    "dashboardTitle": "Kế hoạch\nHành hương",
+    "shared": "Được chia sẻ",
+    "draft": "Bản nháp",
+    "days": "Ngày",
+    "planNewJourney": "Lập kế hoạch mới",
+    "startJourney": "Bắt đầu hành trình tâm linh tiếp theo của bạn."
+  },
+  "appName": "Hành Trình Thánh",
+  "editProfile": {
+    "title": "Thông tin cá nhân",
+    "cancel": "Huỷ",
+    "edit": "Sửa",
+    "discardTitle": "Huỷ thay đổi?",
+    "discardMessage": "Các thay đổi chưa lưu sẽ bị mất.",
+    "continueEditing": "Tiếp tục chỉnh sửa",
+    "discard": "Huỷ",
+    "changeAvatar": "Đổi ảnh",
+    "changeAvatarTitle": "Đổi ảnh đại diện",
+    "chooseSource": "Chọn nguồn ảnh",
+    "takePhoto": "Chụp ảnh",
+    "photoLibrary": "Thư viện ảnh",
+    "permissionDenied": "Từ chối quyền",
+    "cameraPermission": "Vui lòng cấp quyền truy cập camera.",
+    "libraryPermission": "Vui lòng cấp quyền truy cập thư viện ảnh.",
+    "defaultName": "Người hành hương",
+    "defaultGuide": "Hướng dẫn viên",
+    "pilgrimRole": "Hành hương viên",
+    "pilgrimRoleVerified": "Hành hương viên (Đã xác minh)",
+    "notUpdated": "Chưa cập nhật",
+    "loading": "Đang tải thông tin...",
+    "sections": {
+      "basicInfo": "THÔNG TIN CƠ BẢN",
+      "accountInfo": "THÔNG TIN TÀI KHOẢN",
+      "assignment": "THÔNG TIN PHÂN CÔNG"
     },
-    "quickActions": {
-        "postNews": "Đăng tin",
-        "schedule": "Lịch trình",
-        "upload": "Tải lên",
-        "goLive": "Phát trực tiếp",
-        "sosLog": "Hỗ trợ khẩn cấp"
+    "fields": {
+      "fullName": "Họ và tên",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "dateOfBirth": "Ngày sinh",
+      "verificationStatus": "Trạng thái xác minh",
+      "joinedAt": "Ngày tham gia",
+      "verifiedAt": "Ngày xác minh",
+      "language": "Ngôn ngữ",
+      "site": "Địa điểm phục vụ",
+      "address": "Địa chỉ",
+      "area": "Khu vực"
     },
-    "pilgrimInsights": {
-        "sectionLabel": "CỘNG ĐỒNG",
-        "title": "Thống kê hành hương",
-        "currentPilgrims": "Đang hành hương",
-        "todayVisitors": "Khách hôm nay"
+    "placeholders": {
+      "fullName": "Nhập họ và tên",
+      "phone": "Nhập số điện thoại",
+      "dateOfBirth": "Chọn ngày sinh..."
     },
-    "todayOverview": {
-        "sectionLabel": "LỊCH TRÌNH",
-        "title": "Tổng quan hôm nay",
-        "activeShift": "CA HOẠT ĐỘNG",
-        "noSchedule": "Không có lịch trình hôm nay",
-        "now": "ĐANG DIỄN RA",
-        "mainArea": "Khu vực chính"
+    "verified": "Đã xác minh",
+    "notVerified": "Chưa xác minh",
+    "languageVi": "Tiếng Việt",
+    "languageEn": "English",
+    "notAssignedSite": "Chưa được gán địa điểm",
+    "changePassword": "Đổi mật khẩu",
+    "saveChanges": "Lưu thay đổi",
+    "saving": "Đang lưu...",
+    "updateError": "Không thể cập nhật thông tin. Vui lòng thử lại."
+  },
+  "changePassword": {
+    "title": "Đổi mật khẩu",
+    "description": "Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu của bạn với người khác.",
+    "currentPassword": "Mật khẩu hiện tại",
+    "newPassword": "Mật khẩu mới",
+    "confirmPassword": "Xác nhận mật khẩu mới",
+    "currentPasswordPlaceholder": "Nhập mật khẩu hiện tại",
+    "newPasswordPlaceholder": "Nhập mật khẩu mới",
+    "confirmPasswordPlaceholder": "Nhập lại mật khẩu mới",
+    "submit": "Đổi mật khẩu",
+    "requirements": {
+      "minLength": "Ít nhất 8 ký tự",
+      "uppercase": "Ít nhất 1 chữ hoa",
+      "number": "Ít nhất 1 số"
     },
-    "recentActivity": {
-        "title": "Hoạt động gần đây",
-        "noActivity": "Chưa có hoạt động gần đây"
+    "errors": {
+      "allRequired": "Vui lòng nhập đầy đủ thông tin",
+      "passwordMismatch": "Mật khẩu mới và xác nhận mật khẩu không khớp",
+      "passwordTooShort": "Mật khẩu mới phải có ít nhất 8 ký tự",
+      "samePassword": "Mật khẩu mới phải khác mật khẩu hiện tại",
+      "changeFailed": "Đổi mật khẩu thất bại. Vui lòng kiểm tra lại mật khẩu hiện tại."
     },
-    "reviews": {
-        "sectionLabel": "PHẢN HỒI",
-        "title": "Đánh giá gần đây",
-        "aiSummary": "Tóm tắt AI",
-        "replied": "Đã phản hồi",
-        "reply": "Phản hồi",
-        "noReviews": "Chưa có đánh giá nào",
-        "timeAgo": {
-            "justNow": "Vừa xong",
-            "hoursAgo": "{{count}}h trước",
-            "daysAgo": "{{count}} ngày trước"
-        }
+    "success": "Đổi mật khẩu thành công"
+  },
+  "profile": {
+    "title": "Hồ sơ",
+    "guest": "Khách hành hương",
+    "guestRole": "Chưa đăng nhập",
+    "defaultPilgrim": "Người hành hương",
+    "defaultGuide": "Hướng dẫn viên",
+    "notAssignedSite": "Chưa được gán địa điểm",
+    "verifiedGuide": "Hướng dẫn viên (Đã xác minh)",
+    "localGuide": "Hướng dẫn viên",
+    "stats": {
+      "pilgrimages": "Hành hương",
+      "favorites": "Yêu thích",
+      "reviews": "Đánh giá",
+      "events": "Sự kiện",
+      "media": "Media"
     },
-    "time": {
-        "today": "Hôm nay",
-        "yesterday": "Hôm qua",
-        "tomorrow": "Ngày mai",
-        "thisWeek": "Tuần này",
-        "thisMonth": "Tháng này"
+    "sections": {
+      "account": "TÀI KHOẢN",
+      "siteManagement": "QUẢN LÝ ĐIỂM",
+      "settings": "CÀI ĐẶT"
     },
-    "planner": {
-        "myPlans": "Kế hoạch của tôi",
-        "dashboardTitle": "Kế hoạch\nHành hương",
-        "shared": "Được chia sẻ",
-        "draft": "Bản nháp",
-        "days": "Ngày",
-        "planNewJourney": "Lập kế hoạch mới",
-        "startJourney": "Bắt đầu hành trình tâm linh tiếp theo của bạn."
+    "menu": {
+      "personalInfo": "Thông tin cá nhân",
+      "notifications": "Thông báo",
+      "favorites": "Yêu thích",
+      "sosHistory": "Lịch sử Hỗ trợ",
+      "history": "Lịch sử hành hương",
+      "settings": "Cài đặt",
+      "registerSiteManager": "Đăng ký Quản lý Điểm",
+      "mySite": "Địa điểm của tôi",
+      "schedule": "Lịch trình & Ca trực",
+      "sos": "Hỗ trợ khẩn cấp (SOS)"
     },
-    "appName": "Hành Trình Thánh"
+    "loginRequired": "Yêu cầu đăng nhập",
+    "loginRequiredMessage": "Vui lòng đăng nhập để sử dụng tính năng này.",
+    "loginLater": "Để sau",
+    "login": "Đăng nhập",
+    "loginRegister": "Đăng nhập / Đăng ký",
+    "logout": "Đăng xuất",
+    "loggingOut": "Đang đăng xuất...",
+    "logoutConfirmTitle": "Đăng xuất",
+    "logoutConfirmMessage": "Bạn có chắc chắn muốn đăng xuất?",
+    "logoutError": "Không thể đăng xuất. Vui lòng thử lại.",
+    "version": "Phiên bản 1.0.0",
+    "featureComingSoon": "Tính năng đang phát triển"
+  },
+  "settings": {
+    "languageChanged": "Đã đổi ngôn ngữ sang Tiếng Việt",
+    "languageChangedSuccess": "Thành công",
+    "title": "Cài đặt & Quyền riêng tư",
+    "sections": {
+      "general": "CÀI ĐẶT CHUNG",
+      "support": "HỖ TRỢ & GIỚI THIỆU"
+    },
+    "notifications": "Thông báo đẩy",
+    "notificationsDesc": "Nhận thông báo về lịch trình và tin tức",
+    "biometrics": "Đăng nhập sinh trắc học",
+    "language": "Ngôn ngữ",
+    "selectLanguage": "Chọn ngôn ngữ",
+    "helpCenter": "Trung tâm trợ giúp",
+    "shareApp": "Chia sẻ ứng dụng",
+    "rateApp": "Đánh giá ứng dụng",
+    "terms": "Điều khoản sử dụng",
+    "privacy": "Chính sách quyền riêng tư",
+    "logout": "Đăng xuất",
+    "logoutConfirmTitle": "Đăng xuất",
+    "logoutConfirmMessage": "Bạn có chắc chắn muốn đăng xuất?",
+    "loginRegister": "Đăng nhập / Đăng ký",
+    "featureComingSoon": "Tính năng đang phát triển",
+    "thankYou": "Cảm ơn",
+    "thankYouMessage": "Cảm ơn bạn đã quan tâm đến ứng dụng!",
+    "showTerms": "Hiển thị điều khoản dịch vụ",
+    "showPrivacy": "Hiển thị chính sách bảo mật",
+    "shareMessage": "Tải ngay Catholic Pilgrim App - Ứng dụng đồng hành cùng người hành hương Công giáo!",
+    "cannotChangeLanguage": "Không thể đổi ngôn ngữ"
+  },
+  "notificationScreen": {
+    "title": "Thông báo",
+    "tabs": {
+      "all": "Tất cả",
+      "schedule": "Lịch trình",
+      "system": "Hệ thống"
+    },
+    "sections": {
+      "newest": "Mới nhất",
+      "today": "Hôm nay",
+      "earlier": "Trước đó"
+    },
+    "empty": "Không có thông báo nào",
+    "emptyTitle": "Thật yên bình!",
+    "emptyText": "Bạn chưa có thông báo mới nào.",
+    "backButton": "Quay về",
+    "endOfList": "Bạn đã xem hết thông báo",
+    "loadMoreError": "Không thể tải thêm thông báo",
+    "tapToRetry": "Nhấn để thử lại",
+    "deleteConfirmTitle": "Xóa thông báo",
+    "deleteConfirmMessage": "Bạn muốn xóa thông báo nào?",
+    "deleteRead": "Xóa đã đọc",
+    "deleteAll": "Xóa tất cả",
+    "markAllRead": "Đánh dấu tất cả đã đọc"
+  },
+  "verification": {
+    "headerTitle": "Đăng ký Quản lý Điểm",
+    "tabNew": "Đăng ký điểm mới",
+    "tabTransition": "Thay thế Quản lý",
+    "sectionApplicant": "Thông tin người nộp đơn",
+    "sectionNewSite": "Thông tin Điểm Hành Hương",
+    "sectionTransition": "Thông tin Thay thế",
+    "sectionExtra": "Thông tin thêm",
+    "fields": {
+      "fullName": "Họ và Tên",
+      "fullNamePlaceholder": "Nhập họ và tên...",
+      "email": "Email",
+      "emailPlaceholder": "Nhập email liên hệ...",
+      "phone": "Số điện thoại",
+      "phonePlaceholder": "Nhập SĐT liên hệ...",
+      "siteName": "Tên điểm hành hương",
+      "siteNamePlaceholder": "Nhập tên ĐHH...",
+      "province": "Tỉnh / Thành phố",
+      "provincePlaceholder": "VD: Hà Nội, TP.HCM...",
+      "address": "Địa chỉ chi tiết",
+      "addressPlaceholder": "Nhập địa chỉ cụ thể...",
+      "siteType": "Loại điểm",
+      "siteTypePlaceholder": "Chọn loại điểm...",
+      "region": "Vùng miền",
+      "regionPlaceholder": "Chọn vùng miền...",
+      "selectSite": "Chọn Điểm Hành Hương",
+      "selectSitePlaceholder": "Chạm để chọn điểm hành hương...",
+      "transitionReason": "Lý do thay thế",
+      "transitionReasonPlaceholder": "Tại sao bạn cần thay thế Quản lý hiện tại?",
+      "introduction": "Giới thiệu bản thân / Điểm đến",
+      "introductionPlaceholder": "Mô tả ngắn về bạn hoặc điểm hành hương...",
+      "certificate": "Giấy chứng nhận (Tùy chọn)"
+    },
+    "siteTypes": {
+      "church": "Nhà thờ",
+      "shrine": "Đền thánh",
+      "monastery": "Tu viện",
+      "center": "Trung tâm hành hương",
+      "other": "Khác"
+    },
+    "regions": {
+      "north": "Miền Bắc",
+      "central": "Miền Trung",
+      "south": "Miền Nam"
+    },
+    "cert": {
+      "takePhoto": "Chụp ảnh",
+      "library": "Thư viện",
+      "document": "Tài liệu\n(PDF, Word)"
+    },
+    "actions": {
+      "cancel": "Hủy",
+      "submit": "Gửi yêu cầu",
+      "newRequest": "Tạo yêu cầu mới"
+    },
+    "status": {
+      "approved": {
+        "title": "Yêu cầu đã được duyệt",
+        "description": "Yêu cầu đăng ký quản lý điểm của bạn đã được chấp thuận. Hãy đăng xuất và đăng nhập lại để cập nhật quyền hạn."
+      },
+      "rejected": {
+        "title": "Yêu cầu bị từ chối",
+        "description": "Yêu cầu của bạn đã bị từ chối. Bạn có thể tạo yêu cầu mới."
+      },
+      "pending": {
+        "title": "Yêu cầu đã được gửi",
+        "description": "Bạn đã gửi một yêu cầu đăng ký quản lý điểm trước đó. Vui lòng chờ phản hồi từ quản trị viên."
+      }
+    },
+    "details": {
+      "requestCode": "Mã yêu cầu:",
+      "requestStatus": "Trạng thái:",
+      "registeredSite": "Điểm ĐK:",
+      "rejectionReason": "Lý do từ chối:"
+    },
+    "modal": {
+      "title": "Chọn Điểm Hành Hương",
+      "searchPlaceholder": "Tìm kiếm điểm hành hương...",
+      "empty": "Không tìm thấy điểm hành hương nào."
+    },
+    "errors": {
+      "cannotPickDocument": "Không thể chọn tài liệu. Vui lòng thử lại.",
+      "cannotPickImage": "Không thể chọn ảnh. Vui lòng thử lại.",
+      "cannotOpenCamera": "Không thể mở máy ảnh. Vui lòng thử lại.",
+      "permissionDenied": "Từ chối quyền",
+      "cameraPermission": "Vui lòng cấp quyền máy ảnh.",
+      "libraryPermission": "Vui lòng cấp quyền truy cập thư viện ảnh.",
+      "guestRequired": "Vui lòng điền đủ Tên và Email người nộp đơn.",
+      "newSiteRequired": "Vui lòng điền Tên điểm hành hương và Tỉnh/Thành.",
+      "transitionRequired": "Vui lòng điền Mã điểm hành hương và Lý do thay thế.",
+      "title": "Lỗi"
+    }
+  },
+  "register": {
+    "title": "Tạo tài khoản mới",
+    "subtitle": "Bắt đầu hành trình đức tin của bạn cùng chúng tôi",
+    "fields": {
+      "fullName": "Họ và tên",
+      "fullNamePlaceholder": "Nhập họ và tên của bạn",
+      "email": "Email",
+      "emailPlaceholder": "Nhập email của bạn",
+      "phone": "Số điện thoại",
+      "phonePlaceholder": "Nhập số điện thoại của bạn",
+      "dateOfBirth": "Ngày sinh",
+      "dateOfBirthPlaceholder": "Chọn ngày sinh",
+      "password": "Mật khẩu",
+      "passwordPlaceholder": "Nhập mật khẩu",
+      "confirmPassword": "Xác nhận mật khẩu",
+      "confirmPasswordPlaceholder": "Nhập lại mật khẩu"
+    },
+    "passwordHint": "Ít nhất 6 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt",
+    "terms": {
+      "agree": "Tôi đồng ý với",
+      "termsOfService": "Điều khoản dịch vụ",
+      "and": "và",
+      "privacyPolicy": "Chính sách bảo mật",
+      "termsTitle": "Điều khoản dịch vụ",
+      "termsContent": "Nội dung điều khoản dịch vụ sẽ được hiển thị ở đây.",
+      "privacyTitle": "Chính sách bảo mật",
+      "privacyContent": "Nội dung chính sách bảo mật sẽ được hiển thị ở đây."
+    },
+    "registerButton": "Đăng ký",
+    "orRegisterWith": "Hoặc đăng ký với",
+    "alreadyHaveAccount": "Đã có tài khoản?",
+    "loginNow": "Đăng nhập ngay",
+    "iosCancelDate": "Hủy",
+    "iosDoneDate": "Xong",
+    "success": "Đăng ký thành công!",
+    "successMessage": "Tài khoản của bạn đã được tạo. Vui lòng đăng nhập để tiếp tục."
+  },
+  "forgotPassword": {
+    "email": {
+      "title": "Quên mật khẩu?",
+      "description": "Đừng lo lắng! Nhập email đã đăng ký và chúng tôi sẽ gửi mã xác thực để đặt lại mật khẩu.",
+      "label": "Email",
+      "placeholder": "Nhập email của bạn",
+      "sendOtp": "Gửi mã xác thực"
+    },
+    "otp": {
+      "title": "Nhập mã xác thực",
+      "description": "Chúng tôi đã gửi mã 6 số đến",
+      "noCode": "Không nhận được mã?",
+      "resend": "Gửi lại",
+      "resendAfter": "Gửi lại sau {{count}}s",
+      "confirm": "Xác nhận",
+      "error": "Vui lòng nhập đầy đủ mã xác thực 6 số"
+    },
+    "newPassword": {
+      "title": "Tạo mật khẩu mới",
+      "description": "Mật khẩu mới phải khác với mật khẩu đã sử dụng trước đó.",
+      "newPasswordLabel": "Mật khẩu mới",
+      "newPasswordPlaceholder": "Tối thiểu 8 ký tự",
+      "confirmLabel": "Xác nhận mật khẩu",
+      "confirmPlaceholder": "Nhập lại mật khẩu mới",
+      "requirements": {
+        "minLength": "Ít nhất 8 ký tự",
+        "uppercase": "Ít nhất 1 chữ hoa",
+        "number": "Ít nhất 1 số"
+      },
+      "submit": "Đặt lại mật khẩu"
+    },
+    "success": {
+      "title": "Thành công!",
+      "description": "Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng nhập với mật khẩu mới.",
+      "loginNow": "Đăng nhập ngay"
+    },
+    "backToLogin": "Quay lại đăng nhập",
+    "errors": {
+      "title": "Lỗi",
+      "emailRequired": "Vui lòng nhập email",
+      "emailNotFound": "Email không tồn tại trong hệ thống.",
+      "emailInvalid": "Email không hợp lệ.",
+      "otpInvalid": "Mã OTP không chính xác hoặc đã hết hạn. Vui lòng thử lại.",
+      "cannotSendOtp": "Không thể gửi mã OTP. Vui lòng thử lại.",
+      "cannotResendOtp": "Không thể gửi lại mã OTP",
+      "invalidAction": "Thao tác không hợp lệ.",
+      "otpExpired": "Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại.",
+      "resetFailed": "Đặt lại mật khẩu thất bại. Vui lòng thử lại.",
+      "allRequired": "Vui lòng nhập đầy đủ thông tin",
+      "passwordMismatch": "Mật khẩu xác nhận không khớp",
+      "passwordTooShort": "Mật khẩu phải có ít nhất 8 ký tự",
+      "verifyFailed": "Xác thực thất bại",
+      "otpResent": "Đã gửi lại mã OTP đến email của bạn"
+    }
+  },
+  "favoriteSites": {
+    "title": "Địa điểm yêu thích",
+    "removeTitle": "Xóa khỏi yêu thích",
+    "removeMessage": "Bạn có chắc muốn xóa \"{{name}}\" khỏi danh sách yêu thích?",
+    "cancel": "Hủy",
+    "remove": "Xóa",
+    "emptyTitle": "Chưa có địa điểm yêu thích",
+    "emptySubtitle": "Nhấn vào biểu tượng ❤️ để thêm địa điểm hành hương vào danh sách yêu thích.",
+    "exploreNow": "Khám phá ngay",
+    "types": {
+      "church": "Nhà thờ",
+      "shrine": "Đền thánh",
+      "monastery": "Tu viện",
+      "center": "Trung tâm",
+      "other": "Địa điểm"
+    }
+  },
+  "schedulesTab": {
+    "listTitle": "Danh sách lịch lễ",
+    "filterTitle": "Lọc lịch lễ",
+    "filter": "Lọc",
+    "apply": "Áp dụng",
+    "statusAll": "Tất cả",
+    "statusAllDesc": "Hiển thị tất cả lịch lễ",
+    "statusPending": "Chờ duyệt",
+    "statusPendingDesc": "Lịch lễ đang chờ phê duyệt",
+    "statusApproved": "Đã duyệt",
+    "statusApprovedDesc": "Lịch lễ đã được phê duyệt",
+    "statusRejected": "Từ chối",
+    "statusRejectedDesc": "Lịch lễ bị từ chối",
+    "day0": "CN",
+    "day1": "T2",
+    "day2": "T3",
+    "day3": "T4",
+    "day4": "T5",
+    "day5": "T6",
+    "day6": "T7",
+    "reason": "Lý do: {{reason}}",
+    "edit": "Sửa",
+    "delete": "Xoá",
+    "cancel": "Huỷ",
+    "deleteTitle": "Xoá lịch lễ",
+    "deleteMessage": "Bạn có chắc chắn muốn xoá lịch lễ này?",
+    "deleteSuccess": "Đã xoá lịch lễ",
+    "updateSuccess": "Đã cập nhật lịch lễ",
+    "createSuccess": "Đã tạo lịch lễ mới",
+    "loading": "Đang tải lịch lễ...",
+    "empty": "Chưa có lịch lễ nào",
+    "emptyPending": "Không có lịch lễ chờ duyệt",
+    "emptyApproved": "Không có lịch lễ đã duyệt",
+    "emptyRejected": "Không có lịch lễ bị từ chối",
+    "emptyDesc": "Thêm lịch lễ mới để quản lý thời gian cử hành thánh lễ",
+    "addSchedule": "Thêm lịch lễ",
+    "modalTitleEdit": "Sửa lịch lễ",
+    "modalTitleCreate": "Thêm lịch lễ mới",
+    "rejectionNotice": "Sau khi sửa, trạng thái sẽ chuyển về \"Chờ duyệt\"",
+    "formDaysLabel": "Ngày trong tuần",
+    "formTimeLabel": "Giờ lễ",
+    "formTimePlaceholder": "HH:MM (vd: 06:00)",
+    "formNoteLabel": "Ghi chú",
+    "formNotePlaceholder": "Vd: Lễ sáng trong tuần...",
+    "update": "Cập nhật",
+    "create": "Tạo mới",
+    "errorDaysRequired": "Vui lòng chọn ít nhất 1 ngày",
+    "errorTimeRequired": "Vui lòng nhập giờ",
+    "errorTimeInvalid": "Giờ không hợp lệ (HH:MM)",
+    "errorTimeRange": "Giờ không hợp lệ",
+    "errorNoteMax": "Ghi chú tối đa 500 ký tự"
+  },
+  "mediaTab": {
+    "libraryTitle": "Thư viện media",
+    "filterTitle": "Lọc media",
+    "filterActive": "Đã lọc",
+    "filter": "Bộ lọc",
+    "apply": "Áp dụng",
+    "typeSection": "Loại media",
+    "statusSection": "Trạng thái",
+    "typeAll": "Tất cả",
+    "typeImage": "Ảnh",
+    "typeVideo": "Video",
+    "typePanorama": "360°",
+    "statusAll": "Tất cả",
+    "statusAllDesc": "Hiển thị tất cả media",
+    "statusPending": "Chờ duyệt",
+    "statusPendingDesc": "Media đang chờ phê duyệt",
+    "statusApproved": "Đã duyệt",
+    "statusApprovedDesc": "Media đã được phê duyệt",
+    "statusRejected": "Từ chối",
+    "statusRejectedDesc": "Media bị từ chối",
+    "loading": "Đang tải media...",
+    "empty": "Chưa có media nào",
+    "emptyDesc": "Hãy upload ảnh, video hoặc\npanorama 360° cho site của bạn",
+    "uploadMedia": "Upload Media",
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua",
+    "dayName0": "Chủ nhật",
+    "dayName1": "Thứ 2",
+    "dayName2": "Thứ 3",
+    "dayName3": "Thứ 4",
+    "dayName4": "Thứ 5",
+    "dayName5": "Thứ 6",
+    "dayName6": "Thứ 7",
+    "dateFormat": "{{dayName}}, {{day}} tháng {{month}}",
+    "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
+  },
+  "eventsTab": {
+    "listTitle": "Danh sách sự kiện",
+    "filter": "Lọc",
+    "filterTitle": "Lọc sự kiện",
+    "apply": "Áp dụng",
+    "statusAll": "Tất cả",
+    "statusAllDesc": "Hiển thị tất cả sự kiện",
+    "statusPending": "Chờ duyệt",
+    "statusPendingDesc": "Sự kiện đang chờ phê duyệt",
+    "statusApproved": "Đã duyệt",
+    "statusApprovedDesc": "Sự kiện đã được phê duyệt",
+    "statusRejected": "Từ chối",
+    "statusRejectedDesc": "Sự kiện bị từ chối",
+    "empty": "Chưa có sự kiện nào",
+    "emptyFiltered": "Không có sự kiện {{status}}",
+    "chooseAction": "Chọn thao tác",
+    "edit": "Sửa",
+    "delete": "Xóa",
+    "cancel": "Hủy",
+    "deleteTitle": "Xóa sự kiện",
+    "deleteMessage": "Bạn có chắc muốn xóa sự kiện \"{{name}}\"?",
+    "deleteSuccess": "Đã xóa sự kiện",
+    "deleteError": "Không thể xóa sự kiện",
+    "deleteApprovedError": "Không thể xóa sự kiện đã được duyệt"
+  },
+  "mySiteScreen": {
+    "tabs": {
+      "events": "Sự kiện",
+      "media": "Media",
+      "schedules": "Lịch lễ",
+      "locations": "Địa điểm"
+    },
+    "loading": "Đang tải...",
+    "noAddress": "Chưa có địa chỉ"
+  },
+  "locationsTab": {
+    "title": "Địa điểm lân cận",
+    "viewFullMap": "Xem bản đồ",
+    "fullMapTitle": "Bản đồ địa điểm",
+    "addPlace": "Thêm địa điểm",
+    "categories": {
+      "all": "Tất cả",
+      "food": "Ăn uống",
+      "lodging": "Lưu trú",
+      "medical": "Y tế"
+    },
+    "status": {
+      "all": "Tất cả",
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "rejected": "Từ chối"
+    },
+    "activeFilter": {
+      "all": "Tất cả",
+      "active": "Đang hoạt động",
+      "inactive": "Đã xóa"
+    },
+    "filter": "Lọc",
+    "filterTitle": "Lọc địa điểm",
+    "applyFilter": "Áp dụng",
+    "categoryLabel": "Danh mục",
+    "statusLabel": "Trạng thái",
+    "displayLabel": "Hiển thị",
+    "statusDesc": {
+      "all": "Hiển thị tất cả",
+      "pending": "Đang chờ phê duyệt",
+      "approved": "Đã được phê duyệt",
+      "rejected": "Bị từ chối"
+    },
+    "activeDesc": {
+      "all": "Hiển thị tất cả",
+      "active": "is_active = true",
+      "inactive": "is_active = false"
+    },
+    "placeCount": "{{count}} nơi",
+    "distance": {
+      "meters": "{{distance}} m",
+      "kilometers": "{{distance}} km"
+    },
+    "distanceAway": "Cách {{distance}}",
+    "rejectionReason": "Lý do: {{reason}}",
+    "editPlace": "Chỉnh sửa",
+    "editAndResubmit": "Chỉnh sửa & gửi lại",
+    "restore": "Khôi phục",
+    "delete": "Xóa",
+    "deleteConfirm": "Xóa địa điểm",
+    "deleteMessage": "Bạn có chắc muốn xóa \"{{name}}\"?",
+    "restoreConfirm": "Khôi phục địa điểm",
+    "restoreMessage": "Khôi phục \"{{name}}\"?",
+    "empty": {
+      "noResults": "Không có kết quả",
+      "noPlaces": "Chưa có địa điểm nào",
+      "tryChangeFilter": "Thử thay đổi bộ lọc",
+      "tapToAdd": "Nhấn + hoặc chạm vào bản đồ để thêm"
+    },
+    "modal": {
+      "addTitle": "Thêm địa điểm lân cận",
+      "editTitle": "Chỉnh sửa địa điểm",
+      "cancel": "Hủy",
+      "submit": "Gửi duyệt",
+      "saveAndResubmit": "Lưu & gửi lại",
+      "categoryLabel": "Loại địa điểm *",
+      "nameLabel": "Tên địa điểm *",
+      "namePlaceholder": "Nhập tên...",
+      "addressLabel": "Địa chỉ *",
+      "addressPlaceholder": "Nhập địa chỉ...",
+      "selectOnMap": "Hoặc chọn vị trí trên bản đồ",
+      "selectOnMapTitle": "Chọn vị trí trên bản đồ",
+      "selectOnMapMessage": "Chạm vào bản đồ để chọn vị trí địa điểm",
+      "currentCoords": "Tọa độ hiện tại: {{lat}}, {{lng}}",
+      "phoneLabel": "Số điện thoại",
+      "phonePlaceholder": "Nhập số điện thoại...",
+      "descriptionLabel": "Ghi chú",
+      "descriptionPlaceholder": "Nhập ghi chú (tuỳ chọn)..."
+    },
+    "toast": {
+      "coordsUpdated": "Đã cập nhật tọa độ",
+      "errorNameRequired": "Vui lòng nhập tên địa điểm",
+      "errorAddressRequired": "Vui lòng nhập địa chỉ",
+      "deleted": "Đã xóa",
+      "restored": "Đã khôi phục"
+    }
+  },
+  "map": {
+    "location": "Địa điểm",
+    "selectedLocation": "Vị trí đã chọn",
+    "searchingLocation": "Đang tìm vị trí...",
+    "tapToViewDetail": "Nhấn để xem chi tiết"
+  }
 }

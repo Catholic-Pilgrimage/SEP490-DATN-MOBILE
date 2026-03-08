@@ -7,6 +7,10 @@ import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '..
 import { AvailableShiftsTab } from '../components/AvailableShiftsTab';
 import { MyShiftsTab } from '../components/MyShiftsTab';
 
+const PREMIUM_COLORS = {
+    cream: '#FDF8F0',
+};
+
 export const ShiftsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<'find' | 'my'>('find');
@@ -14,7 +18,7 @@ export const ShiftsScreen: React.FC = () => {
     return (
         <View style={styles.container}>
             <View style={[styles.headerWrapper, { paddingTop: insets.top }]}>
-                <StatusBar barStyle="dark-content" backgroundColor={GUIDE_COLORS.surface} />
+                <StatusBar barStyle="dark-content" backgroundColor={PREMIUM_COLORS.cream} />
 
                 {/* Header */}
                 <View style={styles.header}>
@@ -76,14 +80,11 @@ export const ShiftsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: GUIDE_COLORS.background,
+        backgroundColor: PREMIUM_COLORS.cream,
     },
     headerWrapper: {
-        backgroundColor: GUIDE_COLORS.surface,
+        backgroundColor: PREMIUM_COLORS.cream,
         paddingBottom: GUIDE_SPACING.md,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-        ...GUIDE_SHADOWS.sm,
         zIndex: 10,
     },
     header: {

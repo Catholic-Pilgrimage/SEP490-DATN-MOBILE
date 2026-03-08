@@ -100,7 +100,6 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
     try {
       setLoading(true);
-      // Validate dates
       if (new Date(startDate) >= new Date(endDate)) {
         Alert.alert(t("common.error"), "Ngày kết thúc phải sau ngày bắt đầu");
         setLoading(false);
@@ -128,7 +127,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
         );
         navigation.goBack();
       } else {
-        throw new Error(response.message || "Failed to create plan");
+        throw new Error(response.message || t("planner.createFailed", { defaultValue: "Tạo kế hoạch thất bại" }));
       }
     } catch (error: any) {
       console.error("Create plan error:", error);

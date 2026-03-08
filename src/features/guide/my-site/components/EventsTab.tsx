@@ -7,7 +7,8 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
@@ -64,11 +65,13 @@ interface EventsTabProps {
 // STATUS FILTER - Bottom Sheet Design (Gold Standard)
 // ============================================
 
-const STATUS_FILTERS: { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string }[] = [
-  { key: "all", label: "Tất cả", color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: "Hiển thị tất cả sự kiện" },
-  { key: "pending", label: "Chờ duyệt", color: "#E67E22", bgColor: "#FFF8E1", icon: "schedule", description: "Sự kiện đang chờ phê duyệt" },
-  { key: "approved", label: "Đã duyệt", color: "#27AE60", bgColor: "#E8F5E9", icon: "check-circle", description: "Sự kiện đã được phê duyệt" },
-  { key: "rejected", label: "Từ chối", color: "#E74C3C", bgColor: "#FFEBEE", icon: "cancel", description: "Sự kiện bị từ chối" },
+type StatusFilterItem = { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string };
+
+const getStatusFilters = (t: (key: string) => string): StatusFilterItem[] => [
+  { key: "all", label: t("eventsTab.statusAll"), color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: t("eventsTab.statusAllDesc") },
+  { key: "pending", label: t("eventsTab.statusPending"), color: "#E67E22", bgColor: "#FFF8E1", icon: "schedule", description: t("eventsTab.statusPendingDesc") },
+  { key: "approved", label: t("eventsTab.statusApproved"), color: "#27AE60", bgColor: "#E8F5E9", icon: "check-circle", description: t("eventsTab.statusApprovedDesc") },
+  { key: "rejected", label: t("eventsTab.statusRejected"), color: "#E74C3C", bgColor: "#FFEBEE", icon: "cancel", description: t("eventsTab.statusRejectedDesc") },
 ];
 
 interface FilterBottomSheetProps {
@@ -76,6 +79,7 @@ interface FilterBottomSheetProps {
   activeFilter: StatusFilter;
   onFilterChange: (filter: StatusFilter) => void;
   onClose: () => void;
+  filters: StatusFilterItem[];
 }
 
 const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
@@ -83,11 +87,12 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
   activeFilter,
   onFilterChange,
   onClose,
+  filters,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
 
-  // Reset selection when opened
   React.useEffect(() => {
     if (visible) {
       setSelectedFilter(activeFilter);
@@ -98,8 +103,6 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
     onFilterChange(selectedFilter);
     onClose();
   };
-
-  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
 
   return (
     <Modal
@@ -119,7 +122,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Header */}
               <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>Lọc sự kiện</Text>
+                <Text style={styles.bottomSheetTitle}>{t("eventsTab.filterTitle")}</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                   <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
                 </TouchableOpacity>
@@ -127,7 +130,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 
               {/* Filter Options */}
               <View style={styles.filterOptionsContainer}>
-                {STATUS_FILTERS.map((filter) => {
+                {filters.map((filter) => {
                   const isSelected = selectedFilter === filter.key;
                   return (
                     <TouchableOpacity
@@ -173,7 +176,7 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
                   onPress={handleApply}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.applyButtonText}>Áp dụng</Text>
+                  <Text style={styles.applyButtonText}>{t("eventsTab.apply")}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -188,10 +191,12 @@ const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
 interface FilterTriggerProps {
   activeFilter: StatusFilter;
   onPress: () => void;
+  filters: StatusFilterItem[];
 }
 
-const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) => {
-  const activeFilterInfo = STATUS_FILTERS.find(f => f.key === activeFilter);
+const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress, filters }) => {
+  const { t } = useTranslation();
+  const activeFilterInfo = filters.find(f => f.key === activeFilter);
   const isFiltered = activeFilter !== "all";
 
   return (
@@ -212,7 +217,7 @@ const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress }) 
         styles.filterTriggerText,
         isFiltered && { color: activeFilterInfo?.color },
       ]}>
-        {isFiltered ? activeFilterInfo?.label : "Lọc"}
+        {isFiltered ? activeFilterInfo?.label : t("eventsTab.filter")}
       </Text>
       <Ionicons
         name="chevron-down"
@@ -232,14 +237,15 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
+  const { t } = useTranslation();
   const getConfig = () => {
     switch (status) {
       case "pending":
-        return { bg: "#FFF8E1", color: "#E67E22", label: "Chờ duyệt" };
+        return { bg: "#FFF8E1", color: "#E67E22", label: t("eventsTab.statusPending") };
       case "approved":
-        return { bg: "#E8F5E9", color: "#27AE60", label: "Đã duyệt" };
+        return { bg: "#E8F5E9", color: "#27AE60", label: t("eventsTab.statusApproved") };
       case "rejected":
-        return { bg: "#FFEBEE", color: "#E74C3C", label: "Từ chối" };
+        return { bg: "#FFEBEE", color: "#E74C3C", label: t("eventsTab.statusRejected") };
     }
   };
 
@@ -265,7 +271,8 @@ interface EventCardProps {
   onDelete: () => void;
 }
 
-const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
+const EventCard: React.FC<EventCardProps> = React.memo(({ event, onPress, onDelete }) => {
+  const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const canEdit = event.status === "pending" || event.status === "rejected";
 
@@ -291,11 +298,11 @@ const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
     if (!canEdit) return;
     Alert.alert(
       event.name,
-      "Chọn thao tác",
+      t("eventsTab.chooseAction"),
       [
-        { text: "Sửa", onPress: () => onPress() },
-        { text: "Xóa", style: "destructive", onPress: () => onDelete() },
-        { text: "Hủy", style: "cancel" },
+        { text: t("eventsTab.edit"), onPress: () => onPress() },
+        { text: t("eventsTab.delete"), style: "destructive", onPress: () => onDelete() },
+        { text: t("eventsTab.cancel"), style: "cancel" },
       ]
     );
   };
@@ -385,7 +392,7 @@ const EventCard: React.FC<EventCardProps> = ({ event, onPress, onDelete }) => {
       ) : null}
     </TouchableOpacity>
   );
-};
+});
 
 // ============================================
 // EMPTY STATE COMPONENT - Premium Design
@@ -396,34 +403,33 @@ interface EmptyStateProps {
   statusFilter: StatusFilter;
 }
 
-const EmptyState: React.FC<EmptyStateProps> = ({ onCreatePress, statusFilter }) => (
-  <View style={styles.emptyState}>
-    <View style={styles.emptyIconContainer}>
-      <Ionicons name="calendar-outline" size={48} color={PREMIUM_COLORS.gold} />
+const EmptyState: React.FC<EmptyStateProps & { filters: StatusFilterItem[] }> = ({ onCreatePress, statusFilter, filters }) => {
+  const { t } = useTranslation();
+  const filterInfo = filters.find(f => f.key === statusFilter);
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIconContainer}>
+        <Ionicons name="calendar-outline" size={48} color={PREMIUM_COLORS.gold} />
+      </View>
+      <Text style={styles.emptyTitle}>
+        {statusFilter === "all"
+          ? t("eventsTab.empty")
+          : t("eventsTab.emptyFiltered", { status: filterInfo?.label.toLowerCase() })}
+      </Text>
     </View>
-    <Text style={styles.emptyTitle}>
-      {statusFilter === "all" ? "Chưa có sự kiện nào" : `Không có sự kiện ${STATUS_FILTERS.find(f => f.key === statusFilter)?.label.toLowerCase()}`}
-    </Text>
-    <Text style={styles.emptyDescription}>
-      Hãy tạo sự kiện mới cho điểm hành hương của bạn
-    </Text>
-    {statusFilter === "all" && (
-      <TouchableOpacity style={styles.emptyButton} onPress={onCreatePress} activeOpacity={0.8}>
-        <Ionicons name="add" size={20} color="#FFF" />
-        <Text style={styles.emptyButtonText}>Tạo sự kiện</Text>
-      </TouchableOpacity>
-    )}
-  </View>
-);
+  );
+};
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
 
 export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePress }) => {
+  const { t } = useTranslation();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const queryClient = useQueryClient();
+  const statusFilters = useMemo(() => getStatusFilters(t), [t]);
 
   const {
     data: events = [],
@@ -459,10 +465,10 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
-      Alert.alert("Thành công", "Đã xóa sự kiện");
+      Alert.alert(t("common.success"), t("eventsTab.deleteSuccess"));
     },
     onError: (error: any) => {
-      Alert.alert("Lỗi", error.message || "Không thể xóa sự kiện");
+      Alert.alert(t("common.error"), error.message || t("eventsTab.deleteError"));
     },
   });
 
@@ -472,23 +478,23 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
 
   const handleDelete = useCallback((event: EventItem) => {
     if (event.status === "approved") {
-      Alert.alert("Không thể xóa", "Không thể xóa sự kiện đã được duyệt");
+      Alert.alert(t("common.error"), t("eventsTab.deleteApprovedError"));
       return;
     }
 
     Alert.alert(
-      "Xóa sự kiện",
-      `Bạn có chắc muốn xóa "${event.name}"?`,
+      t("eventsTab.deleteTitle"),
+      t("eventsTab.deleteMessage", { name: event.name }),
       [
-        { text: "Hủy", style: "cancel" },
+        { text: t("eventsTab.cancel"), style: "cancel" },
         {
-          text: "Xóa",
+          text: t("eventsTab.delete"),
           style: "destructive",
           onPress: () => deleteMutation.mutate(event.id),
         },
       ]
     );
-  }, [deleteMutation]);
+  }, [deleteMutation, t]);
 
   const renderEventItem = useCallback(({ item }: { item: EventItem }) => (
     <EventCard
@@ -510,11 +516,11 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
     <View style={styles.container}>
       {/* Header Row */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Danh sách sự kiện</Text>
-        {/* Filter Trigger Button */}
+        <Text style={styles.sectionTitle}>{t("eventsTab.listTitle")}</Text>
         <FilterTrigger
           activeFilter={statusFilter}
           onPress={() => setShowFilterSheet(true)}
+          filters={statusFilters}
         />
       </View>
 
@@ -524,6 +530,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
         activeFilter={statusFilter}
         onFilterChange={setStatusFilter}
         onClose={() => setShowFilterSheet(false)}
+        filters={statusFilters}
       />
 
       {/* Events List */}
@@ -542,7 +549,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({ onEventPress, onCreatePres
           />
         }
         ListEmptyComponent={
-          <EmptyState onCreatePress={onCreatePress} statusFilter={statusFilter} />
+          <EmptyState onCreatePress={onCreatePress} statusFilter={statusFilter} filters={statusFilters} />
         }
         ItemSeparatorComponent={() => <View style={{ height: GUIDE_SPACING.md }} />}
       />

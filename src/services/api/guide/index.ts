@@ -26,7 +26,10 @@ export { default as guideEventApi } from "./eventApi";
 export * from "./dashboardHomeApi";
 export { default as dashboardApi } from "./dashboardHomeApi";
 // Backward compatibility aliases
-export { default as dashboardHomeApi, default as guideDashboardApi } from "./dashboardHomeApi";
+export {
+    default as dashboardHomeApi,
+    default as guideDashboardApi
+} from "./dashboardHomeApi";
 
 // Mass Schedule API (Lịch lễ)
 export * from "./massScheduleApi";
@@ -39,6 +42,10 @@ export { default as guideSOSApi } from "./sosApi";
 // Shift Submission API
 export * from "./shiftSubmissionApi";
 export { default as shiftSubmissionApi } from "./shiftSubmissionApi";
+
+// Nearby Places API
+export * from "./nearbyPlacesApi";
+export { default as guideNearbyPlacesApi } from "./nearbyPlacesApi";
 
 // Combined Guide API (for backward compatibility)
 import dashboardApi from "./dashboardHomeApi";
