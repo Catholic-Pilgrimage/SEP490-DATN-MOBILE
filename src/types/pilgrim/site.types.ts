@@ -177,6 +177,8 @@ export interface GetSiteEventsParams {
   page?: number;
   limit?: number;
   upcoming?: 'true' | 'false';
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface SiteEventResponse {
@@ -245,6 +247,9 @@ export interface SearchSitesParams {
   province?: string;
   page?: number;
   limit?: number;
+  has_events?: 'true' | 'false';
+  start_date?: string;
+  end_date?: string;
 }
 
 export interface NearbySitesParams {
