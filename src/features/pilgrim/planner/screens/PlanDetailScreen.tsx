@@ -1,7 +1,8 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -26,6 +27,8 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+import { VietmapView, MapPin, VietmapViewRef } from "../../../../components/map/VietmapView";
+import { FullMapModal } from "../../../../components/map/FullMapModal";
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
@@ -50,6 +53,124 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const mapRef = useRef<VietmapViewRef>(null);
+
+  // Day-based pin colors for visual distinction
+  const DAY_PIN_COLORS = [
+    '#E74C3C', // Red
+    '#3498DB', // Blue
+    '#2ECC71', // Green
+    '#F39C12', // Orange
+    '#9B59B6', // Purple
+    '#1ABC9C', // Teal
+    '#E67E22', // Dark Orange
+    '#E91E63', // Pink
+    '#00BCD4', // Cyan
+    '#8BC34A', // Light Green
+  ];
+
+  const DAY_PIN_ICONS = ['📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍'];
+
+  // Prepare Map Pins — one per site, colored by day
+  const mapPins: MapPin[] = useMemo(() => {
+    if (!plan || !plan.items_by_day) return [];
+    const pins: MapPin[] = [];
+    const seenSiteIds = new Set<string>(); // avoid duplicate pins for same site
+    Object.entries(plan.items_by_day).forEach(([dayKey, items]) => {
+      const dayIndex = parseInt(dayKey, 10) - 1;
+      const pinColor = DAY_PIN_COLORS[dayIndex % DAY_PIN_COLORS.length];
+      const pinIcon = DAY_PIN_ICONS[dayIndex % DAY_PIN_ICONS.length];
+      items.forEach((item, index) => {
+        const siteId = item.site_id || item.site?.id || '';
+        if (item.site && item.site.latitude && item.site.longitude && !seenSiteIds.has(siteId)) {
+          if (siteId) seenSiteIds.add(siteId);
+          pins.push({
+            id: item.id || `pin_${dayKey}_${index}`,
+            latitude: Number(item.site.latitude),
+            longitude: Number(item.site.longitude),
+            title: item.site.name,
+            subtitle: `Ngày ${dayKey}${item.site.address ? ' • ' + item.site.address : ''}`,
+            icon: pinIcon,
+            color: pinColor,
+          });
+        }
+      });
+    });
+    return pins;
+  }, [plan]);
+
+  // Calculate map center & zoom to fit ALL pins
+  const mapCenter = useMemo(() => {
+    if (mapPins.length === 0) {
+      return { latitude: 10.762622, longitude: 106.660172, zoom: 6 }; // Default center Vietnam
+    }
+    if (mapPins.length === 1) {
+      return { latitude: mapPins[0].latitude, longitude: mapPins[0].longitude, zoom: 13 };
+    }
+    // Calculate bounding box center
+    const lats = mapPins.map(p => p.latitude);
+    const lngs = mapPins.map(p => p.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLng = (minLng + maxLng) / 2;
+    const latDiff = maxLat - minLat;
+    const lngDiff = maxLng - minLng;
+    const maxDiff = Math.max(latDiff, lngDiff);
+    let zoom = 12;
+    if (maxDiff > 5) zoom = 4;
+    else if (maxDiff > 3) zoom = 5;
+    else if (maxDiff > 1.5) zoom = 6;
+    else if (maxDiff > 1) zoom = 7;
+    else if (maxDiff > 0.5) zoom = 8;
+    else if (maxDiff > 0.2) zoom = 9;
+    else if (maxDiff > 0.1) zoom = 10;
+    else if (maxDiff > 0.05) zoom = 11;
+    else if (maxDiff > 0.02) zoom = 12;
+    else zoom = 13;
+    return { latitude: centerLat, longitude: centerLng, zoom };
+  }, [mapPins]);
+
+  // Fly camera to fit all pins when pins change
+  useEffect(() => {
+    if (mapPins.length > 0 && mapRef.current) {
+      // Small delay to ensure the map is mounted & ready
+      const timer = setTimeout(() => {
+        if (!mapRef.current) return;
+        if (mapPins.length === 1) {
+          mapRef.current.flyTo(mapPins[0].latitude, mapPins[0].longitude, 13);
+          return;
+        }
+        const lats = mapPins.map(p => p.latitude);
+        const lngs = mapPins.map(p => p.longitude);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        const latDiff = maxLat - minLat;
+        const lngDiff = maxLng - minLng;
+        const maxDiff = Math.max(latDiff, lngDiff);
+        let targetZoom = 12;
+        if (maxDiff > 5) targetZoom = 4;
+        else if (maxDiff > 3) targetZoom = 5;
+        else if (maxDiff > 1.5) targetZoom = 6;
+        else if (maxDiff > 1) targetZoom = 7;
+        else if (maxDiff > 0.5) targetZoom = 8;
+        else if (maxDiff > 0.2) targetZoom = 9;
+        else if (maxDiff > 0.1) targetZoom = 10;
+        else if (maxDiff > 0.05) targetZoom = 11;
+        else if (maxDiff > 0.02) targetZoom = 12;
+        else targetZoom = 13;
+        mapRef.current.flyTo(centerLat, centerLng, targetZoom);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [mapPins]);
 
   // Add Item State
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -158,6 +279,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [savingPlan, setSavingPlan] = useState(false);
   const [showEditStartDatePicker, setShowEditStartDatePicker] = useState(false);
   const [showEditEndDatePicker, setShowEditEndDatePicker] = useState(false);
+
+  // Menu Dropdown state
+  const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+
+  // Full Map Modal state
+  const [showFullMap, setShowFullMap] = useState(false);
+
+  useEffect(() => {
+    // Attempt to hide bottom tab
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { display: "flex" }, 
+      });
+    };
+  }, [navigation]);
 
   useEffect(() => {
     loadPlan();
@@ -410,6 +549,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleDeletePlan = () => {
+    setShowMenuDropdown(false); // Hide menu if open
     Alert.alert(
       t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
       t("planner.deleteConfirmMsg", {
@@ -667,7 +807,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const formatTimeValue = (value: any): string => {
     if (!value) return "";
-    if (typeof value === "string") return value;
+    if (typeof value === "string") {
+      // If it's a time string like "10:30:00", trim the seconds
+      if (value.match(/^\d{2}:\d{2}:\d{2}$/)) {
+        return value.substring(0, 5);
+      }
+      return value;
+    }
     if (typeof value === "object" && value.hours !== undefined) {
       // Handle object format like {hours: 2, minutes: 30}
       const hours = value.hours || 0;
@@ -702,6 +848,29 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       if (rawMatch) minutes = parseInt(rawMatch[1]);
     }
     return minutes;
+  };
+
+  const calculateEndTime = (startTimeStr: any, durationStr: any): string => {
+    if (!startTimeStr) return "";
+    const startStr = formatTimeValue(startTimeStr);
+    const durationMins = parseDurationToMinutes(durationStr);
+    if (!durationMins) return startStr;
+    const [hours, minutes] = startStr.split(":").map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return startStr;
+    const date = new Date();
+    date.setHours(hours);
+    date.setMinutes(minutes + durationMins);
+    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+  };
+
+  const getDateForDay = (startDateStr: string, dayNumber: number): string => {
+    try {
+       const date = new Date(startDateStr);
+       date.setDate(date.getDate() + (dayNumber - 1));
+       return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+    } catch {
+       return "";
+    }
   };
 
   const handleAddItem = async (siteId: string, eventId?: string) => {
@@ -1056,8 +1225,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  // Sort days
-  // Always show all days from 1 to number_of_days, even empty ones
   const totalDays =
     plan.number_of_days ||
     (plan.items_by_day ? Object.keys(plan.items_by_day).length : 1);
@@ -1071,48 +1238,89 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         translucent
       />
 
-      {/* Header Image Background */}
+      {/* Header Image Background -> VietMap Background */}
       <View style={styles.headerImageContainer}>
-        <Image
-          source={{
-            uri: "https://images.unsplash.com/photo-1548625361-e88c60eb83fe",
-          }} // Placeholder
-          style={styles.headerImage}
+        <VietmapView
+           ref={mapRef}
+           initialRegion={mapCenter}
+           pins={mapPins}
+           scrollEnabled={true}
+           showInfoCards={true}
+           cardBottomOffset={180}
+           style={styles.headerImage}
         />
-        <View style={styles.headerOverlay} />
+        <LinearGradient
+          colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.15)', 'transparent']}
+          style={[StyleSheet.absoluteFill, { zIndex: 1, height: '35%' }]}
+          pointerEvents="none"
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)']}
+          style={[StyleSheet.absoluteFill, { zIndex: 1, top: '55%' }]}
+          pointerEvents="none"
+        />
 
-        {/* Navbar */}
-        <View style={[styles.navbar, { marginTop: insets.top }]}>
-          <TouchableOpacity
-            style={styles.navButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.navActions}>
+          {/* Navbar */}
+          <View style={[styles.navbar, { marginTop: insets.top, zIndex: 10 }]}>
             <TouchableOpacity
               style={styles.navButton}
-              onPress={handleDeletePlan}
+              onPress={() => navigation.goBack()}
             >
-              <Ionicons name="trash-outline" size={24} color="#FF6B6B" />
+              <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={handleOpenShareModal}
-            >
-              <Ionicons name="people-outline" size={24} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={handleOpenEditPlan}
-            >
-              <Ionicons name="create-outline" size={24} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.navActions}>
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={() => setShowFullMap(true)}
+              >
+                <Ionicons name="expand-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={handleOpenShareModal}
+              >
+                <Ionicons name="qr-code-outline" size={24} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={() => setShowMenuDropdown(true)}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+
+          {/* Menu Dropdown Popup */}
+          {showMenuDropdown && (
+            <TouchableOpacity 
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}
+              activeOpacity={1}
+              onPress={() => setShowMenuDropdown(false)}
+            >
+              <View style={{ position: 'absolute', top: insets.top + 45, right: 16, backgroundColor: '#fff', borderRadius: 12, padding: 8, ...SHADOWS.medium, minWidth: 160 }}>
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}
+                  onPress={() => {
+                    setShowMenuDropdown(false);
+                    handleOpenEditPlan();
+                  }}
+                >
+                  <Ionicons name="create-outline" size={20} color={COLORS.textPrimary} style={{ marginRight: 12 }} />
+                  <Text style={{ fontSize: 16, color: COLORS.textPrimary, fontWeight: '500' }}>Sửa kế hoạch</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}
+                  onPress={handleDeletePlan}
+                >
+                  <Ionicons name="trash-outline" size={20} color="#EF4444" style={{ marginRight: 12 }} />
+                  <Text style={{ fontSize: 16, color: "#EF4444", fontWeight: '500' }}>Xóa kế hoạch</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          )}
 
         {/* Title & Info */}
-        <View style={styles.headerContent}>
+        <View style={[styles.headerContent, { zIndex: 10 }]} pointerEvents="box-none">
           <View style={styles.badgeContainer}>
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>
@@ -1137,36 +1345,44 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             )}
           </View>
           <Text style={styles.title}>{plan.name}</Text>
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Ionicons
-                name="calendar-outline"
-                size={16}
-                color="rgba(255,255,255,0.9)"
-              />
-              <Text style={styles.metaText}>
-                {new Date(plan.start_date).toLocaleDateString()}
-              </Text>
+          <View style={[styles.metaRow, { justifyContent: 'space-between', width: '100%', alignItems: 'center' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={16}
+                  color="rgba(255,255,255,0.9)"
+                />
+                <Text style={styles.metaText}>
+                  {new Date(plan.start_date).toLocaleDateString("vi-VN")}
+                </Text>
+              </View>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <Ionicons
+                  name="time-outline"
+                  size={16}
+                  color="rgba(255,255,255,0.9)"
+                />
+                <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
+              </View>
             </View>
-            <View style={styles.metaDivider} />
-            <View style={styles.metaItem}>
-              <Ionicons
-                name="time-outline"
-                size={16}
-                color="rgba(255,255,255,0.9)"
-              />
-              <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
-            </View>
-            <View style={styles.metaDivider} />
-            <View style={styles.metaItem}>
-              <Ionicons
-                name="people-outline"
-                size={16}
-                color="rgba(255,255,255,0.9)"
-              />
-              <Text style={styles.metaText}>
-                {plan.number_of_people} {t("planner.people")}
-              </Text>
+            
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleOpenShareModal}>
+                 {/* Mini Avatars */}
+                 <View style={{ flexDirection: 'row' }}>
+                   <Image source={{ uri: plan.owner?.avatar_url || 'https://i.pravatar.cc/100?img=1' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: '#fff' }} />
+                   {plan.number_of_people > 1 && (
+                     <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginLeft: -10, borderWidth: 1.5, borderColor: '#fff' }}>
+                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>+{plan.number_of_people - 1}</Text>
+                     </View>
+                   )}
+                 </View>
+                 <View style={{ marginLeft: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)' }}>
+                   <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>+ Mời</Text>
+                 </View>
+               </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1185,30 +1401,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             const items = plan.items_by_day?.[dayKey] || [];
             return (
               <View key={dayKey} style={styles.dayContainer}>
-                <View style={styles.dayHeader}>
-                  <View style={styles.dayNumberContainer}>
-                    <Text style={styles.dayNumber}>
-                      {t("planner.dayLabel")}
-                      {dayKey}
-                    </Text>
-                  </View>
-                  <View style={styles.dayLine} />
+                <View style={[styles.dayHeader, { backgroundColor: COLORS.backgroundSoft, paddingVertical: 12, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }]}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }}>
+                    Ngày {dayKey} • {getDateForDay(plan.start_date, Number(dayKey))}
+                  </Text>
                 </View>
 
                 <View style={styles.timelineContainer}>
-                  <View style={styles.timelineLine} />
+                  <View style={[styles.timelineLine, { width: 1.5, backgroundColor: '#E5E7EB', left: 24 }]} />
                   <View style={styles.timelineItems}>
                     {items.length === 0 && (
-                      <Text
-                        style={{
-                          color: COLORS.textTertiary,
-                          fontSize: 13,
-                          marginBottom: 8,
-                          marginLeft: 4,
-                        }}
-                      >
-                        {t("planner.noLocationsForDay")}
-                      </Text>
+                       <TouchableOpacity style={{ borderWidth: 1.5, borderColor: '#D1D5DB', borderStyle: 'dashed', borderRadius: 12, padding: 24, justifyContent: 'center', alignItems: 'center', width: '100%', marginBottom: 16, backgroundColor: '#F9FAFB' }} onPress={() => openAddModal(Number(dayKey))}>
+                         <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} />
+                         <Text style={{ fontSize: 15, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>Bấm để thêm nhà thờ/điểm đến</Text>
+                       </TouchableOpacity>
                     )}
                     {items.map((item: PlanItem, index) => (
                       <TouchableOpacity
@@ -1216,7 +1422,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                         style={styles.timelineItem}
                         onPress={() => setSelectedItem(item)}
                       >
-                        <View style={styles.timelineDot} />
+                        <View style={[styles.timelineDot, { borderColor: '#D97706', borderWidth: 2, backgroundColor: '#fff', width: 12, height: 12, borderRadius: 6, left: -6 }]} />
                         <View style={styles.itemCard}>
                           <Image
                             source={{
@@ -1239,33 +1445,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                 {item.site.address}
                               </Text>
                             )}
+                            {/* End Time display (instead of duration), and remove formatting seconds from raw time if formatTimeValue does not handle it cleanly, but calculateEndTime will. */}
                             <View style={styles.itemFooter}>
-                              {(item.estimated_time || item.arrival_time) && (
-                                <View style={styles.itemTimeInfo}>
-                                  <Ionicons
-                                    name="time-outline"
-                                    size={14}
-                                    color={COLORS.accent}
-                                  />
-                                  <Text style={styles.itemTime}>
-                                    {formatTimeValue(
-                                      item.estimated_time || item.arrival_time,
-                                    )}
-                                  </Text>
-                                </View>
-                              )}
-                              {item.rest_duration && (
-                                <View style={styles.itemTimeInfo}>
-                                  <Ionicons
-                                    name="hourglass-outline"
-                                    size={14}
-                                    color={COLORS.accent}
-                                  />
-                                  <Text style={styles.itemTime}>
-                                    {formatTimeValue(item.rest_duration)}
-                                  </Text>
-                                </View>
-                              )}
+                              <View style={styles.itemTimeInfo}>
+                                <Ionicons
+                                  name="time-outline"
+                                  size={16}
+                                  color={COLORS.accent}
+                                />
+                                <Text style={styles.itemTime}>
+                                  {formatTimeValue(item.estimated_time || item.arrival_time)} 
+                                  {item.rest_duration ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}` : ""}
+                                </Text>
+                              </View>
                             </View>
                             {item.note && item.note !== "Visited" && (
                               <Text style={styles.itemNote} numberOfLines={1}>
@@ -1274,8 +1466,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                             )}
                           </View>
                           <Ionicons
-                            name="chevron-forward"
-                            size={18}
+                            name="reorder-two-outline"
+                            size={24}
                             color={COLORS.textTertiary}
                           />
                         </View>
@@ -1298,21 +1490,21 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             );
           })
         ) : (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, { marginTop: 40 }]}>
             <MaterialIcons
               name="edit-road"
-              size={48}
-              color={COLORS.textTertiary}
+              size={64}
+              color={COLORS.border}
             />
-            <Text style={styles.emptyStateText}>
+            <Text style={[styles.emptyStateText, { marginTop: 16, marginBottom: 24, fontSize: 16 }]}>
               {t("planner.noLocationsInPlan")}
             </Text>
             <TouchableOpacity
-              style={styles.addItemsButton}
+              style={{ paddingHorizontal: 32, paddingVertical: 14, backgroundColor: COLORS.accent, borderRadius: 24, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
               onPress={() => openAddModal(1)}
             >
-              <Text style={styles.addItemsButtonText}>
-                {t("planner.addLocationForDayOne")}
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+                + Thêm điểm dừng đầu tiên
               </Text>
             </TouchableOpacity>
           </View>
@@ -3138,6 +3330,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           </View>
         </View>
       </Modal>
+
+      {/* Full Map Modal */}
+      <FullMapModal
+        visible={showFullMap}
+        onClose={() => setShowFullMap(false)}
+        pins={mapPins}
+        initialRegion={mapCenter}
+        title={plan?.name || 'Bản đồ kế hoạch'}
+        showUserLocation={true}
+      />
     </View>
   );
 };
@@ -3164,14 +3366,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   headerImageContainer: {
-    height: 300,
     width: "100%",
+    height: 260,
     position: "relative",
+    overflow: "hidden",
   },
   headerImage: {
     width: "100%",
     height: "100%",
-    resizeMode: "cover",
   },
   headerOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -3192,9 +3394,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    ...SHADOWS.small,
   },
   navActions: {
     flexDirection: "row",
@@ -3202,11 +3407,9 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: SPACING.lg,
-    paddingBottom: SPACING.xl,
+    bottom: SPACING.xl, // Push up slightly
+    left: SPACING.lg,
+    right: SPACING.lg,
   },
   badgeContainer: {
     flexDirection: "row",
@@ -3259,10 +3462,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginTop: -20, // Overlap header
     backgroundColor: COLORS.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
     paddingTop: 24,
   },
   scrollContent: {
