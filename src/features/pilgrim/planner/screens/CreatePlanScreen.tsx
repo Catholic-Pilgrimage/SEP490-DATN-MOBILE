@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -55,6 +55,18 @@ const generateCalendarDays = (year: number, month: number) => {
 const CreatePlanScreen = ({ navigation }: any) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    // Attempt to hide bottom tab
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { display: "flex" }, 
+      });
+    };
+  }, [navigation]);
 
   // Form State
   const [name, setName] = useState("");
@@ -117,7 +129,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
       const response = await pilgrimPlannerApi.createPlan(payload);
 
-      if (response.success) {
+      if (response && response.success) {
         // Success
         Alert.alert(
           t("common.success"),
@@ -128,7 +140,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
         navigation.goBack();
       } else {
         throw new Error(
-          response.message ||
+          response?.message ||
             t("planner.createFailed", {
               defaultValue: "Tạo kế hoạch thất bại",
             }),
@@ -158,7 +170,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
         <StatusBar barStyle="dark-content" />
 
         {/* Background Pattern */}
-        <View style={styles.backgroundPattern} pointerEvents="none" />
+        <View style={styles.backgroundPattern} pointerEvents="none">
+           <Ionicons name="compass-outline" size={300} color={COLORS.textTertiary} style={{opacity: 0.1, position: 'absolute', top: -50, right: -50}} />
+        </View>
 
         {/* Header */}
         <View style={[styles.header, { marginTop: insets.top }]}>
@@ -180,51 +194,77 @@ const CreatePlanScreen = ({ navigation }: any) => {
         >
           {/* Section 1: Name */}
           <View style={styles.section}>
-            <Text style={styles.label}>{t("planner.journeyName")}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+              <Ionicons name="trail-sign" size={20} color="#D97706" />
+              <Text style={[styles.label, { marginBottom: 0 }]}>{t("planner.journeyName")}</Text>
+            </View>
             <TextInput
               style={styles.input}
-              placeholder={t("planner.journeyNamePlaceholder")}
-              placeholderTextColor={COLORS.textSecondary}
+              placeholder="Ví dụ: Hành hương Đức Mẹ La Vang..."
+              placeholderTextColor={COLORS.textTertiary}
               value={name}
               onChangeText={setName}
             />
           </View>
 
-          {/* Section 2: Start Date Picker */}
-          <View style={styles.section}>
-            <Text style={styles.label}>{t("planner.startDate")}</Text>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => setShowStartPicker(!showStartPicker)}
-            >
-              <View style={styles.dateDisplayRow}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={24}
-                  color={COLORS.accent}
-                />
-                <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>
-                    {t("planner.selectedDate")}
-                  </Text>
-                  <Text style={styles.dateDisplayValue}>
-                    {new Date(startDate).toLocaleDateString("vi-VN", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={showStartPicker ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={COLORS.textSecondary}
-                  style={{ marginLeft: "auto" }}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
+          {/* Time Calculation */}
+          {(() => {
+             const diffTime = Math.abs(new Date(endDate).getTime() - new Date(startDate).getTime());
+             const diffNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+             const diffDays = diffNights + 1;
+             
+             return (
+               <>
+                 {/* Section 2: Time block */}
+                 <View style={styles.section}>
+                   <View style={{ flexDirection: "row", alignItems: "center", marginBottom: SPACING.sm, justifyContent: "space-between" }}>
+                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                       <Ionicons name="calendar" size={20} color="#D97706" />
+                       <Text style={[styles.label, { marginBottom: 0 }]}>Thời gian hành hương</Text>
+                     </View>
+                     <View style={styles.durationBadge}>
+                       <Text style={styles.durationBadgeText}>{diffDays} Ngày {diffNights} Đêm</Text>
+                     </View>
+                   </View>
+
+                   <View style={[styles.card, { flexDirection: "row", padding: 0, overflow: "hidden" }]}>
+                     {/* Start Date */}
+                     <TouchableOpacity
+                       style={{ flex: 1, padding: SPACING.md, borderRightWidth: 1, borderRightColor: COLORS.border }}
+                       onPress={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+                     >
+                       <Text style={styles.dateDisplayLabel}>Ngày đi</Text>
+                       <Text style={styles.dateDisplayValue}>
+                         {new Date(startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                       </Text>
+                       <Text style={styles.dateDisplaySub}>
+                         ({new Date(startDate).toLocaleDateString("vi-VN", { weekday: "short" })})
+                       </Text>
+                     </TouchableOpacity>
+                     
+                     {/* Arrow */}
+                     <View style={{ justifyContent: "center", alignItems: "center", width: 40, backgroundColor: "#F9FAFB" }}>
+                       <Ionicons name="arrow-forward" size={20} color={COLORS.textTertiary} />
+                     </View>
+
+                     {/* End Date */}
+                     <TouchableOpacity
+                       style={{ flex: 1, padding: SPACING.md }}
+                       onPress={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+                     >
+                       <Text style={styles.dateDisplayLabel}>Ngày về</Text>
+                       <Text style={styles.dateDisplayValue}>
+                         {new Date(endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
+                       </Text>
+                       <Text style={styles.dateDisplaySub}>
+                         ({new Date(endDate).toLocaleDateString("vi-VN", { weekday: "short" })})
+                       </Text>
+                     </TouchableOpacity>
+                   </View>
+                 </View>
+               </>
+             );
+          })()}
 
           {showStartPicker && (
             <View style={[styles.section, styles.calendarContainer]}>
@@ -331,42 +371,6 @@ const CreatePlanScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          {/* Section 3: End Date Picker */}
-          <View style={styles.section}>
-            <Text style={styles.label}>{t("planner.endDate")}</Text>
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() => setShowEndPicker(!showEndPicker)}
-            >
-              <View style={styles.dateDisplayRow}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={24}
-                  color={COLORS.accent}
-                />
-                <View style={{ marginLeft: 12 }}>
-                  <Text style={styles.dateDisplayLabel}>
-                    {t("planner.selectedDate")}
-                  </Text>
-                  <Text style={styles.dateDisplayValue}>
-                    {new Date(endDate).toLocaleDateString("vi-VN", {
-                      weekday: "short",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={showEndPicker ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={COLORS.textSecondary}
-                  style={{ marginLeft: "auto" }}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
-
           {showEndPicker && (
             <View style={[styles.section, styles.calendarContainer]}>
               <View style={styles.calendarCard}>
@@ -472,82 +476,74 @@ const CreatePlanScreen = ({ navigation }: any) => {
             </View>
           )}
 
-          {/* Section 4: Participants & Transport (API Requirement) */}
-          <View style={[styles.section, { flexDirection: "row", gap: 12 }]}>
-            {/* People Counter */}
-            <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>
-                {t("planner.numberOfPeople")}
-              </Text>
-              <View style={styles.counterRow}>
-                <TouchableOpacity
-                  onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
-                  style={styles.counterBtn}
-                >
-                  <Ionicons
-                    name="remove"
-                    size={16}
-                    color={COLORS.textPrimary}
-                  />
-                </TouchableOpacity>
-                <Text style={styles.counterValue}>{peopleCount}</Text>
-                <TouchableOpacity
-                  onPress={() => setPeopleCount(Math.min(50, peopleCount + 1))}
-                  style={styles.counterBtn}
-                >
-                  <Ionicons name="add" size={16} color={COLORS.textPrimary} />
-                </TouchableOpacity>
-              </View>
-            </View>
+          {/* Section 4: Participants */}
+          <View style={styles.section}>
+             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+               <Ionicons name="people" size={20} color="#D97706" />
+               <Text style={[styles.label, { marginBottom: 0 }]}>Số lượng người tham gia</Text>
+             </View>
+             <View style={[styles.card, { padding: SPACING.md }]}>
+               <View style={[styles.counterRow, { backgroundColor: "transparent", padding: 0 }]}>
+                 <Text style={{ fontSize: 16, color: COLORS.textPrimary, fontWeight: "600" }}>Số người đi</Text>
+                 <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                    <TouchableOpacity
+                      onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
+                      style={styles.counterBtnOutline}
+                    >
+                      <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={styles.counterValueBig}>{peopleCount}</Text>
+                    <TouchableOpacity
+                      onPress={() => setPeopleCount(Math.min(50, peopleCount + 1))}
+                      style={styles.counterBtnOutline}
+                    >
+                      <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                 </View>
+               </View>
+               <View style={{ marginTop: 16, backgroundColor: "#FEF3C7", padding: 12, borderRadius: 8, flexDirection: "row", gap: 8 }}>
+                  <Ionicons name="sparkles" size={16} color="#D97706" style={{ marginTop: 2 }} />
+                  <Text style={{ fontSize: 13, color: "#D97706", flex: 1, lineHeight: 18, fontWeight: "500" }}>
+                    Bạn có thể tạo mã QR để mời bạn bè tham gia nhóm sau khi lên lịch trình!
+                  </Text>
+               </View>
+             </View>
+          </View>
 
-            {/* Transport Selector (Simplified) */}
-            <View style={[styles.card, { flex: 1, padding: 12 }]}>
-              <Text style={styles.labelSmall}>
-                {t("planner.transportation")}
-              </Text>
-              <View style={styles.transportRow}>
-                {[
-                  {
-                    value: "bus",
-                    icon: "bus" as const,
-                    emoji: null,
-                    color: "#FA8C16",
-                  },
-                  {
-                    value: "car",
-                    icon: "car" as const,
-                    emoji: null,
-                    color: "#1890FF",
-                  },
-                  { value: "other", icon: null, emoji: "🏍️", color: null },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.value}
-                    style={[
-                      styles.transportIcon,
-                      transportation === item.value
-                        ? styles.transportIconSelected
-                        : { backgroundColor: "#F5F5F5" },
-                    ]}
-                    onPress={() => setTransportation(item.value)}
-                  >
-                    {item.emoji ? (
-                      <Text style={{ fontSize: 18 }}>{item.emoji}</Text>
-                    ) : (
+          {/* Section 5: Transport */}
+          <View style={styles.section}>
+             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+               <Ionicons name="car" size={20} color="#D97706" />
+               <Text style={[styles.label, { marginBottom: 0 }]}>Phương tiện di chuyển chính</Text>
+             </View>
+             <View style={[styles.card, { padding: SPACING.md }]}>
+                <View style={styles.transportRow}>
+                  {[
+                    { value: "bus", icon: "bus" as const, label: "Xe buýt", color: "#FA8C16" },
+                    { value: "car", icon: "car" as const, label: "Ô tô", color: "#1890FF" },
+                    { value: "motorcycle", icon: "bicycle" as const, label: "Xe máy", color: "#10B981" },
+                  ].map((item) => (
+                    <TouchableOpacity
+                      key={item.value}
+                      style={[
+                        styles.transportIconBox,
+                        transportation === item.value ? styles.transportIconBoxSelected : {},
+                      ]}
+                      onPress={() => setTransportation(item.value)}
+                    >
                       <Ionicons
-                        name={item.icon!}
-                        size={20}
-                        color={
-                          transportation === item.value
-                            ? COLORS.white
-                            : item.color!
-                        }
+                        name={item.icon}
+                        size={28}
+                        color={transportation === item.value ? COLORS.white : item.color}
                       />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+                      <Text style={[
+                         { fontSize: 12, marginTop: 8, fontWeight: "600" }, 
+                         transportation === item.value ? { color: COLORS.white } : { color: COLORS.textSecondary }
+                      ]}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+             </View>
           </View>
 
           <View style={{ height: 100 }} />
@@ -569,7 +565,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
               <ActivityIndicator color={COLORS.textPrimary} />
             ) : (
               <Text style={styles.createButtonText}>
-                {t("planner.createAndPlan")}
+                Tiếp tục chọn địa điểm ➔
               </Text>
             )}
           </TouchableOpacity>
@@ -642,7 +638,58 @@ const styles = StyleSheet.create({
     height: 56,
     fontSize: TYPOGRAPHY.fontSize.md,
     color: COLORS.textPrimary,
+    fontWeight: "600",
     ...SHADOWS.subtle,
+  },
+  durationBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  durationBadgeText: {
+    color: "#D97706",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  dateDisplaySub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  counterBtnOutline: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.borderMedium || "#D1D5DB",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+  },
+  counterValueBig: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
+    minWidth: 30,
+    textAlign: "center",
+  },
+  transportIconBox: {
+    flex: 1,
+    height: 80,
+    borderRadius: BORDER_RADIUS.lg,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  transportIconBoxSelected: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+    ...SHADOWS.medium,
   },
   card: {
     backgroundColor: COLORS.white,

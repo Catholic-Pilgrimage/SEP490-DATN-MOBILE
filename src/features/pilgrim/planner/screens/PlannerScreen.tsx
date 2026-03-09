@@ -74,16 +74,30 @@ export const PlannerScreen = ({ navigation }: any) => {
             // setLoading(true); // Maybe don't set loading on refocus to avoid flicker? 
             // Or only initial loading. Let's keep it simple for now or use a refreshing state.
             const response = await pilgrimPlannerApi.getPlans({ page: 1, limit: 10 });
-            if (response.success && response.data?.planners) {
+            if (response && response.success && response.data?.planners) {
                 // Map API Entity to UI Model
                 const mappedPlans: PlanUI[] = response.data.planners.map((entity: PlanEntity) => {
+                    // Try to calculate total items from various possible response formats
+                    let totalItems = 0;
+                    if (entity.items) {
+                        totalItems = entity.items.length;
+                    } else if (entity.items_by_day) {
+                        totalItems = Object.values(entity.items_by_day).flat().length;
+                    } else if ((entity as any).item_count !== undefined) {
+                        totalItems = (entity as any).item_count;
+                    } else if ((entity as any).total_items !== undefined) {
+                        totalItems = (entity as any).total_items;
+                    } else if ((entity as any).stopCount !== undefined) {
+                        totalItems = (entity as any).stopCount;
+                    }
+
                     return {
                         id: entity.id,
                         title: entity.name,
                         startDate: entity.start_date,
                         endDate: entity.end_date || entity.start_date, // Fallback if end_date missing
                         status: (entity.status as any) || 'planned',
-                        stopCount: 0,
+                        stopCount: totalItems,
                         participantCount: entity.number_of_people,
                         coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
                         isShared: !!entity.share_token, // Check share_token for shared status
@@ -236,6 +250,8 @@ export const PlannerScreen = ({ navigation }: any) => {
                                     key={plan.id}
                                     plan={plan}
                                     onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
+                                    onShare={() => console.log('Share plan', plan.id)}
+                                    onEdit={() => console.log('Edit plan', plan.id)}
                                 />
                             ))}
                         </View>
