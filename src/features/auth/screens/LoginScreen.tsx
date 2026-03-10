@@ -1,31 +1,37 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  CommonActions,
+  RouteProp,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    ImageBackground,
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ImageBackground,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSequence,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -105,14 +111,44 @@ const LoginScreen = () => {
   }, [email, password]);
 
   // Navigate based on user role when authenticated or guest mode
+  // If user came from an invite link (pending_invite_token saved), navigate there after login
   useEffect(() => {
     if (isAuthenticated || isGuest) {
-      navigateToAppropriateScreen(
-        navigation,
-        isAuthenticated,
-        isGuest,
-        user?.role,
-      );
+      AsyncStorage.getItem("pending_invite_token")
+        .then((pendingToken) => {
+          if (pendingToken && isAuthenticated) {
+            // Clear the pending token first
+            AsyncStorage.removeItem("pending_invite_token");
+            // Navigate to main app, then push the invite screen on top
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 1,
+                routes: [
+                  { name: "Main" },
+                  {
+                    name: "PlanInvitePreview",
+                    params: { token: pendingToken },
+                  },
+                ],
+              }),
+            );
+          } else {
+            navigateToAppropriateScreen(
+              navigation,
+              isAuthenticated,
+              isGuest,
+              user?.role,
+            );
+          }
+        })
+        .catch(() => {
+          navigateToAppropriateScreen(
+            navigation,
+            isAuthenticated,
+            isGuest,
+            user?.role,
+          );
+        });
     }
   }, [isAuthenticated, isGuest, user?.role, navigation]);
 

@@ -15,10 +15,7 @@
  * - POST   /api/planner-items/:id/checkin - Check-in at planner item
  */
 
-import {
-  ApiResponse,
-  PaginationParams,
-} from "../../../types/api.types";
+import { ApiResponse, PaginationParams } from "../../../types/api.types";
 import {
   AddPlanItemRequest,
   AddPlanItemResponse,
@@ -27,19 +24,22 @@ import {
   CheckInItemRequest,
   CheckInItemResponse,
   CreatePlanRequest,
+  GetInvitesResponse,
+  GetMembersResponse,
   GetPlanMessagesResponse,
   GetPlansResponse,
   InviteParticipantRequest,
   PlanEntity,
+  PlanInvite,
   PlanItem,
   PlannerMessage,
   PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
   ReorderPlanItemsRequest,
   ReorderPlanItemsResponse,
+  RespondInviteRequest,
   SendPlanMessageRequest,
   UpdatePlanItemRequest,
-  UpdatePlanRequest,
-  UploadMessageImageResponse
+  UpdatePlanRequest
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -194,13 +194,81 @@ export const inviteParticipant = async (
 };
 
 /**
- * Get plan participants
+ * Get plan participants (legacy - kept for backward compat)
  */
 export const getParticipants = async (
   planId: string,
 ): Promise<ApiResponse<PlanParticipant[]>> => {
   const response = await apiClient.get<ApiResponse<PlanParticipant[]>>(
     PILGRIM_ENDPOINTS.PLANNER.PARTICIPANTS(planId),
+  );
+  return response.data;
+};
+
+/**
+ * Preview plan via invite token (no auth required)
+ * GET /api/planners/invite/{token}
+ */
+export const getPlanByInviteToken = async (
+  token: string,
+): Promise<ApiResponse<PlanInvite>> => {
+  const response = await apiClient.get<ApiResponse<PlanInvite>>(
+    PILGRIM_ENDPOINTS.PLANNER.INVITE_BY_TOKEN(token),
+  );
+  return response.data;
+};
+
+/**
+ * Respond to invite (accept/reject)
+ * POST /api/planners/invite/{token}
+ */
+export const respondToInvite = async (
+  token: string,
+  data: RespondInviteRequest,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.post<ApiResponse<void>>(
+    PILGRIM_ENDPOINTS.PLANNER.INVITE_BY_TOKEN(token),
+    data,
+  );
+  return response.data;
+};
+
+/**
+ * Get list of invites for a plan
+ * GET /api/planners/{id}/invites
+ */
+export const getPlanInvites = async (
+  planId: string,
+): Promise<ApiResponse<GetInvitesResponse>> => {
+  const response = await apiClient.get<ApiResponse<GetInvitesResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.INVITES(planId),
+  );
+  return response.data;
+};
+
+/**
+ * Get members of a plan
+ * GET /api/planners/{id}/members
+ */
+export const getPlanMembers = async (
+  planId: string,
+): Promise<ApiResponse<GetMembersResponse>> => {
+  const response = await apiClient.get<ApiResponse<GetMembersResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.MEMBERS(planId),
+  );
+  return response.data;
+};
+
+/**
+ * Remove a member from a plan
+ * DELETE /api/planners/{id}/members/{memberId}
+ */
+export const removePlanMember = async (
+  planId: string,
+  memberId: string,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.delete<ApiResponse<void>>(
+    PILGRIM_ENDPOINTS.PLANNER.REMOVE_MEMBER(planId, memberId),
   );
   return response.data;
 };
@@ -247,35 +315,6 @@ export const deletePlanMessage = async (
 };
 
 /**
- * Upload image for plan message (chat)
- */
-export const uploadPlanMessageImage = async (
-  planId: string,
-  imageFile: any, // Expecting { uri, name, type } or similar
-): Promise<ApiResponse<UploadMessageImageResponse>> => {
-  const formData = new FormData();
-  formData.append("image", {
-    uri: imageFile.uri,
-    name: imageFile.name || "image.jpg",
-    type: imageFile.type || "image/jpeg",
-  } as any);
-
-  const response = await apiClient.post<ApiResponse<UploadMessageImageResponse>>(
-    PILGRIM_ENDPOINTS.PLANNER.UPLOAD_MESSAGE_IMAGE(planId),
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-      transformRequest: (data, headers) => {
-        return formData; // Crucial for some axios adapters to not mess up FormData
-      },
-    }
-  );
-  return response.data;
-};
-
-/**
  * Get my check-ins
  * API returns array directly in data field, not wrapped in check_ins key
  */
@@ -316,6 +355,11 @@ const pilgrimPlannerApi = {
   getAISuggestions,
   inviteParticipant,
   getParticipants,
+  getPlanByInviteToken,
+  respondToInvite,
+  getPlanInvites,
+  getPlanMembers,
+  removePlanMember,
   addPlanItem,
   updatePlanItem,
   deletePlanItem,
@@ -323,7 +367,6 @@ const pilgrimPlannerApi = {
   getPlanMessages,
   sendPlanMessage,
   deletePlanMessage,
-  uploadPlanMessageImage,
   getMyCheckIns,
   checkInPlanItem,
 };

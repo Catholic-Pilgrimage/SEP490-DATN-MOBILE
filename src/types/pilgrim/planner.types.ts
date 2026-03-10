@@ -67,6 +67,55 @@ export interface PlanParticipant {
   joinedAt: string;
 }
 
+export interface PlanMember {
+  // PlannerMember có composite PK: (planner_id, user_id) — không có id riêng
+  planner_id: string;
+  user_id: string;
+  role: "viewer";
+  joined_at: string;
+  user: {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
+}
+
+export interface PlanInvite {
+  id: string;
+  planner_id: string;
+  token: string;
+  email: string;
+  inviter_id?: string;
+  role: "viewer";
+  status: "pending" | "accepted" | "rejected" | "expired";
+  created_at: string;
+  expires_at?: string;
+  planner?: {
+    id: string;
+    name: string;
+    start_date: string;
+    end_date?: string;
+    number_of_days?: number;
+    number_of_people?: number;
+    transportation?: string;
+    status?: string;
+    owner?: PlanOwner;
+  };
+}
+
+export interface RespondInviteRequest {
+  action: "accept" | "reject";
+}
+
+export interface GetMembersResponse {
+  members: PlanMember[];
+}
+
+export interface GetInvitesResponse {
+  invites: PlanInvite[];
+}
+
 // ============================================
 // API RESPONSE ENTITIES
 // ============================================
@@ -183,8 +232,8 @@ export interface ReorderPlanItemsRequest {
 }
 
 export interface InviteParticipantRequest {
-  userId: string;
-  role: "editor" | "viewer";
+  email: string; // BE dùng email (PlannerInvite.email allowNull: false)
+  role: "viewer"; // BE chỉ validate isIn: [['viewer']]
 }
 
 export interface AISuggestionRequest {
