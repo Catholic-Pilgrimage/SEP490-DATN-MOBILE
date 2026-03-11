@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.anonymous.PilgrimApp",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio for your spiritual journals."
       }
     },
     "android": {
@@ -40,7 +41,8 @@
         "WRITE_EXTERNAL_STORAGE",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

@@ -1,50 +1,54 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { LinearGradient } from "expo-linear-gradient";
 import Slider from "@react-native-community/slider";
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
-} from "../../../../constants/theme.constants";
-import { VietmapView, MapPin, VietmapViewRef } from "../../../../components/map/VietmapView";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
+import {
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
+} from "../../../../components/map/VietmapView";
+import {
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
+} from "../../../../constants/theme.constants";
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import {
-  NearbyPlaceCategory,
-  SiteEvent,
-  SiteNearbyPlace,
-  SiteSummary,
+    NearbyPlaceCategory,
+    SiteEvent,
+    SiteNearbyPlace,
+    SiteSummary,
 } from "../../../../types/pilgrim";
 import {
-  PlanEntity,
-  PlanItem,
-  PlanParticipant,
-  UpdatePlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    PlanParticipant,
+    UpdatePlanItemRequest,
 } from "../../../../types/pilgrim/planner.types";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -58,19 +62,30 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   // Day-based pin colors for visual distinction
   const DAY_PIN_COLORS = [
-    '#E74C3C', // Red
-    '#3498DB', // Blue
-    '#2ECC71', // Green
-    '#F39C12', // Orange
-    '#9B59B6', // Purple
-    '#1ABC9C', // Teal
-    '#E67E22', // Dark Orange
-    '#E91E63', // Pink
-    '#00BCD4', // Cyan
-    '#8BC34A', // Light Green
+    "#E74C3C", // Red
+    "#3498DB", // Blue
+    "#2ECC71", // Green
+    "#F39C12", // Orange
+    "#9B59B6", // Purple
+    "#1ABC9C", // Teal
+    "#E67E22", // Dark Orange
+    "#E91E63", // Pink
+    "#00BCD4", // Cyan
+    "#8BC34A", // Light Green
   ];
 
-  const DAY_PIN_ICONS = ['📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍', '📍'];
+  const DAY_PIN_ICONS = [
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+    "📍",
+  ];
 
   // Prepare Map Pins — one per site, colored by day
   const mapPins: MapPin[] = useMemo(() => {
@@ -82,15 +97,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const pinColor = DAY_PIN_COLORS[dayIndex % DAY_PIN_COLORS.length];
       const pinIcon = DAY_PIN_ICONS[dayIndex % DAY_PIN_ICONS.length];
       items.forEach((item, index) => {
-        const siteId = item.site_id || item.site?.id || '';
-        if (item.site && item.site.latitude && item.site.longitude && !seenSiteIds.has(siteId)) {
+        const siteId = item.site_id || item.site?.id || "";
+        if (
+          item.site &&
+          item.site.latitude &&
+          item.site.longitude &&
+          !seenSiteIds.has(siteId)
+        ) {
           if (siteId) seenSiteIds.add(siteId);
           pins.push({
             id: item.id || `pin_${dayKey}_${index}`,
             latitude: Number(item.site.latitude),
             longitude: Number(item.site.longitude),
             title: item.site.name,
-            subtitle: `Ngày ${dayKey}${item.site.address ? ' • ' + item.site.address : ''}`,
+            subtitle: `Ngày ${dayKey}${item.site.address ? " • " + item.site.address : ""}`,
             icon: pinIcon,
             color: pinColor,
           });
@@ -106,11 +126,15 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       return { latitude: 10.762622, longitude: 106.660172, zoom: 6 }; // Default center Vietnam
     }
     if (mapPins.length === 1) {
-      return { latitude: mapPins[0].latitude, longitude: mapPins[0].longitude, zoom: 13 };
+      return {
+        latitude: mapPins[0].latitude,
+        longitude: mapPins[0].longitude,
+        zoom: 13,
+      };
     }
     // Calculate bounding box center
-    const lats = mapPins.map(p => p.latitude);
-    const lngs = mapPins.map(p => p.longitude);
+    const lats = mapPins.map((p) => p.latitude);
+    const lngs = mapPins.map((p) => p.longitude);
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
     const minLng = Math.min(...lngs);
@@ -144,8 +168,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           mapRef.current.flyTo(mapPins[0].latitude, mapPins[0].longitude, 13);
           return;
         }
-        const lats = mapPins.map(p => p.latitude);
-        const lngs = mapPins.map(p => p.longitude);
+        const lats = mapPins.map((p) => p.latitude);
+        const lngs = mapPins.map((p) => p.longitude);
         const minLat = Math.min(...lats);
         const maxLat = Math.max(...lats);
         const minLng = Math.min(...lngs);
@@ -293,7 +317,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     });
     return () => {
       navigation.getParent()?.setOptions({
-        tabBarStyle: { display: "flex" }, 
+        tabBarStyle: { display: "flex" },
       });
     };
   }, [navigation]);
@@ -489,7 +513,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     try {
       setInviting(true);
       const response = await pilgrimPlannerApi.inviteParticipant(planId, {
-        userId: inviteEmail, // Backend expects userId, but we'll send email
+        email: inviteEmail.trim().toLowerCase(),
         role: inviteRole,
       });
 
@@ -865,11 +889,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const getDateForDay = (startDateStr: string, dayNumber: number): string => {
     try {
-       const date = new Date(startDateStr);
-       date.setDate(date.getDate() + (dayNumber - 1));
-       return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+      const date = new Date(startDateStr);
+      date.setDate(date.getDate() + (dayNumber - 1));
+      return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}`;
     } catch {
-       return "";
+      return "";
     }
   };
 
@@ -1241,86 +1265,139 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       {/* Header Image Background -> VietMap Background */}
       <View style={styles.headerImageContainer}>
         <VietmapView
-           ref={mapRef}
-           initialRegion={mapCenter}
-           pins={mapPins}
-           scrollEnabled={true}
-           showInfoCards={true}
-           cardBottomOffset={180}
-           style={styles.headerImage}
+          ref={mapRef}
+          initialRegion={mapCenter}
+          pins={mapPins}
+          scrollEnabled={true}
+          showInfoCards={true}
+          cardBottomOffset={180}
+          style={styles.headerImage}
         />
         <LinearGradient
-          colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.15)', 'transparent']}
-          style={[StyleSheet.absoluteFill, { zIndex: 1, height: '35%' }]}
+          colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.15)", "transparent"]}
+          style={[StyleSheet.absoluteFill, { zIndex: 1, height: "35%" }]}
           pointerEvents="none"
         />
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.75)']}
-          style={[StyleSheet.absoluteFill, { zIndex: 1, top: '55%' }]}
+          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.75)"]}
+          style={[StyleSheet.absoluteFill, { zIndex: 1, top: "55%" }]}
           pointerEvents="none"
         />
 
-          {/* Navbar */}
-          <View style={[styles.navbar, { marginTop: insets.top, zIndex: 10 }]}>
+        {/* Navbar */}
+        <View style={[styles.navbar, { marginTop: insets.top, zIndex: 10 }]}>
+          <TouchableOpacity
+            style={styles.navButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.navActions}>
             <TouchableOpacity
               style={styles.navButton}
-              onPress={() => navigation.goBack()}
+              onPress={() => setShowFullMap(true)}
             >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
+              <Ionicons name="expand-outline" size={22} color="#fff" />
             </TouchableOpacity>
-            <View style={styles.navActions}>
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => setShowFullMap(true)}
-              >
-                <Ionicons name="expand-outline" size={22} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={handleOpenShareModal}
-              >
-                <Ionicons name="qr-code-outline" size={24} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => setShowMenuDropdown(true)}
-              >
-                <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Menu Dropdown Popup */}
-          {showMenuDropdown && (
-            <TouchableOpacity 
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }}
-              activeOpacity={1}
-              onPress={() => setShowMenuDropdown(false)}
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={handleOpenShareModal}
             >
-              <View style={{ position: 'absolute', top: insets.top + 45, right: 16, backgroundColor: '#fff', borderRadius: 12, padding: 8, ...SHADOWS.medium, minWidth: 160 }}>
-                <TouchableOpacity 
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}
-                  onPress={() => {
-                    setShowMenuDropdown(false);
-                    handleOpenEditPlan();
+              <Ionicons name="qr-code-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.navButton}
+              onPress={() => setShowMenuDropdown(true)}
+            >
+              <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Menu Dropdown Popup */}
+        {showMenuDropdown && (
+          <TouchableOpacity
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 100,
+            }}
+            activeOpacity={1}
+            onPress={() => setShowMenuDropdown(false)}
+          >
+            <View
+              style={{
+                position: "absolute",
+                top: insets.top + 45,
+                right: 16,
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                padding: 8,
+                ...SHADOWS.medium,
+                minWidth: 160,
+              }}
+            >
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#F3F4F6",
+                }}
+                onPress={() => {
+                  setShowMenuDropdown(false);
+                  handleOpenEditPlan();
+                }}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={COLORS.textPrimary}
+                  style={{ marginRight: 12 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: COLORS.textPrimary,
+                    fontWeight: "500",
                   }}
                 >
-                  <Ionicons name="create-outline" size={20} color={COLORS.textPrimary} style={{ marginRight: 12 }} />
-                  <Text style={{ fontSize: 16, color: COLORS.textPrimary, fontWeight: '500' }}>Sửa kế hoạch</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}
-                  onPress={handleDeletePlan}
+                  Sửa kế hoạch
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 12,
+                }}
+                onPress={handleDeletePlan}
+              >
+                <Ionicons
+                  name="trash-outline"
+                  size={20}
+                  color="#EF4444"
+                  style={{ marginRight: 12 }}
+                />
+                <Text
+                  style={{ fontSize: 16, color: "#EF4444", fontWeight: "500" }}
                 >
-                  <Ionicons name="trash-outline" size={20} color="#EF4444" style={{ marginRight: 12 }} />
-                  <Text style={{ fontSize: 16, color: "#EF4444", fontWeight: '500' }}>Xóa kế hoạch</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          )}
+                  Xóa kế hoạch
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Title & Info */}
-        <View style={[styles.headerContent, { zIndex: 10 }]} pointerEvents="box-none">
+        <View
+          style={[styles.headerContent, { zIndex: 10 }]}
+          pointerEvents="box-none"
+        >
           <View style={styles.badgeContainer}>
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>
@@ -1345,8 +1422,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             )}
           </View>
           <Text style={styles.title}>{plan.name}</Text>
-          <View style={[styles.metaRow, { justifyContent: 'space-between', width: '100%', alignItems: 'center' }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View
+            style={[
+              styles.metaRow,
+              {
+                justifyContent: "space-between",
+                width: "100%",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View style={styles.metaItem}>
                 <Ionicons
                   name="calendar-outline"
@@ -1367,22 +1453,70 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
               </View>
             </View>
-            
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-               <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={handleOpenShareModal}>
-                 {/* Mini Avatars */}
-                 <View style={{ flexDirection: 'row' }}>
-                   <Image source={{ uri: plan.owner?.avatar_url || 'https://i.pravatar.cc/100?img=1' }} style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: '#fff' }} />
-                   {plan.number_of_people > 1 && (
-                     <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginLeft: -10, borderWidth: 1.5, borderColor: '#fff' }}>
-                       <Text style={{ fontSize: 10, color: '#fff', fontWeight: 'bold' }}>+{plan.number_of_people - 1}</Text>
-                     </View>
-                   )}
-                 </View>
-                 <View style={{ marginLeft: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.25)' }}>
-                   <Text style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>+ Mời</Text>
-                 </View>
-               </TouchableOpacity>
+
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "center" }}
+                onPress={handleOpenShareModal}
+              >
+                {/* Mini Avatars */}
+                <View style={{ flexDirection: "row" }}>
+                  <Image
+                    source={{
+                      uri:
+                        plan.owner?.avatar_url ||
+                        "https://i.pravatar.cc/100?img=1",
+                    }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      borderWidth: 1.5,
+                      borderColor: "#fff",
+                    }}
+                  />
+                  {plan.number_of_people > 1 && (
+                    <View
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        backgroundColor: COLORS.accent,
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginLeft: -10,
+                        borderWidth: 1.5,
+                        borderColor: "#fff",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          color: "#fff",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        +{plan.number_of_people - 1}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <View
+                  style={{
+                    marginLeft: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 14,
+                    backgroundColor: "rgba(255,255,255,0.25)",
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontSize: 13, fontWeight: "bold" }}
+                  >
+                    + Mời
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1401,20 +1535,69 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             const items = plan.items_by_day?.[dayKey] || [];
             return (
               <View key={dayKey} style={styles.dayContainer}>
-                <View style={[styles.dayHeader, { backgroundColor: COLORS.backgroundSoft, paddingVertical: 12, marginHorizontal: -SPACING.lg, paddingHorizontal: SPACING.lg }]}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: COLORS.textPrimary }}>
-                    Ngày {dayKey} • {getDateForDay(plan.start_date, Number(dayKey))}
+                <View
+                  style={[
+                    styles.dayHeader,
+                    {
+                      backgroundColor: COLORS.backgroundSoft,
+                      paddingVertical: 12,
+                      marginHorizontal: -SPACING.lg,
+                      paddingHorizontal: SPACING.lg,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: COLORS.textPrimary,
+                    }}
+                  >
+                    Ngày {dayKey} •{" "}
+                    {getDateForDay(plan.start_date, Number(dayKey))}
                   </Text>
                 </View>
 
                 <View style={styles.timelineContainer}>
-                  <View style={[styles.timelineLine, { width: 1.5, backgroundColor: '#E5E7EB', left: 24 }]} />
+                  <View
+                    style={[
+                      styles.timelineLine,
+                      { width: 1.5, backgroundColor: "#E5E7EB", left: 24 },
+                    ]}
+                  />
                   <View style={styles.timelineItems}>
                     {items.length === 0 && (
-                       <TouchableOpacity style={{ borderWidth: 1.5, borderColor: '#D1D5DB', borderStyle: 'dashed', borderRadius: 12, padding: 24, justifyContent: 'center', alignItems: 'center', width: '100%', marginBottom: 16, backgroundColor: '#F9FAFB' }} onPress={() => openAddModal(Number(dayKey))}>
-                         <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} />
-                         <Text style={{ fontSize: 15, color: COLORS.textSecondary, marginTop: 8, fontWeight: '500' }}>Bấm để thêm nhà thờ/điểm đến</Text>
-                       </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{
+                          borderWidth: 1.5,
+                          borderColor: "#D1D5DB",
+                          borderStyle: "dashed",
+                          borderRadius: 12,
+                          padding: 24,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          width: "100%",
+                          marginBottom: 16,
+                          backgroundColor: "#F9FAFB",
+                        }}
+                        onPress={() => openAddModal(Number(dayKey))}
+                      >
+                        <Ionicons
+                          name="add-circle-outline"
+                          size={32}
+                          color={COLORS.accent}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            color: COLORS.textSecondary,
+                            marginTop: 8,
+                            fontWeight: "500",
+                          }}
+                        >
+                          Bấm để thêm nhà thờ/điểm đến
+                        </Text>
+                      </TouchableOpacity>
                     )}
                     {items.map((item: PlanItem, index) => (
                       <TouchableOpacity
@@ -1422,7 +1605,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                         style={styles.timelineItem}
                         onPress={() => setSelectedItem(item)}
                       >
-                        <View style={[styles.timelineDot, { borderColor: '#D97706', borderWidth: 2, backgroundColor: '#fff', width: 12, height: 12, borderRadius: 6, left: -6 }]} />
+                        <View
+                          style={[
+                            styles.timelineDot,
+                            {
+                              borderColor: "#D97706",
+                              borderWidth: 2,
+                              backgroundColor: "#fff",
+                              width: 12,
+                              height: 12,
+                              borderRadius: 6,
+                              left: -6,
+                            },
+                          ]}
+                        />
                         <View style={styles.itemCard}>
                           <Image
                             source={{
@@ -1454,8 +1650,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                   color={COLORS.accent}
                                 />
                                 <Text style={styles.itemTime}>
-                                  {formatTimeValue(item.estimated_time || item.arrival_time)} 
-                                  {item.rest_duration ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}` : ""}
+                                  {formatTimeValue(
+                                    item.estimated_time || item.arrival_time,
+                                  )}
+                                  {item.rest_duration
+                                    ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}`
+                                    : ""}
                                 </Text>
                               </View>
                             </View>
@@ -1491,19 +1691,30 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           })
         ) : (
           <View style={[styles.emptyState, { marginTop: 40 }]}>
-            <MaterialIcons
-              name="edit-road"
-              size={64}
-              color={COLORS.border}
-            />
-            <Text style={[styles.emptyStateText, { marginTop: 16, marginBottom: 24, fontSize: 16 }]}>
+            <MaterialIcons name="edit-road" size={64} color={COLORS.border} />
+            <Text
+              style={[
+                styles.emptyStateText,
+                { marginTop: 16, marginBottom: 24, fontSize: 16 },
+              ]}
+            >
               {t("planner.noLocationsInPlan")}
             </Text>
             <TouchableOpacity
-              style={{ paddingHorizontal: 32, paddingVertical: 14, backgroundColor: COLORS.accent, borderRadius: 24, shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 }}
+              style={{
+                paddingHorizontal: 32,
+                paddingVertical: 14,
+                backgroundColor: COLORS.accent,
+                borderRadius: 24,
+                shadowColor: COLORS.accent,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
               onPress={() => openAddModal(1)}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
                 + Thêm điểm dừng đầu tiên
               </Text>
             </TouchableOpacity>
@@ -3337,7 +3548,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         onClose={() => setShowFullMap(false)}
         pins={mapPins}
         initialRegion={mapCenter}
-        title={plan?.name || 'Bản đồ kế hoạch'}
+        title={plan?.name || "Bản đồ kế hoạch"}
         showUserLocation={true}
       />
     </View>

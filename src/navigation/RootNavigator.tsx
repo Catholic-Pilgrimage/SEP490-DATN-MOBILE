@@ -1,20 +1,23 @@
-
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import React from 'react';
-import { NotificationHandler } from '../components/NotificationHandler';
-import ChangePasswordScreen from '../features/auth/screens/ChangePasswordScreen';
-import SplashScreen from '../features/auth/screens/SplashScreen';
-import { PersonalInfoScreen } from '../features/guide/profile/screens';
-import SiteManagementScreen from '../features/guide/site-management/screens/SiteManagementScreen';
-import { SOSDetailScreen, SOSListScreen } from '../features/guide/support/screens';
-import VerificationRequestScreen from '../features/pilgrim/profile/screens/VerificationRequestScreen';
-import NotificationsScreen from '../features/shared/notifications/screens/NotificationsScreen';
-import SettingsScreen from '../features/shared/settings/screens/SettingsScreen';
-import { AuthNavigator } from './AuthNavigator';
-import { GuideNavigator } from './GuideNavigator';
-import { navigationRef } from './navigationRef';
-import { PilgrimNavigator } from './PilgrimNavigator';
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import React from "react";
+import { NotificationHandler } from "../components/NotificationHandler";
+import ChangePasswordScreen from "../features/auth/screens/ChangePasswordScreen";
+import SplashScreen from "../features/auth/screens/SplashScreen";
+import { PersonalInfoScreen } from "../features/guide/profile/screens";
+import SiteManagementScreen from "../features/guide/site-management/screens/SiteManagementScreen";
+import {
+  SOSDetailScreen,
+  SOSListScreen,
+} from "../features/guide/support/screens";
+import PlanInvitePreviewScreen from "../features/pilgrim/planner/screens/PlanInvitePreviewScreen";
+import VerificationRequestScreen from "../features/pilgrim/profile/screens/VerificationRequestScreen";
+import NotificationsScreen from "../features/shared/notifications/screens/NotificationsScreen";
+import SettingsScreen from "../features/shared/settings/screens/SettingsScreen";
+import { AuthNavigator } from "./AuthNavigator";
+import { GuideNavigator } from "./GuideNavigator";
+import { navigationRef } from "./navigationRef";
+import { PilgrimNavigator } from "./PilgrimNavigator";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -31,13 +34,24 @@ export type RootStackParamList = {
   Settings: undefined;
   VerificationRequest: undefined;
   Notifications: undefined;
+  // Planner Invite
+  PlanInvitePreview: { token: string };
+};
+
+const linking = {
+  prefixes: ["pilgrimapp://"],
+  config: {
+    screens: {
+      PlanInvitePreview: "planners/invite/:token",
+    },
+  },
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const RootNavigator = () => {
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <NotificationHandler />
       <Stack.Navigator
         screenOptions={{ headerShown: false }}
@@ -47,29 +61,29 @@ export const RootNavigator = () => {
           name="Splash"
           component={SplashScreen}
           options={{
-            animation: 'fade',
+            animation: "fade",
           }}
         />
         <Stack.Screen
           name="Auth"
           component={AuthNavigator}
           options={{
-            animation: 'fade',
-            animationTypeForReplace: 'pop',
+            animation: "fade",
+            animationTypeForReplace: "pop",
           }}
         />
         <Stack.Screen
           name="Main"
           component={PilgrimNavigator}
           options={{
-            animation: 'fade',
+            animation: "fade",
           }}
         />
         <Stack.Screen
           name="GuideMain"
           component={GuideNavigator}
           options={{
-            animation: 'fade',
+            animation: "fade",
           }}
         />
         {/* Guide Profile Screens */}
@@ -77,14 +91,14 @@ export const RootNavigator = () => {
           name="PersonalInfo"
           component={PersonalInfoScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         <Stack.Screen
           name="SiteManagement"
           component={SiteManagementScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         {/* Guide Support Screens */}
@@ -92,21 +106,21 @@ export const RootNavigator = () => {
           name="SOSList"
           component={SOSListScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         <Stack.Screen
           name="SOSDetail"
           component={SOSDetailScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         <Stack.Screen
           name="ChangePassword"
           component={ChangePasswordScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
             headerShown: false,
           }}
         />
@@ -114,21 +128,29 @@ export const RootNavigator = () => {
           name="Settings"
           component={SettingsScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         <Stack.Screen
           name="VerificationRequest"
           component={VerificationRequestScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
           }}
         />
         <Stack.Screen
           name="Notifications"
           component={NotificationsScreen}
           options={{
-            animation: 'slide_from_right',
+            animation: "slide_from_right",
+          }}
+        />
+        <Stack.Screen
+          name="PlanInvitePreview"
+          component={PlanInvitePreviewScreen}
+          options={{
+            animation: "slide_from_bottom",
+            presentation: "modal",
           }}
         />
       </Stack.Navigator>
