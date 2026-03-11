@@ -13,6 +13,7 @@ const API_BASE = "/api";
  */
 export const AUTH_ENDPOINTS = {
   LOGIN: `${API_BASE}/auth/login`,
+  GOOGLE: `${API_BASE}/auth/google`,
   REGISTER: `${API_BASE}/auth/register`,
   LOGOUT: `${API_BASE}/auth/logout`,
   REFRESH_TOKEN: `${API_BASE}/auth/refresh-token`,

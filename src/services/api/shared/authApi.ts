@@ -4,6 +4,7 @@
  *
  * Endpoints:
  * - POST /api/auth/login          - User login
+ * - POST /api/auth/google         - User login with Google Firebase token
  * - POST /api/auth/register       - User registration
  * - POST /api/auth/logout         - User logout
  * - POST /api/auth/refresh-token  - Refresh access token
@@ -20,6 +21,7 @@ import { ApiResponse } from "../../../types/api.types";
 import {
   ChangePasswordRequest,
   ForgotPasswordRequest,
+  GoogleLoginRequest,
   LoginRequest,
   LoginResponse,
   ProfileResponse,
@@ -31,7 +33,7 @@ import {
   UpdateProfileRequest,
   VerifyEmailRequest,
 } from "../../../types/auth.types";
-import apiClient from "../apiClient";
+import apiClientInstance from "../apiClient";
 import { AUTH_ENDPOINTS } from "../endpoints";
 
 // ============================================
@@ -43,10 +45,22 @@ import { AUTH_ENDPOINTS } from "../endpoints";
  * Returns LoginResponse directly (already has success/data structure)
  */
 export const login = async (data: LoginRequest): Promise<LoginResponse> => {
-  const response = await apiClient.post<LoginResponse>(
+  const response = await apiClientInstance.post<LoginResponse>(
     AUTH_ENDPOINTS.LOGIN,
     data,
   );
+  return response.data;
+};
+
+/**
+ * Login user with Firebase ID token from Google sign-in
+ */
+export const googleLogin = async (
+  data: GoogleLoginRequest,
+): Promise<LoginResponse> => {
+  const response = await apiClientInstance.post<LoginResponse>(AUTH_ENDPOINTS.GOOGLE, {
+    firebaseIdToken: data.firebaseIdToken,
+  });
   return response.data;
 };
 
@@ -56,7 +70,7 @@ export const login = async (data: LoginRequest): Promise<LoginResponse> => {
 export const register = async (
   data: RegisterRequest,
 ): Promise<RegisterResponse> => {
-  const response = await apiClient.post<RegisterResponse>(
+  const response = await apiClientInstance.post<RegisterResponse>(
     AUTH_ENDPOINTS.REGISTER,
     data,
   );
@@ -67,7 +81,7 @@ export const register = async (
  * Logout user
  */
 export const logout = async (): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.LOGOUT,
   );
   return response.data;
@@ -79,7 +93,7 @@ export const logout = async (): Promise<ApiResponse<void>> => {
 export const refreshToken = async (
   data: RefreshTokenRequest,
 ): Promise<RefreshTokenResponse> => {
-  const response = await apiClient.post<RefreshTokenResponse>(
+  const response = await apiClientInstance.post<RefreshTokenResponse>(
     AUTH_ENDPOINTS.REFRESH_TOKEN,
     data,
   );
@@ -128,7 +142,7 @@ const mapUpdateProfileRequest = (data: UpdateProfileRequest): any => {
  * Get auth profile
  */
 export const getProfile = async (): Promise<ProfileResponse> => {
-  const response = await apiClient.get<ProfileResponse>(AUTH_ENDPOINTS.PROFILE);
+  const response = await apiClientInstance.get<ProfileResponse>(AUTH_ENDPOINTS.PROFILE);
 
   if (response.data && response.data.data) {
     // Map the inner data object
@@ -175,7 +189,7 @@ export const updateProfile = async (
       type: mimeType,
     } as any);
 
-    response = await apiClient.put<ProfileResponse>(
+    response = await apiClientInstance.put<ProfileResponse>(
       AUTH_ENDPOINTS.PROFILE,
       formData,
       {
@@ -184,7 +198,7 @@ export const updateProfile = async (
     );
   } else {
     const snakeCaseData = mapUpdateProfileRequest(data);
-    response = await apiClient.put<ProfileResponse>(
+    response = await apiClientInstance.put<ProfileResponse>(
       AUTH_ENDPOINTS.PROFILE,
       snakeCaseData,
     );
@@ -208,7 +222,7 @@ export const changePassword = async (
     new_password: data.newPassword,
     confirm_password: data.confirmPassword,
   };
-  const response = await apiClient.put<ApiResponse<void>>(
+  const response = await apiClientInstance.put<ApiResponse<void>>(
     AUTH_ENDPOINTS.CHANGE_PASSWORD,
     payload,
   );
@@ -221,7 +235,7 @@ export const changePassword = async (
 export const forgotPassword = async (
   data: ForgotPasswordRequest,
 ): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.FORGOT_PASSWORD,
     data,
   );
@@ -240,7 +254,7 @@ export const resetPassword = async (
     new_password: data.newPassword,
     confirm_password: data.confirmPassword,
   };
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.RESET_PASSWORD,
     payload,
   );
@@ -253,7 +267,7 @@ export const resetPassword = async (
 export const verifyEmail = async (
   data: VerifyEmailRequest,
 ): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.VERIFY_EMAIL,
     data,
   );
@@ -264,7 +278,7 @@ export const verifyEmail = async (
  * Resend OTP
  */
 export const resendOtp = async (email: string): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.RESEND_OTP,
     { email },
   );
@@ -278,7 +292,7 @@ export const resendOtp = async (email: string): Promise<ApiResponse<void>> => {
 export const verifyOtp = async (
   data: VerifyEmailRequest,
 ): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
+  const response = await apiClientInstance.post<ApiResponse<void>>(
     AUTH_ENDPOINTS.VERIFY_OTP,
     data,
   );
@@ -291,6 +305,7 @@ export const verifyOtp = async (
 
 const authApi = {
   login,
+  googleLogin,
   register,
   logout,
   refreshToken,

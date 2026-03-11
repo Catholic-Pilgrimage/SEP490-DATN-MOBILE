@@ -65,6 +65,7 @@
           "color": "#ffffff"
         }
       ],
+      "@react-native-google-signin/google-signin",
       "expo-localization",
       [
         "expo-image-picker",

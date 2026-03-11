@@ -12,7 +12,28 @@
           "package_name": "com.anonymous.PilgrimApp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "997615346844-2mo6kki1v5osb4omv74s1drt1ic2pmm0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anonymous.PilgrimApp",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "997615346844-p2k75ntfs7d5jmurfttqnga8j5evokt3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anonymous.PilgrimApp",
+            "certificate_hash": "f939314b086bfb16c3f0c008009b56cdfc7b538d"
+          }
+        },
+        {
+          "client_id": "997615346844-ch729hq17jjqqeagpn3r7516h62vi61e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyA4aBdh97-sHtrgP-SmArMglUGO5CgABaA"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "997615346844-ch729hq17jjqqeagpn3r7516h62vi61e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

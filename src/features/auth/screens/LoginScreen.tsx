@@ -1,5 +1,9 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  isErrorWithCode,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import {
   CommonActions,
   RouteProp,
@@ -11,7 +15,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   ImageBackground,
   Keyboard,
@@ -45,8 +48,6 @@ import { navigateToAppropriateScreen } from "../../../navigation/navigationHelpe
 const BG_IMAGE = require("../../../../assets/images/bg2.jpg");
 const LOGO_IMAGE = require("../../../../assets/images/logo.png");
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 // Login screen colors matching the design
 const LOGIN_COLORS = {
   primary: "#cfaa3a",
@@ -78,6 +79,7 @@ const LoginScreen = () => {
   const route = useRoute<RouteProp<AuthStackParamList, "Login">>();
   const {
     login,
+    loginWithGoogle,
     continueAsGuest,
     isLoading,
     error,
@@ -87,7 +89,7 @@ const LoginScreen = () => {
     user,
   } = useAuth();
 
-  // Form state — prefill email từ params nếu có (vd: sau khi đăng ký xong)
+  // Prefill email when coming back from registration.
   const [email, setEmail] = useState(route.params?.email ?? "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -95,6 +97,7 @@ const LoginScreen = () => {
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
   // i18n
   const { t } = useI18n();
@@ -108,7 +111,7 @@ const LoginScreen = () => {
     if (error) {
       clearError();
     }
-  }, [email, password]);
+  }, [clearError, email, error, password]);
 
   // Navigate based on user role when authenticated or guest mode
   // If user came from an invite link (pending_invite_token saved), navigate there after login
@@ -174,7 +177,7 @@ const LoginScreen = () => {
 
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
-  }, [email, password]);
+  }, [email, password, t]);
 
   // Shake animation for error
   const triggerShakeAnimation = useCallback(() => {
@@ -237,7 +240,7 @@ const LoginScreen = () => {
       // Clear global auth error
       setTimeout(() => clearError(), 0);
 
-      // Extract error message từ API
+      // Extract error message tá»« API
       let errorMessage =
         err.message ||
         t("auth.checkCredentials") ||
@@ -267,6 +270,42 @@ const LoginScreen = () => {
     t,
   ]);
 
+  const handleGoogleLogin = useCallback(async () => {
+    Keyboard.dismiss();
+    setFormErrors({});
+    setIsGoogleSubmitting(true);
+
+    try {
+      await loginWithGoogle();
+      Toast.show({
+        type: "success",
+        text1: t("auth.loginSuccess"),
+      });
+    } catch (err: any) {
+      if (isErrorWithCode(err) && err.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
+      }
+
+      let errorMessage =
+        err.message || "Google sign-in failed. Please try again.";
+
+      if (
+        isErrorWithCode(err) &&
+        err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE
+      ) {
+        errorMessage = "Google Play Services is not available on this device.";
+      }
+
+      Toast.show({
+        type: "error",
+        text1: t("auth.loginFailed"),
+        text2: errorMessage,
+      });
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
+  }, [loginWithGoogle, t]);
+
   const handleForgotPassword = useCallback(() => {
     navigation.navigate("ForgotPassword");
   }, [navigation]);
@@ -284,14 +323,14 @@ const LoginScreen = () => {
         text2: t("auth.guestSuccess"),
       });
       // Navigation is handled by useEffect when isGuest changes
-    } catch (error) {
+    } catch {
       Toast.show({
         type: "error",
         text1: t("common.error"),
         text2: t("auth.errors.guestError"),
       });
     }
-  }, [continueAsGuest]);
+  }, [continueAsGuest, t]);
 
   // Clear specific field error when user types
   const handleEmailChange = useCallback(
@@ -314,7 +353,10 @@ const LoginScreen = () => {
     [formErrors.password],
   );
 
-  const isButtonDisabled = isLoading || isSubmitting;
+  const isNativeGoogleSignInAvailable = Platform.OS !== "web";
+  const isButtonDisabled = isLoading || isSubmitting || isGoogleSubmitting;
+  const isPasswordSubmitting =
+    isSubmitting || (isLoading && !isGoogleSubmitting);
   const insets = useSafeAreaInsets();
 
   return (
@@ -516,7 +558,7 @@ const LoginScreen = () => {
                   activeOpacity={0.9}
                   disabled={isButtonDisabled}
                 >
-                  {isButtonDisabled ? (
+                  {isPasswordSubmitting ? (
                     <ActivityIndicator
                       size="small"
                       color={LOGIN_COLORS.buttonTextDark}
@@ -542,6 +584,34 @@ const LoginScreen = () => {
                 <Text style={styles.dividerText}>{t("common.or")}</Text>
                 <View style={styles.dividerLine} />
               </View>
+
+              {isNativeGoogleSignInAvailable && (
+                <TouchableOpacity
+                  style={[
+                    styles.googleButton,
+                    isButtonDisabled && styles.googleButtonDisabled,
+                  ]}
+                  onPress={handleGoogleLogin}
+                  activeOpacity={0.85}
+                  disabled={isButtonDisabled}
+                >
+                  {isGoogleSubmitting ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={LOGIN_COLORS.buttonTextDark}
+                    />
+                  ) : (
+                    <>
+                      <View style={styles.googleIconBadge}>
+                        <FontAwesome name="google" size={16} color="#DB4437" />
+                      </View>
+                      <Text style={styles.googleButtonText}>
+                        Continue with Google
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
 
               {/* Guest Button */}
               <TouchableOpacity
@@ -831,6 +901,35 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: LOGIN_COLORS.textMuted,
     marginHorizontal: 16,
+  },
+
+  googleButton: {
+    flexDirection: "row",
+    backgroundColor: LOGIN_COLORS.surfaceLight,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: LOGIN_COLORS.borderLight,
+    gap: 10,
+    ...SHADOWS.subtle,
+  },
+  googleButtonDisabled: {
+    opacity: 0.6,
+  },
+  googleIconBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#fff7f5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: LOGIN_COLORS.buttonTextDark,
   },
 
   // Guest Button

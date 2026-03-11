@@ -11,6 +11,10 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface GoogleLoginRequest {
+  firebaseIdToken: string;
+}
+
 // Login response from API
 export interface LoginResponse {
   success: boolean;
@@ -125,6 +129,7 @@ export interface AuthState {
 // Auth context actions
 export interface AuthContextType extends AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
@@ -132,7 +137,7 @@ export interface AuthContextType extends AuthState {
   updateProfile: (data: UpdateProfileRequest) => Promise<string | undefined>;
   clearError: () => void;
   isGuest: boolean;
-  continueAsGuest: () => void;
+  continueAsGuest: () => Promise<void>;
   exitGuestMode: () => Promise<void>;
 }
 
