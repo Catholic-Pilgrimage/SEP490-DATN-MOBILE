@@ -3,7 +3,7 @@
  * Handles routing and geocoding with Vietmap API
  */
 
-import { VIETMAP_CONFIG } from '../../config/env';
+import { VIETMAP_CONFIG } from '../../config/map.config';
 
 export interface RoutePoint {
   latitude: number;

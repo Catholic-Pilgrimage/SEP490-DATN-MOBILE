@@ -9,17 +9,11 @@
 
 // Vietmap API Configuration
 // Console: https://maps.vietmap.vn/console
-const VIETMAP_TILEMAP_KEY =
-  process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY ||
-  "3c6b56cab2559a893244e06142b981787f5392c789195a4a";
-const VIETMAP_SERVICES_KEY =
-  process.env.EXPO_PUBLIC_VIETMAP_SERVICES_KEY ||
-  "d5b3bd4feac2aa13517d1572016d247c8484495fe1c7124b";
+const VIETMAP_TILEMAP_KEY = process.env.EXPO_PUBLIC_VIETMAP_TILEMAP_KEY || "";
+const VIETMAP_SERVICES_KEY = process.env.EXPO_PUBLIC_VIETMAP_SERVICES_KEY || "";
 
 // Mapbox token (used to initialize @rnmapbox/maps SDK, tiles loaded from Vietmap)
-export const MAPBOX_ACCESS_TOKEN =
-  process.env.EXPO_PUBLIC_MAPBOX_TOKEN ||
-  "pk.eyJ1Ijoic2ZyYW5raWUzMDExIiwiYSI6ImNtbWJxbDRpMzBwc3AycHI0cmcyNzF5dDgifQ.Tkj5o8ORerNl8Qmk3Swcmw";
+export const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || "";
 
 export const VIETMAP_CONFIG = {
   TILEMAP_KEY: VIETMAP_TILEMAP_KEY,

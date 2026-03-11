@@ -30,7 +30,7 @@ import {
   VietmapView,
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
-import { VIETMAP_CONFIG } from "../../../../config/env";
+import { VIETMAP_CONFIG } from "../../../../config/map.config";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,

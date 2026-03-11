@@ -29,7 +29,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { MAPBOX_ACCESS_TOKEN, VIETMAP_CONFIG } from "../../config/env";
+import { MAPBOX_ACCESS_TOKEN, VIETMAP_CONFIG } from "../../config/map.config";
 import {
   COLORS,
   BORDER_RADIUS,
