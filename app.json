@@ -3,7 +3,7 @@
     "name": "Catholic Pilgrim",
     "slug": "CatholicPilgrimApp",
     "version": "1.0.0",
-    "owner": "catholicpilgrimage2026v2",
+    "owner": "catholic-pilgrimage-2026",
     "orientation": "portrait",
     "icon": "./assets/images/logo.png",
     "scheme": "pilgrimapp",
@@ -98,6 +98,9 @@
     },
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/43a6e551-0799-4490-96c5-2c81d358f22e"
     }
   }
 }
