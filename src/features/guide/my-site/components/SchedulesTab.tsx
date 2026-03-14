@@ -1,7 +1,7 @@
 /**
  * SchedulesTab Component (Lịch lễ)
  * Premium UI for Mass Schedule management
- * 
+ *
  * Features:
  * - Beautiful schedule cards with days chips
  * - Status badges with proper colors
@@ -17,13 +17,10 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -32,41 +29,35 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
-  GUIDE_SHADOWS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
-import { DayOfWeek, MassSchedule, MassScheduleStatus } from "../../../../types/guide";
+import {
+  DayOfWeek,
+  MassSchedule,
+  MassScheduleStatus,
+} from "../../../../types/guide";
+import { PREMIUM_COLORS, STATUS_COLORS } from "../constants";
 import { useMassSchedule } from "../hooks/useMassSchedule";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import type { FilterItem } from "./FilterBottomSheet";
+import { FilterBottomSheet, FilterTrigger } from "./FilterBottomSheet";
+import { styles } from "./SchedulesTab.styles";
+import { StatusBadge } from "./StatusBadge";
 
 // ============================================
 // CONSTANTS
 // ============================================
 
-// Premium Colors
-const PREMIUM_COLORS = {
-  gold: "#D4AF37",
-  goldLight: "#F5E6B8",
-  goldDark: "#B8960C",
-  cream: "#FDF8F0",
-  charcoal: "#1A1A1A",
-  warmGray: "#F7F5F2",
-  brown: "#8B7355",
-  brownLight: "#E8E0D5",
-};
-
-type StatusConfigItem = { label: string; bgColor: string; textColor: string; icon: keyof typeof MaterialIcons.glyphMap };
-type StatusFilterItem = { key: StatusFilter; label: string; color: string; bgColor: string; icon?: keyof typeof MaterialIcons.glyphMap; description?: string };
 type DayMapItem = { value: DayOfWeek; label: string; color: string };
 
-const getStatusConfig = (t: (key: string) => string): Record<MassScheduleStatus, StatusConfigItem> => ({
-  pending: { label: t("schedulesTab.statusPending"), bgColor: "#FEF3C7", textColor: "#D97706", icon: "schedule" },
-  approved: { label: t("schedulesTab.statusApproved"), bgColor: "#D1FAE5", textColor: "#059669", icon: "check-circle" },
-  rejected: { label: t("schedulesTab.statusRejected"), bgColor: "#FEE2E2", textColor: "#DC2626", icon: "cancel" },
-});
+const getStatusLabel = (
+  status: MassScheduleStatus,
+  t: (key: string) => string,
+): string => {
+  return t(
+    `schedulesTab.status${status.charAt(0).toUpperCase() + status.slice(1)}`,
+  );
+};
 
 const getDaysMap = (t: (key: string) => string): DayMapItem[] => [
   { value: 0, label: t("schedulesTab.day0"), color: "#DC2626" },
@@ -80,191 +71,39 @@ const getDaysMap = (t: (key: string) => string): DayMapItem[] => [
 
 type StatusFilter = "all" | MassScheduleStatus;
 
-const getStatusFilters = (t: (key: string) => string): StatusFilterItem[] => [
-  { key: "all", label: t("schedulesTab.statusAll"), color: PREMIUM_COLORS.brown, bgColor: PREMIUM_COLORS.brownLight, description: t("schedulesTab.statusAllDesc") },
-  { key: "pending", label: t("schedulesTab.statusPending"), color: "#D97706", bgColor: "#FEF3C7", icon: "schedule", description: t("schedulesTab.statusPendingDesc") },
-  { key: "approved", label: t("schedulesTab.statusApproved"), color: "#059669", bgColor: "#D1FAE5", icon: "check-circle", description: t("schedulesTab.statusApprovedDesc") },
-  { key: "rejected", label: t("schedulesTab.statusRejected"), color: "#DC2626", bgColor: "#FEE2E2", icon: "cancel", description: t("schedulesTab.statusRejectedDesc") },
+const getStatusFilters = (t: (key: string) => string): FilterItem[] => [
+  {
+    key: "all",
+    label: t("schedulesTab.statusAll"),
+    color: PREMIUM_COLORS.brown,
+    bgColor: PREMIUM_COLORS.brownLight,
+    description: t("schedulesTab.statusAllDesc"),
+  },
+  {
+    key: "pending",
+    label: t("schedulesTab.statusPending"),
+    color: "#D97706",
+    bgColor: "#FEF3C7",
+    icon: "schedule",
+    description: t("schedulesTab.statusPendingDesc"),
+  },
+  {
+    key: "approved",
+    label: t("schedulesTab.statusApproved"),
+    color: "#059669",
+    bgColor: "#D1FAE5",
+    icon: "check-circle",
+    description: t("schedulesTab.statusApprovedDesc"),
+  },
+  {
+    key: "rejected",
+    label: t("schedulesTab.statusRejected"),
+    color: "#DC2626",
+    bgColor: "#FEE2E2",
+    icon: "cancel",
+    description: t("schedulesTab.statusRejectedDesc"),
+  },
 ];
-
-// ============================================
-// FILTER BOTTOM SHEET COMPONENT (Gold Standard)
-// ============================================
-
-interface FilterBottomSheetProps {
-  visible: boolean;
-  activeFilter: StatusFilter;
-  onFilterChange: (filter: StatusFilter) => void;
-  onClose: () => void;
-  filters: StatusFilterItem[];
-}
-
-const FilterBottomSheet: React.FC<FilterBottomSheetProps> = ({
-  visible,
-  activeFilter,
-  onFilterChange,
-  onClose,
-  filters,
-}) => {
-  const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
-  const [selectedFilter, setSelectedFilter] = useState<StatusFilter>(activeFilter);
-
-  React.useEffect(() => {
-    if (visible) {
-      setSelectedFilter(activeFilter);
-    }
-  }, [visible, activeFilter]);
-
-  const handleApply = () => {
-    onFilterChange(selectedFilter);
-    onClose();
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.bottomSheetOverlay}>
-          <TouchableWithoutFeedback>
-            <View style={[styles.bottomSheetContainer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) }]}>
-              {/* Handle Bar */}
-              <View style={styles.handleBarContainer}>
-                <View style={styles.handleBar} />
-              </View>
-
-              {/* Header */}
-              <View style={styles.bottomSheetHeader}>
-                <Text style={styles.bottomSheetTitle}>{t("schedulesTab.filterTitle")}</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={GUIDE_COLORS.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Filter Options */}
-              <View style={styles.filterOptionsContainer}>
-                {filters.map((filter) => {
-                  const isSelected = selectedFilter === filter.key;
-                  return (
-                    <TouchableOpacity
-                      key={filter.key}
-                      style={[
-                        styles.filterOption,
-                        isSelected && { backgroundColor: filter.bgColor, borderColor: filter.color },
-                      ]}
-                      onPress={() => setSelectedFilter(filter.key)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.filterOptionLeft}>
-                        <View style={[styles.filterIconContainer, { backgroundColor: filter.bgColor }]}>
-                          {filter.icon ? (
-                            <MaterialIcons name={filter.icon} size={20} color={filter.color} />
-                          ) : (
-                            <MaterialIcons name="apps" size={20} color={filter.color} />
-                          )}
-                        </View>
-                        <View style={styles.filterOptionText}>
-                          <Text style={[styles.filterOptionLabel, { color: isSelected ? filter.color : GUIDE_COLORS.textPrimary }]}>
-                            {filter.label}
-                          </Text>
-                          {filter.description && (
-                            <Text style={styles.filterOptionDescription}>{filter.description}</Text>
-                          )}
-                        </View>
-                      </View>
-                      {isSelected && (
-                        <View style={[styles.checkCircle, { backgroundColor: filter.color }]}>
-                          <Ionicons name="checkmark" size={16} color="#FFF" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Apply Button */}
-              <View style={styles.bottomSheetFooter}>
-                <TouchableOpacity
-                  style={styles.applyButton}
-                  onPress={handleApply}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.applyButtonText}>{t("schedulesTab.apply")}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
-  );
-};
-
-// Filter Trigger Button
-interface FilterTriggerProps {
-  activeFilter: StatusFilter;
-  onPress: () => void;
-  filters: StatusFilterItem[];
-}
-
-const FilterTrigger: React.FC<FilterTriggerProps> = ({ activeFilter, onPress, filters }) => {
-  const { t } = useTranslation();
-  const activeFilterInfo = filters.find(f => f.key === activeFilter);
-  const isFiltered = activeFilter !== "all";
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.filterTriggerButton,
-        isFiltered && { backgroundColor: activeFilterInfo?.bgColor, borderColor: activeFilterInfo?.color },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Ionicons
-        name="filter"
-        size={14}
-        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-      />
-      <Text style={[
-        styles.filterTriggerText,
-        isFiltered && { color: activeFilterInfo?.color },
-      ]}>
-        {isFiltered ? activeFilterInfo?.label : t("schedulesTab.filter")}
-      </Text>
-      <Ionicons
-        name="chevron-down"
-        size={14}
-        color={isFiltered ? activeFilterInfo?.color : GUIDE_COLORS.textSecondary}
-      />
-    </TouchableOpacity>
-  );
-};
-
-// ============================================
-// STATUS BADGE COMPONENT
-// ============================================
-
-interface StatusBadgeProps {
-  status: MassScheduleStatus;
-  statusConfig: Record<MassScheduleStatus, StatusConfigItem>;
-}
-
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status, statusConfig }) => {
-  const config = statusConfig[status];
-  return (
-    <View style={[styles.statusBadge, { backgroundColor: config.bgColor }]}>
-      <View style={[styles.statusDot, { backgroundColor: config.textColor }]} />
-      <Text style={[styles.statusBadgeText, { color: config.textColor }]}>
-        {config.label}
-      </Text>
-    </View>
-  );
-};
 
 // ============================================
 // DAY CHIP COMPONENT
@@ -278,14 +117,23 @@ interface DayChipProps {
   daysMap: DayMapItem[];
 }
 
-const DayChip: React.FC<DayChipProps> = ({ day, size = "normal", selected, onPress, daysMap }) => {
-  const dayInfo = daysMap.find(d => d.value === day) || daysMap[0];
+const DayChip: React.FC<DayChipProps> = ({
+  day,
+  size = "normal",
+  selected,
+  onPress,
+  daysMap,
+}) => {
+  const dayInfo = daysMap.find((d) => d.value === day) || daysMap[0];
   const isSmall = size === "small";
 
   const chipStyle = [
     styles.dayChip,
     isSmall && styles.dayChipSmall,
-    selected && { backgroundColor: PREMIUM_COLORS.goldLight, borderColor: PREMIUM_COLORS.gold },
+    selected && {
+      backgroundColor: PREMIUM_COLORS.goldLight,
+      borderColor: PREMIUM_COLORS.gold,
+    },
   ];
 
   const textStyle = [
@@ -317,11 +165,15 @@ interface ScheduleCardProps {
   schedule: MassSchedule;
   onEdit: () => void;
   onDelete: () => void;
-  statusConfig: Record<MassScheduleStatus, StatusConfigItem>;
   daysMap: DayMapItem[];
 }
 
-const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete, statusConfig, daysMap }) => {
+const ScheduleCard: React.FC<ScheduleCardProps> = ({
+  schedule,
+  onEdit,
+  onDelete,
+  daysMap,
+}) => {
   const { t } = useTranslation();
   const [showMenu, setShowMenu] = useState(false);
   const canEdit = schedule.status !== "approved";
@@ -363,24 +215,37 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete,
       t("schedulesTab.deleteMessage"),
       [
         { text: t("schedulesTab.cancel"), style: "cancel" },
-        { text: t("schedulesTab.delete"), style: "destructive", onPress: onDelete },
-      ]
+        {
+          text: t("schedulesTab.delete"),
+          style: "destructive",
+          onPress: onDelete,
+        },
+      ],
     );
   };
 
   return (
     <View style={styles.scheduleCard}>
       {/* Decorative left border */}
-      <View style={[styles.cardLeftBorder, { backgroundColor: statusConfig[schedule.status].textColor }]} />
+      <View
+        style={[
+          styles.cardLeftBorder,
+          { backgroundColor: STATUS_COLORS[schedule.status].color },
+        ]}
+      />
 
       <View style={styles.cardContent}>
         {/* Header: Time + Status */}
         <View style={styles.cardHeader}>
           <View style={styles.timeContainer}>
-            <Ionicons name="time-outline" size={18} color={PREMIUM_COLORS.gold} />
+            <Ionicons
+              name="time-outline"
+              size={18}
+              color={PREMIUM_COLORS.gold}
+            />
             <Text style={styles.timeText}>{formatTime(schedule.time)}</Text>
           </View>
-          <StatusBadge status={schedule.status} statusConfig={statusConfig} />
+          <StatusBadge status={schedule.status} label={getStatusLabel(schedule.status, t)} />
         </View>
 
         {/* Days chips row */}
@@ -395,7 +260,11 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete,
         {/* Note (if exists) */}
         {schedule.note && (
           <View style={styles.noteRow}>
-            <Ionicons name="document-text-outline" size={14} color={GUIDE_COLORS.gray400} />
+            <Ionicons
+              name="document-text-outline"
+              size={14}
+              color={GUIDE_COLORS.gray400}
+            />
             <Text style={styles.noteText} numberOfLines={2}>
               {schedule.note}
             </Text>
@@ -416,25 +285,47 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({ schedule, onEdit, onDelete,
         <View style={styles.cardFooter}>
           <View style={styles.footerLeft}>
             <View style={styles.codeContainer}>
-              <Ionicons name="document-outline" size={12} color={GUIDE_COLORS.gray400} />
+              <Ionicons
+                name="document-outline"
+                size={12}
+                color={GUIDE_COLORS.gray400}
+              />
               <Text style={styles.codeText}>{schedule.code}</Text>
             </View>
             <View style={styles.dateContainer}>
-              <Ionicons name="calendar-outline" size={12} color={GUIDE_COLORS.gray400} />
-              <Text style={styles.dateText}>{formatDate(schedule.created_at)}</Text>
+              <Ionicons
+                name="calendar-outline"
+                size={12}
+                color={GUIDE_COLORS.gray400}
+              />
+              <Text style={styles.dateText}>
+                {formatDate(schedule.created_at)}
+              </Text>
             </View>
           </View>
 
           {/* Actions (only for pending/rejected) */}
           {canEdit && (
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleEdit}>
-                <Ionicons name="create-outline" size={16} color={PREMIUM_COLORS.gold} />
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleEdit}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={16}
+                  color={PREMIUM_COLORS.gold}
+                />
                 <Text style={styles.actionText}>{t("schedulesTab.edit")}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={handleDelete}
+              >
                 <Ionicons name="trash-outline" size={16} color="#DC2626" />
-                <Text style={[styles.actionText, { color: "#DC2626" }]}>{t("schedulesTab.delete")}</Text>
+                <Text style={[styles.actionText, { color: "#DC2626" }]}>
+                  {t("schedulesTab.delete")}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -502,14 +393,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
   }, [visible, schedule]);
 
   const toggleDay = (day: DayOfWeek) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       days_of_week: prev.days_of_week.includes(day)
-        ? prev.days_of_week.filter(d => d !== day)
+        ? prev.days_of_week.filter((d) => d !== day)
         : [...prev.days_of_week, day].sort((a, b) => a - b),
     }));
     if (errors.days_of_week) {
-      setErrors(prev => ({ ...prev, days_of_week: "" }));
+      setErrors((prev) => ({ ...prev, days_of_week: "" }));
     }
   };
 
@@ -519,9 +410,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
     if (formatted.length > 2) {
       formatted = formatted.substring(0, 2) + ":" + formatted.substring(2, 4);
     }
-    setFormData(prev => ({ ...prev, time: formatted }));
+    setFormData((prev) => ({ ...prev, time: formatted }));
     if (errors.time) {
-      setErrors(prev => ({ ...prev, time: "" }));
+      setErrors((prev) => ({ ...prev, time: "" }));
     }
   };
 
@@ -571,28 +462,45 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               {/* Header */}
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
-                  {isEdit ? t("schedulesTab.modalTitleEdit") : t("schedulesTab.modalTitleCreate")}
+                  {isEdit
+                    ? t("schedulesTab.modalTitleEdit")
+                    : t("schedulesTab.modalTitleCreate")}
                 </Text>
-                <TouchableOpacity onPress={onClose} style={styles.modalCloseButton}>
-                  <Ionicons name="close" size={24} color={GUIDE_COLORS.textPrimary} />
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons
+                    name="close"
+                    size={24}
+                    color={GUIDE_COLORS.textPrimary}
+                  />
                 </TouchableOpacity>
               </View>
 
               {/* Rejection notice for editing rejected schedule */}
               {isEdit && schedule?.status === "rejected" && (
                 <View style={styles.rejectionNotice}>
-                  <Ionicons name="information-circle" size={18} color="#D97706" />
+                  <Ionicons
+                    name="information-circle"
+                    size={18}
+                    color="#D97706"
+                  />
                   <Text style={styles.rejectionNoticeText}>
                     {t("schedulesTab.rejectionNotice")}
                   </Text>
                 </View>
               )}
 
-              <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                style={styles.modalBody}
+                showsVerticalScrollIndicator={false}
+              >
                 {/* Days of week selection */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>
-                    {t("schedulesTab.formDaysLabel")} <Text style={styles.required}>*</Text>
+                    {t("schedulesTab.formDaysLabel")}{" "}
+                    <Text style={styles.required}>*</Text>
                   </Text>
                   <View style={styles.daysGrid}>
                     {daysMap.map((day) => (
@@ -613,10 +521,20 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 {/* Time input */}
                 <View style={styles.formGroup}>
                   <Text style={styles.formLabel}>
-                    {t("schedulesTab.formTimeLabel")} <Text style={styles.required}>*</Text>
+                    {t("schedulesTab.formTimeLabel")}{" "}
+                    <Text style={styles.required}>*</Text>
                   </Text>
-                  <View style={[styles.inputContainer, errors.time && styles.inputError]}>
-                    <Ionicons name="time-outline" size={20} color={PREMIUM_COLORS.gold} />
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      errors.time && styles.inputError,
+                    ]}
+                  >
+                    <Ionicons
+                      name="time-outline"
+                      size={20}
+                      color={PREMIUM_COLORS.gold}
+                    />
                     <TextInput
                       style={styles.textInput}
                       value={formData.time}
@@ -634,12 +552,18 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
                 {/* Note input */}
                 <View style={styles.formGroup}>
-                  <Text style={styles.formLabel}>{t("schedulesTab.formNoteLabel")}</Text>
-                  <View style={[styles.inputContainer, styles.textAreaContainer]}>
+                  <Text style={styles.formLabel}>
+                    {t("schedulesTab.formNoteLabel")}
+                  </Text>
+                  <View
+                    style={[styles.inputContainer, styles.textAreaContainer]}
+                  >
                     <TextInput
                       style={[styles.textInput, styles.textArea]}
                       value={formData.note}
-                      onChangeText={(text) => setFormData(prev => ({ ...prev, note: text }))}
+                      onChangeText={(text) =>
+                        setFormData((prev) => ({ ...prev, note: text }))
+                      }
                       placeholder={t("schedulesTab.formNotePlaceholder")}
                       placeholderTextColor={GUIDE_COLORS.gray400}
                       multiline
@@ -647,7 +571,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                       maxLength={500}
                     />
                   </View>
-                  <Text style={styles.charCount}>{formData.note.length}/500</Text>
+                  <Text style={styles.charCount}>
+                    {formData.note.length}/500
+                  </Text>
                   {errors.note && (
                     <Text style={styles.errorText}>{errors.note}</Text>
                   )}
@@ -655,16 +581,26 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </ScrollView>
 
               {/* Footer buttons */}
-              <View style={[styles.modalFooter, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.md) }]}>
+              <View
+                style={[
+                  styles.modalFooter,
+                  { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.md) },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={onClose}
                   disabled={loading}
                 >
-                  <Text style={styles.cancelButtonText}>{t("schedulesTab.cancel")}</Text>
+                  <Text style={styles.cancelButtonText}>
+                    {t("schedulesTab.cancel")}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                  style={[
+                    styles.submitButton,
+                    loading && styles.submitButtonDisabled,
+                  ]}
                   onPress={handleSubmit}
                   disabled={loading}
                 >
@@ -674,7 +610,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                     <>
                       <Ionicons name="checkmark" size={20} color="#FFF" />
                       <Text style={styles.submitButtonText}>
-                        {isEdit ? t("schedulesTab.update") : t("schedulesTab.create")}
+                        {isEdit
+                          ? t("schedulesTab.update")
+                          : t("schedulesTab.create")}
                       </Text>
                     </>
                   )}
@@ -701,24 +639,34 @@ const EmptyState: React.FC<EmptyStateProps> = ({ filter, onCreatePress }) => {
   const { t } = useTranslation();
   const getMessage = () => {
     switch (filter) {
-      case "pending": return t("schedulesTab.emptyPending");
-      case "approved": return t("schedulesTab.emptyApproved");
-      case "rejected": return t("schedulesTab.emptyRejected");
-      default: return t("schedulesTab.empty");
+      case "pending":
+        return t("schedulesTab.emptyPending");
+      case "approved":
+        return t("schedulesTab.emptyApproved");
+      case "rejected":
+        return t("schedulesTab.emptyRejected");
+      default:
+        return t("schedulesTab.empty");
     }
   };
 
   return (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>
-        <MaterialIcons name="church" size={48} color={PREMIUM_COLORS.goldLight} />
+        <MaterialIcons
+          name="church"
+          size={48}
+          color={PREMIUM_COLORS.goldLight}
+        />
       </View>
       <Text style={styles.emptyTitle}>{getMessage()}</Text>
       <Text style={styles.emptySubtitle}>{t("schedulesTab.emptyDesc")}</Text>
       {filter === "all" && (
         <TouchableOpacity style={styles.emptyButton} onPress={onCreatePress}>
           <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.emptyButtonText}>{t("schedulesTab.addSchedule")}</Text>
+          <Text style={styles.emptyButtonText}>
+            {t("schedulesTab.addSchedule")}
+          </Text>
         </TouchableOpacity>
       )}
     </View>
@@ -735,7 +683,6 @@ interface SchedulesTabProps {
 
 const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const { t } = useTranslation();
-  const statusConfig = useMemo(() => getStatusConfig(t), [t]);
   const daysMap = useMemo(() => getDaysMap(t), [t]);
   const statusFilters = useMemo(() => getStatusFilters(t), [t]);
   const {
@@ -753,7 +700,9 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   } = useMassSchedule();
 
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<MassSchedule | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<MassSchedule | null>(
+    null,
+  );
   // IMPORTANT: All hooks must be called BEFORE any conditional returns
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
@@ -761,7 +710,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   useFocusEffect(
     useCallback(() => {
       refetch();
-    }, [refetch])
+    }, [refetch]),
   );
 
   const handleCreatePress = () => {
@@ -811,7 +760,6 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       schedule={item}
       onEdit={() => handleEditPress(item)}
       onDelete={() => handleDeletePress(item)}
-      statusConfig={statusConfig}
       daysMap={daysMap}
     />
   );
@@ -835,6 +783,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
           activeFilter={statusFilter}
           onPress={() => setShowFilterSheet(true)}
           filters={statusFilters}
+          defaultLabel={t("schedulesTab.filter")}
         />
       </View>
 
@@ -842,9 +791,10 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       <FilterBottomSheet
         visible={showFilterSheet}
         activeFilter={statusFilter}
-        onFilterChange={setStatusFilter}
+        onFilterChange={(filter) => setStatusFilter(filter as StatusFilter)}
         onClose={() => setShowFilterSheet(false)}
         filters={statusFilters}
+        title={t("schedulesTab.filterTitle")}
       />
 
       {/* Schedule list */}
@@ -865,7 +815,9 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
         ListEmptyComponent={
           <EmptyState filter={statusFilter} onCreatePress={handleCreatePress} />
         }
-        ItemSeparatorComponent={() => <View style={{ height: GUIDE_SPACING.sm }} />}
+        ItemSeparatorComponent={() => (
+          <View style={{ height: GUIDE_SPACING.sm }} />
+        )}
       />
 
       {/* FAB - Create button */}
@@ -889,571 +841,5 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
     </View>
   );
 };
-
-// ============================================
-// STYLES
-// ============================================
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: PREMIUM_COLORS.cream,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: PREMIUM_COLORS.cream,
-  },
-  loadingText: {
-    marginTop: GUIDE_SPACING.md,
-    fontSize: 14,
-    color: GUIDE_COLORS.textSecondary,
-  },
-
-  // Filter chips - Legacy (keep for compatibility)
-  filterContainer: {
-    flexDirection: "row",
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
-    gap: GUIDE_SPACING.xs,
-  },
-  filterChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-
-  // Header Row
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
-  },
-
-  // Filter Trigger Button
-  filterTriggerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2 },
-      android: { elevation: 2 },
-    }),
-  },
-  filterTriggerText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: GUIDE_COLORS.textSecondary,
-  },
-
-  // Bottom Sheet
-  bottomSheetOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  bottomSheetContainer: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  handleBarContainer: {
-    alignItems: "center",
-    paddingVertical: GUIDE_SPACING.sm,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: GUIDE_COLORS.gray300,
-  },
-  bottomSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.borderLight,
-  },
-  bottomSheetTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
-  },
-  closeButton: {
-    padding: GUIDE_SPACING.xs,
-  },
-  filterOptionsContainer: {
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
-    gap: GUIDE_SPACING.sm,
-  },
-  filterOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    borderWidth: 1.5,
-    borderColor: GUIDE_COLORS.borderLight,
-    backgroundColor: "#FFF",
-  },
-  filterOptionLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.md,
-  },
-  filterIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterOptionText: {
-    gap: 2,
-  },
-  filterOptionLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  filterOptionDescription: {
-    fontSize: 12,
-    color: GUIDE_COLORS.textMuted,
-  },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bottomSheetFooter: {
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingTop: GUIDE_SPACING.sm,
-    paddingBottom: GUIDE_SPACING.md,
-  },
-  applyButton: {
-    backgroundColor: PREMIUM_COLORS.gold,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    alignItems: "center",
-    ...GUIDE_SHADOWS.md,
-  },
-  applyButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFF",
-  },
-
-  // List
-  listContent: {
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingBottom: 100,
-  },
-
-  // Schedule Card
-  scheduleCard: {
-    backgroundColor: "#FFF",
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    flexDirection: "row",
-    overflow: "hidden",
-    ...GUIDE_SHADOWS.sm,
-  },
-  cardLeftBorder: {
-    width: 4,
-  },
-  cardContent: {
-    flex: 1,
-    padding: GUIDE_SPACING.md,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  timeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-  },
-  timeText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
-  },
-
-  // Status badge
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    gap: 4,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-
-  // Days row
-  daysRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GUIDE_SPACING.xs,
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  dayChip: {
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: 6,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    backgroundColor: PREMIUM_COLORS.warmGray,
-  },
-  dayChipSmall: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  dayChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  dayChipTextSmall: {
-    fontSize: 11,
-  },
-
-  // Note row
-  noteRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: GUIDE_SPACING.xs,
-    marginBottom: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    backgroundColor: PREMIUM_COLORS.warmGray,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-  },
-  noteText: {
-    flex: 1,
-    fontSize: 13,
-    color: GUIDE_COLORS.textSecondary,
-    lineHeight: 18,
-  },
-
-  // Rejection box
-  rejectionBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: GUIDE_SPACING.xs,
-    padding: GUIDE_SPACING.sm,
-    backgroundColor: "#FEE2E2",
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  rejectionText: {
-    flex: 1,
-    fontSize: 12,
-    color: "#DC2626",
-    lineHeight: 16,
-  },
-
-  // Card footer
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: GUIDE_SPACING.xs,
-    borderTopWidth: 1,
-    borderTopColor: GUIDE_COLORS.borderLight,
-  },
-  footerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.md,
-  },
-  codeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  codeText: {
-    fontSize: 11,
-    color: GUIDE_COLORS.gray400,
-    fontFamily: "monospace",
-  },
-  dateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  dateText: {
-    fontSize: 11,
-    color: GUIDE_COLORS.gray400,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: GUIDE_SPACING.md,
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 4,
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: PREMIUM_COLORS.gold,
-  },
-
-  // Empty state
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: GUIDE_SPACING.xl * 2,
-    paddingHorizontal: GUIDE_SPACING.xl,
-  },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#FFF",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: GUIDE_SPACING.md,
-    ...GUIDE_SHADOWS.sm,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: GUIDE_COLORS.textPrimary,
-    marginBottom: GUIDE_SPACING.xs,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: GUIDE_COLORS.textSecondary,
-    textAlign: "center",
-    marginBottom: GUIDE_SPACING.md,
-  },
-  emptyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: PREMIUM_COLORS.gold,
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.sm,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    ...GUIDE_SHADOWS.md,
-  },
-  emptyButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-
-  // FAB - Soft floating shadow
-  fab: {
-    position: "absolute",
-    bottom: GUIDE_SPACING.lg,
-    right: GUIDE_SPACING.md,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: PREMIUM_COLORS.gold,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
-    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
-    maxHeight: "85%",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.borderLight,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
-  },
-  modalCloseButton: {
-    padding: GUIDE_SPACING.xs,
-  },
-  modalBody: {
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
-  },
-  rejectionNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    marginHorizontal: GUIDE_SPACING.lg,
-    marginTop: GUIDE_SPACING.sm,
-    padding: GUIDE_SPACING.sm,
-    backgroundColor: "#FEF3C7",
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-  },
-  rejectionNoticeText: {
-    flex: 1,
-    fontSize: 12,
-    color: "#D97706",
-  },
-
-  // Form
-  formGroup: {
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: GUIDE_COLORS.textPrimary,
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  required: {
-    color: "#DC2626",
-  },
-  daysGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: GUIDE_SPACING.sm,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: PREMIUM_COLORS.warmGray,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-  },
-  inputError: {
-    borderColor: "#DC2626",
-  },
-  textAreaContainer: {
-    alignItems: "flex-start",
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 15,
-    color: GUIDE_COLORS.textPrimary,
-    padding: 0,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: "top",
-  },
-  charCount: {
-    fontSize: 11,
-    color: GUIDE_COLORS.gray400,
-    textAlign: "right",
-    marginTop: 4,
-  },
-  errorText: {
-    fontSize: 12,
-    color: "#DC2626",
-    marginTop: 4,
-  },
-
-  // Modal footer
-  modalFooter: {
-    flexDirection: "row",
-    gap: GUIDE_SPACING.md,
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: GUIDE_COLORS.borderLight,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: GUIDE_COLORS.textSecondary,
-  },
-  submitButton: {
-    flex: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.xs,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    backgroundColor: PREMIUM_COLORS.gold,
-    ...GUIDE_SHADOWS.sm,
-  },
-  submitButtonDisabled: {
-    opacity: 0.7,
-  },
-  submitButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#FFF",
-  },
-});
 
 export default SchedulesTab;
