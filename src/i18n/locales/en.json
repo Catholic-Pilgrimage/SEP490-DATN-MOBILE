@@ -182,7 +182,16 @@
     "statusOngoing": "Ongoing",
     "statusCompleted": "Completed",
     "statusCancelled": "Cancelled",
-    "statusDraft": "Draft"
+    "statusDraft": "Draft",
+    "syncCalendar": "Sync to Calendar",
+    "syncing": "Syncing...",
+    "syncSuccess": "Sync Successful",
+    "syncError": "Sync Error",
+    "syncNotSupported": "Not Supported",
+    "syncNotSupportedMessage": "Calendar sync is only available on iOS and Android.",
+    "syncPermissionDenied": "Please grant calendar access in Settings to use this feature.",
+    "syncSuccessMessage": "Synced {{total}} events to calendar \"{{calendarName}}\"\n\n✓ Created: {{created}}\n✓ Updated: {{updated}}{{deleted}}",
+    "syncDeletedEvents": "\n✓ Deleted: {{count}}"
   },
   "appName": "Sacred Journey",
   "editProfile": {

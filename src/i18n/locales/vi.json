@@ -183,7 +183,16 @@
     "statusOngoing": "Đang thực hiện",
     "statusCompleted": "Hoàn thành",
     "statusCancelled": "Đã hủy",
-    "statusDraft": "Nháp"
+    "statusDraft": "Nháp",
+    "syncCalendar": "Đồng bộ lịch",
+    "syncing": "Đang đồng bộ...",
+    "syncSuccess": "Đồng bộ thành công",
+    "syncError": "Lỗi đồng bộ",
+    "syncNotSupported": "Không hỗ trợ",
+    "syncNotSupportedMessage": "Đồng bộ lịch chỉ khả dụng trên iOS và Android.",
+    "syncPermissionDenied": "Vui lòng cấp quyền truy cập lịch trong Cài đặt để sử dụng tính năng này.",
+    "syncSuccessMessage": "Đã đồng bộ {{total}} sự kiện vào lịch \"{{calendarName}}\"\n\n✓ Tạo mới: {{created}}\n✓ Cập nhật: {{updated}}{{deleted}}",
+    "syncDeletedEvents": "\n✓ Xóa: {{count}}"
   },
   "appName": "Hành Trình Thánh",
   "editProfile": {

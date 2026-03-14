@@ -29,6 +29,7 @@ import {
   GetPlanMessagesResponse,
   GetPlansResponse,
   InviteParticipantRequest,
+  PlanCalendarSyncData,
   PlanEntity,
   PlanInvite,
   PlanItem,
@@ -69,6 +70,18 @@ export const getPlanDetail = async (
 ): Promise<ApiResponse<PlanEntity>> => {
   const response = await apiClient.get<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.DETAIL(id),
+  );
+  return response.data;
+};
+
+/**
+ * Get calendar sync payload for a plan
+ */
+export const getPlanCalendarSync = async (
+  planId: string,
+): Promise<ApiResponse<PlanCalendarSyncData>> => {
+  const response = await apiClient.get<ApiResponse<PlanCalendarSyncData>>(
+    PILGRIM_ENDPOINTS.PLANNER.CALENDAR_SYNC(planId),
   );
   return response.data;
 };
@@ -349,6 +362,7 @@ export const checkInPlanItem = async (
 const pilgrimPlannerApi = {
   getPlans,
   getPlanDetail,
+  getPlanCalendarSync,
   createPlan,
   updatePlan,
   deletePlan,

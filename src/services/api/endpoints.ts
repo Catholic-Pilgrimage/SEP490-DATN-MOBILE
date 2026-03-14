@@ -87,6 +87,7 @@ export const PILGRIM_ENDPOINTS = {
       `${API_BASE}/planners/${id}/messages/${messageId}`,
     CHECKINS_ME: `${API_BASE}/checkins/me`,
     CHECKIN_ITEM: (id: string) => `${API_BASE}/planner-items/${id}/checkin`,
+    CALENDAR_SYNC: (id: string) => `${API_BASE}/planners/${id}/calendar-sync`,
   },
 
   // SOS - Emergency request

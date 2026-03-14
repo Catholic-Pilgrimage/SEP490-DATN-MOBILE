@@ -20,7 +20,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location for check-ins and showing nearby sites.",
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio for your spiritual journals."
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record audio for your spiritual journals.",
+        "NSCalendarsUsageDescription": "This app needs access to your calendar to sync pilgrimage schedules.",
+        "NSCalendarsFullAccessUsageDescription": "This app needs access to your calendar to sync pilgrimage schedules."
       }
     },
     "android": {
@@ -42,7 +44,9 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "POST_NOTIFICATIONS",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -73,6 +77,13 @@
           "photosPermission": "Ứng dụng cần cấp quyền truy cập thư viện ảnh để thêm ảnh vào bài viết.",
           "cameraPermission": "Ứng dụng cần cấp quyền truy cập máy ảnh để chụp ảnh và quay video.",
           "microphonePermission": "Ứng dụng cần cấp quyền truy cập micro để quay video."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Ứng dụng cần cấp quyền truy cập lịch để đồng bộ lịch trình hành hương.",
+          "remindersPermission": "Ứng dụng cần cấp quyền truy cập nhắc nhở để gửi thông báo về lịch trình hành hương."
         }
       ],
       "expo-video"

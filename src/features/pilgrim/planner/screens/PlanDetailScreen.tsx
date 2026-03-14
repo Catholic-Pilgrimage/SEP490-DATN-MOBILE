@@ -5,50 +5,51 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Image,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+import { useCalendarSync } from "../../../../hooks/useCalendarSync";
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import {
-    NearbyPlaceCategory,
-    SiteEvent,
-    SiteNearbyPlace,
-    SiteSummary,
+  NearbyPlaceCategory,
+  SiteEvent,
+  SiteNearbyPlace,
+  SiteSummary,
 } from "../../../../types/pilgrim";
 import {
-    PlanEntity,
-    PlanItem,
-    PlanParticipant,
-    UpdatePlanItemRequest,
+  PlanEntity,
+  PlanItem,
+  PlanParticipant,
+  UpdatePlanItemRequest,
 } from "../../../../types/pilgrim/planner.types";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -57,6 +58,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
+  const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
 
   const mapRef = useRef<VietmapViewRef>(null);
 
@@ -236,7 +238,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [participants, setParticipants] = useState<PlanParticipant[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("viewer");
+  const [inviteRole, setInviteRole] = useState<"viewer">("viewer");
   const [inviting, setInviting] = useState(false);
 
   // Cross-day auto-push states
@@ -612,6 +614,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         },
       ],
     );
+  };
+
+  const handleSyncCalendar = () => {
+    setShowMenuDropdown(false);
+    syncPlanToCalendar(planId);
   };
 
   const handleDeleteItem = (itemId: string) => {
@@ -1367,6 +1374,33 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   }}
                 >
                   Sửa kế hoạch
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#F3F4F6",
+                }}
+                onPress={handleSyncCalendar}
+                disabled={syncingCalendar}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={20}
+                  color={syncingCalendar ? COLORS.textTertiary : COLORS.primary}
+                  style={{ marginRight: 12 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: syncingCalendar ? COLORS.textTertiary : COLORS.primary,
+                    fontWeight: "500",
+                  }}
+                >
+                  {syncingCalendar ? t("planner.syncing") : t("planner.syncCalendar")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2964,57 +2998,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 autoCapitalize="none"
               />
 
-              {/* Role Selection */}
-              <View style={styles.roleSelection}>
-                <TouchableOpacity
-                  style={[
-                    styles.roleButton,
-                    inviteRole === "viewer" && styles.roleButtonActive,
-                  ]}
-                  onPress={() => setInviteRole("viewer")}
-                >
-                  <Ionicons
-                    name="eye-outline"
-                    size={20}
-                    color={
-                      inviteRole === "viewer" ? "#fff" : COLORS.textSecondary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      inviteRole === "viewer" && styles.roleButtonTextActive,
-                    ]}
-                  >
-                    Xem
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.roleButton,
-                    inviteRole === "editor" && styles.roleButtonActive,
-                  ]}
-                  onPress={() => setInviteRole("editor")}
-                >
-                  <Ionicons
-                    name="create-outline"
-                    size={20}
-                    color={
-                      inviteRole === "editor" ? "#fff" : COLORS.textSecondary
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      inviteRole === "editor" && styles.roleButtonTextActive,
-                    ]}
-                  >
-                    Chỉnh sửa
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
+              {/* Role Info */}
+              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginBottom: 12 }}>
+                Thành viên được mời sẽ có quyền xem kế hoạch này.
+              </Text>
+  
               <TouchableOpacity
                 style={styles.inviteButton}
                 onPress={handleInviteParticipant}

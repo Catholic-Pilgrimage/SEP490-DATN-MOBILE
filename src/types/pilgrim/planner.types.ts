@@ -115,7 +115,61 @@ export interface GetMembersResponse {
 export interface GetInvitesResponse {
   invites: PlanInvite[];
 }
-
+export interface PlanCalendarSyncOwner {
+  id: string;
+  full_name: string;
+  email: string;
+  avatar_url?: string;
+}
+export interface PlanCalendarSyncPlanner {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date?: string;
+  number_of_people?: number;
+  transportation?: TransportationType | string;
+  owner?: PlanCalendarSyncOwner;
+}
+export interface PlanCalendarSyncAlarm {
+  relativeOffset: number;
+  method?: string;
+}
+export interface PlanCalendarSyncCoordinates {
+  latitude: number;
+  longitude: number;
+}
+export interface PlanCalendarSyncMetadata {
+  planner_id: string;
+  planner_item_id: string;
+  site_id?: string;
+  site_code?: string;
+  day_number?: number;
+  order_index?: number;
+  coordinates?: PlanCalendarSyncCoordinates;
+  [key: string]: unknown;
+}
+export interface PlanCalendarSyncEvent {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  location?: string;
+  notes?: string;
+  alarms?: PlanCalendarSyncAlarm[];
+  timeZone?: string;
+  metadata?: PlanCalendarSyncMetadata;
+}
+export interface PlanCalendarSyncInstructions {
+  timezone?: string;
+  alarm_offsets?: number[];
+  recommended_calendar_name?: string;
+}
+export interface PlanCalendarSyncData {
+  planner: PlanCalendarSyncPlanner;
+  events: PlanCalendarSyncEvent[];
+  total_events: number;
+  sync_instructions?: PlanCalendarSyncInstructions;
+}
 // ============================================
 // API RESPONSE ENTITIES
 // ============================================
