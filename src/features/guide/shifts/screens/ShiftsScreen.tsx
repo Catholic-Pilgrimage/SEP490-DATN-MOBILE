@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
+import { useNotificationContext } from '../../../../contexts/NotificationContext';
+import { useNotifications } from '../../../../hooks/useNotifications';
 import { AvailableShiftsTab } from '../components/AvailableShiftsTab';
 import { MyShiftsTab } from '../components/MyShiftsTab';
 
@@ -14,6 +16,8 @@ const PREMIUM_COLORS = {
 export const ShiftsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<'find' | 'my'>('find');
+    const { openModal } = useNotificationContext();
+    const { unreadCount } = useNotifications();
 
     return (
         <View style={styles.container}>
@@ -27,8 +31,20 @@ export const ShiftsScreen: React.FC = () => {
                             <Text style={styles.headerTitle}>Lịch làm việc</Text>
                             <Text style={styles.headerSubtitle}>Quản lý ca trực & đăng ký</Text>
                         </View>
-                        <View style={styles.headerIcon}>
-                            <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
+                        <View style={styles.headerActions}>
+                            <TouchableOpacity style={styles.notificationButton} onPress={openModal} activeOpacity={0.85}>
+                                <MaterialIcons name="notifications-none" size={22} color={GUIDE_COLORS.primary} />
+                                {unreadCount > 0 && (
+                                    <View style={styles.notificationBadge}>
+                                        <Text style={styles.notificationBadgeText}>
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                            <View style={styles.headerIcon}>
+                                <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
+                            </View>
                         </View>
                     </View>
                 </View>
@@ -97,6 +113,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: GUIDE_SPACING.sm,
+    },
     headerTitle: {
         fontSize: 28,
         fontWeight: '800',
@@ -115,6 +136,34 @@ const styles = StyleSheet.create({
         backgroundColor: GUIDE_COLORS.primaryMuted,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    notificationButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: GUIDE_COLORS.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...GUIDE_SHADOWS.sm,
+    },
+    notificationBadge: {
+        position: 'absolute',
+        top: -3,
+        right: -3,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        paddingHorizontal: 4,
+        backgroundColor: GUIDE_COLORS.error,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        borderColor: PREMIUM_COLORS.cream,
+    },
+    notificationBadgeText: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     segmentContainer: {
         paddingHorizontal: GUIDE_SPACING.lg,

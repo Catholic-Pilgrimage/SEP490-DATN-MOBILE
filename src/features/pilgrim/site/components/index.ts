@@ -1,6 +1,6 @@
-export { EventCard } from './EventCard';
-export { NearbyPlaceCard } from './NearbyPlaceCard';
-export { QuickActionButton } from './QuickActionButton';
-export { SOSModal } from './SOSModal';
-
+export { AddToPlanModal } from "./AddToPlanModal";
+export { EventCard } from "./EventCard";
+export { NearbyPlaceCard } from "./NearbyPlaceCard";
+export { QuickActionButton } from "./QuickActionButton";
+export { SOSModal } from "./SOSModal";
 

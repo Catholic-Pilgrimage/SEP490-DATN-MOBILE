@@ -1,6 +1,7 @@
 // Local Guide tab navigator - 3 tabs: Home, My Site, Profile
 import { MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -11,8 +12,14 @@ import {
   GUIDE_COLORS,
   GUIDE_SHADOWS
 } from "../constants/guide.constants";
+import { useNotifications } from "../hooks/useNotifications";
 import { DashboardScreen } from "../features/guide/dashboard/screens";
 import { ProfileScreen } from "../features/guide/profile/screens";
+import {
+  CommunityScreen,
+  CreatePostScreen,
+  PostDetailScreen,
+} from "../features/pilgrim/community/screens";
 import { ShiftsScreen } from "../features/guide/shifts/screens/ShiftsScreen";
 import { MySiteNavigator } from "./MySiteNavigator";
 
@@ -20,16 +27,18 @@ export type GuideTabParamList = {
   Dashboard: undefined;
   MySite: undefined;
   Shifts: undefined;
+  Community: undefined;
   Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<GuideTabParamList>();
+const CommunityStack = createNativeStackNavigator();
 
 type IconName =
   | "home"
   | "church"
   | "calendar-today"
-  | "chat-bubble-outline"
+  | "people-outline"
   | "person-outline";
 
 interface TabIconProps {
@@ -38,6 +47,19 @@ interface TabIconProps {
   label: string;
   hasNotification?: boolean;
 }
+
+const GuideCommunityStackNavigator = () => (
+  <CommunityStack.Navigator
+    screenOptions={{
+      headerShown: false,
+      contentStyle: { backgroundColor: GUIDE_COLORS.background },
+    }}
+  >
+    <CommunityStack.Screen name="GuideCommunityMain" component={CommunityScreen} />
+    <CommunityStack.Screen name="CreatePost" component={CreatePostScreen} />
+    <CommunityStack.Screen name="PostDetail" component={PostDetailScreen} />
+  </CommunityStack.Navigator>
+);
 
 const TabIcon = ({ name, focused, label, hasNotification }: TabIconProps) => {
   return (
@@ -48,8 +70,8 @@ const TabIcon = ({ name, focused, label, hasNotification }: TabIconProps) => {
         <MaterialIcons
           name={
             focused
-              ? name === "chat-bubble-outline"
-                ? "chat-bubble"
+              ? name === "people-outline"
+                ? "people"
                 : name === "person-outline"
                   ? "person"
                   : name
@@ -70,6 +92,7 @@ const TabIcon = ({ name, focused, label, hasNotification }: TabIconProps) => {
 export const GuideNavigator = () => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { unreadCount } = useNotifications();
 
   return (
     <Tab.Navigator
@@ -127,11 +150,29 @@ export const GuideNavigator = () => {
         }}
       />
       <Tab.Screen
+        name="Community"
+        component={GuideCommunityStackNavigator}
+        options={{
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              name="people-outline"
+              focused={focused}
+              label={t("navigation.community", { defaultValue: "Cộng đồng" })}
+            />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ProfileScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="person-outline" focused={focused} label={t("navigation.profile", { defaultValue: "Cá nhân" })} />
+            <TabIcon
+              name="person-outline"
+              focused={focused}
+              label={t("navigation.profile", { defaultValue: "Cá nhân" })}
+              hasNotification={unreadCount > 0}
+            />
           ),
         }}
       />
