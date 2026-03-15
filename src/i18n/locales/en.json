@@ -191,7 +191,31 @@
     "syncNotSupportedMessage": "Calendar sync is only available on iOS and Android.",
     "syncPermissionDenied": "Please grant calendar access in Settings to use this feature.",
     "syncSuccessMessage": "Synced {{total}} events to calendar \"{{calendarName}}\"\n\n✓ Created: {{created}}\n✓ Updated: {{updated}}{{deleted}}",
-    "syncDeletedEvents": "\n✓ Deleted: {{count}}"
+    "syncDeletedEvents": "\n✓ Deleted: {{count}}",
+    "totalEvents": "Events",
+    "created": "Created",
+    "updated": "Updated",
+    "deleted": "Deleted",
+    "noPendingOfflineActions": "No offline actions are waiting to sync",
+    "pendingActionsWillSync": "Offline changes will sync automatically when you reconnect.",
+    "pendingActionsReadyToSync": "You can sync now to send pending changes to the server.",
+    "eventDetailsOfflineUnavailable": "Event details will appear when you are back online or when offline data includes them.",
+    "syncFailed": "Sync failed"
+  },
+  "offline": {
+    "banner": "Offline Mode",
+    "pendingActions": "pending actions",
+    "downloadForOffline": "Download for offline",
+    "downloading": "Downloading offline data",
+    "downloadSuccess": "Download successful!",
+    "downloadError": "Download failed",
+    "downloadSuccessMsg": "You can view this plan when offline",
+    "availableOffline": "Available offline",
+    "deleteOfflineData": "Delete offline data",
+    "deleteOfflineConfirm": "Are you sure you want to delete offline data for this plan?",
+    "deleteSuccess": "Offline data deleted",
+    "syncOfflineActions": "Sync offline actions",
+    "noConnection": "No internet connection"
   },
   "appName": "Sacred Journey",
   "editProfile": {

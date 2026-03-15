@@ -88,6 +88,8 @@ export const PILGRIM_ENDPOINTS = {
     CHECKINS_ME: `${API_BASE}/checkins/me`,
     CHECKIN_ITEM: (id: string) => `${API_BASE}/planner-items/${id}/checkin`,
     CALENDAR_SYNC: (id: string) => `${API_BASE}/planners/${id}/calendar-sync`,
+    OFFLINE_DATA: (id: string) => `${API_BASE}/planners/${id}/offline-data`,
+    SYNC_OFFLINE_ACTIONS: `${API_BASE}/planners/sync/offline-actions`,
   },
 
   // SOS - Emergency request

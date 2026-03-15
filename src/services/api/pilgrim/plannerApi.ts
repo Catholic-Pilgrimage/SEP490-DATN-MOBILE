@@ -17,30 +17,30 @@
 
 import { ApiResponse, PaginationParams } from "../../../types/api.types";
 import {
-  AddPlanItemRequest,
-  AddPlanItemResponse,
-  AISuggestionRequest,
-  CheckInEntity,
-  CheckInItemRequest,
-  CheckInItemResponse,
-  CreatePlanRequest,
-  GetInvitesResponse,
-  GetMembersResponse,
-  GetPlanMessagesResponse,
-  GetPlansResponse,
-  InviteParticipantRequest,
-  PlanCalendarSyncData,
-  PlanEntity,
-  PlanInvite,
-  PlanItem,
-  PlannerMessage,
-  PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
-  ReorderPlanItemsRequest,
-  ReorderPlanItemsResponse,
-  RespondInviteRequest,
-  SendPlanMessageRequest,
-  UpdatePlanItemRequest,
-  UpdatePlanRequest
+    AddPlanItemRequest,
+    AddPlanItemResponse,
+    AISuggestionRequest,
+    CheckInEntity,
+    CheckInItemRequest,
+    CheckInItemResponse,
+    CreatePlanRequest,
+    GetInvitesResponse,
+    GetMembersResponse,
+    GetPlanMessagesResponse,
+    GetPlansResponse,
+    InviteParticipantRequest,
+    PlanCalendarSyncData,
+    PlanEntity,
+    PlanInvite,
+    PlanItem,
+    PlannerMessage,
+    PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
+    ReorderPlanItemsRequest,
+    ReorderPlanItemsResponse,
+    RespondInviteRequest,
+    SendPlanMessageRequest,
+    UpdatePlanItemRequest,
+    UpdatePlanRequest
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -355,6 +355,33 @@ export const checkInPlanItem = async (
   return response.data;
 };
 
+/**
+ * Get offline data for a plan
+ * GET /api/planners/{id}/offline-data
+ */
+export const getOfflineData = async (
+  planId: string,
+): Promise<ApiResponse<any>> => {
+  const response = await apiClient.get<ApiResponse<any>>(
+    PILGRIM_ENDPOINTS.PLANNER.OFFLINE_DATA(planId),
+  );
+  return response.data;
+};
+
+/**
+ * Sync offline actions
+ * POST /api/planners/sync/offline-actions
+ */
+export const syncOfflineActions = async (
+  data: any,
+): Promise<ApiResponse<any>> => {
+  const response = await apiClient.post<ApiResponse<any>>(
+    PILGRIM_ENDPOINTS.PLANNER.SYNC_OFFLINE_ACTIONS,
+    data,
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -383,6 +410,8 @@ const pilgrimPlannerApi = {
   deletePlanMessage,
   getMyCheckIns,
   checkInPlanItem,
+  getOfflineData,
+  syncOfflineActions,
 };
 
 export default pilgrimPlannerApi;

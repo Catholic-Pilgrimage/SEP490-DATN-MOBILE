@@ -20,12 +20,15 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
   MapPin,
   VietmapView,
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
+import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
+import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -33,12 +36,18 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
-import { useCalendarSync } from "../../../../hooks/useCalendarSync";
+import { CalendarSyncError, useCalendarSync } from "../../../../hooks/useCalendarSync";
+import { useOffline } from "../../../../hooks/useOffline";
+import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import { PlannerCalendarSyncResult } from "../../../../services/calendar/calendarService";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
+import networkService from "../../../../services/network/networkService";
+import { offlinePlannerService } from "../../../../services/offline/offlinePlannerService";
+import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import {
   NearbyPlaceCategory,
   SiteEvent,
@@ -52,6 +61,222 @@ import {
   UpdatePlanItemRequest,
 } from "../../../../types/pilgrim/planner.types";
 
+interface LocalSiteSnapshot {
+  id: string;
+  name: string;
+  address?: string;
+  coverImage?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+const mapOfflineNearbyPlace = (
+  place: {
+    id: string;
+    name: string;
+    place_type: string;
+    address: string;
+    latitude?: string | number;
+    longitude?: string | number;
+    phone?: string;
+    description?: string;
+  },
+): SiteNearbyPlace => ({
+  id: place.id,
+  code: place.id,
+  name: place.name,
+  category: place.place_type as NearbyPlaceCategory,
+  address: place.address,
+  latitude: Number(place.latitude || 0),
+  longitude: Number(place.longitude || 0),
+  distance_meters: 0,
+  phone: place.phone,
+  description: place.description,
+});
+
+const cloneItemsByDay = (itemsByDay?: Record<string, PlanItem[]>) => {
+  const cloned: Record<string, PlanItem[]> = {};
+
+  Object.entries(itemsByDay || {}).forEach(([dayKey, items]) => {
+    cloned[dayKey] = items.map((item) => ({
+      ...item,
+      site: { ...item.site },
+      nearby_amenity_ids: item.nearby_amenity_ids
+        ? [...item.nearby_amenity_ids]
+        : undefined,
+    }));
+  });
+
+  return cloned;
+};
+
+const buildPlanFromItemsByDay = (
+  currentPlan: PlanEntity,
+  itemsByDay: Record<string, PlanItem[]>,
+) => {
+  const normalized: Record<string, PlanItem[]> = {};
+  const dayKeys = Object.keys(itemsByDay).sort(
+    (left, right) => Number(left) - Number(right),
+  );
+
+  dayKeys.forEach((dayKey) => {
+    const sortedItems = [...itemsByDay[dayKey]]
+      .sort((left, right) => {
+        const leftOrder = left.order_index ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = right.order_index ?? Number.MAX_SAFE_INTEGER;
+        if (leftOrder !== rightOrder) {
+          return leftOrder - rightOrder;
+        }
+        return (left.estimated_time || "").localeCompare(
+          right.estimated_time || "",
+        );
+      })
+      .map((item, index) => ({
+        ...item,
+        day_number: Number(dayKey),
+        order_index: index + 1,
+      }));
+
+    normalized[dayKey] = sortedItems;
+  });
+
+  const flatItems = dayKeys.flatMap((dayKey) => normalized[dayKey]);
+  const highestDay =
+    dayKeys.reduce((maxDay, dayKey) => Math.max(maxDay, Number(dayKey)), 1) || 1;
+
+  return {
+    ...currentPlan,
+    items: flatItems,
+    items_by_day: normalized,
+    number_of_days: Math.max(currentPlan.number_of_days || 1, highestDay),
+  };
+};
+
+const createLocalPlanItem = (
+  planId: string,
+  dayNumber: number,
+  dayItems: PlanItem[],
+  draft: {
+    site_id: string;
+    event_id?: string;
+    note?: string;
+    estimated_time?: string;
+    rest_duration?: string;
+    nearby_amenity_ids?: string[];
+  },
+  siteSnapshot?: LocalSiteSnapshot,
+): PlanItem => ({
+  id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  planner_id: planId,
+  site_id: draft.site_id,
+  event_id: draft.event_id,
+  day_number: dayNumber,
+  order_index: dayItems.length + 1,
+  note: draft.note,
+  estimated_time: draft.estimated_time,
+  rest_duration: draft.rest_duration,
+  nearby_amenity_ids: draft.nearby_amenity_ids,
+  site: {
+    id: siteSnapshot?.id || draft.site_id,
+    name: siteSnapshot?.name || "Pilgrimage Site",
+    address: siteSnapshot?.address,
+    image: siteSnapshot?.coverImage,
+    cover_image: siteSnapshot?.coverImage,
+    latitude: siteSnapshot?.latitude,
+    longitude: siteSnapshot?.longitude,
+  },
+});
+
+const applyLocalAddItem = (
+  currentPlan: PlanEntity,
+  planId: string,
+  draft: {
+    site_id: string;
+    day_number: number;
+    event_id?: string;
+    note?: string;
+    estimated_time?: string;
+    rest_duration?: string;
+    nearby_amenity_ids?: string[];
+  },
+  siteSnapshot?: LocalSiteSnapshot,
+) => {
+  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
+  const dayKey = String(draft.day_number);
+  const dayItems = [...(itemsByDay[dayKey] || [])];
+
+  dayItems.push(
+    createLocalPlanItem(planId, draft.day_number, dayItems, draft, siteSnapshot),
+  );
+  itemsByDay[dayKey] = dayItems;
+
+  return buildPlanFromItemsByDay(
+    {
+      ...currentPlan,
+      number_of_days: Math.max(currentPlan.number_of_days || 1, draft.day_number),
+    },
+    itemsByDay,
+  );
+};
+
+const applyLocalItemUpdate = (
+  currentPlan: PlanEntity,
+  itemId: string,
+  changes: Partial<{
+    estimated_time: string;
+    rest_duration: string;
+    note: string;
+    event_id?: string;
+    nearby_amenity_ids: string[];
+  }>,
+) => {
+  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
+
+  Object.entries(itemsByDay).forEach(([dayKey, dayItems]) => {
+    itemsByDay[dayKey] = dayItems.map((item) => {
+      if (item.id !== itemId) {
+        return item;
+      }
+
+      return {
+        ...item,
+        estimated_time:
+          changes.estimated_time !== undefined
+            ? changes.estimated_time
+            : item.estimated_time,
+        rest_duration:
+          changes.rest_duration !== undefined
+            ? changes.rest_duration
+            : item.rest_duration,
+        note: changes.note !== undefined ? changes.note : item.note,
+        event_id:
+          changes.event_id !== undefined ? changes.event_id : item.event_id,
+        nearby_amenity_ids:
+          changes.nearby_amenity_ids !== undefined
+            ? changes.nearby_amenity_ids
+            : item.nearby_amenity_ids,
+      };
+    });
+  });
+
+  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
+};
+
+const applyLocalDeleteItem = (currentPlan: PlanEntity, itemId: string) => {
+  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
+
+  Object.entries(itemsByDay).forEach(([dayKey, dayItems]) => {
+    const nextItems = dayItems.filter((item) => item.id !== itemId);
+    if (nextItems.length === 0) {
+      delete itemsByDay[dayKey];
+      return;
+    }
+    itemsByDay[dayKey] = nextItems;
+  });
+
+  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
+};
+
 const PlanDetailScreen = ({ route, navigation }: any) => {
   const { planId } = route.params;
   const { t } = useTranslation();
@@ -59,6 +284,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
+  const { isOffline, offlineQueueCount } = useOffline();
+  const [syncingOfflineActions, setSyncingOfflineActions] = useState(false);
 
   const mapRef = useRef<VietmapViewRef>(null);
 
@@ -312,6 +539,26 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   // Full Map Modal state
   const [showFullMap, setShowFullMap] = useState(false);
 
+  // Calendar Sync Modal state
+  const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
+  const [calendarSyncSuccess, setCalendarSyncSuccess] = useState(false);
+  const [calendarSyncResult, setCalendarSyncResult] = useState<PlannerCalendarSyncResult | undefined>();
+  const [calendarSyncError, setCalendarSyncError] = useState<CalendarSyncError | undefined>();
+
+  // Offline Download state
+  const {
+    downloading: downloadingOffline,
+    progress: offlineProgress,
+    error: offlineError,
+    success: offlineSuccess,
+    downloadPlanner,
+    checkAvailability,
+    deleteOfflineData: deleteOffline,
+    reset: resetOfflineDownload,
+  } = useOfflineDownload();
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [isAvailableOffline, setIsAvailableOffline] = useState(false);
+
   useEffect(() => {
     // Attempt to hide bottom tab
     navigation.getParent()?.setOptions({
@@ -326,7 +573,81 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   useEffect(() => {
     loadPlan();
+    checkOfflineAvailability();
   }, [planId]);
+
+  const checkOfflineAvailability = async () => {
+    const available = await checkAvailability(planId);
+    setIsAvailableOffline(available);
+  };
+
+  const showConnectionRequiredAlert = () => {
+    Alert.alert(
+      t("common.error"),
+      t("offline.noConnection", {
+        defaultValue: "Không có kết nối mạng",
+      }),
+    );
+  };
+
+  const getKnownSiteSnapshot = (siteId: string): LocalSiteSnapshot | undefined => {
+    const knownSites = [
+      ...sites,
+      ...favorites,
+      ...eventSitesList,
+      ...(eventSite ? [eventSite] : []),
+    ];
+    const matchedSite = knownSites.find((site) => site.id === siteId);
+
+    if (!matchedSite) {
+      return undefined;
+    }
+
+    return {
+      id: matchedSite.id,
+      name: matchedSite.name,
+      address: matchedSite.address,
+      coverImage: matchedSite.coverImage,
+      latitude: matchedSite.latitude,
+      longitude: matchedSite.longitude,
+    };
+  };
+
+  const loadOfflinePlan = async () => {
+    const offlinePlan = await offlinePlannerService.getPlannerEntity(planId);
+    if (!offlinePlan) {
+      return false;
+    }
+
+    setPlan(offlinePlan);
+    setIsAvailableOffline(true);
+    return true;
+  };
+
+  const applyPlanMutation = async (
+    localUpdater: (currentPlan: PlanEntity) => PlanEntity,
+    cacheUpdater?: () => Promise<PlanEntity | null>,
+  ) => {
+    let cachedPlan: PlanEntity | null = null;
+
+    if (isAvailableOffline && cacheUpdater) {
+      try {
+        cachedPlan = await cacheUpdater();
+      } catch (error) {
+        console.warn("Failed to persist offline planner mutation:", error);
+      }
+    }
+
+    if (cachedPlan) {
+      setPlan(cachedPlan);
+      return cachedPlan;
+    }
+
+    setPlan((currentPlan) =>
+      currentPlan ? localUpdater(currentPlan) : currentPlan,
+    );
+    return null;
+  };
 
   useEffect(() => {
     if (isAddModalVisible) {
@@ -343,50 +664,155 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     if (!selectedItem) {
       setSelectedItemNearbyPlaces([]);
       setSelectedItemEvent(null);
+      setLoadingSelectedItemNearby(false);
+      setLoadingSelectedItemEvent(false);
       return;
     }
     const siteId = selectedItem.site_id || selectedItem.site?.id || "";
-    if (!siteId) return;
+    const nearbyIds = selectedItem.nearby_amenity_ids || [];
+    let isCancelled = false;
 
-    // Load Event details if there's an event_id
-    if (selectedItem.event_id) {
-      setLoadingSelectedItemEvent(true);
+    const loadSelectedItemDetails = async () => {
+      if (!siteId) {
+        if (!isCancelled) {
+          setSelectedItemNearbyPlaces([]);
+          setSelectedItemEvent(null);
+          setLoadingSelectedItemNearby(false);
+          setLoadingSelectedItemEvent(false);
+        }
+        return;
+      }
+
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        if (!isCancelled) {
+          setSelectedItemEvent(null);
+          setLoadingSelectedItemEvent(false);
+        }
+
+        if (nearbyIds.length === 0) {
+          if (!isCancelled) {
+            setSelectedItemNearbyPlaces([]);
+            setLoadingSelectedItemNearby(false);
+          }
+          return;
+        }
+
+        if (!isCancelled) {
+          setLoadingSelectedItemNearby(true);
+        }
+
+        try {
+          const offlineData = await offlinePlannerService.getPlannerData(planId);
+          const filteredPlaces = (offlineData?.nearby_places || [])
+            .filter(
+              (place) =>
+                place.site_id === siteId && nearbyIds.includes(place.id),
+            )
+            .map(mapOfflineNearbyPlace);
+
+          if (!isCancelled) {
+            setSelectedItemNearbyPlaces(filteredPlaces);
+          }
+        } catch (error) {
+          console.error("Load offline nearby error:", error);
+          if (!isCancelled) {
+            setSelectedItemNearbyPlaces([]);
+          }
+        } finally {
+          if (!isCancelled) {
+            setLoadingSelectedItemNearby(false);
+          }
+        }
+
+        return;
+      }
+
+      if (selectedItem.event_id) {
+        if (!isCancelled) {
+          setLoadingSelectedItemEvent(true);
+        }
+
+        pilgrimSiteApi
+          .getSiteEvents(siteId)
+          .then((res) => {
+            if (isCancelled) {
+              return;
+            }
+
+            if (res.success && res.data?.data) {
+              const ev = res.data.data.find(
+                (e) => e.id === selectedItem.event_id,
+              );
+              setSelectedItemEvent(ev || null);
+            } else {
+              setSelectedItemEvent(null);
+            }
+          })
+          .catch((err) => {
+            console.error("Load event error:", err);
+            if (!isCancelled) {
+              setSelectedItemEvent(null);
+            }
+          })
+          .finally(() => {
+            if (!isCancelled) {
+              setLoadingSelectedItemEvent(false);
+            }
+          });
+      } else if (!isCancelled) {
+        setSelectedItemEvent(null);
+        setLoadingSelectedItemEvent(false);
+      }
+
+      if (nearbyIds.length === 0) {
+        if (!isCancelled) {
+          setSelectedItemNearbyPlaces([]);
+          setLoadingSelectedItemNearby(false);
+        }
+        return;
+      }
+
+      if (!isCancelled) {
+        setLoadingSelectedItemNearby(true);
+      }
+
       pilgrimSiteApi
-        .getSiteEvents(siteId)
+        .getSiteNearbyPlaces(siteId)
         .then((res) => {
+          if (isCancelled) {
+            return;
+          }
+
           if (res.success && res.data?.data) {
-            const ev = res.data.data.find(
-              (e) => e.id === selectedItem.event_id,
+            const filtered = res.data.data.filter((p: SiteNearbyPlace) =>
+              nearbyIds.includes(p.id),
             );
-            setSelectedItemEvent(ev || null);
+            setSelectedItemNearbyPlaces(filtered);
+          } else {
+            setSelectedItemNearbyPlaces([]);
           }
         })
-        .catch((err) => console.error("Load event error:", err))
-        .finally(() => setLoadingSelectedItemEvent(false));
-    } else {
-      setSelectedItemEvent(null);
-    }
+        .catch((err) => {
+          console.error("Load saved nearby error:", err);
+          if (!isCancelled) {
+            setSelectedItemNearbyPlaces([]);
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setLoadingSelectedItemNearby(false);
+          }
+        });
+    };
 
-    // Load Nearby Places
-    const ids = selectedItem.nearby_amenity_ids;
-    if (!ids || ids.length === 0) {
-      setSelectedItemNearbyPlaces([]);
-      return;
-    }
-    setLoadingSelectedItemNearby(true);
-    pilgrimSiteApi
-      .getSiteNearbyPlaces(siteId)
-      .then((res) => {
-        if (res.success && res.data?.data) {
-          const filtered = res.data.data.filter((p: SiteNearbyPlace) =>
-            ids.includes(p.id),
-          );
-          setSelectedItemNearbyPlaces(filtered);
-        }
-      })
-      .catch((err) => console.error("Load saved nearby error:", err))
-      .finally(() => setLoadingSelectedItemNearby(false));
-  }, [selectedItem]);
+    void loadSelectedItemDetails();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [planId, selectedItem]);
 
   const fetchFavorites = async () => {
     try {
@@ -419,10 +845,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const loadPlan = async () => {
     try {
       setLoading(true);
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        const hasOfflinePlan = await loadOfflinePlan();
+        if (!hasOfflinePlan) {
+          showConnectionRequiredAlert();
+        }
+        return;
+      }
+
       const response = await pilgrimPlannerApi.getPlanDetail(planId);
       if (response.success && response.data) {
         setPlan(response.data);
       } else {
+        const hasOfflinePlan = await loadOfflinePlan();
+        if (hasOfflinePlan) {
+          return;
+        }
+
         Alert.alert(
           t("common.error"),
           response.message ||
@@ -433,6 +874,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }
     } catch (error) {
       console.error("Load plan detail error:", error);
+      const hasOfflinePlan = await loadOfflinePlan();
+      if (hasOfflinePlan) {
+        return;
+      }
+
       Alert.alert(
         t("common.error"),
         t("planner.loadDetailFailed", {
@@ -461,6 +907,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
     try {
       setSavingPlan(true);
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
+        showConnectionRequiredAlert();
+        return;
+      }
+
       const response = await pilgrimPlannerApi.updatePlan(planId, {
         name: editPlanName.trim(),
         start_date: editPlanStartDate,
@@ -469,6 +921,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         transportation: editPlanTransportation,
       });
       if (response.success) {
+        if (isAvailableOffline) {
+          await offlinePlannerService.updatePlannerMetadata(planId, {
+            name: editPlanName.trim(),
+            start_date: editPlanStartDate,
+            end_date: editPlanEndDate,
+            number_of_people: editPlanPeople,
+            transportation: editPlanTransportation,
+          });
+        }
+
         setShowEditPlanModal(false);
         await loadPlan();
         Alert.alert("Thành công", "Đã cập nhật kế hoạch");
@@ -589,8 +1051,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           style: "destructive",
           onPress: async () => {
             try {
+              const isOnline = await networkService.checkConnection();
+              if (!isOnline) {
+                showConnectionRequiredAlert();
+                return;
+              }
+
               const response = await pilgrimPlannerApi.deletePlan(planId);
               if (response.success) {
+                if (isAvailableOffline) {
+                  await offlinePlannerService.deletePlannerData(planId);
+                }
                 navigation.goBack();
               } else {
                 Alert.alert(
@@ -616,9 +1087,101 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     );
   };
 
-  const handleSyncCalendar = () => {
+  const handleSyncCalendar = async () => {
     setShowMenuDropdown(false);
-    syncPlanToCalendar(planId);
+    const response = await syncPlanToCalendar(planId);
+    
+    if (response.success && response.result) {
+      setCalendarSyncSuccess(true);
+      setCalendarSyncResult(response.result);
+      setCalendarSyncError(undefined);
+    } else if (response.error) {
+      setCalendarSyncSuccess(false);
+      setCalendarSyncResult(undefined);
+      setCalendarSyncError(response.error);
+    }
+    
+    setShowCalendarSyncModal(true);
+  };
+
+  const handleSyncOfflineActions = async () => {
+    setShowMenuDropdown(false);
+
+    if (offlineQueueCount === 0) {
+      Alert.alert(
+        t("common.success"),
+        t("planner.noPendingOfflineActions", {
+          defaultValue: "Khong co hanh dong ngoai tuyen nao cho dong bo",
+        }),
+      );
+      return;
+    }
+
+    const isOnline = await networkService.checkConnection();
+    if (!isOnline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
+    try {
+      setSyncingOfflineActions(true);
+      const result = await offlineSyncService.syncOfflineActions();
+
+      Alert.alert(
+        result.success ? t("common.success") : t("common.error"),
+        result.message,
+      );
+
+      if ((result.synced || 0) > 0 || result.success) {
+        await loadPlan();
+      }
+    } catch (error: any) {
+      Alert.alert(
+        t("common.error"),
+        error.message || t("planner.syncFailed", { defaultValue: "Dong bo that bai" }),
+      );
+    } finally {
+      setSyncingOfflineActions(false);
+    }
+  };
+
+  const handleDownloadOffline = async () => {
+    setShowMenuDropdown(false);
+    setShowOfflineModal(true);
+    resetOfflineDownload();
+    
+    const result = await downloadPlanner(planId);
+    
+    if (result.success) {
+      setIsAvailableOffline(true);
+    }
+  };
+
+  const handleDeleteOfflineData = () => {
+    setShowMenuDropdown(false);
+    Alert.alert(
+      t("offline.deleteOfflineData", { defaultValue: "Xóa dữ liệu ngoại tuyến" }),
+      t("offline.deleteOfflineConfirm", {
+        defaultValue: "Bạn có chắc muốn xóa dữ liệu ngoại tuyến của kế hoạch này?",
+      }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.delete"),
+          style: "destructive",
+          onPress: async () => {
+            const result = await deleteOffline(planId);
+            if (result.success) {
+              setIsAvailableOffline(false);
+              Alert.alert(
+                t("common.success"),
+                t("offline.deleteSuccess", { defaultValue: "Đã xóa dữ liệu ngoại tuyến" }),
+              );
+            }
+          },
+        },
+      ],
+    );
   };
 
   const handleDeleteItem = (itemId: string) => {
@@ -634,12 +1197,33 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           style: "destructive",
           onPress: async () => {
             try {
-              // Optimistic update could be done here, but reloading is safer for sync
+              const isOnline = await networkService.checkConnection();
+
+              if (!isOnline) {
+                await networkService.addToOfflineQueue({
+                  endpoint: `/api/planners/${planId}/items/${itemId}`,
+                  method: "DELETE",
+                  data: {
+                    planner_item_id: itemId,
+                  },
+                });
+
+                await applyPlanMutation(
+                  (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
+                  () => offlinePlannerService.deletePlannerItem(planId, itemId),
+                );
+                return;
+              }
+
               const response = await pilgrimPlannerApi.deletePlanItem(
                 planId,
                 itemId,
               );
               if (response.success) {
+                await applyPlanMutation(
+                  (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
+                  () => offlinePlannerService.deletePlannerItem(planId, itemId),
+                );
                 loadPlan(); // Reload to refresh
               } else {
                 Alert.alert(
@@ -775,12 +1359,62 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         rest_duration: buildDurationString(editRestDuration),
         note: editNote.trim() || undefined,
       };
+
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items/${editingItem.id}`,
+          method: "PUT",
+          data: {
+            planner_item_id: editingItem.id,
+            ...payload,
+          },
+        });
+
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalItemUpdate(currentPlan, editingItem.id, {
+              estimated_time: payload.estimated_time,
+              rest_duration: payload.rest_duration,
+              note: payload.note,
+            }),
+          () =>
+            offlinePlannerService.updatePlannerItem(planId, editingItem.id, {
+              estimated_time: payload.estimated_time,
+              rest_duration: payload.rest_duration,
+              note: payload.note,
+            }),
+        );
+
+        setShowEditItemModal(false);
+        setEditingItem(null);
+        Alert.alert(
+          t("common.success"),
+          "Da luu thay doi ngoai tuyen. Se dong bo khi co mang.",
+        );
+        return;
+      }
+
       const response = await pilgrimPlannerApi.updatePlanItem(
         planId,
         editingItem.id,
         payload,
       );
       if (response.success) {
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalItemUpdate(currentPlan, editingItem.id, {
+              estimated_time: payload.estimated_time,
+              rest_duration: payload.rest_duration,
+              note: payload.note,
+            }),
+          () =>
+            offlinePlannerService.updatePlannerItem(planId, editingItem.id, {
+              estimated_time: payload.estimated_time,
+              rest_duration: payload.rest_duration,
+              note: payload.note,
+            }),
+        );
         setShowEditItemModal(false);
         setEditingItem(null);
         loadPlan();
@@ -1040,9 +1674,66 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }
 
       console.log("🚀 SENDING PAYLOAD:", payload);
+      const siteSnapshot = getKnownSiteSnapshot(siteId);
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items`,
+          method: "POST",
+          data: payload,
+        });
+
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalAddItem(currentPlan, planId, payload, siteSnapshot),
+          () =>
+            offlinePlannerService.addPlannerItem(planId, {
+              ...payload,
+              site: siteSnapshot
+                ? {
+                    id: siteSnapshot.id,
+                    name: siteSnapshot.name,
+                    address: siteSnapshot.address,
+                    cover_image: siteSnapshot.coverImage,
+                    latitude: siteSnapshot.latitude,
+                    longitude: siteSnapshot.longitude,
+                  }
+                : undefined,
+            }),
+        );
+
+        setIsAddModalVisible(false);
+        setShowTimeInputModal(false);
+        setNote("");
+        Alert.alert(
+          t("common.success"),
+          "Da them dia diem ngoai tuyen. Se dong bo khi co mang.",
+        );
+        return;
+      }
+
       const response = await pilgrimPlannerApi.addPlanItem(planId, payload);
 
       if (response.success) {
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalAddItem(currentPlan, planId, payload, siteSnapshot),
+          () =>
+            offlinePlannerService.addPlannerItem(planId, {
+              ...payload,
+              site: siteSnapshot
+                ? {
+                    id: siteSnapshot.id,
+                    name: siteSnapshot.name,
+                    address: siteSnapshot.address,
+                    cover_image: siteSnapshot.coverImage,
+                    latitude: siteSnapshot.latitude,
+                    longitude: siteSnapshot.longitude,
+                  }
+                : undefined,
+            }),
+        );
         setIsAddModalVisible(false);
         setShowTimeInputModal(false);
         setNote("");
@@ -1068,6 +1759,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     try {
       setLoadingNearby(true);
       const siteId = item.site_id || item.site?.id || "";
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        const offlineData = await offlinePlannerService.getPlannerData(planId);
+        const offlinePlaces = (offlineData?.nearby_places || [])
+          .filter((place) => place.site_id === siteId)
+          .map(mapOfflineNearbyPlace);
+        setNearbyPlaces(offlinePlaces);
+        return;
+      }
+
       const response = await pilgrimSiteApi.getSiteNearbyPlaces(siteId);
       if (response.success && response.data?.data) {
         setNearbyPlaces(response.data.data);
@@ -1091,6 +1793,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     try {
       setSavingNearbyPlaceId(place.id);
       const newIds = [...existingIds, place.id];
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items/${nearbyContextItem.id}`,
+          method: "PUT",
+          data: {
+            planner_item_id: nearbyContextItem.id,
+            nearby_amenity_ids: newIds,
+          },
+        });
+
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalItemUpdate(currentPlan, nearbyContextItem.id, {
+              nearby_amenity_ids: newIds,
+            }),
+          () =>
+            offlinePlannerService.updatePlannerItem(planId, nearbyContextItem.id, {
+              nearby_amenity_ids: newIds,
+            }),
+        );
+
+        setSavedNearbyPlaceIds((prev) => new Set([...prev, place.id]));
+        setNearbyContextItem((prev) =>
+          prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
+        );
+        setSelectedItem((prev) =>
+          prev && prev.id === nearbyContextItem.id
+            ? { ...prev, nearby_amenity_ids: newIds }
+            : prev,
+        );
+        return;
+      }
+
       const response = await pilgrimPlannerApi.updatePlanItem(
         planId,
         nearbyContextItem.id,
@@ -1110,6 +1847,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           prev && prev.id === nearbyContextItem.id
             ? { ...prev, nearby_amenity_ids: newIds }
             : prev,
+        );
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalItemUpdate(currentPlan, nearbyContextItem.id, {
+              nearby_amenity_ids: newIds,
+            }),
+          () =>
+            offlinePlannerService.updatePlannerItem(planId, nearbyContextItem.id, {
+              nearby_amenity_ids: newIds,
+            }),
         );
         loadPlan();
       } else {
@@ -1138,6 +1885,38 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               const newIds = (selectedItem.nearby_amenity_ids || []).filter(
                 (id) => id !== placeId,
               );
+              const isOnline = await networkService.checkConnection();
+
+              if (!isOnline) {
+                await networkService.addToOfflineQueue({
+                  endpoint: `/api/planners/${planId}/items/${selectedItem.id}`,
+                  method: "PUT",
+                  data: {
+                    planner_item_id: selectedItem.id,
+                    nearby_amenity_ids: newIds,
+                  },
+                });
+
+                await applyPlanMutation(
+                  (currentPlan) =>
+                    applyLocalItemUpdate(currentPlan, selectedItem.id, {
+                      nearby_amenity_ids: newIds,
+                    }),
+                  () =>
+                    offlinePlannerService.updatePlannerItem(planId, selectedItem.id, {
+                      nearby_amenity_ids: newIds,
+                    }),
+                );
+
+                setSelectedItem((prev) =>
+                  prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
+                );
+                setSelectedItemNearbyPlaces((prev) =>
+                  prev.filter((place) => place.id !== placeId),
+                );
+                return;
+              }
+
               const response = await pilgrimPlannerApi.updatePlanItem(
                 planId,
                 selectedItem.id,
@@ -1146,6 +1925,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 },
               );
               if (response.success) {
+                await applyPlanMutation(
+                  (currentPlan) =>
+                    applyLocalItemUpdate(currentPlan, selectedItem.id, {
+                      nearby_amenity_ids: newIds,
+                    }),
+                  () =>
+                    offlinePlannerService.updatePlannerItem(planId, selectedItem.id, {
+                      nearby_amenity_ids: newIds,
+                    }),
+                );
                 setSelectedItem((prev) =>
                   prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
                 );
@@ -1181,6 +1970,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
             // Get current location
             const location = await locationService.getCurrentLocation();
+
+            const isOnline = await networkService.checkConnection();
+            if (!isOnline) {
+              await networkService.addToOfflineQueue({
+                endpoint: `/api/planner-items/${itemId}/checkin`,
+                method: "POST",
+                data: {
+                  planner_item_id: itemId,
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                },
+              });
+
+              Alert.alert(
+                t("common.success"),
+                `Da luu check-in ngoai tuyen tai ${siteName}. Se dong bo khi co mang.`,
+              );
+              return;
+            }
 
             const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
               latitude: location.latitude,
@@ -1403,6 +2211,98 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   {syncingCalendar ? t("planner.syncing") : t("planner.syncCalendar")}
                 </Text>
               </TouchableOpacity>
+
+              {offlineQueueCount > 0 && (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F3F4F6",
+                  }}
+                  onPress={handleSyncOfflineActions}
+                  disabled={syncingOfflineActions}
+                >
+                  <Ionicons
+                    name={isOffline ? "cloud-offline-outline" : "sync-outline"}
+                    size={20}
+                    color={syncingOfflineActions ? COLORS.textTertiary : "#2563EB"}
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 16,
+                      color: syncingOfflineActions ? COLORS.textTertiary : "#2563EB",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {syncingOfflineActions
+                      ? t("planner.syncing")
+                      : `${t("offline.syncOfflineActions")} (${offlineQueueCount})`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Offline Download/Delete Button */}
+              {!isAvailableOffline ? (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F3F4F6",
+                  }}
+                  onPress={handleDownloadOffline}
+                  disabled={downloadingOffline}
+                >
+                  <Ionicons
+                    name="cloud-download-outline"
+                    size={20}
+                    color={downloadingOffline ? COLORS.textTertiary : "#10B981"}
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: downloadingOffline ? COLORS.textTertiary : "#10B981",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {t("offline.downloadForOffline")}
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F3F4F6",
+                  }}
+                  onPress={handleDeleteOfflineData}
+                >
+                  <Ionicons
+                    name="cloud-done-outline"
+                    size={20}
+                    color="#F59E0B"
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#F59E0B",
+                      fontWeight: "500",
+                    }}
+                  >
+                    {t("offline.availableOffline")}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={{
                   flexDirection: "row",
@@ -1561,6 +2461,82 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {offlineQueueCount > 0 && (
+          <View
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: isOffline ? "#FFF7ED" : "#EFF6FF",
+              borderWidth: 1,
+              borderColor: isOffline ? "#FDBA74" : "#BFDBFE",
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "700",
+                    color: isOffline ? "#9A3412" : "#1D4ED8",
+                    marginBottom: 4,
+                  }}
+                >
+                  {offlineQueueCount} {t("offline.pendingActions")}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: isOffline ? "#9A3412" : COLORS.textSecondary,
+                  }}
+                >
+                  {isOffline
+                    ? t("planner.pendingActionsWillSync", {
+                        defaultValue:
+                          "Cac thay doi offline se duoc dong bo khi ban co mang.",
+                      })
+                    : t("planner.pendingActionsReadyToSync", {
+                        defaultValue:
+                          "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
+                      })}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 14,
+                  backgroundColor:
+                    isOffline || syncingOfflineActions ? "#CBD5E1" : "#2563EB",
+                }}
+                onPress={handleSyncOfflineActions}
+                disabled={isOffline || syncingOfflineActions}
+              >
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: 13,
+                    fontWeight: "700",
+                  }}
+                >
+                  {syncingOfflineActions
+                    ? t("planner.syncing")
+                    : t("offline.syncOfflineActions")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Itinerary Section */}
         <Text style={styles.sectionTitle}>{t("planner.itinerary")}</Text>
 
@@ -2774,6 +3750,39 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     </View>
                   ) : null}
                 </View>
+              ) : selectedItem.event_id && isOffline ? (
+                <View
+                  style={{
+                    marginTop: 8,
+                    marginBottom: 8,
+                    padding: 12,
+                    backgroundColor: "#FFF7ED",
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: "#FDBA74",
+                  }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <Ionicons
+                      name="cloud-offline-outline"
+                      size={16}
+                      color="#C2410C"
+                    />
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 13,
+                        color: "#9A3412",
+                        marginLeft: 8,
+                      }}
+                    >
+                      {t("planner.eventDetailsOfflineUnavailable", {
+                        defaultValue:
+                          "Chi tiet su kien se hien thi khi co mang hoac khi goi offline ho tro du lieu nay.",
+                      })}
+                    </Text>
+                  </View>
+                </View>
               ) : null}
 
               {/* Saved Nearby Places */}
@@ -3539,6 +4548,31 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         title={plan?.name || "Bản đồ kế hoạch"}
         showUserLocation={true}
       />
+
+      {/* Calendar Sync Modal */}
+      <CalendarSyncModal
+        visible={showCalendarSyncModal}
+        onClose={() => setShowCalendarSyncModal(false)}
+        success={calendarSyncSuccess}
+        result={calendarSyncResult}
+        error={calendarSyncError}
+      />
+
+      {/* Offline Download Modal */}
+      <OfflineDownloadModal
+        visible={showOfflineModal}
+        onClose={() => {
+          setShowOfflineModal(false);
+          resetOfflineDownload();
+        }}
+        downloading={downloadingOffline}
+        progress={offlineProgress}
+        success={offlineSuccess}
+        error={offlineError}
+      />
+
+      {/* Offline Banner */}
+      <OfflineBanner />
     </View>
   );
 };

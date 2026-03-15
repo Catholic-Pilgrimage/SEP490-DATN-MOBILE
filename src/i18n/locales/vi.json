@@ -192,7 +192,31 @@
     "syncNotSupportedMessage": "Đồng bộ lịch chỉ khả dụng trên iOS và Android.",
     "syncPermissionDenied": "Vui lòng cấp quyền truy cập lịch trong Cài đặt để sử dụng tính năng này.",
     "syncSuccessMessage": "Đã đồng bộ {{total}} sự kiện vào lịch \"{{calendarName}}\"\n\n✓ Tạo mới: {{created}}\n✓ Cập nhật: {{updated}}{{deleted}}",
-    "syncDeletedEvents": "\n✓ Xóa: {{count}}"
+    "syncDeletedEvents": "\n✓ Xóa: {{count}}",
+    "totalEvents": "Sự kiện",
+    "created": "Tạo mới",
+    "updated": "Cập nhật",
+    "deleted": "Xóa",
+    "noPendingOfflineActions": "Không có hành động ngoại tuyến nào chờ đồng bộ",
+    "pendingActionsWillSync": "Các thay đổi offline sẽ tự đồng bộ khi bạn có mạng trở lại.",
+    "pendingActionsReadyToSync": "Bạn có thể đồng bộ ngay để gửi các thay đổi chờ lên hệ thống.",
+    "eventDetailsOfflineUnavailable": "Chi tiết sự kiện sẽ hiện khi có mạng hoặc khi dữ liệu offline hỗ trợ phần này.",
+    "syncFailed": "Đồng bộ thất bại"
+  },
+  "offline": {
+    "banner": "Chế độ ngoại tuyến",
+    "pendingActions": "hành động chờ đồng bộ",
+    "downloadForOffline": "Tải về để xem ngoại tuyến",
+    "downloading": "Đang tải dữ liệu ngoại tuyến",
+    "downloadSuccess": "Tải thành công!",
+    "downloadError": "Tải thất bại",
+    "downloadSuccessMsg": "Bạn có thể xem kế hoạch này khi không có kết nối mạng",
+    "availableOffline": "Đã tải về",
+    "deleteOfflineData": "Xóa dữ liệu ngoại tuyến",
+    "deleteOfflineConfirm": "Bạn có chắc muốn xóa dữ liệu ngoại tuyến của kế hoạch này?",
+    "deleteSuccess": "Đã xóa dữ liệu ngoại tuyến",
+    "syncOfflineActions": "Đồng bộ hành động ngoại tuyến",
+    "noConnection": "Không có kết nối mạng"
   },
   "appName": "Hành Trình Thánh",
   "editProfile": {

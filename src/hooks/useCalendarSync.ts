@@ -3,12 +3,17 @@
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
 
 import pilgrimPlannerApi from "../services/api/pilgrim/plannerApi";
 import calendarService, {
     PlannerCalendarSyncResult,
 } from "../services/calendar/calendarService";
+
+export interface CalendarSyncError {
+  type: "not_supported" | "permission_denied" | "sync_failed";
+  message: string;
+}
 
 export const useCalendarSync = () => {
   const { t } = useTranslation();
@@ -16,13 +21,15 @@ export const useCalendarSync = () => {
 
   const syncPlanToCalendar = async (
     plannerId: string,
-  ): Promise<PlannerCalendarSyncResult | null> => {
+  ): Promise<{ success: boolean; result?: PlannerCalendarSyncResult; error?: CalendarSyncError }> => {
     if (Platform.OS === "web") {
-      Alert.alert(
-        t("planner.syncNotSupported"),
-        t("planner.syncNotSupportedMessage"),
-      );
-      return null;
+      return {
+        success: false,
+        error: {
+          type: "not_supported",
+          message: t("planner.syncNotSupportedMessage"),
+        },
+      };
     }
 
     try {
@@ -40,35 +47,27 @@ export const useCalendarSync = () => {
       // Step 2: Sync to device calendar
       const result = await calendarService.syncPlannerCalendar(response.data);
 
-      // Step 3: Show success message
-      const deletedText = result.deleted > 0 
-        ? t("planner.syncDeletedEvents", { count: result.deleted })
-        : "";
-
-      const message = t("planner.syncSuccessMessage", {
-        total: result.total,
-        calendarName: result.calendarName,
-        created: result.created,
-        updated: result.updated,
-        deleted: deletedText,
-      });
-
-      Alert.alert(t("planner.syncSuccess"), message);
-
-      return result;
+      return { success: true, result };
     } catch (error: any) {
       console.error("Calendar sync error:", error);
 
+      let errorType: CalendarSyncError["type"] = "sync_failed";
       let errorMessage = t("planner.syncError");
 
       if (error.message?.includes("permission")) {
+        errorType = "permission_denied";
         errorMessage = t("planner.syncPermissionDenied");
       } else if (error.message) {
         errorMessage = error.message;
       }
 
-      Alert.alert(t("planner.syncError"), errorMessage);
-      return null;
+      return {
+        success: false,
+        error: {
+          type: errorType,
+          message: errorMessage,
+        },
+      };
     } finally {
       setSyncing(false);
     }
