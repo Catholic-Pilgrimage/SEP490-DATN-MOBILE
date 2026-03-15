@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -22,6 +22,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useLikePost, usePosts } from '../../../../hooks/usePosts';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
+import ReportPostModal from '../components/ReportPostModal';
 
 // --- Constants & Types ---
 // Using app-wide theme COLORS instead of custom SACRED_COLORS
@@ -66,11 +67,13 @@ const FeedItemHeader = ({
     time,
     location,
     isHighlightedGuide = false,
+    onMorePress,
 }: {
     user: { name: string; avatar?: string };
     time: string;
     location?: string;
     isHighlightedGuide?: boolean;
+    onMorePress?: () => void;
 }) => (
     <View style={styles.headerRow}>
         <View style={styles.userInfo}>
@@ -104,7 +107,7 @@ const FeedItemHeader = ({
                 </View>
             </View>
         </View>
-        <TouchableOpacity style={{ padding: 4 }}>
+        <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
             <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
         </TouchableOpacity>
     </View>
@@ -161,7 +164,7 @@ const FeedItemActions = ({
     );
 };
 
-const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void }) => {
+const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void; onMorePress?: () => void }) => {
     const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
     const { user: currentUser } = useAuth();
     const isHighlightedGuide = currentUser?.role === 'local_guide' && item.user_id === currentUser.id;
@@ -178,7 +181,7 @@ const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; 
                 <FeedCard>
 
                     <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}>
-                        <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} />
+                        <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
                     </View>
 
                     {item.content ? (
@@ -209,7 +212,7 @@ const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; 
         <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
             <FeedCard>
                 <View style={styles.paddingContent}>
-                    <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} />
+                    <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
                     <View style={styles.textBody}>
                         <Text style={styles.bodyText}>{item.content}</Text>
                     </View>
@@ -233,6 +236,7 @@ export default function CommunityScreen() {
     const { t } = useTranslation();
     const { user } = useAuth();
     const isGuideViewer = user?.role === 'local_guide';
+    const [reportPostId, setReportPostId] = useState<string | null>(null);
 
     // Format current date
     const today = new Date();
@@ -263,6 +267,7 @@ export default function CommunityScreen() {
                 item={item}
                 onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
                 onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
+                onMorePress={() => setReportPostId(item.id)}
             />
         );
     };
@@ -381,6 +386,13 @@ export default function CommunityScreen() {
                     }
                 />
             )}
+
+            <ReportPostModal
+                visible={!!reportPostId}
+                onClose={() => setReportPostId(null)}
+                targetId={reportPostId || ''}
+                targetType="post"
+            />
         </View>
     );
 }

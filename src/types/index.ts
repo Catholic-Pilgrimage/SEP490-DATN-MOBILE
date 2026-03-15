@@ -16,3 +16,4 @@ export * from './pilgrim';
 
 // Shared
 export * from './post.types';
+export * from './report.types';

@@ -334,6 +334,14 @@ export const SHARED_ENDPOINTS = {
     COMMENT_DETAIL: (id: string, commentId: string) =>
       `${API_BASE}/posts/${id}/comments/${commentId}`,
   },
+
+  // Reports
+  REPORTS: {
+    CREATE: `${API_BASE}/reports`,
+    MY_REPORTS: `${API_BASE}/reports/my-reports`,
+    DETAIL: (id: string) => `${API_BASE}/reports/${id}`,
+    DELETE: (id: string) => `${API_BASE}/reports/${id}`,
+  },
 } as const;
 
 /**

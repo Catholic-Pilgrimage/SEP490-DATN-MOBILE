@@ -28,6 +28,7 @@ import {
     usePostComments,
     usePostDetail,
 } from "../../../../hooks/usePosts";
+import ReportPostModal from "../components/ReportPostModal";
 
 // ─── Utilities ───────────────────────────────────────────
 
@@ -57,11 +58,13 @@ const FeedItemHeader = ({
   time,
   location,
   isHighlightedGuide = false,
+  onMorePress,
 }: {
   user: { name: string; avatar?: string };
   time: string;
   location?: string;
   isHighlightedGuide?: boolean;
+  onMorePress?: () => void;
 }) => (
   <View style={styles.headerRow}>
     <View style={styles.userInfo}>
@@ -134,7 +137,7 @@ const FeedItemHeader = ({
         </View>
       </View>
     </View>
-    <TouchableOpacity style={{ padding: 4 }}>
+    <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
       <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
     </TouchableOpacity>
   </View>
@@ -274,6 +277,7 @@ export default function PostDetailScreen() {
   const autoFocusComment = route.params?.autoFocusComment;
   const { user } = useAuth();
   const [commentText, setCommentText] = useState("");
+  const [showReport, setShowReport] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
   const flatListRef = useRef<any>(null);
 
@@ -367,6 +371,7 @@ export default function PostDetailScreen() {
                 : undefined
             }
             isHighlightedGuide={isPostAuthorGuide}
+            onMorePress={() => setShowReport(true)}
           />
         </View>
 
@@ -515,6 +520,13 @@ export default function PostDetailScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <ReportPostModal
+        visible={showReport}
+        onClose={() => setShowReport(false)}
+        targetId={postId}
+        targetType="post"
+      />
     </View>
   );
 }
