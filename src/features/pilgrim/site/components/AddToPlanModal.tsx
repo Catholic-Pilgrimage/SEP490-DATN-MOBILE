@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -8,6 +8,7 @@ import {
     FlatList,
     Image,
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -33,9 +34,10 @@ interface AddToPlanModalProps {
   siteId: string;
   siteName: string;
   siteCoverImage?: string;
+  navigation: any;
 }
 
-type Step = "select-plan" | "select-day" | "success" | "error";
+type Step = "select-plan" | "select-day";
 
 export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
   visible,
@@ -43,21 +45,18 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
   siteId,
   siteName,
   siteCoverImage,
+  navigation,
 }) => {
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>("select-plan");
   const [plans, setPlans] = useState<PlanEntity[]>([]);
   const [loading, setLoading] = useState(false);
-  const [adding, setAdding] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanEntity | null>(null);
   const [selectedDay, setSelectedDay] = useState<number>(1);
-  const [errorMsg, setErrorMsg] = useState("");
 
   // Animations
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
-  const successScale = useRef(new Animated.Value(0)).current;
-  const successOpacity = useRef(new Animated.Value(0)).current;
 
   // Calculate number of days for a plan
   const getPlanDays = useCallback((plan: PlanEntity): number => {
@@ -97,8 +96,7 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
     if (visible) {
       setStep("select-plan");
       setSelectedPlan(null);
-      setSelectedDay(1);
-      setErrorMsg("");
+      setSelectedDay(0);
       fetchPlans();
 
       // Animate in
@@ -138,49 +136,26 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
 
   const handleSelectPlan = (plan: PlanEntity) => {
     setSelectedPlan(plan);
-    setSelectedDay(1);
+    setSelectedDay(0);
     setStep("select-day");
   };
 
-  const handleAddToPlan = async () => {
-    if (!selectedPlan) return;
-    setAdding(true);
-    try {
-      const response = await pilgrimPlannerApi.addPlanItem(selectedPlan.id, {
-        site_id: siteId,
-        day_number: selectedDay,
+  // Navigate to PlanDetail and auto-open time setup for this site
+  const handleConfirmDay = () => {
+    if (!selectedPlan || selectedDay < 1) return;
+    animateClose(() => {
+      navigation.navigate("MainTabs", {
+        screen: "Lich trinh",
+        params: {
+          screen: "PlanDetailScreen",
+          params: {
+            planId: selectedPlan.id,
+            autoAddSiteId: siteId,
+            autoAddDay: selectedDay,
+          },
+        },
       });
-      if (response?.success) {
-        setStep("success");
-        // Animate success
-        successScale.setValue(0);
-        successOpacity.setValue(0);
-        Animated.parallel([
-          Animated.spring(successScale, {
-            toValue: 1,
-            friction: 4,
-            tension: 60,
-            useNativeDriver: true,
-          }),
-          Animated.timing(successOpacity, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      } else {
-        setErrorMsg("Không thể thêm địa điểm. Vui lòng thử lại.");
-        setStep("error");
-      }
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.message ||
-        "Không thể thêm địa điểm. Vui lòng thử lại.";
-      setErrorMsg(msg);
-      setStep("error");
-    } finally {
-      setAdding(false);
-    }
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -276,54 +251,148 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
     );
   };
 
-  // ──── Day Selector ────
+  // ──── Mini Calendar ────
   const renderDaySelector = () => {
     if (!selectedPlan) return null;
-    const days = getPlanDays(selectedPlan);
-    const dayArray = Array.from({ length: days }, (_, i) => i + 1);
+    const totalDays = getPlanDays(selectedPlan);
+    const startDate = new Date(selectedPlan.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = selectedPlan.end_date
+      ? new Date(selectedPlan.end_date)
+      : new Date(startDate.getTime() + (totalDays - 1) * 86400000);
+    endDate.setHours(0, 0, 0, 0);
 
-    // Get date label for each day
-    const getDayDateLabel = (dayNum: number) => {
-      if (!selectedPlan.start_date) return "";
-      const d = new Date(selectedPlan.start_date);
-      d.setDate(d.getDate() + dayNum - 1);
-      return d.toLocaleDateString("vi-VN", {
-        weekday: "short",
-        day: "2-digit",
-        month: "2-digit",
+    // Selected date from selectedDay (day number in plan)
+    const selectedDate = new Date(
+      startDate.getTime() + (selectedDay - 1) * 86400000,
+    );
+
+    const isInRange = (year: number, month: number, day: number) => {
+      const d = new Date(year, month, day);
+      return d >= startDate && d <= endDate;
+    };
+
+    const getDayNumber = (year: number, month: number, day: number): number => {
+      const d = new Date(year, month, day);
+      return Math.floor((d.getTime() - startDate.getTime()) / 86400000) + 1;
+    };
+
+    // Collect months from startDate to endDate
+    const months: { year: number; month: number }[] = [];
+    let curYear = startDate.getFullYear();
+    let curMonth = startDate.getMonth();
+    const endYear = endDate.getFullYear();
+    const endMonth = endDate.getMonth();
+    while (curYear < endYear || (curYear === endYear && curMonth <= endMonth)) {
+      months.push({ year: curYear, month: curMonth });
+      curMonth++;
+      if (curMonth > 11) {
+        curMonth = 0;
+        curYear++;
+      }
+    }
+
+    const weekDayLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+
+    const renderMonth = (year: number, month: number) => {
+      const firstDay = new Date(year, month, 1);
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      let startWeekday = firstDay.getDay() - 1;
+      if (startWeekday < 0) startWeekday = 6;
+
+      const cells: (number | null)[] = [];
+      for (let i = 0; i < startWeekday; i++) cells.push(null);
+      for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+      while (cells.length % 7 !== 0) cells.push(null);
+
+      const monthLabel = firstDay.toLocaleDateString("vi-VN", {
+        month: "long",
+        year: "numeric",
       });
+
+      return (
+        <View key={`${year}-${month}`} style={months.length > 1 ? styles.calendarMonthBlock : undefined}>
+          <Text style={styles.calendarMonthLabel}>
+            {monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)}
+          </Text>
+
+          <View style={styles.calendarWeekRow}>
+            {weekDayLabels.map((label) => (
+              <View key={label} style={styles.calendarWeekCell}>
+                <Text style={styles.calendarWeekText}>{label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.calendarGrid}>
+            {cells.map((dayOfMonth, idx) => {
+              if (dayOfMonth === null) {
+                return <View key={`empty-${idx}`} style={styles.calendarCell} />;
+              }
+
+              const inRange = isInRange(year, month, dayOfMonth);
+              const dayNum = inRange ? getDayNumber(year, month, dayOfMonth) : 0;
+              const isSelected =
+                inRange &&
+                selectedDate.getDate() === dayOfMonth &&
+                selectedDate.getMonth() === month &&
+                selectedDate.getFullYear() === year;
+
+              return (
+                <TouchableOpacity
+                  key={dayOfMonth}
+                  style={[
+                    styles.calendarCell,
+                    inRange && styles.calendarCellInRange,
+                    isSelected && styles.calendarCellSelected,
+                  ]}
+                  onPress={() => inRange && setSelectedDay(dayNum)}
+                  disabled={!inRange}
+                  activeOpacity={0.6}
+                >
+                  <Text
+                    style={[
+                      styles.calendarDayText,
+                      !inRange && styles.calendarDayDisabled,
+                      inRange && styles.calendarDayInRange,
+                      isSelected && styles.calendarDaySelected,
+                    ]}
+                  >
+                    {dayOfMonth}
+                  </Text>
+                  {inRange && (
+                    <Text
+                      style={[
+                        styles.calendarDayLabel,
+                        isSelected && styles.calendarDayLabelSelected,
+                      ]}
+                    >
+                      N{dayNum}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      );
     };
 
     return (
-      <View style={styles.dayGrid}>
-        {dayArray.map((day) => {
-          const isSelected = selectedDay === day;
-          return (
-            <TouchableOpacity
-              key={day}
-              style={[styles.dayChip, isSelected && styles.dayChipSelected]}
-              onPress={() => setSelectedDay(day)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.dayChipNumber,
-                  isSelected && styles.dayChipNumberSelected,
-                ]}
-              >
-                Ngày {day}
-              </Text>
-              <Text
-                style={[
-                  styles.dayChipDate,
-                  isSelected && styles.dayChipDateSelected,
-                ]}
-              >
-                {getDayDateLabel(day)}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+      <View style={styles.calendarContainer}>
+        {months.map((m) => renderMonth(m.year, m.month))}
+
+        {/* Range hint */}
+        <View style={styles.calendarHint}>
+          <Ionicons name="calendar-outline" size={13} color={COLORS.textSecondary} />
+          <Text style={styles.calendarHintText}>
+            {formatDate(selectedPlan.start_date)}
+            {selectedPlan.end_date
+              ? ` → ${formatDate(selectedPlan.end_date)}`
+              : ""}
+            {" · "}{totalDays} ngày
+          </Text>
+        </View>
       </View>
     );
   };
@@ -423,43 +492,50 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
             </View>
           </View>
 
-          {/* Site Preview */}
-          <View style={styles.sitePreview}>
-            {siteCoverImage ? (
-              <Image
-                source={{ uri: siteCoverImage }}
-                style={styles.sitePreviewImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View
-                style={[styles.sitePreviewImage, styles.sitePreviewPlaceholder]}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={24}
-                  color={COLORS.textTertiary}
+          {/* Scrollable content: site preview + calendar */}
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            {/* Site Preview */}
+            <View style={styles.sitePreview}>
+              {siteCoverImage ? (
+                <Image
+                  source={{ uri: siteCoverImage }}
+                  style={styles.sitePreviewImage}
+                  resizeMode="cover"
                 />
-              </View>
-            )}
-            <View style={styles.sitePreviewInfo}>
-              <Text style={styles.sitePreviewName} numberOfLines={2}>
-                {siteName}
-              </Text>
-              <View style={styles.sitePreviewBadge}>
-                <Ionicons name="location" size={12} color={COLORS.accent} />
-                <Text style={styles.sitePreviewBadgeText}>
-                  Địa điểm hành hương
+              ) : (
+                <View
+                  style={[styles.sitePreviewImage, styles.sitePreviewPlaceholder]}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={24}
+                    color={COLORS.textTertiary}
+                  />
+                </View>
+              )}
+              <View style={styles.sitePreviewInfo}>
+                <Text style={styles.sitePreviewName} numberOfLines={2}>
+                  {siteName}
                 </Text>
+                <View style={styles.sitePreviewBadge}>
+                  <Ionicons name="location" size={12} color={COLORS.accent} />
+                  <Text style={styles.sitePreviewBadgeText}>
+                    Địa điểm hành hương
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* Day Selector */}
-          <View style={styles.daySelectorContainer}>
-            <Text style={styles.daySelectorLabel}>Chọn ngày thêm vào:</Text>
-            {renderDaySelector()}
-          </View>
+            {/* Day Selector */}
+            <View style={styles.daySelectorContainer}>
+              <Text style={styles.daySelectorLabel}>Chọn ngày thêm vào:</Text>
+              {renderDaySelector()}
+            </View>
+          </ScrollView>
 
           {/* Confirm Button */}
           <View
@@ -469,95 +545,31 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
             ]}
           >
             <TouchableOpacity
-              style={[styles.confirmBtn, adding && styles.confirmBtnDisabled]}
-              onPress={handleAddToPlan}
-              disabled={adding}
+              style={[styles.confirmBtn, selectedDay < 1 && styles.confirmBtnDisabled]}
+              onPress={handleConfirmDay}
               activeOpacity={0.8}
+              disabled={selectedDay < 1}
             >
               <LinearGradient
                 colors={
-                  adding ? ["#ccc", "#bbb"] : [COLORS.accent, COLORS.accentDark]
+                  selectedDay < 1
+                    ? [COLORS.borderMedium, COLORS.borderMedium]
+                    : [COLORS.accent, COLORS.accentDark]
                 }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.confirmBtnGradient}
               >
-                {adding ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="add-circle" size={20} color="#fff" />
-                    <Text style={styles.confirmBtnText}>
-                      Thêm vào Ngày {selectedDay}
-                    </Text>
-                  </>
-                )}
+                <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
+                <Text style={styles.confirmBtnText}>
+                  {selectedDay < 1
+                    ? "Chọn ngày trên lịch"
+                    : `Thiết lập thời gian - Ngày ${selectedDay}`}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>
         </>
-      );
-    }
-
-    if (step === "success") {
-      return (
-        <View style={styles.resultContainer}>
-          <Animated.View
-            style={[
-              styles.successCircle,
-              {
-                transform: [{ scale: successScale }],
-                opacity: successOpacity,
-              },
-            ]}
-          >
-            <MaterialIcons name="check-circle" size={64} color="#16A34A" />
-          </Animated.View>
-          <Text style={styles.resultTitle}>Đã thêm thành công!</Text>
-          <Text style={styles.resultSubtitle}>
-            <Text style={{ fontWeight: "700" }}>{siteName}</Text> đã được thêm
-            vào <Text style={{ fontWeight: "700" }}>{selectedPlan?.name}</Text>{" "}
-            - Ngày {selectedDay}
-          </Text>
-          <View style={styles.resultActions}>
-            <TouchableOpacity
-              style={styles.resultBtnOutline}
-              onPress={() => animateClose()}
-            >
-              <Text style={styles.resultBtnOutlineText}>Đóng</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
-    if (step === "error") {
-      return (
-        <View style={styles.resultContainer}>
-          <View style={styles.errorCircle}>
-            <MaterialIcons
-              name="error-outline"
-              size={64}
-              color={COLORS.danger}
-            />
-          </View>
-          <Text style={styles.resultTitle}>Không thể thêm</Text>
-          <Text style={styles.resultSubtitle}>{errorMsg}</Text>
-          <View style={styles.resultActions}>
-            <TouchableOpacity
-              style={styles.resultBtnOutline}
-              onPress={() => setStep("select-plan")}
-            >
-              <Text style={styles.resultBtnOutlineText}>Thử lại</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.resultBtnClose}
-              onPress={() => animateClose()}
-            >
-              <Text style={styles.resultBtnCloseText}>Đóng</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       );
     }
 
@@ -588,7 +600,7 @@ export const AddToPlanModal: React.FC<AddToPlanModalProps> = ({
               transform: [{ translateY: slideAnim }],
               paddingBottom:
                 step === "select-day" ? 0 : insets.bottom + SPACING.md,
-              maxHeight: SCREEN_HEIGHT * 0.75,
+              maxHeight: step === "select-day" ? SCREEN_HEIGHT * 0.85 : SCREEN_HEIGHT * 0.75,
             },
           ]}
         >
@@ -824,11 +836,10 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
 
-  // Day Selector
+  // Day Selector (Mini Calendar)
   daySelectorContainer: {
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.lg,
-    flex: 1,
+    paddingTop: SPACING.md,
   },
   daySelectorLabel: {
     fontSize: TYPOGRAPHY.fontSize.md,
@@ -836,40 +847,87 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
   },
-  dayGrid: {
+  calendarContainer: {
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+  },
+  calendarMonthBlock: {
+    marginBottom: SPACING.md,
+  },
+  calendarMonthLabel: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    paddingVertical: SPACING.xs,
+  },
+  calendarWeekRow: {
+    flexDirection: "row",
+    marginTop: SPACING.xs,
+  },
+  calendarWeekCell: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  calendarWeekText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textTertiary,
+  },
+  calendarGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: SPACING.sm,
   },
-  dayChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.background,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderMedium,
-    minWidth: 90,
+  calendarCell: {
+    width: "14.28%",
+    height: 44,
+    justifyContent: "center",
     alignItems: "center",
+    borderRadius: 22,
   },
-  dayChipSelected: {
-    backgroundColor: COLORS.accent + "15",
-    borderColor: COLORS.accent,
+  calendarCellInRange: {
+    // light tint for dates within plan range
   },
-  dayChipNumber: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  calendarCellSelected: {
+    backgroundColor: COLORS.accent,
+  },
+  calendarDayText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
     color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
-  dayChipNumberSelected: {
-    color: COLORS.accentDark,
+  calendarDayDisabled: {
+    color: COLORS.borderMedium,
   },
-  dayChipDate: {
+  calendarDayInRange: {
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+  },
+  calendarDaySelected: {
+    color: COLORS.white,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  calendarDayLabel: {
+    fontSize: 8,
+    color: COLORS.textSecondary,
+    marginTop: -1,
+  },
+  calendarDayLabelSelected: {
+    color: COLORS.white,
+  },
+  calendarHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  calendarHintText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  dayChipDateSelected: {
-    color: COLORS.accentDark,
   },
 
   // Confirm
@@ -882,7 +940,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   confirmBtnDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
   confirmBtnGradient: {
     flexDirection: "row",
@@ -895,60 +953,6 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: "#fff",
-  },
-
-  // Result (success / error)
-  resultContainer: {
-    paddingVertical: SPACING.xxl,
-    paddingHorizontal: SPACING.xl,
-    alignItems: "center",
-  },
-  successCircle: {
-    marginBottom: SPACING.lg,
-  },
-  errorCircle: {
-    marginBottom: SPACING.lg,
-  },
-  resultTitle: {
-    fontSize: TYPOGRAPHY.fontSize.xxl,
-    fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
-  },
-  resultSubtitle: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: SPACING.lg,
-    paddingHorizontal: SPACING.md,
-  },
-  resultActions: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  resultBtnOutline: {
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1.5,
-    borderColor: COLORS.accent,
-  },
-  resultBtnOutlineText: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.accent,
-  },
-  resultBtnClose: {
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.background,
-  },
-  resultBtnCloseText: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.textSecondary,
   },
 });
 

@@ -833,6 +833,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           siteId={site.id}
           siteName={site.name}
           siteCoverImage={site.coverImage}
+          navigation={navigation}
         />
       )}
     </View>
@@ -1398,6 +1399,8 @@ const styles = StyleSheet.create({
     right: 0,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xl,
+    zIndex: 10,
+    elevation: 10,
   },
   addToPlanBtn: {
     borderRadius: BORDER_RADIUS.lg,
