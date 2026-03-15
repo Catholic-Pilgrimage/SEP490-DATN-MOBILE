@@ -5,33 +5,34 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useCalendarSync } from "../../../../hooks/useCalendarSync";
 import { useSites } from "../../../../hooks/useSites";
@@ -40,20 +41,20 @@ import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import {
-  NearbyPlaceCategory,
-  SiteEvent,
-  SiteNearbyPlace,
-  SiteSummary,
+    NearbyPlaceCategory,
+    SiteEvent,
+    SiteNearbyPlace,
+    SiteSummary,
 } from "../../../../types/pilgrim";
 import {
-  PlanEntity,
-  PlanItem,
-  PlanParticipant,
-  UpdatePlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    PlanParticipant,
+    UpdatePlanItemRequest,
 } from "../../../../types/pilgrim/planner.types";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
-  const { planId } = route.params;
+  const { planId, autoAddSiteId, autoAddDay } = route.params;
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
@@ -327,6 +328,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   useEffect(() => {
     loadPlan();
   }, [planId]);
+
+  // Auto-open time setup when navigated from AddToPlanModal (Explore flow)
+  const autoAddHandled = useRef(false);
+  useEffect(() => {
+    if (autoAddSiteId && plan && !loading && !autoAddHandled.current) {
+      autoAddHandled.current = true;
+      setSelectedDay(autoAddDay || 1);
+      // Small delay to ensure state is ready
+      setTimeout(() => {
+        handleAddItem(autoAddSiteId);
+      }, 300);
+    }
+  }, [autoAddSiteId, plan, loading]);
 
   useEffect(() => {
     if (isAddModalVisible) {
@@ -1048,11 +1062,28 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setNote("");
         loadPlan();
       } else {
-        Alert.alert("Lỗi", response.message || "Không thể thêm địa điểm");
+        Toast.show({
+          type: "error",
+          text1: "Không thể thêm địa điểm",
+          text2: response.message || "Đã xảy ra lỗi",
+          visibilityTime: 4000,
+        });
       }
     } catch (error: any) {
       console.error("Add item error:", error);
-      Alert.alert("Lỗi", error.message || "Không thể thêm địa điểm");
+      console.error("Add item error response:", JSON.stringify(error?.response?.data));
+      const errMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error?.details?.[0]?.message ||
+        error?.message ||
+        "Không thể thêm địa điểm";
+      Toast.show({
+        type: "error",
+        text1: "Không thể thêm địa điểm",
+        text2: errMsg,
+        visibilityTime: 4000,
+      });
     } finally {
       setAddingItem(false);
     }
@@ -1308,6 +1339,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.navButton}
+              onPress={() =>
+                navigation.navigate("PlanChatScreen", {
+                  planId,
+                  planName: plan?.name,
+                })
+              }
+            >
+              <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.navButton}
               onPress={handleOpenShareModal}
             >
               <Ionicons name="qr-code-outline" size={24} color="#fff" />
@@ -1396,11 +1438,15 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 <Text
                   style={{
                     fontSize: 16,
-                    color: syncingCalendar ? COLORS.textTertiary : COLORS.primary,
+                    color: syncingCalendar
+                      ? COLORS.textTertiary
+                      : COLORS.primary,
                     fontWeight: "500",
                   }}
                 >
-                  {syncingCalendar ? t("planner.syncing") : t("planner.syncCalendar")}
+                  {syncingCalendar
+                    ? t("planner.syncing")
+                    : t("planner.syncCalendar")}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2999,10 +3045,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               />
 
               {/* Role Info */}
-              <Text style={{ fontSize: 13, color: COLORS.textSecondary, marginBottom: 12 }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: COLORS.textSecondary,
+                  marginBottom: 12,
+                }}
+              >
                 Thành viên được mời sẽ có quyền xem kế hoạch này.
               </Text>
-  
+
               <TouchableOpacity
                 style={styles.inviteButton}
                 onPress={handleInviteParticipant}

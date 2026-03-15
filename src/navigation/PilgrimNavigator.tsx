@@ -10,6 +10,7 @@ import { AllSitesScreen, ExploreScreen } from '../features/pilgrim/explore/scree
 import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
 import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
 import { JournalScreen } from '../features/pilgrim/journal/screens/JournalScreen';
+import PlanChatScreen from '../features/pilgrim/planner/screens/PlanChatScreen';
 import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScreen';
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
@@ -91,6 +92,7 @@ const PlannerStackNavigator = () => (
   >
     <PlannerStack.Screen name="PlannerMain" component={PlannerScreen} />
     <PlannerStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
+    <PlannerStack.Screen name="PlanChatScreen" component={PlanChatScreen} />
     <PlannerStack.Screen
       name="CreatePlanScreen"
       component={CreatePlanScreen}

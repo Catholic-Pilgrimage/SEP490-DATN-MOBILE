@@ -2,6 +2,7 @@ import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-ic
 import { CommonActions, useFocusEffect, useScrollToTop } from '@react-navigation/native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Animated,
     Dimensions,
     ImageBackground,
@@ -71,8 +72,7 @@ export const PlannerScreen = ({ navigation }: any) => {
     // Fetch Plans
     const fetchPlans = useCallback(async () => {
         try {
-            // setLoading(true); // Maybe don't set loading on refocus to avoid flicker? 
-            // Or only initial loading. Let's keep it simple for now or use a refreshing state.
+            setLoading(true);
             const response = await pilgrimPlannerApi.getPlans({ page: 1, limit: 10 });
             if (response && response.success && response.data?.planners) {
                 // Map API Entity to UI Model
@@ -245,19 +245,25 @@ export const PlannerScreen = ({ navigation }: any) => {
                 ) : (
                     <>
                         <View style={{ marginTop: 10 }}>
-                            {plans.map((plan) => (
-                                <PlanCard
-                                    key={plan.id}
-                                    plan={plan}
-                                    onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
-                                    onShare={() => console.log('Share plan', plan.id)}
-                                    onEdit={() => console.log('Edit plan', plan.id)}
-                                />
-                            ))}
+                            {loading ? (
+                                <View style={{ paddingVertical: SPACING.xxl, alignItems: 'center' }}>
+                                    <ActivityIndicator size="large" color={COLORS.accent} />
+                                </View>
+                            ) : (
+                                plans.map((plan) => (
+                                    <PlanCard
+                                        key={plan.id}
+                                        plan={plan}
+                                        onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
+                                        onShare={() => console.log('Share plan', plan.id)}
+                                        onEdit={() => console.log('Edit plan', plan.id)}
+                                    />
+                                ))
+                            )}
                         </View>
 
-                        {/* Empty State / CTA - Only shown when no plans exist */}
-                        {plans.length === 0 && (
+                        {/* Empty State / CTA - Only shown when no plans exist and not loading */}
+                        {!loading && plans.length === 0 && (
                             <TouchableOpacity style={styles.emptyStateCard} activeOpacity={0.8} onPress={() => navigation.navigate('CreatePlanScreen')}>
                                 <View style={styles.emptyIllustration}>
                                     <Ionicons name="map-outline" size={48} color={COLORS.textTertiary} style={{ opacity: 0.5 }} />
