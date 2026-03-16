@@ -4,5 +4,7 @@
  */
 
 export { PilgrimInsights } from "./PilgrimInsights";
-export { RecentReviews } from "./RecentReviews";
 export { QuickActionsBar } from "./QuickActionsBar";
+export { RecentReviews } from "./RecentReviews";
+export { StatusIndicator } from "./StatusIndicator";
+

@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "997615346844-s9ganfl4aga38dsm9srt3ktbrc3500vj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.anonymous.PilgrimApp",
+            "certificate_hash": "7f33fcbf08f383b8af9380b6032b3b0751c9a37c"
+          }
+        },
+        {
           "client_id": "997615346844-ch729hq17jjqqeagpn3r7516h62vi61e.apps.googleusercontent.com",
           "client_type": 3
         }

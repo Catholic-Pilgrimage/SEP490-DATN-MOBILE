@@ -19,75 +19,37 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
-import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SHADOWS,
-    GUIDE_SPACING,
-    GUIDE_TYPOGRAPHY,
-} from "../../../../constants/guide.constants";
+import { GUIDE_COLORS } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import {
-    createEvent,
-    deleteEvent,
-    updateEvent,
+  createEvent,
+  deleteEvent,
+  updateEvent,
 } from "../../../../services/api/guide";
 import { EventStatus } from "../../../../types/guide";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { StatusBadge } from "../components/StatusBadge";
+import { styles } from "./EventDetailScreenNew.styles";
 
 type EventDetailRouteProp = RouteProp<MySiteStackParamList, "EventDetail">;
 
-// ============================================
-// STATUS BADGE
-// ============================================
-
-const StatusBadge: React.FC<{ status: EventStatus }> = ({ status }) => {
-  const config = {
-    pending: {
-      bg: "#FFF3E0",
-      color: GUIDE_COLORS.warning,
-      label: "Chờ duyệt",
-      icon: "schedule",
-    },
-    approved: {
-      bg: "#E8F5E9",
-      color: GUIDE_COLORS.success,
-      label: "Đã duyệt",
-      icon: "check-circle",
-    },
-    rejected: {
-      bg: "#FFEBEE",
-      color: GUIDE_COLORS.error,
-      label: "Từ chối",
-      icon: "cancel",
-    },
-  }[status];
-
-  return (
-    <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
-      <MaterialIcons name={config.icon as any} size={16} color={config.color} />
-      <Text style={[styles.statusBadgeText, { color: config.color }]}>
-        {config.label}
-      </Text>
-    </View>
-  );
+const STATUS_LABELS: Record<EventStatus, string> = {
+  pending: "Chờ duyệt",
+  approved: "Đã duyệt",
+  rejected: "Từ chối",
 };
 
 // ============================================
@@ -519,7 +481,7 @@ export const EventDetailScreen: React.FC = () => {
         </Text>
         <View style={styles.headerRight}>
           {!isCreateMode && passedEvent && (
-            <StatusBadge status={passedEvent.status} />
+            <StatusBadge status={passedEvent.status} label={STATUS_LABELS[passedEvent.status]} />
           )}
           {!isCreateMode && canBeEdited && !isEditing && (
             <TouchableOpacity
@@ -813,303 +775,5 @@ export const EventDetailScreen: React.FC = () => {
     </View>
   );
 };
-
-// ============================================
-// STYLES
-// ============================================
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
-  },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.gray100,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-  },
-  statusBadgeText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-  },
-
-  // Content
-  content: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: GUIDE_SPACING.lg,
-    paddingTop: GUIDE_SPACING.md,
-  },
-
-  // Sections
-  section: {
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  sectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
-    marginBottom: GUIDE_SPACING.sm,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-
-  // Banner
-  bannerSection: {
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  bannerContainer: {
-    width: "100%",
-    height: 180,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    overflow: "hidden",
-    backgroundColor: GUIDE_COLORS.gray100,
-  },
-  bannerImage: {
-    width: "100%",
-    height: "100%",
-  },
-  bannerPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  bannerPlaceholderText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.gray400,
-    marginTop: GUIDE_SPACING.xs,
-  },
-  bannerEditOverlay: {
-    position: "absolute",
-    bottom: GUIDE_SPACING.sm,
-    right: GUIDE_SPACING.sm,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Input Field
-  fieldContainer: {
-    marginBottom: GUIDE_SPACING.md,
-  },
-  labelRow: {
-    flexDirection: "row",
-    marginBottom: GUIDE_SPACING.xs,
-  },
-  label: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textPrimary,
-  },
-  required: {
-    color: GUIDE_COLORS.error,
-    marginLeft: 2,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray200,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    minHeight: 48,
-  },
-  inputDisabled: {
-    backgroundColor: GUIDE_COLORS.gray100,
-  },
-  inputIcon: {
-    marginRight: GUIDE_SPACING.xs,
-  },
-  input: {
-    flex: 1,
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
-    paddingVertical: GUIDE_SPACING.sm,
-  },
-  inputWithIcon: {
-    paddingLeft: 0,
-  },
-  inputMultiline: {
-    minHeight: 100,
-    textAlignVertical: "top",
-  },
-  placeholder: {
-    color: GUIDE_COLORS.gray400,
-  },
-  charCount: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-    textAlign: "right",
-    marginTop: 4,
-  },
-
-  // Row layout
-  row: {
-    flexDirection: "row",
-    gap: GUIDE_SPACING.md,
-  },
-  halfField: {
-    flex: 1,
-  },
-
-  // Rejection Box
-  rejectionBox: {
-    flexDirection: "row",
-    backgroundColor: "#FFEBEE",
-    padding: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    marginBottom: GUIDE_SPACING.lg,
-    gap: GUIDE_SPACING.sm,
-  },
-  rejectionContent: {
-    flex: 1,
-  },
-  rejectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.error,
-    marginBottom: 4,
-  },
-  rejectionText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.error,
-  },
-
-  // Info Box
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    padding: GUIDE_SPACING.md,
-    backgroundColor: GUIDE_COLORS.gray100,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  infoText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textMuted,
-    flex: 1,
-  },
-
-  // Action Buttons
-  actionButtons: {
-    gap: GUIDE_SPACING.md,
-    marginTop: GUIDE_SPACING.lg,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.primary,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    ...GUIDE_SHADOWS.md,
-  },
-  editButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.surface,
-  },
-  saveButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.primary,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    ...GUIDE_SHADOWS.md,
-  },
-  saveButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.surface,
-  },
-  cancelButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.surface,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray300,
-  },
-  cancelButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
-  },
-  deleteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.surface,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.error,
-  },
-  deleteButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.error,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-
-  // Header Right
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-  },
-  editHeaderButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: GUIDE_COLORS.gray100,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-});
 
 export default EventDetailScreen;

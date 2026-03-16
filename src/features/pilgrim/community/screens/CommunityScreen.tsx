@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -22,6 +22,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useLikePost, usePosts } from '../../../../hooks/usePosts';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
+import ReportPostModal from '../components/ReportPostModal';
 
 // --- Constants & Types ---
 // Using app-wide theme COLORS instead of custom SACRED_COLORS
@@ -61,20 +62,40 @@ const formatTime = (dateString: string) => {
     return date.toLocaleDateString('vi-VN');
 };
 
-const FeedItemHeader = ({ user, time, location }: { user: { name: string; avatar?: string }; time: string; location?: string }) => (
+const FeedItemHeader = ({
+    user,
+    time,
+    location,
+    isHighlightedGuide = false,
+    onMorePress,
+}: {
+    user: { name: string; avatar?: string };
+    time: string;
+    location?: string;
+    isHighlightedGuide?: boolean;
+    onMorePress?: () => void;
+}) => (
     <View style={styles.headerRow}>
         <View style={styles.userInfo}>
             {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={styles.avatar} />
+                <Image source={{ uri: user.avatar }} style={[styles.avatar, isHighlightedGuide && styles.avatarGuide]} />
             ) : (
-                <View style={[styles.avatar, { backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                <View style={[styles.avatar, { backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' }, isHighlightedGuide && styles.avatarGuide]}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.white }}>
                         {user.name.charAt(0).toUpperCase()}
                     </Text>
                 </View>
             )}
             <View>
-                <Text style={styles.userName}>{user.name}</Text>
+                <View style={styles.userNameRow}>
+                    <Text style={[styles.userName, isHighlightedGuide && styles.userNameGuide]}>{user.name}</Text>
+                    {isHighlightedGuide ? (
+                        <View style={styles.guideBadge}>
+                            <MaterialIcons name="verified" size={12} color={COLORS.white} />
+                            <Text style={styles.guideBadgeText}>Local Guide</Text>
+                        </View>
+                    ) : null}
+                </View>
                 <View style={{ flexDirection: 'column' }}>
                     <Text style={styles.timeText}>{formatTime(time)}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
@@ -86,7 +107,7 @@ const FeedItemHeader = ({ user, time, location }: { user: { name: string; avatar
                 </View>
             </View>
         </View>
-        <TouchableOpacity style={{ padding: 4 }}>
+        <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
             <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
         </TouchableOpacity>
     </View>
@@ -143,8 +164,10 @@ const FeedItemActions = ({
     );
 };
 
-const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void }) => {
+const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void; onMorePress?: () => void }) => {
     const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
+    const { user: currentUser } = useAuth();
+    const isHighlightedGuide = currentUser?.role === 'local_guide' && item.user_id === currentUser.id;
 
     const user = {
         name: item.author.full_name,
@@ -158,7 +181,7 @@ const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; 
                 <FeedCard>
 
                     <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}>
-                        <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} />
+                        <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
                     </View>
 
                     {item.content ? (
@@ -189,7 +212,7 @@ const FeedItemComponent = ({ item, onPress, onCommentPress }: { item: FeedPost; 
         <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
             <FeedCard>
                 <View style={styles.paddingContent}>
-                    <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} />
+                    <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
                     <View style={styles.textBody}>
                         <Text style={styles.bodyText}>{item.content}</Text>
                     </View>
@@ -212,6 +235,8 @@ export default function CommunityScreen() {
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
     const { user } = useAuth();
+    const isGuideViewer = user?.role === 'local_guide';
+    const [reportPostId, setReportPostId] = useState<string | null>(null);
 
     // Format current date
     const today = new Date();
@@ -242,6 +267,7 @@ export default function CommunityScreen() {
                 item={item}
                 onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
                 onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
+                onMorePress={() => setReportPostId(item.id)}
             />
         );
     };
@@ -317,15 +343,17 @@ export default function CommunityScreen() {
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     ListHeaderComponent={
-                        <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
-                            <CreatePostBar
-                                avatar={user?.avatar}
-                                name={user?.fullName || 'Pilgrim'}
-                                onPress={() => {
-                                    navigation.navigate('CreatePost');
-                                }}
-                            />
-                        </View>
+                        !isGuideViewer ? (
+                            <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
+                                <CreatePostBar
+                                    avatar={user?.avatar}
+                                    name={user?.fullName || 'Pilgrim'}
+                                    onPress={() => {
+                                        navigation.navigate('CreatePost');
+                                    }}
+                                />
+                            </View>
+                        ) : null
                     }
                     showsVerticalScrollIndicator={false}
                     ItemSeparatorComponent={() => null}
@@ -358,6 +386,13 @@ export default function CommunityScreen() {
                     }
                 />
             )}
+
+            <ReportPostModal
+                visible={!!reportPostId}
+                onClose={() => setReportPostId(null)}
+                targetId={reportPostId || ''}
+                targetType="post"
+            />
         </View>
     );
 }
@@ -443,6 +478,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: SPACING.sm,
     },
+    userNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
     avatar: {
         width: 40,
         height: 40,
@@ -450,11 +491,33 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.border,
     },
+    avatarGuide: {
+        borderWidth: 2,
+        borderColor: '#D4AF37',
+    },
     userName: {
         color: COLORS.textPrimary,
         fontSize: TYPOGRAPHY.fontSize.md,
         fontWeight: '600',
         fontFamily: 'serif',
+    },
+    userNameGuide: {
+        color: '#9A6C00',
+    },
+    guideBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#D4AF37',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+    },
+    guideBadgeText: {
+        color: COLORS.white,
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
     },
     timeText: {
         color: COLORS.textTertiary,

@@ -80,11 +80,11 @@
     "notAssignedSite": "Not assigned to a site"
   },
   "quickActions": {
-    "postNews": "Post News",
-    "schedule": "Schedule",
-    "upload": "Upload",
+    "postNews": "Create Event",
+    "schedule": "Mass Schedule",
+    "upload": "Upload Media",
     "goLive": "Go Live",
-    "sosLog": "SOS Log"
+    "sosLog": "Handle SOS"
   },
   "pilgrimInsights": {
     "sectionLabel": "COMMUNITY",

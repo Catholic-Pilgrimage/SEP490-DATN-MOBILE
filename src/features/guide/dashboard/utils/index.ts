@@ -3,5 +3,7 @@
  * Export all dashboard utility functions
  */
 
-export * from './dashboardHomeUtils';
-export { default as dashboardHomeUtils } from './dashboardHomeUtils';
+export * from "./activityUtils";
+export * from "./dashboardHomeUtils";
+export { default as dashboardHomeUtils } from "./dashboardHomeUtils";
+

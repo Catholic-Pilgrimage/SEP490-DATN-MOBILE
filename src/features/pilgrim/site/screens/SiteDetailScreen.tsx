@@ -2,43 +2,48 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Dimensions,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FullMapModal from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import {
-  useSiteDetail,
-  useSiteEvents,
-  useSiteMassSchedules,
-  useSiteMedia,
-  useSiteNearbyPlaces,
+    useSiteDetail,
+    useSiteEvents,
+    useSiteMassSchedules,
+    useSiteMedia,
+    useSiteNearbyPlaces,
 } from "../../../../hooks/useSites";
 import { DayOfWeek } from "../../../../types";
-import { NearbyPlaceCard, QuickActionButton, SOSModal } from "../components";
+import {
+    AddToPlanModal,
+    NearbyPlaceCard,
+    QuickActionButton,
+    SOSModal
+} from "../components";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = Dimensions.get("window").height * 0.45;
@@ -52,6 +57,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [isSOSModalVisible, setSOSModalVisible] = useState(false);
   const [showFullMap, setShowFullMap] = useState(false);
   const [showGuestLogin, setShowGuestLogin] = useState(false);
+  const [showAddToPlan, setShowAddToPlan] = useState(false);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -110,13 +116,20 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   };
 
   const handleBack = () => navigation.goBack();
-  const handleShare = () => { };
+  const handleShare = () => {};
   const handleBookmark = () => {
     if (!isAuthenticated || isGuest) {
       setShowGuestLogin(true);
       return;
     }
     toggleFav(siteId);
+  };
+  const handleAddToPlan = () => {
+    if (!isAuthenticated || isGuest) {
+      setShowGuestLogin(true);
+      return;
+    }
+    setShowAddToPlan(true);
   };
 
   // -- Data Processing --
@@ -189,8 +202,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     heroImages.length > 0
       ? heroImages
       : [
-        "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
-      ];
+          "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
+        ];
 
   if (isLoading && !site) {
     return (
@@ -456,7 +469,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
 
             {formattedSchedules.sunday ||
-              formattedSchedules.others.length > 0 ? (
+            formattedSchedules.others.length > 0 ? (
               <View style={styles.premiumScheduleWrapper}>
                 {/* Sunday Special Card */}
                 {formattedSchedules.sunday && (
@@ -639,7 +652,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                         icon: "⛪",
                       } as MapPin,
                       // Nearby places pins - with category colors matching guide
-                      ...(places || [])
+                      ...((places || [])
                         .filter((p) => p.latitude && p.longitude)
                         .map((place) => {
                           // Category config matching guide's LocationsTab
@@ -664,7 +677,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                             color: config.color,
                             icon: config.emoji,
                           };
-                        }) as MapPin[],
+                        }) as MapPin[]),
                     ]}
                     showUserLocation
                     style={styles.mapImage}
@@ -720,10 +733,33 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
           </View>
 
-          {/* Bottom Spacing */}
-          <View style={{ height: 40 }} />
+          {/* Bottom Spacing for floating bar */}
+          <View style={{ height: 90 }} />
         </View>
       </ScrollView>
+
+      {/* Floating Bottom Bar - Add to Plan */}
+      <LinearGradient
+        colors={["transparent", "rgba(246,243,235,0.95)", COLORS.background]}
+        style={[styles.floatingBarGradient, { paddingBottom: insets.bottom + SPACING.sm }]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity
+          style={styles.addToPlanBtn}
+          onPress={handleAddToPlan}
+          activeOpacity={0.85}
+        >
+          <LinearGradient
+            colors={[COLORS.accent, COLORS.accentDark]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.addToPlanBtnGradient}
+          >
+            <Ionicons name="calendar" size={20} color="#fff" />
+            <Text style={styles.addToPlanBtnText}>Thêm vào lịch trình</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </LinearGradient>
 
       {/* SOS Modal */}
       {site && (
@@ -759,11 +795,12 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             ...(places || [])
               .filter((p) => p.latitude && p.longitude)
               .map((place) => {
-                const catCfg: Record<string, { color: string; emoji: string }> = {
-                  food: { color: "#F97316", emoji: "🍜" },
-                  lodging: { color: "#2563EB", emoji: "🏨" },
-                  medical: { color: "#10B981", emoji: "🏥" },
-                };
+                const catCfg: Record<string, { color: string; emoji: string }> =
+                  {
+                    food: { color: "#F97316", emoji: "🍜" },
+                    lodging: { color: "#2563EB", emoji: "🏨" },
+                    medical: { color: "#10B981", emoji: "🏥" },
+                  };
                 const cfg = catCfg[place.category] || catCfg.food;
                 return {
                   id: place.id,
@@ -788,6 +825,17 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
         visible={showGuestLogin}
         onClose={() => setShowGuestLogin(false)}
       />
+
+      {site && (
+        <AddToPlanModal
+          visible={showAddToPlan}
+          onClose={() => setShowAddToPlan(false)}
+          siteId={site.id}
+          siteName={site.name}
+          siteCoverImage={site.coverImage}
+          navigation={navigation}
+        />
+      )}
     </View>
   );
 };
@@ -1341,6 +1389,36 @@ const styles = StyleSheet.create({
     left: "50%",
     marginTop: -32,
     marginLeft: -16,
+  },
+
+  // Floating Bottom Bar
+  floatingBarGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xl,
+    zIndex: 10,
+    elevation: 10,
+  },
+  addToPlanBtn: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: "hidden",
+    ...SHADOWS.large,
+  },
+  addToPlanBtnGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    gap: SPACING.sm,
+  },
+  addToPlanBtnText: {
+    fontSize: TYPOGRAPHY.fontSize.lg,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: "#fff",
+    letterSpacing: 0.3,
   },
 });
 

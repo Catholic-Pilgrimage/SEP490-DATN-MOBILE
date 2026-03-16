@@ -81,11 +81,11 @@
     "notAssignedSite": "Chưa được gán site"
   },
   "quickActions": {
-    "postNews": "Đăng tin",
-    "schedule": "Lịch trình",
-    "upload": "Tải lên",
+    "postNews": "Tạo sự kiện",
+    "schedule": "Lịch lễ",
+    "upload": "Tải media",
     "goLive": "Phát trực tiếp",
-    "sosLog": "Hỗ trợ khẩn cấp"
+    "sosLog": "Xử lý SOS"
   },
   "pilgrimInsights": {
     "sectionLabel": "CỘNG ĐỒNG",

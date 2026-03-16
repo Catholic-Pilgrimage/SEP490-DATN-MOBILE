@@ -71,8 +71,10 @@ export default function CreateJournalScreen() {
             const response = await pilgrimPlannerApi.getMyCheckIns();
             
             if (response.success && response.data) {
-                // API returns data as CheckInEntity[] directly
-                const checkIns = response.data;
+                const rawData = response.data as CheckInEntity[] | { check_ins?: CheckInEntity[] };
+                const checkIns = Array.isArray(rawData)
+                    ? rawData
+                    : rawData.check_ins || [];
                 // Filter out check-ins without site info
                 const validCheckIns = checkIns.filter(c => c.site && c.site.name);
                 setCheckedInLocations(validCheckIns);
@@ -84,6 +86,13 @@ export default function CreateJournalScreen() {
                         setLocation(found.site.name);
                         setSelectedPlannerItemId(found.planner_item_id);
                     }
+                    return;
+                }
+
+                // Default to the most recent checked-in location so users can save immediately.
+                if (!journalId && !selectedPlannerItemId && validCheckIns.length > 0) {
+                    setLocation(validCheckIns[0].site?.name || '');
+                    setSelectedPlannerItemId(validCheckIns[0].planner_item_id);
                 }
             }
         } catch (error) {

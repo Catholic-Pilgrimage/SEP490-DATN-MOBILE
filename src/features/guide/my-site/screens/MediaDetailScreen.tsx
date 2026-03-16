@@ -9,14 +9,12 @@ import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -24,69 +22,22 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
   GUIDE_SPACING,
-  GUIDE_TYPOGRAPHY
 } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { deleteMedia, updateMedia } from "../../../../services/api/guide";
 import { MediaStatus } from "../../../../types/guide";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+import { StatusBadge } from "../components/StatusBadge";
+import { styles } from "./MediaDetailScreen.styles";
 
 type MediaDetailRouteProp = RouteProp<MySiteStackParamList, "MediaDetail">;
 
-// ============================================
-// STATUS BADGE COMPONENT
-// ============================================
-
-interface StatusBadgeProps {
-  status: MediaStatus;
-}
-
-const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const getBadgeConfig = () => {
-    switch (status) {
-      case "pending":
-        return {
-          backgroundColor: "rgba(255, 193, 7, 0.85)", // Amber
-          color: "#FFF",
-          label: "Chờ duyệt",
-          icon: "schedule" as keyof typeof MaterialIcons.glyphMap,
-        };
-      case "approved":
-        return {
-          backgroundColor: "rgba(76, 175, 80, 0.85)", // Green
-          color: "#FFF",
-          label: "Đã duyệt",
-          icon: "check-circle" as keyof typeof MaterialIcons.glyphMap,
-        };
-      case "rejected":
-        return {
-          backgroundColor: "rgba(244, 67, 54, 0.85)", // Red
-          color: "#FFF",
-          label: "Đã bị từ chối",
-          icon: "cancel" as keyof typeof MaterialIcons.glyphMap,
-        };
-    }
-  };
-
-  const config = getBadgeConfig();
-
-  return (
-    <View style={[styles.statusBadge, { backgroundColor: config.backgroundColor }]}>
-      <MaterialIcons name={config.icon} size={14} color={config.color} />
-      <Text style={[styles.statusBadgeText, { color: config.color }]}>
-        {config.label}
-      </Text>
-    </View>
-  );
+const STATUS_LABELS: Record<MediaStatus, string> = {
+  pending: "Chờ duyệt",
+  approved: "Đã duyệt",
+  rejected: "Đã bị từ chối",
 };
-
-// ============================================
-// MAIN COMPONENT
-// ============================================
 
 export const MediaDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -106,9 +57,11 @@ export const MediaDetailScreen: React.FC = () => {
   // Get YouTube thumbnail
   const getYoutubeThumbnail = useCallback((url: string) => {
     const videoId = url.match(
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
     )?.[1];
-    return videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : null;
+    return videoId
+      ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+      : null;
   }, []);
 
   const isYouTube = media.type === "video" && media.url.includes("youtube");
@@ -116,7 +69,7 @@ export const MediaDetailScreen: React.FC = () => {
   const thumbnailUrl = isYouTube ? getYoutubeThumbnail(media.url) : media.url;
 
   // Init video player (even if not video, hooks must be called unconditionally)
-  const player = useVideoPlayer(isLocalVideo ? media.url : "", player => {
+  const player = useVideoPlayer(isLocalVideo ? media.url : "", (player) => {
     player.loop = true;
     // Don't auto-play by default unless you want
   });
@@ -153,38 +106,34 @@ export const MediaDetailScreen: React.FC = () => {
   }, [caption, media.id, media.caption]);
 
   const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Xóa media",
-      "Bạn có chắc chắn muốn xóa media này?",
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              const result = await deleteMedia(media.id);
+    Alert.alert("Xóa media", "Bạn có chắc chắn muốn xóa media này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          setIsDeleting(true);
+          try {
+            const result = await deleteMedia(media.id);
 
-              if (result?.success) {
-                Alert.alert("Thành công", "Media đã được xóa", [
-                  { text: "OK", onPress: () => navigation.goBack() },
-                ]);
-              } else {
-                Alert.alert("Lỗi", result?.message || "Không thể xóa media");
-              }
-            } catch (error: any) {
-              console.error("[MediaDetail] Delete error:", error);
-              // Error has been transformed by apiClient, just use error.message
-              const errorMessage = error?.message || "Đã có lỗi xảy ra";
-              Alert.alert("Lỗi", errorMessage);
-            } finally {
-              setIsDeleting(false);
+            if (result?.success) {
+              Alert.alert("Thành công", "Media đã được xóa", [
+                { text: "OK", onPress: () => navigation.goBack() },
+              ]);
+            } else {
+              Alert.alert("Lỗi", result?.message || "Không thể xóa media");
             }
-          },
+          } catch (error: any) {
+            console.error("[MediaDetail] Delete error:", error);
+            // Error has been transformed by apiClient, just use error.message
+            const errorMessage = error?.message || "Đã có lỗi xảy ra";
+            Alert.alert("Lỗi", errorMessage);
+          } finally {
+            setIsDeleting(false);
+          }
         },
-      ]
-    );
+      },
+    ]);
   }, [media.id, navigation]);
 
   // Get media type icon
@@ -232,10 +181,14 @@ export const MediaDetailScreen: React.FC = () => {
             onPress={handleBack}
             activeOpacity={0.7}
           >
-            <MaterialIcons name="arrow-back" size={24} color={GUIDE_COLORS.surface} />
+            <MaterialIcons
+              name="arrow-back"
+              size={24}
+              color={GUIDE_COLORS.surface}
+            />
           </TouchableOpacity>
 
-          <StatusBadge status={media.status} />
+          <StatusBadge status={media.status} label={STATUS_LABELS[media.status]} />
         </View>
 
         {/* Media type badge */}
@@ -246,7 +199,11 @@ export const MediaDetailScreen: React.FC = () => {
             color={GUIDE_COLORS.surface}
           />
           <Text style={styles.mediaTypeBadgeText}>
-            {media.type === "video" ? "Video" : media.type === "panorama" ? "360°" : "Photo"}
+            {media.type === "video"
+              ? "Video"
+              : media.type === "panorama"
+                ? "360°"
+                : "Photo"}
           </Text>
         </View>
 
@@ -263,7 +220,11 @@ export const MediaDetailScreen: React.FC = () => {
               }
             }}
           >
-            <MaterialIcons name="play-arrow" size={48} color={GUIDE_COLORS.surface} />
+            <MaterialIcons
+              name="play-arrow"
+              size={48}
+              color={GUIDE_COLORS.surface}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -282,10 +243,16 @@ export const MediaDetailScreen: React.FC = () => {
           {media.status === "rejected" && media.rejection_reason && (
             <View style={styles.rejectionContainer}>
               <View style={styles.rejectionHeader}>
-                <MaterialIcons name="error" size={20} color={GUIDE_COLORS.error} />
+                <MaterialIcons
+                  name="error"
+                  size={20}
+                  color={GUIDE_COLORS.error}
+                />
                 <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
               </View>
-              <Text style={styles.rejectionReason}>{media.rejection_reason}</Text>
+              <Text style={styles.rejectionReason}>
+                {media.rejection_reason}
+              </Text>
             </View>
           )}
 
@@ -298,7 +265,11 @@ export const MediaDetailScreen: React.FC = () => {
                   style={styles.editButton}
                   onPress={() => setIsEditing(true)}
                 >
-                  <MaterialIcons name="edit" size={18} color={GUIDE_COLORS.primary} />
+                  <MaterialIcons
+                    name="edit"
+                    size={18}
+                    color={GUIDE_COLORS.primary}
+                  />
                   <Text style={styles.editButtonText}>Edit</Text>
                 </TouchableOpacity>
               )}
@@ -327,12 +298,18 @@ export const MediaDetailScreen: React.FC = () => {
                     <Text style={styles.cancelButtonText}>Hủy</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+                    style={[
+                      styles.saveButton,
+                      isSaving && styles.saveButtonDisabled,
+                    ]}
                     onPress={handleSaveCaption}
                     disabled={isSaving}
                   >
                     {isSaving ? (
-                      <ActivityIndicator size="small" color={GUIDE_COLORS.surface} />
+                      <ActivityIndicator
+                        size="small"
+                        color={GUIDE_COLORS.surface}
+                      />
                     ) : (
                       <Text style={styles.saveButtonText}>Lưu</Text>
                     )}
@@ -352,7 +329,10 @@ export const MediaDetailScreen: React.FC = () => {
           {/* Delete Button */}
           {canDelete && (
             <TouchableOpacity
-              style={[styles.deleteButton, isDeleting && styles.deleteButtonDisabled]}
+              style={[
+                styles.deleteButton,
+                isDeleting && styles.deleteButtonDisabled,
+              ]}
               onPress={handleDelete}
               disabled={isDeleting}
               activeOpacity={0.8}
@@ -361,7 +341,11 @@ export const MediaDetailScreen: React.FC = () => {
                 <ActivityIndicator size="small" color={GUIDE_COLORS.error} />
               ) : (
                 <>
-                  <MaterialIcons name="delete-outline" size={20} color={GUIDE_COLORS.error} />
+                  <MaterialIcons
+                    name="delete-outline"
+                    size={20}
+                    color={GUIDE_COLORS.error}
+                  />
                   <Text style={styles.deleteButtonText}>Xóa bản nháp này</Text>
                 </>
               )}
@@ -371,7 +355,11 @@ export const MediaDetailScreen: React.FC = () => {
           {/* Cannot edit/delete notice for approved media */}
           {media.status === "approved" && (
             <View style={styles.approvedNotice}>
-              <MaterialIcons name="lock" size={18} color={GUIDE_COLORS.textMuted} />
+              <MaterialIcons
+                name="lock"
+                size={18}
+                color={GUIDE_COLORS.textMuted}
+              />
               <Text style={styles.approvedNoticeText}>
                 Media đã được duyệt không thể chỉnh sửa hoặc xóa
               </Text>
@@ -382,273 +370,5 @@ export const MediaDetailScreen: React.FC = () => {
     </View>
   );
 };
-
-// ============================================
-// STYLES
-// ============================================
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-
-  // Image Container
-  imageContainer: {
-    width: "100%",
-    height: SCREEN_WIDTH,
-    backgroundColor: "#000",
-    position: "relative",
-  },
-  fullImage: {
-    width: "100%",
-    height: "100%",
-  },
-  topOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  bottomOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 80,
-    backgroundColor: "rgba(0,0,0,0.2)",
-  },
-
-  // Header
-  header: {
-    position: "absolute",
-    left: GUIDE_SPACING.lg,
-    right: GUIDE_SPACING.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  headerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Status Badge
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    ...Platform.select({
-      ios: { shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2 },
-      android: { elevation: 2 },
-    }),
-  },
-  statusBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  // Media Type Badge
-  mediaTypeBadge: {
-    position: "absolute",
-    bottom: GUIDE_SPACING.md,
-    left: GUIDE_SPACING.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  mediaTypeBadgeText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.surface,
-  },
-
-  // Play Button
-  playButton: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    marginTop: -40,
-    marginLeft: -40,
-    width: 80,
-    height: 80,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Content Panel
-  contentPanel: {
-    flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    marginTop: 0,
-  },
-  scrollContent: {
-    padding: GUIDE_SPACING.lg,
-    paddingTop: GUIDE_SPACING.xl,
-  },
-
-  // Rejection Container
-  rejectionContainer: {
-    backgroundColor: GUIDE_COLORS.errorLight,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    padding: GUIDE_SPACING.md,
-    marginBottom: GUIDE_SPACING.lg,
-    borderWidth: 1,
-    borderColor: `${GUIDE_COLORS.error}30`,
-  },
-  rejectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  rejectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.error,
-  },
-  rejectionReason: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.error,
-    lineHeight: 20,
-  },
-
-  // Caption Section
-  captionSection: {
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  captionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: GUIDE_SPACING.sm,
-  },
-  captionLabel: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textSecondary,
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(216, 126, 14, 0.1)", // Light amber/orange
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 16,
-  },
-  editButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: "#D87E0E", // Deep amber/orange
-  },
-  captionText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
-    lineHeight: 24,
-  },
-
-  // Edit Caption
-  editCaptionContainer: {
-    gap: GUIDE_SPACING.md,
-  },
-  captionInput: {
-    backgroundColor: GUIDE_COLORS.surface,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.primary,
-    padding: GUIDE_SPACING.md,
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
-    minHeight: 80,
-    textAlignVertical: "top",
-  },
-  editActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: GUIDE_SPACING.sm,
-    marginTop: GUIDE_SPACING.xs,
-  },
-  cancelButton: {
-    paddingVertical: GUIDE_SPACING.sm,
-    paddingHorizontal: GUIDE_SPACING.lg,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.gray100,
-  },
-  cancelButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
-  },
-  saveButton: {
-    paddingVertical: GUIDE_SPACING.sm,
-    paddingHorizontal: GUIDE_SPACING.lg,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "#D87E0E",
-    minWidth: 80,
-    alignItems: "center",
-  },
-  saveButtonDisabled: {
-    backgroundColor: GUIDE_COLORS.gray300,
-  },
-  saveButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: "#FFF",
-  },
-
-  // Delete Button
-  deleteButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    backgroundColor: "rgba(244, 67, 54, 0.08)", // Light red background
-    marginBottom: GUIDE_SPACING.lg,
-  },
-  deleteButtonDisabled: {
-    opacity: 0.5,
-  },
-  deleteButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.error,
-  },
-
-  // Approved Notice
-  approvedNotice: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.gray100,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    padding: GUIDE_SPACING.md,
-  },
-  approvedNoticeText: {
-    flex: 1,
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
-  },
-});
 
 export default MediaDetailScreen;
