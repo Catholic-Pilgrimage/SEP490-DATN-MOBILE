@@ -26,3 +26,6 @@ export * from "./sos.types";
 
 // Verification types
 export * from "./verification.types";
+
+// Dashboard types
+export * from "./dashboard.types";

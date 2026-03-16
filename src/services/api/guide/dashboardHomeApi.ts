@@ -3,8 +3,7 @@
  * Unified API service for Dashboard & Home screen
  *
  * Endpoints:
- * - GET /api/guide/dashboard            - Get overview statistics
- * - GET /api/guide/dashboard/statistics - Get chart statistics
+ * - GET /api/local-guide/dashboard/overview - Get local guide dashboard overview
  * - GET /api/local-guide/site-schedule  - Get site schedule (active shift)
  * - GET /api/sos/site/list              - Get SOS requests
  * - GET /api/notifications              - Get notifications
@@ -14,8 +13,7 @@
 
 import { ApiResponse } from "../../../types/api.types";
 import {
-  DashboardOverview,
-  DashboardStatistics,
+  LocalGuideDashboardOverview,
   NotificationListResponse,
   SiteScheduleData,
   SiteScheduleResponse,
@@ -26,31 +24,16 @@ import apiClient from "../apiClient";
 import { GUIDE_ENDPOINTS, SHARED_ENDPOINTS } from "../endpoints";
 
 // ============================================
-// DASHBOARD STATISTICS
+// DASHBOARD OVERVIEW
 // ============================================
 
 /**
- * Get dashboard overview statistics
- * GET /api/guide/dashboard
+ * Get local guide dashboard overview
+ * GET /api/local-guide/dashboard/overview
  */
-export const getOverview = async (): Promise<ApiResponse<DashboardOverview>> => {
-  const response = await apiClient.get<ApiResponse<DashboardOverview>>(
+export const getOverview = async (): Promise<ApiResponse<LocalGuideDashboardOverview>> => {
+  const response = await apiClient.get<ApiResponse<LocalGuideDashboardOverview>>(
     GUIDE_ENDPOINTS.DASHBOARD.OVERVIEW
-  );
-  return response.data;
-};
-
-/**
- * Get dashboard chart statistics
- * GET /api/guide/dashboard/statistics
- * @param period - Time period ('week' | 'month' | 'year')
- */
-export const getStatistics = async (
-  period: 'week' | 'month' | 'year' = 'month'
-): Promise<ApiResponse<DashboardStatistics>> => {
-  const response = await apiClient.get<ApiResponse<DashboardStatistics>>(
-    GUIDE_ENDPOINTS.DASHBOARD.STATISTICS,
-    { params: { period } }
   );
   return response.data;
 };
@@ -178,9 +161,8 @@ export const getUnreadNotificationCount = async (): Promise<number> => {
 // ============================================
 
 const dashboardApi = {
-  // Statistics
+  // Dashboard overview
   getOverview,
-  getStatistics,
 
   // Site Schedule (Active Shift)
   getSiteSchedule,

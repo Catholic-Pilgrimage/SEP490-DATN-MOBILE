@@ -29,8 +29,13 @@ export { default as pilgrimCommunityApi } from "./communityApi";
 export * from "./verificationApi";
 export { default as pilgrimVerificationApi } from "./verificationApi";
 
+// Dashboard API
+export * from "./dashboardApi";
+export { default as pilgrimDashboardApi } from "./dashboardApi";
+
 // Combined Pilgrim API
 import pilgrimCommunityApi from "./communityApi";
+import pilgrimDashboardApi from "./dashboardApi";
 import pilgrimJournalApi from "./journalApi";
 import pilgrimPlannerApi from "./plannerApi";
 import pilgrimSiteApi from "./siteApi";
@@ -42,6 +47,7 @@ const pilgrimApis = {
   planner: pilgrimPlannerApi,
   community: pilgrimCommunityApi,
   verification: pilgrimVerificationApi,
+  dashboard: pilgrimDashboardApi,
 };
 
 export default pilgrimApis;

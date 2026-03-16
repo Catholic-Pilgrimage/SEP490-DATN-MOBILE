@@ -1,46 +1,44 @@
 /**
  * Guide Types - Dashboard
- * Type definitions for Local Guide Dashboard feature
+ * Type definitions for Local Guide dashboard overview
  */
 
-// ============================================
-// RESPONSE TYPES
-// ============================================
-
-/**
- * Dashboard overview statistics
- */
-export interface DashboardOverview {
-  totalSites: number;
-  totalVisitors: number;
-  totalReviews: number;
-  averageRating: number;
-  pendingBookings: number;
-  unreadMessages: number;
-}
-
-/**
- * Dashboard chart data point
- */
-export interface ChartDataPoint {
-  date: string;
-  count: number;
-}
-
-/**
- * Popular site statistics
- */
-export interface PopularSite {
-  siteId: string;
+export interface LocalGuideDashboardSite {
+  id: string;
+  code: string;
   name: string;
-  visits: number;
+  region: string;
+  type: string;
+  cover_image: string | null;
 }
 
-/**
- * Dashboard statistics with charts
- */
-export interface DashboardStatistics {
-  visitorsChart: ChartDataPoint[];
-  reviewsChart: ChartDataPoint[];
-  popularSites: PopularSite[];
+export interface LocalGuideDashboardPersonalStats {
+  shifts_completed: number;
+  sos_resolved: number;
+}
+
+export interface LocalGuideDashboardContributionStats {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+}
+
+export interface LocalGuideDashboardContributions {
+  media: LocalGuideDashboardContributionStats;
+  schedules: LocalGuideDashboardContributionStats;
+  events: LocalGuideDashboardContributionStats;
+  nearby_places: LocalGuideDashboardContributionStats;
+}
+
+export interface LocalGuideDashboardSiteOverview {
+  pending_sos: number;
+  checkins_today: number;
+}
+
+export interface LocalGuideDashboardOverview {
+  site: LocalGuideDashboardSite;
+  personal_stats: LocalGuideDashboardPersonalStats;
+  my_contributions: LocalGuideDashboardContributions;
+  site_overview: LocalGuideDashboardSiteOverview;
 }
