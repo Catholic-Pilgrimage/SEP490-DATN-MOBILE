@@ -16,7 +16,7 @@ export { default as guideApis, guideDashboardApi, guideMediaApi, guideSOSApi, gu
 
 // Pilgrim APIs
 export {
-    default as pilgrimApis, pilgrimCommunityApi, pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi, pilgrimVerificationApi
+    default as pilgrimApis, pilgrimCommunityApi, pilgrimDashboardApi, pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi, pilgrimVerificationApi
 } from './pilgrim';
 
 // Types

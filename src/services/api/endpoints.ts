@@ -43,6 +43,10 @@ export const USER_ENDPOINTS = {
  * Pilgrim-specific endpoints
  */
 export const PILGRIM_ENDPOINTS = {
+  DASHBOARD: {
+    OVERVIEW: `${API_BASE}/pilgrim/dashboard/overview`,
+  },
+
   // Sites - Viewing pilgrimage sites
   SITES: {
     LIST: `${API_BASE}/sites`,
@@ -156,12 +160,9 @@ export const PILGRIM_ENDPOINTS = {
  * Local Guide-specific endpoints
  */
 export const GUIDE_ENDPOINTS = {
-  // Dashboard - Statistics and overview
+  // Local Guide dashboard overview
   DASHBOARD: {
-    OVERVIEW: `${API_BASE}/guide/dashboard`,
-    STATISTICS: `${API_BASE}/guide/dashboard/statistics`,
-    RECENT_ACTIVITIES: `${API_BASE}/guide/dashboard/activities`,
-    EARNINGS: `${API_BASE}/guide/dashboard/earnings`,
+    OVERVIEW: `${API_BASE}/local-guide/dashboard/overview`,
   },
 
   // Local Guide Site - Get assigned site info
