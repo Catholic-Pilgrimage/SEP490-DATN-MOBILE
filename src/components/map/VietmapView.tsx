@@ -77,6 +77,7 @@ export interface VietmapViewProps {
   onMapPress?: (event: { latitude: number; longitude: number }) => void;
   onMarkerPress?: (pin: MapPin) => void;
   style?: StyleProp<ViewStyle>;
+  tileUrlTemplate?: string;
   /** Extra bottom offset (px) for the info card to avoid overlapping external overlay buttons */
   cardBottomOffset?: number;
   /** Whether to show info cards (selected pin + reverse-geocode) on the map (default: true) */
@@ -110,6 +111,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       onMapPress,
       onMarkerPress,
       style,
+      tileUrlTemplate,
       cardBottomOffset = 0,
       showInfoCards = true,
     },
@@ -313,7 +315,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
         >
           <RasterSource
             id="vietmap-raster"
-            tileUrlTemplates={[VIETMAP_CONFIG.TILE_URL]}
+            tileUrlTemplates={[tileUrlTemplate || VIETMAP_CONFIG.TILE_URL]}
             tileSize={256}
             minZoomLevel={0}
             maxZoomLevel={20}

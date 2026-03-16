@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    ImageBackground,
     Linking,
     ScrollView,
     StyleSheet,
@@ -128,7 +129,12 @@ export const SOSDetailScreen = () => {
     const statusInfo = getStatusInfo(sosData.status);
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ImageBackground
+            source={require('../../../../../assets/images/profile-bg.jpg')}
+            style={[styles.container, { paddingTop: insets.top }]}
+            resizeMode="cover"
+            fadeDuration={0}
+        >
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -226,20 +232,20 @@ export const SOSDetailScreen = () => {
                     </TouchableOpacity>
                 )}
             </ScrollView>
-        </View>
+        </ImageBackground>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F6F3EB',
+        backgroundColor: 'transparent',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#F6F3EB',
+        backgroundColor: 'transparent',
     },
     header: {
         flexDirection: 'row',
@@ -247,9 +253,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.md,
-        backgroundColor: '#F6F3EB',
+        backgroundColor: 'transparent',
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: 'rgba(240, 240, 240, 0.5)',
     },
     backButton: {
         width: 40,

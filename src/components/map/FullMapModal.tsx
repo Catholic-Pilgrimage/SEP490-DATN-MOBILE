@@ -33,6 +33,7 @@ interface FullMapModalProps {
     longitude: number;
     zoom: number;
   };
+  tileUrlTemplate?: string;
   title?: string;
   showUserLocation?: boolean;
   /** When provided, shows an "add place" FAB. Called with coordinates when user taps the button. */
@@ -48,6 +49,7 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   onClose,
   pins,
   initialRegion,
+  tileUrlTemplate,
   title,
   showUserLocation = true,
   onAddPlace,
@@ -190,6 +192,7 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
             pins={pins}
             showUserLocation={showUserLocation}
             onMapPress={onAddPlace ? handleMapPress : undefined}
+            tileUrlTemplate={tileUrlTemplate}
             style={styles.map}
           />
 

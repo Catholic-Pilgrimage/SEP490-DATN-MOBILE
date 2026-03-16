@@ -24,13 +24,16 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useUserQuery } from "../../../../hooks/useUserQuery";
+import offlinePlannerService from "../../../../services/offline/offlinePlannerService";
 import { NotificationModal } from "../../explore/components/NotificationModal";
 
 // Premium color palette (Adapted from Local Guide Profile)
@@ -50,6 +53,7 @@ const PREMIUM_COLORS = {
 const MenuItem = ({
   icon,
   label,
+  subtitle,
   onPress,
   showLock = false,
   showBadge,
@@ -58,6 +62,7 @@ const MenuItem = ({
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
+  subtitle?: string;
   onPress: () => void;
   showLock?: boolean;
   showBadge?: string;
@@ -77,11 +82,14 @@ const MenuItem = ({
           color={danger ? PREMIUM_COLORS.error : PREMIUM_COLORS.goldDark}
         />
       </View>
-      <Text
-        style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}
-      >
-        {label}
-      </Text>
+      <View style={styles.menuTextContainer}>
+        <Text
+          style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}
+        >
+          {label}
+        </Text>
+        {subtitle ? <Text style={styles.menuItemSubtitle}>{subtitle}</Text> : null}
+      </View>
     </View>
     <View style={styles.menuItemRight}>
       {showBadge && (
@@ -121,7 +129,12 @@ const ProfileScreen = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showGuestLogin, setShowGuestLogin] = useState(false);
+  const [offlineStats, setOfflineStats] = useState({
+    totalPlanners: 0,
+    totalSize: 0,
+  });
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
 
   // React Query for real-time profile updates
   const { data: queryUser, refetch, isRefetching } = useUserQuery();
@@ -131,9 +144,19 @@ const ProfileScreen = () => {
   // Refetch on focus (when returning to this screen)
   useFocusEffect(
     useCallback(() => {
+      const loadOfflineStats = async () => {
+        const stats = await offlinePlannerService.getOfflineStats();
+        setOfflineStats({
+          totalPlanners: stats.totalPlanners,
+          totalSize: stats.totalSize,
+        });
+      };
+
       if (isAuthenticated) {
         refetch();
       }
+
+      void loadOfflineStats();
     }, [isAuthenticated, refetch]),
   );
 
@@ -142,6 +165,22 @@ const ProfileScreen = () => {
 
   const { unreadCount } = useNotifications();
   const { favoriteIds } = useFavorites();
+
+  const formatBytes = (value: number) => {
+    if (value <= 0) {
+      return "0 B";
+    }
+
+    if (value < 1024) {
+      return `${value} B`;
+    }
+
+    if (value < 1024 * 1024) {
+      return `${(value / 1024).toFixed(1)} KB`;
+    }
+
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   const handleLogin = async () => {
     if (isGuest) {
@@ -156,38 +195,38 @@ const ProfileScreen = () => {
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      t("profile.logoutConfirmTitle"),
-      t("profile.logoutConfirmMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("profile.logout"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsLoggingOut(true);
-              await logout();
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: "Auth" }],
-                }),
-              );
-            } catch (error) {
-              console.error("Logout error:", error);
-              setIsLoggingOut(false);
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: "Auth" }],
-                }),
-              );
-            }
-          },
-        },
-      ],
-    );
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "log-out-outline",
+      title: t("profile.logoutConfirmTitle"),
+      message: t("profile.logoutConfirmMessage"),
+      confirmText: t("profile.logout"),
+      cancelText: t("common.cancel"),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        }),
+      );
+    } catch (error) {
+      console.error("Logout error:", error);
+      setIsLoggingOut(false);
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        }),
+      );
+    }
   };
 
   const menuItems = [
@@ -222,6 +261,28 @@ const ProfileScreen = () => {
       route: "SOSHistory",
     },
     {
+      icon: "cloud-download-outline",
+      label: t("profile.menu.offlineData", {
+        defaultValue: "Offline data",
+      }),
+      subtitle:
+        offlineStats.totalPlanners > 0
+          ? t("profile.menu.offlineDataSubtitle", {
+              defaultValue: "{{count}} plans • {{size}}",
+              count: offlineStats.totalPlanners,
+              size: formatBytes(offlineStats.totalSize),
+            })
+          : t("profile.menu.offlineDataEmpty", {
+              defaultValue: "Manage downloaded plans",
+            }),
+      requireAuth: false,
+      route: "OfflineDownloads",
+      showBadge:
+        offlineStats.totalPlanners > 0
+          ? offlineStats.totalPlanners.toString()
+          : undefined,
+    },
+    {
       icon: "time-outline",
       label: t("profile.menu.history"),
       requireAuth: true,
@@ -249,6 +310,7 @@ const ProfileScreen = () => {
     if (
       item.route === "FavoriteSites" ||
       item.route === "EditProfile" ||
+      item.route === "OfflineDownloads" ||
       item.route === "SOSHistory" ||
       item.route === "Settings" ||
       item.route === "VerificationRequest"
@@ -260,8 +322,8 @@ const ProfileScreen = () => {
   };
 
   // Group menu items
-  const accountItems = menuItems.slice(0, 4);
-  const settingsItems = menuItems.slice(4);
+  const accountItems = menuItems.slice(0, 5);
+  const settingsItems = menuItems.slice(5);
 
   return (
     <ImageBackground
@@ -489,10 +551,14 @@ const ProfileScreen = () => {
         onClose={() => setShowNotifications(false)}
       />
 
+      <ConfirmModal />
+
       <GuestLoginModal
         visible={showGuestLogin}
         onClose={() => setShowGuestLogin(false)}
       />
+
+      <OfflineBanner />
     </ImageBackground>
   );
 };
@@ -679,6 +745,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+    flex: 1,
+  },
+  menuTextContainer: {
+    flex: 1,
   },
   menuIconContainer: {
     width: 36,
@@ -695,6 +765,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
     color: PREMIUM_COLORS.charcoal,
+  },
+  menuItemSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    color: PREMIUM_COLORS.textMuted,
   },
   menuItemLabelDanger: {
     color: PREMIUM_COLORS.error,

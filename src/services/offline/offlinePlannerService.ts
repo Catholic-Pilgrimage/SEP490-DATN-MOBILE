@@ -2,14 +2,19 @@
  * Offline Planner Service - planner cache storage and local mutations
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { PlanEntity, PlanItem, PlanOwner } from "../../types/pilgrim/planner.types";
+import type { OfflineMapPack } from "./offlineMapService";
 
 const STORAGE_KEYS = {
   PLANNER: (id: string) => `@offline_planner_${id}`,
   PLANNER_LIST: "@offline_planner_list",
   LAST_SYNC: (id: string) => `@offline_last_sync_${id}`,
 };
+
+export const createOfflinePlannerItemId = () =>
+  `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 export interface OfflinePlannerData {
   planner: {
@@ -101,9 +106,24 @@ export interface OfflinePlannerNearbyPlace {
 
 export interface OfflinePlannerStoredData extends OfflinePlannerData {
   cached_images?: Record<string, string>;
+  offline_map?: OfflineMapPack;
+}
+
+export interface OfflinePlannerSummary {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate?: string;
+  totalDays: number;
+  itemCount: number;
+  siteCount: number;
+  sizeBytes: number;
+  downloadedAt: string;
+  coverImage?: string;
 }
 
 export interface OfflinePlannerItemDraft {
+  id?: string;
   site_id: string;
   day_number: number;
   estimated_time?: string;
@@ -126,6 +146,24 @@ export interface OfflinePlannerItemDraft {
 }
 
 const cloneData = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+
+const getStringSizeInBytes = (value: string) => {
+  try {
+    if (typeof TextEncoder !== "undefined") {
+      return new TextEncoder().encode(value).length;
+    }
+  } catch (error) {
+    console.warn("Failed to calculate UTF-8 size with TextEncoder:", error);
+  }
+
+  try {
+    return unescape(encodeURIComponent(value)).length;
+  } catch (error) {
+    console.warn("Failed to calculate UTF-8 size with encodeURIComponent:", error);
+  }
+
+  return value.length;
+};
 
 const toNumber = (value?: number | string) => {
   if (value === undefined || value === null || value === "") {
@@ -289,6 +327,35 @@ const mapOfflineDataToPlanEntity = (
 };
 
 class OfflinePlannerService {
+  private async getCachedImagesSize(
+    cachedImages?: Record<string, string>,
+    countedUris?: Set<string>,
+  ): Promise<number> {
+    if (!cachedImages) {
+      return 0;
+    }
+
+    let totalSize = 0;
+
+    for (const fileUri of Object.values(cachedImages)) {
+      if (!fileUri || countedUris?.has(fileUri)) {
+        continue;
+      }
+
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (fileInfo.exists && typeof fileInfo.size === "number") {
+          totalSize += fileInfo.size;
+          countedUris?.add(fileUri);
+        }
+      } catch (error) {
+        console.warn(`Failed to get cached image size for ${fileUri}:`, error);
+      }
+    }
+
+    return totalSize;
+  }
+
   /**
    * Save planner data for offline use
    */
@@ -345,6 +412,16 @@ class OfflinePlannerService {
     return data ? mapOfflineDataToPlanEntity(data) : null;
   }
 
+  async getOfflineMapPack(plannerId: string): Promise<OfflineMapPack | null> {
+    const data = await this.getPlannerData(plannerId);
+    return data?.offline_map || null;
+  }
+
+  async getOfflineMapTileTemplate(plannerId: string): Promise<string | null> {
+    const pack = await this.getOfflineMapPack(plannerId);
+    return pack?.tile_url_template || null;
+  }
+
   async updatePlannerMetadata(
     plannerId: string,
     changes: Partial<OfflinePlannerData["planner"]>,
@@ -370,7 +447,7 @@ class OfflinePlannerService {
           .reduce((maxOrder, item) => Math.max(maxOrder, item.order_in_day || 0), 0) + 1;
 
       draft.items.push({
-        id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: draftItem.id || createOfflinePlannerItemId(),
         planner_id: plannerId,
         site_id: draftItem.site_id,
         day_number: draftItem.day_number,
@@ -515,6 +592,74 @@ class OfflinePlannerService {
   }
 
   /**
+   * Get all offline planners with summary information for management screens
+   */
+  async getAllOfflinePlanners(): Promise<OfflinePlannerSummary[]> {
+    try {
+      const list = await this.getOfflinePlannerList();
+
+      const planners: (OfflinePlannerSummary | null)[] = await Promise.all(
+        list.map(async (plannerId) => {
+          const [rawData, lastSync] = await Promise.all([
+            AsyncStorage.getItem(STORAGE_KEYS.PLANNER(plannerId)),
+            AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC(plannerId)),
+          ]);
+
+          if (!rawData) {
+            return null;
+          }
+
+          const data = JSON.parse(rawData) as OfflinePlannerStoredData;
+          const highestDay = data.items.reduce(
+            (maxDay, item) => Math.max(maxDay, item.day_number || 0),
+            0,
+          );
+          const siteCount = new Set(
+            data.items
+              .map((item) => item.site_id)
+              .filter((siteId): siteId is string => Boolean(siteId)),
+          ).size || data.sites.length;
+          const cachedImagesSize = await this.getCachedImagesSize(
+            data.cached_images,
+          );
+
+          const summary: OfflinePlannerSummary = {
+            id: data.planner.id,
+            name: data.planner.name,
+            startDate: data.planner.start_date,
+            endDate: data.planner.end_date,
+            totalDays: Math.max(data.planner.total_days || 1, highestDay || 1),
+            itemCount: data.items.length,
+            siteCount,
+            sizeBytes:
+              getStringSizeInBytes(rawData) +
+              cachedImagesSize +
+              (data.offline_map?.size_bytes || 0),
+            downloadedAt: lastSync || data.downloaded_at,
+            coverImage: data.sites.find((site) => site.cover_image)?.cover_image,
+          };
+
+          return summary;
+        }),
+      );
+
+      const validPlanners = planners.filter(
+        (planner): planner is OfflinePlannerSummary => planner !== null,
+      );
+
+      return validPlanners
+        .sort(
+          (left, right) =>
+            new Date(right.downloadedAt).getTime() -
+            new Date(left.downloadedAt).getTime(),
+        );
+    } catch (error) {
+      console.error("Failed to get offline planner summaries:", error);
+      return [];
+    }
+  }
+
+  /**
    * Get last sync time for planner
    */
   async getLastSyncTime(plannerId: string): Promise<Date | null> {
@@ -536,10 +681,14 @@ class OfflinePlannerService {
 
       const list = await this.getOfflinePlannerList();
       const newList = list.filter((id) => id !== plannerId);
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.PLANNER_LIST,
-        JSON.stringify(newList),
-      );
+      if (newList.length === 0) {
+        await AsyncStorage.removeItem(STORAGE_KEYS.PLANNER_LIST);
+      } else {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.PLANNER_LIST,
+          JSON.stringify(newList),
+        );
+      }
     } catch (error) {
       console.error("Failed to delete planner data:", error);
       throw error;
@@ -572,12 +721,41 @@ class OfflinePlannerService {
   async getOfflineStorageSize(): Promise<number> {
     try {
       const list = await this.getOfflinePlannerList();
+      if (list.length === 0) {
+        return 0;
+      }
+
       let totalSize = 0;
+      const countedUris = new Set<string>();
+
+      const plannerListData = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER_LIST);
+      if (plannerListData) {
+        totalSize += getStringSizeInBytes(plannerListData);
+      }
 
       for (const id of list) {
-        const data = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER(id));
+        const [data, lastSync] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.PLANNER(id)),
+          AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC(id)),
+        ]);
+
         if (data) {
-          totalSize += data.length;
+          totalSize += getStringSizeInBytes(data);
+
+          try {
+            const parsed = JSON.parse(data) as OfflinePlannerStoredData;
+            totalSize += await this.getCachedImagesSize(
+              parsed.cached_images,
+              countedUris,
+            );
+            totalSize += parsed.offline_map?.size_bytes || 0;
+          } catch (error) {
+            console.warn(`Failed to parse offline planner ${id} for size:`, error);
+          }
+        }
+
+        if (lastSync) {
+          totalSize += getStringSizeInBytes(lastSync);
         }
       }
 

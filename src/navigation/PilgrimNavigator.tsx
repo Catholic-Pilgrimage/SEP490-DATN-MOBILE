@@ -104,6 +104,7 @@ const PlannerStackNavigator = () => (
 import { useTranslation } from 'react-i18next';
 import EditProfileScreen from '../features/pilgrim/profile/screens/EditProfileScreen';
 import FavoriteSitesScreen from '../features/pilgrim/profile/screens/FavoriteSitesScreen';
+import OfflineDownloadsScreen from '../features/pilgrim/profile/screens/OfflineDownloadsScreen';
 import ProfileScreen from '../features/pilgrim/profile/screens/ProfileScreen';
 import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen';
 import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
@@ -122,6 +123,7 @@ const ProfileStackNavigator = () => (
   >
     <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
     <ProfileStack.Screen name="FavoriteSites" component={FavoriteSitesScreen} />
+    <ProfileStack.Screen name="OfflineDownloads" component={OfflineDownloadsScreen} />
     <ProfileStack.Screen name="SOSHistory" component={SOSHistoryScreen} />
     <ProfileStack.Screen name="SOSDetail" component={SOSDetailScreen} />
     <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />

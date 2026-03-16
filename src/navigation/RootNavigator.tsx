@@ -14,6 +14,7 @@ import PlanInvitePreviewScreen from "../features/pilgrim/planner/screens/PlanInv
 import VerificationRequestScreen from "../features/pilgrim/profile/screens/VerificationRequestScreen";
 import NotificationsScreen from "../features/shared/notifications/screens/NotificationsScreen";
 import SettingsScreen from "../features/shared/settings/screens/SettingsScreen";
+import "../services/offline/offlineSyncService";
 import { AuthNavigator } from "./AuthNavigator";
 import { GuideNavigator } from "./GuideNavigator";
 import { navigationRef } from "./navigationRef";

@@ -6,11 +6,12 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    ImageBackground,
     RefreshControl,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
@@ -128,7 +129,12 @@ export const SOSHistoryScreen = () => {
     );
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ImageBackground
+            source={require('../../../../../assets/images/profile-bg.jpg')}
+            style={[styles.container, { paddingTop: insets.top }]}
+            resizeMode="cover"
+            fadeDuration={0}
+        >
             {/* Custom Header */}
             <View style={styles.header}>
                 <TouchableOpacity
@@ -168,14 +174,14 @@ export const SOSHistoryScreen = () => {
                     showsVerticalScrollIndicator={false}
                 />
             )}
-        </View>
+        </ImageBackground>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#F6F3EB',
+        backgroundColor: 'transparent',
     },
     header: {
         flexDirection: 'row',
@@ -183,9 +189,9 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.md,
-        backgroundColor: '#F6F3EB',
+        backgroundColor: 'transparent',
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: 'rgba(240, 240, 240, 0.5)',
     },
     backButton: {
         width: 40,

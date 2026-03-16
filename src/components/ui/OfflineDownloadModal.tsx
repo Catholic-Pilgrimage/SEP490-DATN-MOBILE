@@ -3,15 +3,15 @@
  */
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 interface OfflineDownloadModalProps {
@@ -36,122 +36,315 @@ export const OfflineDownloadModal: React.FC<OfflineDownloadModalProps> = ({
   error,
 }) => {
   const { t } = useTranslation();
-  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const [modalVisible, setModalVisible] = useState(false);
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const cardScale = useRef(new Animated.Value(0.3)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(80)).current;
+  const iconPulse = useRef(new Animated.Value(1)).current;
+  const cardFloat = useRef(new Animated.Value(0)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const iconPulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const cardFloatLoop = useRef<Animated.CompositeAnimation | null>(null);
+  const isAnimatingOut = useRef(false);
+
+  const mode = downloading
+    ? "downloading"
+    : success
+      ? "success"
+      : error
+        ? "error"
+        : "idle";
 
   useEffect(() => {
-    if (visible) {
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }).start();
-    } else {
-      scaleAnim.setValue(0);
+    const stopLoops = () => {
+      iconPulseLoop.current?.stop();
+      cardFloatLoop.current?.stop();
+      iconPulseLoop.current = null;
+      cardFloatLoop.current = null;
+    };
+
+    const animateIn = () => {
+      isAnimatingOut.current = false;
+      stopLoops();
+      setModalVisible(true);
+      overlayOpacity.setValue(0);
+      cardScale.setValue(0.3);
+      cardOpacity.setValue(0);
+      cardTranslateY.setValue(80);
+      iconPulse.setValue(1);
+      cardFloat.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(cardScale, {
+          toValue: 1,
+          friction: 4,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.spring(cardTranslateY, {
+          toValue: 0,
+          friction: 5,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        iconPulseLoop.current = Animated.loop(
+          Animated.sequence([
+            Animated.timing(iconPulse, {
+              toValue: 1.1,
+              duration: 800,
+              useNativeDriver: true,
+            }),
+            Animated.timing(iconPulse, {
+              toValue: 1,
+              duration: 800,
+              useNativeDriver: true,
+            }),
+          ]),
+        );
+        iconPulseLoop.current.start();
+
+        cardFloatLoop.current = Animated.loop(
+          Animated.sequence([
+            Animated.timing(cardFloat, {
+              toValue: -4,
+              duration: 1400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(cardFloat, {
+              toValue: 4,
+              duration: 1400,
+              useNativeDriver: true,
+            }),
+          ]),
+        );
+        cardFloatLoop.current.start();
+      });
+    };
+
+    const animateOut = (afterClose?: () => void) => {
+      if (isAnimatingOut.current) {
+        return;
+      }
+
+      isAnimatingOut.current = true;
+      stopLoops();
+
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardScale, {
+          toValue: 0.3,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardTranslateY, {
+          toValue: 80,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setModalVisible(false);
+        iconPulse.setValue(1);
+        cardFloat.setValue(0);
+        isAnimatingOut.current = false;
+        afterClose?.();
+      });
+    };
+
+    if (visible && !modalVisible && !isAnimatingOut.current) {
+      animateIn();
+    } else if (!visible && modalVisible) {
+      animateOut();
     }
-  }, [scaleAnim, visible]);
+
+    return () => {
+      stopLoops();
+    };
+  }, [
+    cardFloat,
+    cardOpacity,
+    cardScale,
+    cardTranslateY,
+    iconPulse,
+    modalVisible,
+    overlayOpacity,
+    visible,
+  ]);
 
   useEffect(() => {
-    if (progress) {
-      const percentage = (progress.downloaded / progress.total) * 100;
-      Animated.timing(progressAnim, {
-        toValue: percentage,
-        duration: 300,
-        useNativeDriver: false,
-      }).start();
+    if (!visible || !progress) {
+      progressAnim.setValue(0);
+      return;
     }
-  }, [progress, progressAnim]);
+
+    const percentage = (progress.downloaded / progress.total) * 100;
+    Animated.timing(progressAnim, {
+      toValue: percentage,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [progress, progressAnim, visible]);
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 100],
     outputRange: ["0%", "100%"],
   });
 
+  const handleClose = () => {
+    if (downloading) {
+      return;
+    }
+
+    if (!modalVisible) {
+      onClose();
+      return;
+    }
+
+    isAnimatingOut.current = true;
+    iconPulseLoop.current?.stop();
+    cardFloatLoop.current?.stop();
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardScale, {
+        toValue: 0.3,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateY, {
+        toValue: 80,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setModalVisible(false);
+      iconPulse.setValue(1);
+      cardFloat.setValue(0);
+      isAnimatingOut.current = false;
+      onClose();
+    });
+  };
+
   return (
     <Modal
-      visible={visible}
+      visible={modalVisible}
       transparent
-      animationType="fade"
-      onRequestClose={onClose}
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
+      <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
         <Animated.View
-          style={[styles.modal, { transform: [{ scale: scaleAnim }] }]}
+          style={[
+            styles.modal,
+            {
+              opacity: cardOpacity,
+              transform: [
+                { scale: cardScale },
+                { translateY: Animated.add(cardTranslateY, cardFloat) },
+              ],
+            },
+          ]}
         >
           <LinearGradient
             colors={["#FFFFFF", "#F9FAFB"]}
             style={styles.gradient}
           >
-            {/* Icon */}
-            <View style={styles.iconContainer}>
-              {downloading && (
+            <Animated.View
+              style={[styles.iconContainer, { transform: [{ scale: iconPulse }] }]}
+            >
+              {mode === "downloading" && (
                 <Ionicons name="cloud-download" size={48} color="#3B82F6" />
               )}
-              {success && (
+              {mode === "success" && (
                 <Ionicons name="checkmark-circle" size={48} color="#10B981" />
               )}
-              {error && (
+              {mode === "error" && (
                 <Ionicons name="close-circle" size={48} color="#EF4444" />
               )}
-            </View>
+            </Animated.View>
 
-            {/* Title */}
             <Text style={styles.title}>
-              {downloading &&
+              {mode === "downloading" &&
                 t("offline.downloading", {
-                  defaultValue: "Đang tải dữ liệu ngoại tuyến",
+                  defaultValue: "Downloading offline data",
                 })}
-              {success &&
+              {mode === "success" &&
                 t("offline.downloadSuccess", {
-                  defaultValue: "Tải thành công!",
+                  defaultValue: "Download successful!",
                 })}
-              {error &&
-                t("offline.downloadError", { defaultValue: "Tải thất bại" })}
+              {mode === "error" &&
+                t("offline.downloadError", { defaultValue: "Download failed" })}
             </Text>
 
-            {/* Progress */}
-            {downloading && progress && (
+            {mode === "downloading" && progress && (
               <>
                 <Text style={styles.step}>{progress.currentStep}</Text>
                 <View style={styles.progressBar}>
                   <Animated.View
-                    style={[
-                      styles.progressFill,
-                      { width: progressWidth },
-                    ]}
+                    style={[styles.progressFill, { width: progressWidth }]}
                   />
                 </View>
                 <Text style={styles.progressText}>
+                  {t("common.step", { defaultValue: "Step" })}{" "}
                   {progress.downloaded} / {progress.total}
                 </Text>
               </>
             )}
 
-            {/* Success Message */}
-            {success && (
+            {mode === "success" && (
               <Text style={styles.message}>
                 {t("offline.downloadSuccessMsg", {
                   defaultValue:
-                    "Bạn có thể xem kế hoạch này khi không có kết nối mạng",
+                    "You can view this plan when offline",
                 })}
               </Text>
             )}
 
-            {/* Error Message */}
-            {error && <Text style={styles.errorMessage}>{error}</Text>}
+            {mode === "error" && <Text style={styles.errorMessage}>{error}</Text>}
 
-            {/* Close Button */}
-            {!downloading && (
-              <TouchableOpacity style={styles.button} onPress={onClose}>
+            {mode !== "downloading" && (
+              <TouchableOpacity
+                style={styles.button}
+                onPress={handleClose}
+                activeOpacity={0.8}
+              >
                 <Text style={styles.buttonText}>
-                  {t("common.close", { defaultValue: "Đóng" })}
+                  {t("common.close", { defaultValue: "Close" })}
                 </Text>
               </TouchableOpacity>
             )}
           </LinearGradient>
         </Animated.View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 };

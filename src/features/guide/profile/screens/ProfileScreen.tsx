@@ -29,6 +29,7 @@ import {
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { NotificationModal } from "../../../pilgrim/explore/components/NotificationModal";
@@ -155,6 +156,7 @@ const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { logout } = useAuth();
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -203,36 +205,35 @@ const ProfileScreen: React.FC = () => {
     (navigation as any).navigate("Settings");
   }, [navigation]);
 
-  const handleSignOut = useCallback(() => {
-    Alert.alert(
-      t("profile.logoutConfirmTitle"),
-      t("profile.logoutConfirmMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("profile.logout"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsLoggingOut(true);
-              await logout();
-              navigation.dispatch(
-                CommonActions.reset({
-                  index: 0,
-                  routes: [{ name: "Auth" }],
-                }),
-              );
-            } catch (error) {
-              console.error("Logout error:", error);
-              Alert.alert(t("common.error"), t("profile.logoutError"));
-              setIsLoggingOut(false);
-            }
-          },
-        },
-      ],
-      { cancelable: true },
-    );
-  }, [logout, navigation, t]);
+  const handleSignOut = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "log-out-outline",
+      title: t("profile.logoutConfirmTitle"),
+      message: t("profile.logoutConfirmMessage"),
+      confirmText: t("profile.logout"),
+      cancelText: t("common.cancel"),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        }),
+      );
+    } catch (error) {
+      console.error("Logout error:", error);
+      Alert.alert(t("common.error"), t("profile.logoutError"));
+      setIsLoggingOut(false);
+    }
+  }, [confirm, logout, navigation, t]);
 
   // Default avatar
   const getAvatarUrl = () => {
@@ -424,6 +425,8 @@ const ProfileScreen: React.FC = () => {
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
       />
+
+      <ConfirmModal />
     </ImageBackground>
   );
 };

@@ -38,6 +38,7 @@ import {
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { CalendarSyncError, useCalendarSync } from "../../../../hooks/useCalendarSync";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
@@ -47,7 +48,10 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
-import { offlinePlannerService } from "../../../../services/offline/offlinePlannerService";
+import {
+  createOfflinePlannerItemId,
+  offlinePlannerService,
+} from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import {
   NearbyPlaceCategory,
@@ -165,9 +169,10 @@ const createLocalPlanItem = (
     rest_duration?: string;
     nearby_amenity_ids?: string[];
   },
+  itemId?: string,
   siteSnapshot?: LocalSiteSnapshot,
 ): PlanItem => ({
-  id: `offline_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  id: itemId || createOfflinePlannerItemId(),
   planner_id: planId,
   site_id: draft.site_id,
   event_id: draft.event_id,
@@ -200,6 +205,7 @@ const applyLocalAddItem = (
     rest_duration?: string;
     nearby_amenity_ids?: string[];
   },
+  itemId?: string,
   siteSnapshot?: LocalSiteSnapshot,
 ) => {
   const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
@@ -207,7 +213,14 @@ const applyLocalAddItem = (
   const dayItems = [...(itemsByDay[dayKey] || [])];
 
   dayItems.push(
-    createLocalPlanItem(planId, draft.day_number, dayItems, draft, siteSnapshot),
+    createLocalPlanItem(
+      planId,
+      draft.day_number,
+      dayItems,
+      draft,
+      itemId,
+      siteSnapshot,
+    ),
   );
   itemsByDay[dayKey] = dayItems;
 
@@ -285,6 +298,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
+  const { confirm, ConfirmModal } = useConfirm();
   const { isOffline, offlineQueueCount } = useOffline();
   const [syncingOfflineActions, setSyncingOfflineActions] = useState(false);
 
@@ -559,6 +573,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   } = useOfflineDownload();
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isAvailableOffline, setIsAvailableOffline] = useState(false);
+  const [offlineTileUrlTemplate, setOfflineTileUrlTemplate] = useState<
+    string | undefined
+  >();
 
   useEffect(() => {
     // Attempt to hide bottom tab
@@ -578,17 +595,36 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   }, [planId]);
 
   const checkOfflineAvailability = async () => {
-    const available = await checkAvailability(planId);
+    const [available, tileTemplate] = await Promise.all([
+      checkAvailability(planId),
+      offlinePlannerService.getOfflineMapTileTemplate(planId),
+    ]);
     setIsAvailableOffline(available);
+    setOfflineTileUrlTemplate(tileTemplate || undefined);
   };
 
+  const isOnlineOnlyActionDisabled = isOffline;
+
   const showConnectionRequiredAlert = () => {
-    Alert.alert(
-      t("common.error"),
-      t("offline.noConnection", {
+    Toast.show({
+      type: "error",
+      text1: t("common.error"),
+      text2: t("offline.noConnection", {
         defaultValue: "Không có kết nối mạng",
       }),
-    );
+    });
+  };
+
+  const handleOpenChat = () => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
+    navigation.navigate("PlanChatScreen", {
+      planId,
+      planName: plan?.name,
+    });
   };
 
   const getKnownSiteSnapshot = (siteId: string): LocalSiteSnapshot | undefined => {
@@ -878,13 +914,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           return;
         }
 
-        Alert.alert(
-          t("common.error"),
-          response.message ||
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: response.message ||
             t("planner.loadDetailError", {
               defaultValue: "Không thể tải chi tiết kế hoạch",
             }),
-        );
+        });
       }
     } catch (error) {
       console.error("Load plan detail error:", error);
@@ -893,18 +930,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         return;
       }
 
-      Alert.alert(
-        t("common.error"),
-        t("planner.loadDetailFailed", {
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.loadDetailFailed", {
           defaultValue: "Tải chi tiết kế hoạch thất bại",
         }),
-      );
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleOpenEditPlan = () => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     if (!plan) return;
     setEditPlanName(plan.name || "");
     setEditPlanStartDate(plan.start_date || "");
@@ -916,7 +959,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleSavePlan = async () => {
     if (!editPlanName.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập tên kế hoạch");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.planNameRequired"),
+      });
       return;
     }
     try {
@@ -947,12 +994,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
         setShowEditPlanModal(false);
         await loadPlan();
-        Alert.alert("Thành công", "Đã cập nhật kế hoạch");
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.planUpdated"),
+        });
       } else {
-        Alert.alert("Lỗi", response.message || "Không thể cập nhật kế hoạch");
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: response.message || t("planner.cannotUpdatePlan"),
+        });
       }
     } catch (error: any) {
-      Alert.alert("Lỗi", error.message || "Không thể cập nhật kế hoạch");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.cannotUpdatePlan"),
+      });
     } finally {
       setSavingPlan(false);
     }
@@ -983,8 +1042,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleInviteParticipant = async () => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     if (!inviteEmail.trim()) {
-      Alert.alert("Error", "Please enter an email address");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.emailRequired", { defaultValue: "Please enter an email address" }),
+      });
       return;
     }
 
@@ -996,15 +1064,27 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       });
 
       if (response.success) {
-        Alert.alert("Success", "Invitation sent successfully");
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.inviteSent", { defaultValue: "Invitation sent successfully" }),
+        });
         setInviteEmail("");
         loadParticipants();
       } else {
-        Alert.alert("Error", response.message || "Failed to send invitation");
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: response.message || t("planner.inviteFailed", { defaultValue: "Failed to send invitation" }),
+        });
       }
     } catch (error: any) {
       console.error("Invite participant error:", error);
-      Alert.alert("Error", error.message || "Failed to send invitation");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.inviteFailed", { defaultValue: "Failed to send invitation" }),
+      });
     } finally {
       setInviting(false);
     }
@@ -1046,12 +1126,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleOpenShareModal = () => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     setShowShareModal(true);
     loadParticipants();
   };
 
   const handleDeletePlan = () => {
     setShowMenuDropdown(false); // Hide menu if open
+
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     Alert.alert(
       t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
       t("planner.deleteConfirmMsg", {
@@ -1078,22 +1169,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 }
                 navigation.goBack();
               } else {
-                Alert.alert(
-                  t("common.error"),
-                  response.message ||
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: response.message ||
                     t("planner.deleteFailed", {
                       defaultValue: "Xóa kế hoạch thất bại",
                     }),
-                );
+                });
               }
             } catch (error) {
               console.error("Delete plan error:", error);
-              Alert.alert(
-                t("common.error"),
-                t("planner.deleteFailed", {
+              Toast.show({
+                type: "error",
+                text1: t("common.error"),
+                text2: t("planner.deleteFailed", {
                   defaultValue: "Xóa kế hoạch thất bại",
                 }),
-              );
+              });
             }
           },
         },
@@ -1103,6 +1196,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleSyncCalendar = async () => {
     setShowMenuDropdown(false);
+
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     const response = await syncPlanToCalendar(planId);
     
     if (response.success && response.result) {
@@ -1122,12 +1221,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowMenuDropdown(false);
 
     if (offlineQueueCount === 0) {
-      Alert.alert(
-        t("common.success"),
-        t("planner.noPendingOfflineActions", {
+      Toast.show({
+        type: "info",
+        text1: t("common.success"),
+        text2: t("planner.noPendingOfflineActions", {
           defaultValue: "Khong co hanh dong ngoai tuyen nao cho dong bo",
         }),
-      );
+      });
       return;
     }
 
@@ -1141,19 +1241,47 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setSyncingOfflineActions(true);
       const result = await offlineSyncService.syncOfflineActions();
 
-      Alert.alert(
-        result.success ? t("common.success") : t("common.error"),
-        result.message,
-      );
-
       if ((result.synced || 0) > 0 || result.success) {
         await loadPlan();
       }
+
+      if (!result.success && (result.failed || 0) > 0) {
+        const shouldClearPending = await confirm({
+          type: "danger",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: `${result.message}\n\n${t("offline.clearPendingActionsPrompt", {
+            defaultValue:
+              "Nếu hành động này đang bị máy chủ từ chối, bạn có thể xóa hàng chờ đồng bộ trên thiết bị này.",
+          })}`,
+          confirmText: t("offline.clearPendingActions", {
+            defaultValue: "Xóa hàng chờ đồng bộ",
+          }),
+          cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+        });
+
+        if (shouldClearPending) {
+          await offlineSyncService.clearPendingActions();
+          Toast.show({
+            type: "success",
+            text1: t("offline.clearPendingActionsSuccess", {
+              defaultValue: "Đã xóa hàng chờ đồng bộ",
+            }),
+          });
+        }
+        return;
+      }
+
+      Toast.show({
+        type: result.success ? "success" : "error",
+        text1: result.success ? t("common.success") : t("common.error"),
+        text2: result.message,
+      });
     } catch (error: any) {
-      Alert.alert(
-        t("common.error"),
-        error.message || t("planner.syncFailed", { defaultValue: "Dong bo that bai" }),
-      );
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.syncFailed", { defaultValue: "Dong bo that bai" }),
+      });
     } finally {
       setSyncingOfflineActions(false);
     }
@@ -1161,41 +1289,95 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleDownloadOffline = async () => {
     setShowMenuDropdown(false);
+
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+
     setShowOfflineModal(true);
     resetOfflineDownload();
     
     const result = await downloadPlanner(planId);
     
     if (result.success) {
-      setIsAvailableOffline(true);
+      await checkOfflineAvailability();
     }
   };
 
-  const handleDeleteOfflineData = () => {
+  const handleClearOfflineActions = async () => {
     setShowMenuDropdown(false);
-    Alert.alert(
-      t("offline.deleteOfflineData", { defaultValue: "Xóa dữ liệu ngoại tuyến" }),
-      t("offline.deleteOfflineConfirm", {
+
+    if (offlineQueueCount === 0) {
+      Alert.alert(
+        t("common.success"),
+        t("planner.noPendingOfflineActions", {
+          defaultValue: "Khong co hanh dong ngoai tuyen nao cho dong bo",
+        }),
+      );
+      return;
+    }
+
+    const confirmed = await confirm({
+      type: "danger",
+      title: t("offline.clearPendingActions", {
+        defaultValue: "Xóa hàng chờ đồng bộ",
+      }),
+      message: t("offline.clearPendingActionsConfirm", {
+        defaultValue:
+          "Xóa tất cả hành động đang chờ đồng bộ trên thiết bị này? Các thay đổi offline này sẽ không được gửi lên hệ thống.",
+      }),
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    await offlineSyncService.clearPendingActions();
+    Toast.show({
+      type: "success",
+      text1: t("offline.clearPendingActionsSuccess", {
+        defaultValue: "Đã xóa hàng chờ đồng bộ",
+      }),
+    });
+  };
+
+  const handleOpenOfflineDownloads = () => {
+    setShowMenuDropdown(false);
+
+    navigation.getParent()?.navigate(
+      "Ho so" as never,
+      {
+        screen: "OfflineDownloads",
+      } as never,
+    );
+  };
+
+  const handleDeleteOfflineData = async () => {
+    setShowMenuDropdown(false);
+    const confirmed = await confirm({
+      type: "danger",
+      title: t("offline.deleteOfflineData", { defaultValue: "Xóa dữ liệu ngoại tuyến" }),
+      message: t("offline.deleteOfflineConfirm", {
         defaultValue: "Bạn có chắc muốn xóa dữ liệu ngoại tuyến của kế hoạch này?",
       }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            const result = await deleteOffline(planId);
-            if (result.success) {
-              setIsAvailableOffline(false);
-              Alert.alert(
-                t("common.success"),
-                t("offline.deleteSuccess", { defaultValue: "Đã xóa dữ liệu ngoại tuyến" }),
-              );
-            }
-          },
-        },
-      ],
-    );
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (confirmed) {
+      const result = await deleteOffline(planId);
+      if (result.success) {
+        setIsAvailableOffline(false);
+        setOfflineTileUrlTemplate(undefined);
+        Toast.show({
+          type: "success",
+          text1: t("offline.deleteSuccess", { defaultValue: "Đã xóa dữ liệu ngoại tuyến" }),
+        });
+      }
+    }
   };
 
   const handleDeleteItem = (itemId: string) => {
@@ -1240,23 +1422,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 );
                 loadPlan(); // Reload to refresh
               } else {
-                Alert.alert(
-                  t("common.error"),
-                  response.message ||
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: response.message ||
                     t("planner.removeItemFailed", {
                       defaultValue: "Xóa địa điểm thất bại",
                     }),
-                );
+                });
               }
             } catch (error: any) {
               console.error("Delete item error:", error);
-              Alert.alert(
-                t("common.error"),
-                error.message ||
+              Toast.show({
+                type: "error",
+                text1: t("common.error"),
+                text2: error.message ||
                   t("planner.removeItemFailed", {
                     defaultValue: "Xóa địa điểm thất bại",
                   }),
-              );
+              });
             }
           },
         },
@@ -1402,10 +1586,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
         setShowEditItemModal(false);
         setEditingItem(null);
-        Alert.alert(
-          t("common.success"),
-          "Da luu thay doi ngoai tuyen. Se dong bo khi co mang.",
-        );
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("offline.changesSavedOffline"),
+        });
         return;
       }
 
@@ -1433,11 +1618,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setEditingItem(null);
         loadPlan();
       } else {
-        Alert.alert("Lỗi", response.message || "Không thể cập nhật địa điểm");
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: response.message || t("planner.cannotUpdateItem"),
+        });
       }
     } catch (error: any) {
       console.error("Update item error:", error);
-      Alert.alert("Lỗi", error.message || "Không thể cập nhật địa điểm");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.cannotUpdateItem"),
+      });
     } finally {
       setSavingEdit(false);
     }
@@ -1650,10 +1843,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const addItemToItinerary = async (siteId: string) => {
     if (crossDaysAdded > 0) {
-      Alert.alert(
-        "Lỗi",
-        "Không thể thêm địa điểm vì thời gian đến vượt qua ngày hiện tại. Vui lòng thêm sang ngày khác.",
-      );
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.cannotAddItemCrossDay"),
+      });
       return;
     }
 
@@ -1692,17 +1886,29 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const isOnline = await networkService.checkConnection();
 
       if (!isOnline) {
+        const tempItemId = createOfflinePlannerItemId();
+
         await networkService.addToOfflineQueue({
           endpoint: `/api/planners/${planId}/items`,
           method: "POST",
-          data: payload,
+          data: {
+            ...payload,
+            client_item_id: tempItemId,
+          },
         });
 
         await applyPlanMutation(
           (currentPlan) =>
-            applyLocalAddItem(currentPlan, planId, payload, siteSnapshot),
+            applyLocalAddItem(
+              currentPlan,
+              planId,
+              payload,
+              tempItemId,
+              siteSnapshot,
+            ),
           () =>
             offlinePlannerService.addPlannerItem(planId, {
+              id: tempItemId,
               ...payload,
               site: siteSnapshot
                 ? {
@@ -1720,33 +1926,45 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setIsAddModalVisible(false);
         setShowTimeInputModal(false);
         setNote("");
-        Alert.alert(
-          t("common.success"),
-          "Da them dia diem ngoai tuyen. Se dong bo khi co mang.",
-        );
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.itemAddedOffline"),
+        });
         return;
       }
 
       const response = await pilgrimPlannerApi.addPlanItem(planId, payload);
 
       if (response.success) {
+        const createdItemId = response.data?.item?.id;
+
         await applyPlanMutation(
           (currentPlan) =>
-            applyLocalAddItem(currentPlan, planId, payload, siteSnapshot),
-          () =>
-            offlinePlannerService.addPlannerItem(planId, {
-              ...payload,
-              site: siteSnapshot
-                ? {
-                    id: siteSnapshot.id,
-                    name: siteSnapshot.name,
-                    address: siteSnapshot.address,
-                    cover_image: siteSnapshot.coverImage,
-                    latitude: siteSnapshot.latitude,
-                    longitude: siteSnapshot.longitude,
-                  }
-                : undefined,
-            }),
+            applyLocalAddItem(
+              currentPlan,
+              planId,
+              payload,
+              createdItemId,
+              siteSnapshot,
+            ),
+          createdItemId
+            ? () =>
+                offlinePlannerService.addPlannerItem(planId, {
+                  id: createdItemId,
+                  ...payload,
+                  site: siteSnapshot
+                    ? {
+                        id: siteSnapshot.id,
+                        name: siteSnapshot.name,
+                        address: siteSnapshot.address,
+                        cover_image: siteSnapshot.coverImage,
+                        latitude: siteSnapshot.latitude,
+                        longitude: siteSnapshot.longitude,
+                      }
+                    : undefined,
+                })
+            : undefined,
         );
         setIsAddModalVisible(false);
         setShowTimeInputModal(false);
@@ -1891,10 +2109,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         );
         loadPlan();
       } else {
-        Alert.alert("Lỗi", response.message || "Không thể lưu địa điểm");
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: response.message || t("planner.cannotSavePlace"),
+        });
       }
     } catch (error: any) {
-      Alert.alert("Lỗi", error.message || "Không thể lưu địa điểm");
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.cannotSavePlace"),
+      });
     } finally {
       setSavingNearbyPlaceId(null);
     }
@@ -1903,8 +2129,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const handleRemoveNearbyPlace = async (placeId: string) => {
     if (!selectedItem) return;
     Alert.alert(
-      "Xóa địa điểm",
-      "Bạn có muốn xóa địa điểm lân cận này khỏi lịch trình?",
+      t("planner.removePlaceTitle"),
+      t("planner.removePlaceConfirm"),
       [
         { text: "Hủy", style: "cancel" },
         {
@@ -1974,13 +2200,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 );
                 loadPlan();
               } else {
-                Alert.alert(
-                  "Lỗi",
-                  response.message || "Không thể xóa địa điểm",
-                );
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: response.message || t("planner.cannotDeletePlace"),
+                });
               }
             } catch (error: any) {
-              Alert.alert("Lỗi", error.message || "Không thể xóa địa điểm");
+              Toast.show({
+                type: "error",
+                text1: t("common.error"),
+                text2: error.message || t("planner.cannotDeletePlace"),
+              });
             } finally {
               setRemovingNearbyPlaceId(null);
             }
@@ -1991,66 +2222,84 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleCheckIn = async (itemId: string, siteName: string) => {
-    Alert.alert("Check-in", `Bạn có muốn check-in tại ${siteName}?`, [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Check-in",
-        onPress: async () => {
-          try {
-            setCheckingInItemId(itemId);
+    Alert.alert(
+      t("planner.checkInTitle"),
+      t("planner.checkInConfirm", { siteName }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("planner.checkInTitle"),
+          onPress: async () => {
+            try {
+              setCheckingInItemId(itemId);
 
-            // Get current location
-            const location = await locationService.getCurrentLocation();
+              // Get current location
+              const location = await locationService.getCurrentLocation();
 
-            const isOnline = await networkService.checkConnection();
-            if (!isOnline) {
-              await networkService.addToOfflineQueue({
-                endpoint: `/api/planner-items/${itemId}/checkin`,
-                method: "POST",
-                data: {
-                  planner_item_id: itemId,
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                },
+              const isOnline = await networkService.checkConnection();
+              if (!isOnline) {
+                await networkService.addToOfflineQueue({
+                  endpoint: `/api/planner-items/${itemId}/checkin`,
+                  method: "POST",
+                  data: {
+                    planner_item_id: itemId,
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                  },
+                });
+
+                Toast.show({
+                  type: "success",
+                  text1: t("common.success"),
+                  text2: t("planner.checkInOfflineSaved", { siteName }),
+                });
+                return;
+              }
+
+              const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
+                latitude: location.latitude,
+                longitude: location.longitude,
               });
 
-              Alert.alert(
-                t("common.success"),
-                `Da luu check-in ngoai tuyen tai ${siteName}. Se dong bo khi co mang.`,
-              );
-              return;
+              if (response.success) {
+                Toast.show({
+                  type: "success",
+                  text1: t("common.success"),
+                  text2: t("planner.checkInSuccess", { siteName }),
+                });
+                loadPlan(); // Reload to update UI
+              } else {
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: response.message || t("planner.cannotCheckIn"),
+                });
+              }
+            } catch (error: any) {
+              console.error("Check-in error:", error);
+              if (
+                error.message?.includes("Location") ||
+                error.message?.includes("Geolocation")
+              ) {
+                Toast.show({
+                  type: "error",
+                  text1: t("planner.locationError"),
+                  text2: t("planner.locationPermissionDenied"),
+                });
+              } else {
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error"),
+                  text2: error.message || t("planner.cannotCheckIn"),
+                });
+              }
+            } finally {
+              setCheckingInItemId(null);
             }
-
-            const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
-              latitude: location.latitude,
-              longitude: location.longitude,
-            });
-
-            if (response.success) {
-              Alert.alert("Thành công", `Đã check-in tại ${siteName}!`);
-              loadPlan(); // Reload to update UI
-            } else {
-              Alert.alert("Lỗi", response.message || "Không thể check-in");
-            }
-          } catch (error: any) {
-            console.error("Check-in error:", error);
-            if (
-              error.message?.includes("Location") ||
-              error.message?.includes("Geolocation")
-            ) {
-              Alert.alert(
-                "Lỗi vị trí",
-                "Không thể lấy vị trí của bạn. Vui lòng bật GPS và cho phép ứng dụng truy cập vị trí.",
-              );
-            } else {
-              Alert.alert("Lỗi", error.message || "Không thể check-in");
-            }
-          } finally {
-            setCheckingInItemId(null);
-          }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   if (loading) {
@@ -2116,6 +2365,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           pins={mapPins}
           scrollEnabled={true}
           showInfoCards={true}
+          tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
           cardBottomOffset={180}
           style={styles.headerImage}
         />
@@ -2146,19 +2396,22 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               <Ionicons name="expand-outline" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.navButton}
-              onPress={() =>
-                navigation.navigate("PlanChatScreen", {
-                  planId,
-                  planName: plan?.name,
-                })
-              }
+              style={[
+                styles.navButton,
+                isOnlineOnlyActionDisabled && styles.disabledAction,
+              ]}
+              onPress={handleOpenChat}
+              disabled={isOnlineOnlyActionDisabled}
             >
               <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.navButton}
+              style={[
+                styles.navButton,
+                isOnlineOnlyActionDisabled && styles.disabledAction,
+              ]}
               onPress={handleOpenShareModal}
+              disabled={isOnlineOnlyActionDisabled}
             >
               <Ionicons name="qr-code-outline" size={24} color="#fff" />
             </TouchableOpacity>
@@ -2204,22 +2457,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   padding: 12,
                   borderBottomWidth: 1,
                   borderBottomColor: "#F3F4F6",
+                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
                 }}
                 onPress={() => {
                   setShowMenuDropdown(false);
                   handleOpenEditPlan();
                 }}
+                disabled={isOnlineOnlyActionDisabled}
               >
                 <Ionicons
                   name="create-outline"
                   size={20}
-                  color={COLORS.textPrimary}
+                  color={isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E"}
                   style={{ marginRight: 12 }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
-                    color: COLORS.textPrimary,
+                    color: isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E",
                     fontWeight: "500",
                   }}
                 >
@@ -2233,22 +2488,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   padding: 12,
                   borderBottomWidth: 1,
                   borderBottomColor: "#F3F4F6",
+                  opacity: isOffline || syncingCalendar ? 0.5 : 1,
                 }}
                 onPress={handleSyncCalendar}
-                disabled={syncingCalendar}
+                disabled={isOffline || syncingCalendar}
               >
                 <Ionicons
                   name="calendar-outline"
                   size={20}
-                  color={syncingCalendar ? COLORS.textTertiary : COLORS.primary}
+                  color={
+                    isOffline || syncingCalendar ? COLORS.textTertiary : "#2563EB"
+                  }
                   style={{ marginRight: 12 }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
-                    color: syncingCalendar
+                    color: isOffline || syncingCalendar
                       ? COLORS.textTertiary
-                      : COLORS.primary,
+                      : "#2563EB",
                     fontWeight: "500",
                   }}
                 >
@@ -2259,61 +2517,109 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               </TouchableOpacity>
 
               {offlineQueueCount > 0 && (
-                <TouchableOpacity
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#F3F4F6",
-                  }}
-                  onPress={handleSyncOfflineActions}
-                  disabled={syncingOfflineActions}
-                >
-                  <Ionicons
-                    name={isOffline ? "cloud-offline-outline" : "sync-outline"}
-                    size={20}
-                    color={syncingOfflineActions ? COLORS.textTertiary : "#2563EB"}
-                    style={{ marginRight: 12 }}
-                  />
-                  <Text
+                <>
+                  <TouchableOpacity
                     style={{
-                      flex: 1,
-                      fontSize: 16,
-                      color: syncingOfflineActions ? COLORS.textTertiary : "#2563EB",
-                      fontWeight: "500",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#F3F4F6",
+                      opacity: isOffline || syncingOfflineActions ? 0.5 : 1,
                     }}
+                    onPress={handleSyncOfflineActions}
+                    disabled={isOffline || syncingOfflineActions}
                   >
-                    {syncingOfflineActions
-                      ? t("planner.syncing")
-                      : `${t("offline.syncOfflineActions")} (${offlineQueueCount})`}
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons
+                      name={isOffline ? "cloud-offline-outline" : "sync-outline"}
+                      size={20}
+                      color={
+                        isOffline || syncingOfflineActions
+                          ? COLORS.textTertiary
+                          : "#2563EB"
+                      }
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 16,
+                        color:
+                          isOffline || syncingOfflineActions
+                            ? COLORS.textTertiary
+                            : "#2563EB",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {syncingOfflineActions
+                        ? t("planner.syncing")
+                        : `${t("offline.syncOfflineActions")} (${offlineQueueCount})`}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#F3F4F6",
+                    }}
+                    onPress={handleClearOfflineActions}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color="#DC2626"
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontSize: 16,
+                        color: "#DC2626",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {t("offline.clearPendingActions", {
+                        defaultValue: "Xóa hàng chờ đồng bộ",
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                </>
               )}
 
               {/* Offline Download/Delete Button */}
               {!isAvailableOffline ? (
                 <TouchableOpacity
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    padding: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#F3F4F6",
-                  }}
-                  onPress={handleDownloadOffline}
-                  disabled={downloadingOffline}
-                >
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      padding: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#F3F4F6",
+                      opacity: isOffline || downloadingOffline ? 0.5 : 1,
+                    }}
+                    onPress={handleDownloadOffline}
+                    disabled={isOffline || downloadingOffline}
+                  >
                   <Ionicons
                     name="cloud-download-outline"
                     size={20}
-                    color={downloadingOffline ? COLORS.textTertiary : "#10B981"}
+                    color={
+                      isOffline || downloadingOffline
+                        ? COLORS.textTertiary
+                        : "#10B981"
+                    }
                     style={{ marginRight: 12 }}
                   />
                   <Text
                     style={{
                       fontSize: 16,
-                      color: downloadingOffline ? COLORS.textTertiary : "#10B981",
+                      color:
+                        isOffline || downloadingOffline
+                          ? COLORS.textTertiary
+                          : "#10B981",
                       fontWeight: "500",
                     }}
                   >
@@ -2329,7 +2635,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     borderBottomWidth: 1,
                     borderBottomColor: "#F3F4F6",
                   }}
-                  onPress={handleDeleteOfflineData}
+                  onPress={handleOpenOfflineDownloads}
                 >
                   <Ionicons
                     name="cloud-done-outline"
@@ -2344,7 +2650,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       fontWeight: "500",
                     }}
                   >
-                    {t("offline.availableOffline")}
+                    {t("offline.manageOfflineData", {
+                      defaultValue: "Manage offline data",
+                    })}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -2354,17 +2662,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   flexDirection: "row",
                   alignItems: "center",
                   padding: 12,
+                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
                 }}
                 onPress={handleDeletePlan}
+                disabled={isOnlineOnlyActionDisabled}
               >
                 <Ionicons
                   name="trash-outline"
                   size={20}
-                  color="#EF4444"
+                  color={isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444"}
                   style={{ marginRight: 12 }}
                 />
                 <Text
-                  style={{ fontSize: 16, color: "#EF4444", fontWeight: "500" }}
+                  style={{
+                    fontSize: 16,
+                    color: isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444",
+                    fontWeight: "500",
+                  }}
                 >
                   Xóa kế hoạch
                 </Text>
@@ -2436,8 +2750,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center" }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
+                }}
                 onPress={handleOpenShareModal}
+                disabled={isOnlineOnlyActionDisabled}
               >
                 {/* Mini Avatars */}
                 <View style={{ flexDirection: "row" }}>
@@ -2520,65 +2839,97 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           >
             <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
                 gap: 12,
               }}
             >
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: "700",
-                    color: isOffline ? "#9A3412" : "#1D4ED8",
-                    marginBottom: 4,
-                  }}
-                >
-                  {offlineQueueCount} {t("offline.pendingActions")}
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    lineHeight: 18,
-                    color: isOffline ? "#9A3412" : COLORS.textSecondary,
-                  }}
-                >
-                  {isOffline
-                    ? t("planner.pendingActionsWillSync", {
-                        defaultValue:
-                          "Cac thay doi offline se duoc dong bo khi ban co mang.",
-                      })
-                    : t("planner.pendingActionsReadyToSync", {
-                        defaultValue:
-                          "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
-                      })}
-                </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "700",
+                      color: isOffline ? "#9A3412" : "#1D4ED8",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {offlineQueueCount} {t("offline.pendingActions")}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 18,
+                      color: isOffline ? "#9A3412" : COLORS.textSecondary,
+                    }}
+                  >
+                    {isOffline
+                      ? t("planner.pendingActionsWillSync", {
+                          defaultValue:
+                            "Cac thay doi offline se duoc dong bo khi ban co mang.",
+                        })
+                      : t("planner.pendingActionsReadyToSync", {
+                          defaultValue:
+                            "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
+                        })}
+                  </Text>
+                </View>
               </View>
 
-              <TouchableOpacity
+              <View
                 style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderRadius: 14,
-                  backgroundColor:
-                    isOffline || syncingOfflineActions ? "#CBD5E1" : "#2563EB",
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 10,
+                  flexWrap: "wrap",
                 }}
-                onPress={handleSyncOfflineActions}
-                disabled={isOffline || syncingOfflineActions}
               >
-                <Text
+                <TouchableOpacity
                   style={{
-                    color: "#FFFFFF",
-                    fontSize: 13,
-                    fontWeight: "700",
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    borderColor: "#FCA5A5",
+                    backgroundColor: "#FEF2F2",
                   }}
+                  onPress={handleClearOfflineActions}
                 >
-                  {syncingOfflineActions
-                    ? t("planner.syncing")
-                    : t("offline.syncOfflineActions")}
-                </Text>
-              </TouchableOpacity>
+                  <Text
+                    style={{
+                      color: "#DC2626",
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {t("offline.clearPendingActions", {
+                      defaultValue: "Xóa hàng chờ",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    backgroundColor:
+                      isOffline || syncingOfflineActions ? "#CBD5E1" : "#2563EB",
+                  }}
+                  onPress={handleSyncOfflineActions}
+                  disabled={isOffline || syncingOfflineActions}
+                >
+                  <Text
+                    style={{
+                      color: "#FFFFFF",
+                      fontSize: 13,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {syncingOfflineActions
+                      ? t("planner.syncing")
+                      : t("offline.syncOfflineActions")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -4051,6 +4402,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 onChangeText={setInviteEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
+                editable={!isOffline}
               />
 
               {/* Role Info */}
@@ -4065,9 +4417,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               </Text>
 
               <TouchableOpacity
-                style={styles.inviteButton}
+                style={[
+                  styles.inviteButton,
+                  (inviting || isOffline) && styles.disabledAction,
+                ]}
                 onPress={handleInviteParticipant}
-                disabled={inviting}
+                disabled={inviting || isOffline}
               >
                 {inviting ? (
                   <ActivityIndicator color="#fff" />
@@ -4597,6 +4952,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         onClose={() => setShowFullMap(false)}
         pins={mapPins}
         initialRegion={mapCenter}
+        tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
         title={plan?.name || "Bản đồ kế hoạch"}
         showUserLocation={true}
       />
@@ -4623,8 +4979,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         error={offlineError}
       />
 
-      {/* Offline Banner */}
-      <OfflineBanner />
+      <OfflineBanner
+        style={{
+          marginBottom: Math.max(insets.bottom, 12),
+        }}
+      />
+
+      {/* Confirm Modal */}
+      <ConfirmModal />
     </View>
   );
 };
@@ -4654,7 +5016,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 260,
     position: "relative",
-    overflow: "hidden",
+    overflow: "visible",
   },
   headerImage: {
     width: "100%",
@@ -4685,6 +5047,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.25)",
     ...SHADOWS.small,
+  },
+  disabledAction: {
+    opacity: 0.5,
   },
   navActions: {
     flexDirection: "row",

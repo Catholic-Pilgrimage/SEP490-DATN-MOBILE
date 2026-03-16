@@ -1,7 +1,7 @@
 /**
  * Hook for downloading planner data for offline use
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 import offlineSyncService from "../services/offline/offlineSyncService";
 
 interface DownloadProgress {
@@ -15,6 +15,7 @@ export const useOfflineDownload = () => {
   const [progress, setProgress] = useState<DownloadProgress | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [success, setSuccess] = useState(false);
+  const progressRef = useRef<DownloadProgress | undefined>(undefined);
 
   const downloadPlanner = async (plannerId: string) => {
     try {
@@ -22,13 +23,25 @@ export const useOfflineDownload = () => {
       setError(undefined);
       setSuccess(false);
       setProgress(undefined);
+      progressRef.current = undefined;
 
       const result = await offlineSyncService.downloadPlannerData(
         plannerId,
         (prog) => {
+          progressRef.current = prog;
           setProgress(prog);
         },
       );
+      if (result.success) {
+        const currentProgress = progressRef.current as DownloadProgress | undefined;
+
+        if (
+          currentProgress &&
+          currentProgress.downloaded >= currentProgress.total
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 350));
+        }
+      }
 
       if (result.success) {
         setSuccess(true);
@@ -62,9 +75,19 @@ export const useOfflineDownload = () => {
     }
   };
 
+  const clearAllOfflineData = async () => {
+    try {
+      await offlineSyncService.clearAllOfflineData();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, message: err.message };
+    }
+  };
+
   const reset = () => {
     setDownloading(false);
     setProgress(undefined);
+    progressRef.current = undefined;
     setError(undefined);
     setSuccess(false);
   };
@@ -77,6 +100,7 @@ export const useOfflineDownload = () => {
     downloadPlanner,
     checkAvailability,
     deleteOfflineData,
+    clearAllOfflineData,
     reset,
   };
 };

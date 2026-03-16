@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import useI18n from "../../../../hooks/useI18n";
 import { authApi } from "../../../../services/api";
 
@@ -126,6 +127,7 @@ const SettingsScreen = () => {
   const navigation = useNavigation<any>();
   const { logout, user, isGuest } = useAuth();
   const { currentLanguageName, changeLanguage, languages, t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
 
   // State for toggles
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -185,25 +187,30 @@ const SettingsScreen = () => {
     );
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      t("settings.logoutConfirmTitle"),
-      t("settings.logoutConfirmMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("settings.logout"),
-          style: "destructive",
-          onPress: async () => {
-            await logout();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Auth" }],
-            });
-          },
-        },
-      ],
-    );
+  const handleLogout = async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "log-out-outline",
+      title: t("settings.logoutConfirmTitle"),
+      message: t("settings.logoutConfirmMessage"),
+      confirmText: t("settings.logout"),
+      cancelText: t("common.cancel"),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await logout();
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Auth" }],
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+      Alert.alert(t("common.error"), t("profile.logoutError"));
+    }
   };
 
   return (
@@ -418,6 +425,8 @@ const SettingsScreen = () => {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <ConfirmModal />
     </ImageBackground>
   );
 };

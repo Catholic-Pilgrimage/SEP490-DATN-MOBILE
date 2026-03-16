@@ -57,6 +57,10 @@ class NetworkService {
    */
   setSyncHandler(handler: OfflineSyncHandler) {
     this.syncHandler = handler;
+
+    if (this.isOnline && this.offlineQueue.length > 0) {
+      void this.processOfflineQueue();
+    }
   }
 
   /**

@@ -4,16 +4,17 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  ImageBackground,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -175,7 +176,12 @@ const FavoriteSitesScreen = () => {
   );
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ImageBackground
+      source={require("../../../../../assets/images/profile-bg.jpg")}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+      fadeDuration={0}
+    >
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -215,14 +221,14 @@ const FavoriteSitesScreen = () => {
           }
         />
       )}
-    </View>
+    </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
@@ -230,9 +236,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.background,
+    backgroundColor: "transparent",
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: "rgba(229, 231, 235, 0.5)",
   },
   backButton: {
     padding: 8,
