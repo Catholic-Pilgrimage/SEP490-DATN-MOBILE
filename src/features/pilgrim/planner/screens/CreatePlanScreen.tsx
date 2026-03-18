@@ -70,28 +70,13 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
   // Form State
   const [name, setName] = useState("");
-  const [startDate, setStartDate] = useState<string>(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1); // Start from tomorrow
-    return tomorrow.toISOString().split("T")[0];
-  });
-  const [endDate, setEndDate] = useState<string>(() => {
-    const end = new Date();
-    end.setDate(end.getDate() + 4); // Tomorrow + 3 days
-    return end.toISOString().split("T")[0];
-  });
+  const [estimatedDays, setEstimatedDays] = useState(4); // Default 4 days
 
   // Date picker modal states
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Calendar navigation states
-  const [startCalendarDate, setStartCalendarDate] = useState(
-    () => new Date(startDate),
-  );
-  const [endCalendarDate, setEndCalendarDate] = useState(
-    () => new Date(endDate),
-  );
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
 
   // Extra fields to satisfy API
   const [peopleCount, setPeopleCount] = useState(1);
@@ -110,19 +95,18 @@ const CreatePlanScreen = ({ navigation }: any) => {
       return;
     }
 
+    if (estimatedDays < 1) {
+      Alert.alert(t("common.error"), "Số ngày phải từ 1 trở lên");
+      return;
+    }
+
     try {
       setLoading(true);
-      if (new Date(startDate) >= new Date(endDate)) {
-        Alert.alert(t("common.error"), t("planner.endDateMustAfterStart"));
-        setLoading(false);
-        return;
-      }
 
       // Payload construction
       const payload: CreatePlanRequest = {
         name,
-        start_date: startDate,
-        end_date: endDate,
+        estimated_days: estimatedDays,
         number_of_people: peopleCount,
         transportation,
       };

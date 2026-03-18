@@ -94,9 +94,7 @@ export interface PlanInvite {
   planner?: {
     id: string;
     name: string;
-    start_date: string;
-    end_date?: string;
-    number_of_days?: number;
+    estimated_days?: number;
     number_of_people?: number;
     transportation?: string;
     status?: string;
@@ -124,8 +122,7 @@ export interface PlanCalendarSyncOwner {
 export interface PlanCalendarSyncPlanner {
   id: string;
   name: string;
-  start_date: string;
-  end_date?: string;
+  estimated_days?: number;
   number_of_people?: number;
   transportation?: TransportationType | string;
   owner?: PlanCalendarSyncOwner;
@@ -179,8 +176,7 @@ export interface PlanEntity {
   id: string;
   user_id: string;
   name: string;
-  start_date: string;
-  end_date?: string;
+  estimated_days?: number;
   number_of_people: number;
   transportation: string;
   status: string;
@@ -193,7 +189,6 @@ export interface PlanEntity {
   // Detailed fields (optional in list)
   items?: PlanItem[];
   items_by_day?: Record<string, PlanItem[]>;
-  number_of_days?: number;
   is_public?: boolean; // inferred from usage
 }
 
@@ -252,8 +247,7 @@ export interface UploadMessageImageResponse {
 
 export interface CreatePlanRequest {
   name: string;
-  start_date: string;
-  end_date: string;
+  estimated_days: number;
   number_of_people: number;
   transportation: string;
 }
@@ -359,8 +353,7 @@ export interface CheckInItemResponse {
 export interface PlanSummary {
   id: string;
   title: string;
-  startDate: string;
-  endDate: string;
+  estimatedDays?: number;
   status: PlanStatus;
   stopCount: number;
   coverImage?: string;
