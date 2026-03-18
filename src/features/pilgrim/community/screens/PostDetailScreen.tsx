@@ -254,10 +254,14 @@ const CommentItem = ({ item, isGuide }: { item: any; isGuide: boolean }) => (
           >
             {item.author?.full_name}
           </Text>
-          {isGuide && (
+          {isGuide ? (
             <View style={styles.commentGuideBadge}>
               <MaterialIcons name="verified" size={10} color="#fff" />
-              <Text style={styles.commentGuideBadgeText}>Guide</Text>
+              <Text style={styles.commentGuideBadgeText}>Local Guide</Text>
+            </View>
+          ) : (
+            <View style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}>
+              <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>Pilgrim</Text>
             </View>
           )}
         </View>
@@ -445,7 +449,7 @@ export default function PostDetailScreen() {
           }}
           renderItem={({ item }) => {
             const isCommentByGuide =
-              isCurrentUserGuide && item.user_id === user?.id;
+              item.author?.role === "local_guide";
             return <CommentItem item={item} isGuide={isCommentByGuide} />;
           }}
           ListEmptyComponent={
