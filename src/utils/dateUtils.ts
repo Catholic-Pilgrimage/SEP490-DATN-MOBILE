@@ -187,20 +187,153 @@ export interface OpeningHours {
   close: string;
 }
 
+type OpeningHoursRangeLike = {
+  open?: string | null;
+  close?: string | null;
+  start?: string | null;
+  end?: string | null;
+  from?: string | null;
+  to?: string | null;
+  hours?: unknown;
+  range?: unknown;
+  time?: unknown;
+};
+
+const DAY_KEY_ALIASES: Record<number, string[]> = {
+  0: ["0", "sun", "sunday", "cn", "chunhat"],
+  1: ["1", "mon", "monday", "t2", "thu2", "thuhai"],
+  2: ["2", "tue", "tuesday", "t3", "thu3", "thuba"],
+  3: ["3", "wed", "wednesday", "t4", "thu4", "thutu"],
+  4: ["4", "thu", "thursday", "t5", "thu5", "thunam"],
+  5: ["5", "fri", "friday", "t6", "thu6", "thusau"],
+  6: ["6", "sat", "saturday", "t7", "thu7", "thubay"],
+};
+
+const normalizeOpeningHoursKey = (value: string): string =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+const normalizeTimeValue = (value: string | undefined | null): string | null => {
+  if (!value) return null;
+
+  const parts = value.trim().split(":").map(Number);
+  if (parts.length < 2 || parts.some((part) => Number.isNaN(part))) {
+    return null;
+  }
+
+  const [hours, minutes] = parts;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+};
+
+const extractOpeningHoursRange = (value: unknown): OpeningHours | null => {
+  if (!value) return null;
+
+  if (typeof value === "string") {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return null;
+
+    const rangeMatch = trimmedValue.match(
+      /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/,
+    );
+
+    if (!rangeMatch) {
+      return null;
+    }
+
+    const open = normalizeTimeValue(rangeMatch[1]);
+    const close = normalizeTimeValue(rangeMatch[2]);
+
+    return open && close ? { open, close } : null;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const rangeValue = value as OpeningHoursRangeLike;
+  const open = normalizeTimeValue(
+    rangeValue.open ?? rangeValue.start ?? rangeValue.from ?? null,
+  );
+  const close = normalizeTimeValue(
+    rangeValue.close ?? rangeValue.end ?? rangeValue.to ?? null,
+  );
+
+  if (open && close) {
+    return { open, close };
+  }
+
+  return (
+    extractOpeningHoursRange(rangeValue.hours) ??
+    extractOpeningHoursRange(rangeValue.range) ??
+    extractOpeningHoursRange(rangeValue.time)
+  );
+};
+
+export const getOpeningHoursForDay = (
+  openingHours: unknown,
+  dayOfWeek = getCurrentDayOfWeek(),
+): OpeningHours | null => {
+  if (!openingHours) {
+    return null;
+  }
+
+  if (typeof openingHours === "string") {
+    const trimmedValue = openingHours.trim();
+    if (!trimmedValue) {
+      return null;
+    }
+
+    if (trimmedValue.startsWith("{") || trimmedValue.startsWith("[")) {
+      try {
+        return getOpeningHoursForDay(JSON.parse(trimmedValue), dayOfWeek);
+      } catch {
+        return null;
+      }
+    }
+
+    return extractOpeningHoursRange(trimmedValue);
+  }
+
+  if (typeof openingHours !== "object" || Array.isArray(openingHours)) {
+    return null;
+  }
+
+  const directRange = extractOpeningHoursRange(openingHours);
+  if (directRange) {
+    return directRange;
+  }
+
+  const aliases = DAY_KEY_ALIASES[dayOfWeek] ?? [];
+  const matchingDayValue = Object.entries(openingHours as Record<string, unknown>).find(
+    ([key]) => aliases.includes(normalizeOpeningHoursKey(key)),
+  )?.[1];
+
+  return extractOpeningHoursRange(matchingDayValue);
+};
+
 /**
  * Check if site is currently open based on opening hours
  * @param openingHours - Object with open and close times
  * @returns Object with isOpen status and next status change info
  */
 export const getSiteOpenStatus = (
-  openingHours: OpeningHours | undefined | null
+  openingHours: unknown
 ): {
   isOpen: boolean;
   statusText: string;
   statusTextVi: string;
   nextChange: string | null;
 } => {
-  if (!openingHours?.open || !openingHours?.close) {
+  const todayOpeningHours = getOpeningHoursForDay(openingHours);
+
+  if (!todayOpeningHours?.open || !todayOpeningHours?.close) {
     return {
       isOpen: false,
       statusText: 'Unknown',
@@ -209,14 +342,17 @@ export const getSiteOpenStatus = (
     };
   }
 
-  const isOpen = isCurrentTimeInRange(openingHours.open, openingHours.close);
+  const isOpen = isCurrentTimeInRange(
+    todayOpeningHours.open,
+    todayOpeningHours.close,
+  );
 
   if (isOpen) {
     return {
       isOpen: true,
       statusText: 'OPEN',
       statusTextVi: 'ĐANG MỞ',
-      nextChange: `Closes at ${formatTimeDisplay(openingHours.close)}`,
+      nextChange: `Closes at ${formatTimeDisplay(todayOpeningHours.close)}`,
     };
   }
 
@@ -224,7 +360,7 @@ export const getSiteOpenStatus = (
     isOpen: false,
     statusText: 'CLOSED',
     statusTextVi: 'ĐÓNG CỬA',
-    nextChange: `Opens at ${formatTimeDisplay(openingHours.open)}`,
+    nextChange: `Opens at ${formatTimeDisplay(todayOpeningHours.open)}`,
   };
 };
 

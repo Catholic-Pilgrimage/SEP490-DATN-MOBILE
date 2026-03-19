@@ -33,11 +33,13 @@ import {
   PilgrimInsights,
   QuickActionsBar,
   RecentReviews,
-  StatusIndicator,
 } from "../components";
 import { getGreetingKey, getHeroHeight, PREMIUM_COLORS } from "../constants";
 import { useDashboardHome } from "../hooks/useDashboardHome";
-import { getActivityDisplayConfig } from "../utils/activityUtils";
+import {
+  getActivityDisplayConfig,
+  getActivityStatusConfig,
+} from "../utils/activityUtils";
 import { styles } from "./DashboardScreen.styles";
 
 // Main Dashboard Screen
@@ -81,6 +83,10 @@ const DashboardScreen: React.FC = () => {
 
   const { siteInfo, todayOverview, recentActivity } = data;
   const siteLoading = loading.siteInfo;
+  const openingTime = siteInfo?.openingHours?.open?.slice(0, 5) || null;
+  const closingTime = siteInfo?.openingHours?.close?.slice(0, 5) || null;
+  const hasOpeningHours = Boolean(openingTime && closingTime);
+  const showStatusBadge = siteLoading || hasOpeningHours;
 
   const displayName = useMemo(() => {
     if (user?.fullName?.trim()) return user.fullName;
@@ -89,6 +95,51 @@ const DashboardScreen: React.FC = () => {
   }, [user?.fullName, user?.email]);
 
   const greeting = t(getGreetingKey());
+  const compactAppBarTitle = useMemo(() => {
+    const rawTitle = t("dashboard.cathedralGuide", {
+      defaultValue: "Hướng dẫn nhà thờ",
+    });
+    const normalizedTitle = rawTitle.toLocaleLowerCase();
+    return normalizedTitle.charAt(0).toLocaleUpperCase() + normalizedTitle.slice(1);
+  }, [t]);
+  const statusLabel = siteLoading
+    ? t("common.loading", { defaultValue: "Đang tải..." })
+    : isOpen
+      ? t("dashboard.statusLine.open", { defaultValue: "Đang mở" })
+      : t("dashboard.statusLine.closed", { defaultValue: "Đóng cửa" });
+  const statusDetail = useMemo(() => {
+    if (siteLoading) return "";
+    if (!hasOpeningHours) {
+      return t("dashboard.statusLine.hoursUnavailable", {
+        defaultValue: "Chưa cập nhật giờ",
+      });
+    }
+    if (isOpen) {
+      return `${openingTime} - ${closingTime}`;
+    }
+    // Closed — compute a smart "reopen" label with date context
+    const now = new Date();
+    const [openH, openM] = (openingTime || "05:00").split(":").map(Number);
+    const reopenToday = new Date(now);
+    reopenToday.setHours(openH, openM, 0, 0);
+    const reopenIsToday = reopenToday > now;
+    const reopenDate = reopenIsToday ? reopenToday : new Date(now.getTime() + 86400000);
+    if (!reopenIsToday) {
+      reopenDate.setHours(openH, openM, 0, 0);
+    }
+    const dd = String(reopenDate.getDate()).padStart(2, "0");
+    const mm = String(reopenDate.getMonth() + 1).padStart(2, "0");
+    const dayLabel = reopenIsToday
+      ? t("dashboard.statusLine.today", { defaultValue: "hôm nay" })
+      : t("dashboard.statusLine.tomorrow", { defaultValue: "ngày mai" });
+
+    return t("dashboard.statusLine.reopenAtFull", {
+      defaultValue: "Mở lại {{time}} {{dayLabel}}, {{date}}",
+      time: openingTime,
+      dayLabel,
+      date: `${dd}/${mm}`,
+    });
+  }, [siteLoading, hasOpeningHours, isOpen, openingTime, closingTime, t]);
 
   // ── Callbacks ──────────────────────────────────────────────
   const onRefresh = useCallback(async () => {
@@ -128,6 +179,9 @@ const DashboardScreen: React.FC = () => {
           break;
         case "upload-media":
           navigateToMySite("MediaUpload");
+          break;
+        case "manage-site":
+          navigateToMySite("MySiteHome");
           break;
         default:
           console.warn(`Unhandled quick action: ${actionId}`);
@@ -190,7 +244,7 @@ const DashboardScreen: React.FC = () => {
               >
                 <View style={styles.appBarTitleContainer}>
                   <Text style={styles.appBarTitle}>
-                    {t("dashboard.cathedralGuide")}
+                    {compactAppBarTitle}
                   </Text>
                   <View style={styles.appBarTitleUnderline} />
                 </View>
@@ -239,25 +293,8 @@ const DashboardScreen: React.FC = () => {
                     : siteInfo?.name || t("dashboard.notAssignedSite")}
                 </Text>
 
-                <View style={styles.heroMeta}>
-                  {/* Open/Closed Status - Premium Badge */}
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      isOpen
-                        ? styles.statusBadgeOpen
-                        : styles.statusBadgeClosed,
-                    ]}
-                  >
-                    <StatusIndicator isActive={isOpen} />
-                    <Text style={styles.statusText}>
-                      {isOpen
-                        ? t("dashboard.status.open")
-                        : t("dashboard.status.closed")}
-                    </Text>
-                  </View>
-                  {/* Patron Saint - Elegant Italic with ellipsis */}
-                  {siteInfo?.patronSaint && (
+                {siteInfo?.patronSaint && (
+                  <View style={styles.heroPatronRow}>
                     <View style={styles.heroPatronContainer}>
                       <Text
                         style={[
@@ -271,6 +308,63 @@ const DashboardScreen: React.FC = () => {
                           {t("dashboard.patron")}:{" "}
                         </Text>
                         {siteInfo.patronSaint}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.heroMeta}>
+                  {showStatusBadge ? (
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        siteLoading
+                          ? styles.statusBadgeLoading
+                          : isOpen
+                            ? styles.statusBadgeOpen
+                            : styles.statusBadgeClosed,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.statusDot,
+                          siteLoading
+                            ? styles.statusDotLoading
+                            : isOpen
+                              ? styles.statusDotOpen
+                              : styles.statusDotClosed,
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.statusText,
+                          siteLoading
+                            ? styles.statusTextLoading
+                            : isOpen
+                              ? styles.statusTextOpen
+                              : styles.statusTextClosed,
+                        ]}
+                      >
+                        {statusLabel}
+                      </Text>
+                      {!!statusDetail && (
+                        <>
+                          <Text style={styles.statusSeparator}>{"\u2022"}</Text>
+                          <Text style={styles.statusDetailText}>
+                            {statusDetail}
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.statusFallbackBadge}>
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={GUIDE_COLORS.textSecondary}
+                      />
+                      <Text style={styles.statusFallbackText}>
+                        {statusDetail}
                       </Text>
                     </View>
                   )}
@@ -290,9 +384,6 @@ const DashboardScreen: React.FC = () => {
           <QuickActionsBar
             onActionPress={(actionId) => handleQuickAction(actionId)}
             badges={{
-              "post-news": pendingBadges.events,
-              "add-schedule": pendingBadges.schedules,
-              "upload-media": pendingBadges.media,
               "sos-log": pendingBadges.sos,
             }}
           />
@@ -324,7 +415,7 @@ const DashboardScreen: React.FC = () => {
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text
-                style={[styles.sectionLabel, { fontSize: getFontSize(10) }]}
+                style={[styles.sectionLabel, { fontSize: getFontSize(12) }]}
               >
                 {t("todayOverview.sectionLabel")}
               </Text>
@@ -500,6 +591,9 @@ const DashboardScreen: React.FC = () => {
                   activity.type,
                   activity.originalData?.category,
                 );
+                const statusConfig = getActivityStatusConfig(
+                  activity.statusTone,
+                );
 
                 return (
                   <TouchableOpacity
@@ -510,13 +604,7 @@ const DashboardScreen: React.FC = () => {
                       {activity.thumbnail ? (
                         <Image
                           source={{ uri: activity.thumbnail }}
-                          style={[
-                            styles.activityImage,
-                            {
-                              width: moderateScale(56, 0.3),
-                              height: moderateScale(56, 0.3),
-                            },
-                          ]}
+                          style={styles.activityImage}
                         />
                       ) : (
                         <View
@@ -524,8 +612,6 @@ const DashboardScreen: React.FC = () => {
                             styles.activityImage,
                             styles.activityImagePlaceholder,
                             {
-                              width: moderateScale(56, 0.3),
-                              height: moderateScale(56, 0.3),
                               backgroundColor: config.backgroundColor,
                             },
                           ]}
@@ -537,25 +623,35 @@ const DashboardScreen: React.FC = () => {
                           />
                         </View>
                       )}
-                      <View
-                        style={[
-                          styles.activityImageOverlay,
-                          { backgroundColor: config.color },
-                        ]}
-                      >
-                        <Ionicons
-                          name={config.icon as keyof typeof Ionicons.glyphMap}
-                          size={moderateScale(12, 0.3)}
-                          color="#FFFFFF"
-                        />
-                      </View>
                     </View>
                     <View style={styles.activityContent}>
-                      <Text style={styles.activityTitle}>
-                        {activity.title}
-                      </Text>
-                      <Text style={styles.activitySubtitle}>
-                        {activity.subtitle}
+                      <View style={styles.activityHeaderRow}>
+                        <Text style={styles.activityTitle} numberOfLines={2}>
+                          {activity.title}
+                        </Text>
+                        {statusConfig && activity.statusLabel && (
+                          <View
+                            style={[
+                              styles.activityStatusBadge,
+                              {
+                                backgroundColor: statusConfig.backgroundColor,
+                                borderColor: statusConfig.borderColor,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.activityStatusText,
+                                { color: statusConfig.color },
+                              ]}
+                            >
+                              {activity.statusLabel}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.activityMetaLabel}>
+                        {activity.metaLabel}
                       </Text>
                       <View style={styles.activityTimeRow}>
                         <Ionicons

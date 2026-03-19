@@ -1,8 +1,8 @@
-// Local Guide tab navigator - 3 tabs: Home, My Site, Profile
+// Local Guide tab navigator - tabs for home, management, shifts, community, and profile.
 import { MaterialIcons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
@@ -10,18 +10,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
-  GUIDE_SHADOWS
+  GUIDE_SHADOWS,
 } from "../constants/guide.constants";
-import { useNotifications } from "../hooks/useNotifications";
 import { DashboardScreen } from "../features/guide/dashboard/screens";
 import { ProfileScreen } from "../features/guide/profile/screens";
+import { ShiftsScreen } from "../features/guide/shifts/screens/ShiftsScreen";
+import { useNotifications } from "../hooks/useNotifications";
+import { MySiteNavigator } from "./MySiteNavigator";
 import {
   CommunityScreen,
   CreatePostScreen,
   PostDetailScreen,
 } from "../features/pilgrim/community/screens";
-import { ShiftsScreen } from "../features/guide/shifts/screens/ShiftsScreen";
-import { MySiteNavigator } from "./MySiteNavigator";
 
 export type GuideTabParamList = {
   Dashboard: undefined;
@@ -36,7 +36,7 @@ const CommunityStack = createNativeStackNavigator();
 
 type IconName =
   | "home"
-  | "church"
+  | "assignment"
   | "calendar-today"
   | "people-outline"
   | "person-outline";
@@ -55,7 +55,10 @@ const GuideCommunityStackNavigator = () => (
       contentStyle: { backgroundColor: GUIDE_COLORS.background },
     }}
   >
-    <CommunityStack.Screen name="GuideCommunityMain" component={CommunityScreen} />
+    <CommunityStack.Screen
+      name="GuideCommunityMain"
+      component={CommunityScreen}
+    />
     <CommunityStack.Screen name="CreatePost" component={CreatePostScreen} />
     <CommunityStack.Screen name="PostDetail" component={PostDetailScreen} />
   </CommunityStack.Navigator>
@@ -114,7 +117,11 @@ export const GuideNavigator = () => {
         component={DashboardScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="home" focused={focused} label={t("navigation.home", { defaultValue: "Trang chủ" })} />
+            <TabIcon
+              name="home"
+              focused={focused}
+              label={t("navigation.home", { defaultValue: "Trang chủ" })}
+            />
           ),
         }}
       />
@@ -122,8 +129,10 @@ export const GuideNavigator = () => {
         name="MySite"
         component={MySiteNavigator}
         options={({ route }) => {
-          const routeName = getFocusedRouteNameFromRoute(route) ?? 'MySiteHome';
-          const isHidden = routeName === 'MediaDetail' || routeName === 'MediaUpload';
+          const routeName =
+            getFocusedRouteNameFromRoute(route) ?? "MySiteHome";
+          const isHidden =
+            routeName === "MediaDetail" || routeName === "MediaUpload";
 
           return {
             tabBarStyle: [
@@ -131,11 +140,17 @@ export const GuideNavigator = () => {
               {
                 height: 70 + insets.bottom,
                 paddingBottom: insets.bottom + 8,
-                display: isHidden ? 'none' : 'flex'
+                display: isHidden ? "none" : "flex",
               },
             ],
             tabBarIcon: ({ focused }) => (
-              <TabIcon name="church" focused={focused} label={t("navigation.mySite", { defaultValue: "Site của tôi" })} />
+              <TabIcon
+                name="assignment"
+                focused={focused}
+                label={t("navigation.manage", {
+                  defaultValue: "Quản lý",
+                })}
+              />
             ),
           };
         }}
@@ -145,7 +160,11 @@ export const GuideNavigator = () => {
         component={ShiftsScreen}
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="calendar-today" focused={focused} label={t("navigation.shifts", { defaultValue: "Lịch" })} />
+            <TabIcon
+              name="calendar-today"
+              focused={focused}
+              label={t("navigation.shifts", { defaultValue: "Lịch" })}
+            />
           ),
         }}
       />
@@ -157,7 +176,9 @@ export const GuideNavigator = () => {
             <TabIcon
               name="people-outline"
               focused={focused}
-              label={t("navigation.community", { defaultValue: "Cộng đồng" })}
+              label={t("navigation.community", {
+                defaultValue: "Cộng đồng",
+              })}
             />
           ),
         }}

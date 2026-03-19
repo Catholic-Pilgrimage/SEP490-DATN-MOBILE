@@ -9,6 +9,9 @@
  * - Today's Overview (merged events + schedules)
  */
 
+import type { MassSchedule } from './mass-schedule.types';
+import type { SOSStatus } from './sos.types';
+
 // ============================================
 // SITE SCHEDULE / ACTIVE SHIFT
 // ============================================
@@ -71,9 +74,6 @@ export interface ActiveShiftInfo {
 // Note: Full MassSchedule types are defined in mass-schedule.types.ts
 // Import them from there for CRUD operations
 // The MassScheduleItem below is kept for backward compatibility with dashboard utils
-
-import type { MassSchedule } from './mass-schedule.types';
-import type { SOSStatus } from './sos.types';
 
 /**
  * @deprecated Use MassSchedule from mass-schedule.types.ts instead
@@ -178,7 +178,9 @@ export interface RecentActivityItem {
   id: string;
   type: RecentActivityType;
   title: string;
-  subtitle: string;
+  metaLabel: string;
+  statusLabel?: string;
+  statusTone?: 'pending' | 'approved' | 'rejected' | null;
   thumbnail?: string | null;
   created_at: string;
   status?: string;

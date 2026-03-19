@@ -15,6 +15,12 @@ interface ActivityDisplayConfig {
   backgroundColor: string;
 }
 
+interface ActivityStatusConfig {
+  color: string;
+  backgroundColor: string;
+  borderColor: string;
+}
+
 const NEARBY_PLACE_CONFIG: Record<string, ActivityDisplayConfig> = {
   accommodation: {
     icon: "bed",
@@ -46,6 +52,24 @@ const DEFAULT_CONFIG: ActivityDisplayConfig = {
   backgroundColor: "#DBEAFE",
 };
 
+const ACTIVITY_STATUS_CONFIG: Record<string, ActivityStatusConfig> = {
+  pending: {
+    color: "#B45309",
+    backgroundColor: "#FFF7ED",
+    borderColor: "#FCD34D",
+  },
+  approved: {
+    color: "#166534",
+    backgroundColor: "#F0FDF4",
+    borderColor: "#86EFAC",
+  },
+  rejected: {
+    color: "#B91C1C",
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FCA5A5",
+  },
+};
+
 export const getActivityDisplayConfig = (
   type: ActivityType,
   category?: NearbyCategory,
@@ -57,4 +81,11 @@ export const getActivityDisplayConfig = (
     return MEDIA_CONFIG;
   }
   return DEFAULT_CONFIG;
+};
+
+export const getActivityStatusConfig = (
+  tone?: "pending" | "approved" | "rejected" | null,
+): ActivityStatusConfig | null => {
+  if (!tone) return null;
+  return ACTIVITY_STATUS_CONFIG[tone] ?? null;
 };

@@ -27,7 +27,11 @@ import {
   SiteScheduleShift,
   SOSInfo
 } from '../../../../types/guide';
-import { getSiteOpenStatus, getWeekStartDate } from '../../../../utils/dateUtils';
+import {
+  getOpeningHoursForDay,
+  getSiteOpenStatus,
+  getWeekStartDate,
+} from '../../../../utils/dateUtils';
 import {
   getActiveShift,
   getActiveShiftDisplay,
@@ -236,6 +240,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     const rawSite = siteQuery.data;
     if (!rawSite) return null;
 
+    const normalizedOpeningHours = getOpeningHoursForDay(rawSite.opening_hours);
     const openStatus = getSiteOpenStatus(rawSite.opening_hours);
 
     return {
@@ -245,8 +250,8 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
       coverImage: rawSite.cover_image,
       isOpen: openStatus.isOpen,
       openingHours: {
-        open: rawSite.opening_hours?.open || '',
-        close: rawSite.opening_hours?.close || '',
+        open: normalizedOpeningHours?.open || '',
+        close: normalizedOpeningHours?.close || '',
       },
     };
   }, [siteQuery.data]);

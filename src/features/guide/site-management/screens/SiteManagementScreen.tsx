@@ -25,6 +25,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import guideSiteApi from "../../../../services/api/guide/siteApi";
+import { getOpeningHoursForDay } from "../../../../utils/dateUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = Dimensions.get("window").height * 0.45;
@@ -85,6 +86,7 @@ export const SiteManagementScreen: React.FC = () => {
   ]
     .filter(Boolean)
     .join(", ");
+  const todayOpeningHours = getOpeningHoursForDay(site.opening_hours);
 
   const displayImages = site.cover_image
     ? [site.cover_image]
@@ -164,7 +166,7 @@ export const SiteManagementScreen: React.FC = () => {
 
         <View style={styles.contentContainer}>
           {/* Key Information Card */}
-          {(site.opening_hours?.open || site.opening_hours?.close || site.contact_info?.phone) && (
+          {(todayOpeningHours || site.contact_info?.phone) && (
             <View style={styles.infoCard}>
               {/* Opening Hours */}
               <View style={[styles.infoRow, { borderBottomWidth: 1, borderBottomColor: GUIDE_COLORS.borderLight }]}>
@@ -174,8 +176,8 @@ export const SiteManagementScreen: React.FC = () => {
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Giờ mở cửa</Text>
                   <Text style={styles.infoValue}>
-                    {site.opening_hours?.open || site.opening_hours?.close
-                      ? `${site.opening_hours.open ? site.opening_hours.open.substring(0, 5) : "--"} - ${site.opening_hours.close ? site.opening_hours.close.substring(0, 5) : "--"}`
+                    {todayOpeningHours
+                      ? `${todayOpeningHours.open.substring(0, 5)} - ${todayOpeningHours.close.substring(0, 5)}`
                       : "Chưa cập nhật"}
                   </Text>
                 </View>

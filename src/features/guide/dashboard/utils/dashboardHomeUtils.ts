@@ -262,7 +262,9 @@ const mapMediaToActivity = (media: MediaItem): RecentActivityItem => ({
   id: media.id,
   type: 'media' as RecentActivityType,
   title: media.caption || 'Media',
-  subtitle: getMediaSubtitle(media),
+  metaLabel: getMediaMetaLabel(media),
+  statusLabel: getActivityStatusLabel(media.status),
+  statusTone: getActivityStatusTone(media.status),
   thumbnail: media.type === 'image' ? media.url : null,
   created_at: media.created_at,
   status: media.status,
@@ -270,22 +272,16 @@ const mapMediaToActivity = (media: MediaItem): RecentActivityItem => ({
 });
 
 /**
- * Get subtitle for media item
+ * Get content label for media item
  */
-const getMediaSubtitle = (media: MediaItem): string => {
+const getMediaMetaLabel = (media: MediaItem): string => {
   const typeLabels: Record<string, string> = {
     image: 'Hình ảnh',
     video: 'Video',
     panorama: 'Ảnh 360°',
   };
 
-  const statusLabels: Record<string, string> = {
-    pending: '• Chờ duyệt',
-    approved: '• Đã duyệt',
-    rejected: '• Từ chối',
-  };
-
-  return `${typeLabels[media.type] || media.type} ${statusLabels[media.status] || ''}`;
+  return typeLabels[media.type] || media.type;
 };
 
 /**
@@ -295,7 +291,9 @@ const mapEventToActivity = (event: EventItem): RecentActivityItem => ({
   id: event.id,
   type: 'event' as RecentActivityType,
   title: event.name,
-  subtitle: getEventSubtitle(event),
+  metaLabel: getEventMetaLabel(),
+  statusLabel: getActivityStatusLabel(event.status),
+  statusTone: getActivityStatusTone(event.status),
   thumbnail: event.banner_url,
   created_at: event.created_at,
   status: event.status,
@@ -303,17 +301,9 @@ const mapEventToActivity = (event: EventItem): RecentActivityItem => ({
 });
 
 /**
- * Get subtitle for event item
+ * Get content label for event item
  */
-const getEventSubtitle = (event: EventItem): string => {
-  const statusLabels: Record<string, string> = {
-    pending: 'Sự kiện • Chờ duyệt',
-    approved: 'Sự kiện • Đã duyệt',
-    rejected: 'Sự kiện • Từ chối',
-  };
-
-  return statusLabels[event.status] || 'Sự kiện';
-};
+const getEventMetaLabel = (): string => 'Sự kiện';
 
 /**
  * Map nearby place to RecentActivityItem
@@ -322,27 +312,42 @@ const mapNearbyPlaceToActivity = (place: GuideNearbyPlace): RecentActivityItem =
   id: place.id,
   type: 'nearby_place' as RecentActivityType,
   title: place.name,
-  subtitle: getNearbyPlaceSubtitle(place),
+  metaLabel: getNearbyPlaceMetaLabel(place),
+  statusLabel: getActivityStatusLabel(place.status),
+  statusTone: getActivityStatusTone(place.status),
   thumbnail: null,
   created_at: place.created_at,
   status: place.status,
   originalData: place,
 });
 
-const getNearbyPlaceSubtitle = (place: GuideNearbyPlace): string => {
+const getNearbyPlaceMetaLabel = (place: GuideNearbyPlace): string => {
   const categoryLabels: Record<string, string> = {
     food: 'Ăn uống',
     accommodation: 'Lưu trú',
     medical: 'Y tế',
   };
-  const statusLabels: Record<string, string> = {
-    pending: '• Chờ duyệt',
-    approved: '• Đã duyệt',
-    rejected: '• Từ chối',
-  };
   const cat = categoryLabels[place.category] || 'Địa điểm';
-  const status = statusLabels[place.status] || '';
-  return `${cat} ${status}`.trim();
+  return cat;
+};
+
+const getActivityStatusTone = (
+  status?: string,
+): RecentActivityItem['statusTone'] => {
+  if (status === 'pending' || status === 'approved' || status === 'rejected') {
+    return status;
+  }
+  return null;
+};
+
+const getActivityStatusLabel = (status?: string): string | undefined => {
+  const statusLabels: Record<string, string> = {
+    pending: 'Chờ duyệt',
+    approved: 'Đã duyệt',
+    rejected: 'Từ chối',
+  };
+
+  return status ? statusLabels[status] : undefined;
 };
 
 /**

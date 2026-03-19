@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     marginBottom: getSpacing(GUIDE_SPACING.md),
   },
   sectionLabel: {
-    fontSize: getFontSize(10),
+    fontSize: getFontSize(12),
     fontWeight: "700",
     color: PREMIUM_COLORS.gold,
     letterSpacing: 2,
