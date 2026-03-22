@@ -78,7 +78,7 @@ export const getMassScheduleById = async (
  * const newSchedule = await createMassSchedule({
  *   days_of_week: [0, 3, 6],  // CN, T4, T7
  *   time: "06:00",
- *   note: "Lễ sáng sớm",
+ *   note: "Lễ chiều thứ 2, 4, 6 hàng tuần",
  * });
  *
  * Notes:
@@ -107,7 +107,7 @@ export const createMassSchedule = async (
  * const updated = await updateMassSchedule('uuid', {
  *   days_of_week: [0, 1, 2, 3, 4, 5, 6],
  *   time: "07:00",
- *   note: "Lễ hàng ngày",
+ *   note: "Lễ chiều thứ 2, 4, 6 hàng tuần",
  * });
  *
  * Rules:

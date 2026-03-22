@@ -201,7 +201,7 @@ export const useMassSchedule = (): UseMassScheduleResult => {
 
   return {
     schedules,
-    filteredSchedules: schedules,
+    filteredSchedules,
     pagination,
     loading,
     refreshing,

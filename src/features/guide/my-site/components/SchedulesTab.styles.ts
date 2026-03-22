@@ -61,7 +61,6 @@ export const styles = StyleSheet.create({
   // List
   listContent: {
     paddingHorizontal: GUIDE_SPACING.md,
-    paddingBottom: 100,
   },
 
   // Schedule Card
@@ -273,30 +272,6 @@ export const styles = StyleSheet.create({
     color: "#FFF",
   },
 
-  // FAB
-  fab: {
-    position: "absolute",
-    bottom: GUIDE_SPACING.lg,
-    right: GUIDE_SPACING.md,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: PREMIUM_COLORS.gold,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-
   // Modal
   modalOverlay: {
     flex: 1,
@@ -304,7 +279,7 @@ export const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
+    backgroundColor: PREMIUM_COLORS.cream,
     borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
     borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
     maxHeight: "85%",
@@ -328,7 +303,11 @@ export const styles = StyleSheet.create({
   },
   modalBody: {
     paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
+    paddingTop: GUIDE_SPACING.md,
+  },
+  /** Ít padding đáy scroll — ô ghi chú gần hàng nút hơn */
+  modalScrollContent: {
+    paddingBottom: GUIDE_SPACING.xs,
   },
   rejectionNotice: {
     flexDirection: "row",
@@ -350,6 +329,9 @@ export const styles = StyleSheet.create({
   formGroup: {
     marginBottom: GUIDE_SPACING.lg,
   },
+  formGroupLast: {
+    marginBottom: 0,
+  },
   formLabel: {
     fontSize: 14,
     fontWeight: "600",
@@ -370,7 +352,7 @@ export const styles = StyleSheet.create({
     gap: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: PREMIUM_COLORS.warmGray,
+    backgroundColor: "#FFFFFF",
     borderRadius: GUIDE_BORDER_RADIUS.md,
     borderWidth: 1,
     borderColor: GUIDE_COLORS.borderLight,
@@ -391,11 +373,160 @@ export const styles = StyleSheet.create({
     height: 80,
     textAlignVertical: "top",
   },
+  /** Giờ lễ — pill vàng + picker chính */
+  timePillRow: {
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  timePillTouchable: {
+    alignSelf: "flex-start",
+  },
+  timePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.sm + 2,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: PREMIUM_COLORS.goldLight,
+    borderWidth: 1,
+    borderColor: PREMIUM_COLORS.gold,
+  },
+  timePillText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.goldDark,
+  },
+  iosTimeToolbar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.sm,
+    backgroundColor: PREMIUM_COLORS.cream,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: GUIDE_COLORS.borderLight,
+  },
+  iosTimeToolbarBtn: {
+    paddingVertical: GUIDE_SPACING.xs,
+    paddingHorizontal: GUIDE_SPACING.md,
+  },
+  iosTimeToolbarText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: PREMIUM_COLORS.goldDark,
+  },
+  quickTimeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GUIDE_SPACING.sm,
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  quickTimeChip: {
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.xs,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.borderLight,
+  },
+  quickTimeChipActive: {
+    backgroundColor: PREMIUM_COLORS.goldLight,
+    borderColor: PREMIUM_COLORS.gold,
+  },
+  quickTimeChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: GUIDE_COLORS.textSecondary,
+  },
+  quickTimeChipTextActive: {
+    color: PREMIUM_COLORS.goldDark,
+  },
+  weekOverviewSection: {
+    marginBottom: GUIDE_SPACING.md,
+  },
+  weekOverviewToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.xs,
+  },
+  weekOverviewTitleText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "700",
+    color: GUIDE_COLORS.textPrimary,
+  },
+  weekGridRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: GUIDE_SPACING.sm,
+  },
+  weekCell: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: "center",
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: 2,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.borderLight,
+  },
+  weekCellSelected: {
+    borderColor: PREMIUM_COLORS.gold,
+    backgroundColor: PREMIUM_COLORS.goldLight,
+  },
+  /** Không có lịch — tránh nhầm với “0” như empty list; không bấm lọc */
+  weekCellEmpty: {
+    opacity: 0.65,
+  },
+  weekCellDay: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  weekCellCount: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: GUIDE_COLORS.textPrimary,
+    marginTop: 2,
+  },
+  weekCellCountMuted: {
+    color: GUIDE_COLORS.gray400,
+    fontWeight: "600",
+  },
+  clearDayFilterBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginTop: GUIDE_SPACING.sm,
+    paddingVertical: 4,
+  },
+  clearDayFilterText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.goldDark,
+  },
+  listFooter: {
+    alignItems: "center",
+    paddingTop: GUIDE_SPACING.lg,
+    paddingBottom: GUIDE_SPACING.md,
+  },
+  listFooterLine: {
+    width: 120,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: GUIDE_COLORS.gray300,
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  listFooterText: {
+    fontSize: 12,
+    color: GUIDE_COLORS.textSecondary,
+    fontWeight: "500",
+  },
   charCount: {
     fontSize: 11,
     color: GUIDE_COLORS.gray400,
     textAlign: "right",
-    marginTop: 4,
+    marginTop: GUIDE_SPACING.xs,
   },
   errorText: {
     fontSize: 12,
@@ -403,12 +534,12 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Modal footer
+  // Modal footer — paddingTop nhỏ để sát ô ghi chú; paddingBottom set trong TSX (safe area + sm)
   modalFooter: {
     flexDirection: "row",
     gap: GUIDE_SPACING.md,
     paddingHorizontal: GUIDE_SPACING.lg,
-    paddingVertical: GUIDE_SPACING.md,
+    paddingTop: GUIDE_SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: GUIDE_COLORS.borderLight,
   },
