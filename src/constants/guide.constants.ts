@@ -12,6 +12,22 @@ export const GUIDE_COLORS = {
 
   // Background colors - Light Parchment theme
   background: "#F8F8F6",
+  /** Nền kem — transition mềm từ ảnh / form đồng bộ (media detail, tạo sự kiện/media) */
+  creamBg: "#F5EDE3",
+  /** Panel kem chồng lên hero ảnh */
+  creamPanel: "#FDF8F0",
+  /** Chữ chính trên nền kem */
+  creamInk: "#3D2E26",
+  /** Nhãn phụ (vd. «Chú thích») */
+  creamLabel: "#8B7355",
+  /** Gợi ý / meta nhạt trên kem */
+  creamMuted: "#A09078",
+  /** Thanh kéo bottom sheet */
+  creamHandle: "#C4A882",
+  /** Viền / tách lớp trên kem */
+  creamBorder: "rgba(61, 46, 38, 0.1)",
+  /** Ô input / thẻ nổi trên kem */
+  creamElevated: "#FFFCF7",
   backgroundDark: "#221D10",
   backgroundSecondary: "rgba(255, 255, 255, 0.6)",
   backgroundTertiary: "#FFFFFF",

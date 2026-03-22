@@ -684,6 +684,17 @@
     "formDaysLabel": "Days of week",
     "formTimeLabel": "Mass time",
     "formTimePlaceholder": "HH:MM (e.g. 06:00)",
+    "timeTapToSelect": "Tap to pick time",
+    "timePickerA11y": "Open time picker for mass",
+    "timeManualHint": "Or type manually (HH:MM)",
+    "timePickerDone": "Done",
+    "footerTotalSchedules": "Total: {{count}} schedule(s)",
+    "weekOverviewTitle": "Week overview",
+    "weekOverviewA11yToggle": "Show or hide week grid",
+    "clearDayFilter": "Clear day filter",
+    "emptyForDay": "No mass on {{day}} with the current filter.",
+    "weekCellA11yNoMass": "{{day}}: no mass, filter disabled",
+    "weekCellA11yHasMass": "{{day}}: {{count}} mass(es), tap to filter list",
     "formNoteLabel": "Note",
     "formNotePlaceholder": "E.g. Weekday morning mass...",
     "update": "Update",
@@ -763,7 +774,9 @@
       "locations": "Locations"
     },
     "loading": "Loading...",
-    "noAddress": "No address"
+    "noAddress": "No address",
+    "fabAddEvent": "Create new event",
+    "fabAddMedia": "Upload media"
   },
   "locationsTab": {
     "title": "Nearby Places",

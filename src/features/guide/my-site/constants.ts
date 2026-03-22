@@ -2,7 +2,7 @@ export const PREMIUM_COLORS = {
   gold: "#D4AF37",
   goldLight: "#F5E6B8",
   goldDark: "#B8960C",
-  cream: "#FDF8F0",
+  cream: "#FAF7F0",
   charcoal: "#1A1A1A",
   warmGray: "#F7F5F2",
   brown: "#8B7355",

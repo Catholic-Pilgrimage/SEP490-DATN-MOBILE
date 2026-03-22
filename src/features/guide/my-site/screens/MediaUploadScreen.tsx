@@ -16,7 +16,6 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Linking,
@@ -29,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_COLORS,
@@ -281,14 +281,22 @@ export const MediaUploadScreen: React.FC = () => {
 
   const handleYoutubeUrlSubmit = useCallback(() => {
     if (!youtubeUrl.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập link YouTube");
+      Toast.show({
+        type: "error",
+        text1: "Thiếu link",
+        text2: "Vui lòng nhập link YouTube",
+      });
       return;
     }
 
     // Validate YouTube URL
     const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
     if (!youtubeRegex.test(youtubeUrl)) {
-      Alert.alert("Lỗi", "Link YouTube không hợp lệ");
+      Toast.show({
+        type: "error",
+        text1: "Link không hợp lệ",
+        text2: "Vui lòng dán đúng URL YouTube",
+      });
       return;
     }
 
@@ -354,15 +362,26 @@ export const MediaUploadScreen: React.FC = () => {
       }
 
       if (result?.success) {
-        Alert.alert("Thành công", "Media đã được upload và đang chờ duyệt", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
+        Toast.show({
+          type: "success",
+          text1: "Đã gửi media",
+          text2: "Đang chờ duyệt. Bạn có thể theo dõi trong Thư viện media.",
+        });
+        setTimeout(() => navigation.goBack(), 450);
       } else {
-        Alert.alert("Lỗi", result?.message || "Không thể upload media");
+        Toast.show({
+          type: "error",
+          text1: "Upload thất bại",
+          text2: result?.message || "Không thể upload media",
+        });
       }
     } catch (error) {
       console.error("Upload error:", error);
-      Alert.alert("Lỗi", "Đã có lỗi xảy ra khi upload");
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Đã có lỗi xảy ra khi upload",
+      });
     } finally {
       setUploading(false);
     }
@@ -494,7 +513,11 @@ export const MediaUploadScreen: React.FC = () => {
                       onPress={() => {
                         if (youtubeUrl) {
                           Linking.openURL(youtubeUrl).catch(() => {
-                            Alert.alert("Lỗi", "Không thể mở video này");
+                            Toast.show({
+                              type: "error",
+                              text1: "Lỗi",
+                              text2: "Không thể mở video này",
+                            });
                           });
                         }
                       }}
@@ -616,7 +639,7 @@ export const MediaUploadScreen: React.FC = () => {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={GUIDE_COLORS.background}
+        backgroundColor={GUIDE_COLORS.creamBg}
       />
 
       {/* Header */}
@@ -625,7 +648,7 @@ export const MediaUploadScreen: React.FC = () => {
           <MaterialIcons
             name="arrow-back-ios"
             size={20}
-            color={GUIDE_COLORS.textPrimary}
+            color={GUIDE_COLORS.creamInk}
           />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Upload Media</Text>

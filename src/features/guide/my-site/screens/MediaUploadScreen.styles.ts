@@ -10,7 +10,7 @@ import {
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
+    backgroundColor: GUIDE_COLORS.creamBg,
   },
 
   // Header
@@ -31,7 +31,7 @@ export const styles = StyleSheet.create({
   headerTitle: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
   },
   headerSpacer: {
     width: 40,
@@ -106,11 +106,11 @@ export const styles = StyleSheet.create({
   typeCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     padding: GUIDE_SPACING.lg,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
+    borderColor: GUIDE_COLORS.creamBorder,
     ...GUIDE_SHADOWS.sm,
   },
   typeIconContainer: {
@@ -127,22 +127,22 @@ export const styles = StyleSheet.create({
   typeCardLabel: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
     marginBottom: 2,
   },
   typeCardDescription: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.creamMuted,
   },
 
   // URL Input
   urlInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
+    borderColor: GUIDE_COLORS.creamBorder,
     paddingHorizontal: GUIDE_SPACING.md,
     marginBottom: GUIDE_SPACING.xl,
   },
@@ -153,7 +153,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     height: 56,
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
   },
   continueButton: {
     flexDirection: "row",
@@ -179,9 +179,11 @@ export const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     borderRadius: GUIDE_BORDER_RADIUS.xl,
     overflow: "hidden",
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     marginBottom: GUIDE_SPACING.lg,
     position: "relative",
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   previewImage: {
     width: "100%",
@@ -231,23 +233,23 @@ export const styles = StyleSheet.create({
   captionLabel: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
+    color: GUIDE_COLORS.creamLabel,
     marginBottom: GUIDE_SPACING.sm,
   },
   captionInput: {
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
+    borderColor: GUIDE_COLORS.creamBorder,
     padding: GUIDE_SPACING.md,
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
     minHeight: 100,
     textAlignVertical: "top",
   },
   captionCount: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.creamMuted,
     textAlign: "right",
     marginTop: GUIDE_SPACING.xs,
   },

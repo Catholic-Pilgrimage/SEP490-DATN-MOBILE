@@ -1,45 +1,64 @@
-import { Dimensions, StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SPACING,
-    GUIDE_TYPOGRAPHY,
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SPACING,
+  GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-
 export const styles = StyleSheet.create({
+  /** Nền kem — phần dưới hero + transition mềm */
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: GUIDE_COLORS.creamBg,
   },
 
   // Image Container
   imageContainer: {
     width: "100%",
-    height: SCREEN_WIDTH,
+    aspectRatio: 4 / 3,
     backgroundColor: "#000",
     position: "relative",
+    zIndex: 1,
   },
   fullImage: {
     width: "100%",
     height: "100%",
   },
-  topOverlay: {
+  /** Vùng chạm mở lightbox phóng to ảnh */
+  imagePressable: {
+    width: "100%",
+    height: "100%",
+  },
+  replaceOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 5,
+  },
+  replaceOverlayText: {
+    marginTop: GUIDE_SPACING.sm,
+    color: "rgba(255,255,255,0.9)",
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+  },
+  /** Chỉ tối viền trên — phần giữa ảnh/video vẫn trong suốt */
+  topGradientScrim: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    height: 120,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    height: 88,
+    zIndex: 4,
   },
-  bottomOverlay: {
+  /** Viền dưới — hòa vào nền kem của panel chồng */
+  bottomGradientScrim: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
-    backgroundColor: "rgba(0,0,0,0.2)",
+    height: 88,
+    zIndex: 4,
   },
 
   // Header
@@ -53,12 +72,43 @@ export const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(255,255,255,0.14)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.38)",
     justifyContent: "center",
     alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.35,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 6,
+      },
+    }),
+  },
+  /** Viền kính nhẹ quanh badge trạng thái — tách khỏi nền ảnh */
+  statusBadgeShell: {
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    paddingHorizontal: 4,
+    paddingVertical: 3,
+    backgroundColor: "rgba(0,0,0,0.22)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.28)",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
+      android: { elevation: 3 },
+    }),
   },
 
   // Media Type Badge
@@ -69,10 +119,22 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.35)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.22)",
+    zIndex: 9,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.25,
+        shadowRadius: 2,
+      },
+      android: { elevation: 4 },
+    }),
   },
   mediaTypeBadgeText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
@@ -85,23 +147,59 @@ export const styles = StyleSheet.create({
     position: "absolute",
     top: "50%",
     left: "50%",
-    marginTop: -40,
-    marginLeft: -40,
-    width: 80,
-    height: 80,
+    marginTop: -38,
+    marginLeft: -38,
+    width: 76,
+    height: 76,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.38)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.35)",
     justifyContent: "center",
     alignItems: "center",
+    zIndex: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
+      },
+      android: { elevation: 8 },
+    }),
   },
 
-  // Content Panel
+  // Content Panel — kem + overlap hero; marginTop chỉ nhẹ hơn -22 để bo góc không che quá nhiều ảnh
   contentPanel: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    marginTop: 0,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    marginTop: -12,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
+    zIndex: 2,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#2A2118",
+        shadowOffset: { width: 0, height: -6 },
+        shadowOpacity: 0.14,
+        shadowRadius: 14,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
+  },
+  dragHandleContainer: {
+    alignItems: "center",
+    paddingTop: GUIDE_SPACING.md,
+    paddingBottom: GUIDE_SPACING.xs,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: GUIDE_COLORS.creamHandle,
   },
   scrollContent: {
     padding: GUIDE_SPACING.lg,
@@ -147,7 +245,13 @@ export const styles = StyleSheet.create({
   captionLabel: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.textSecondary,
+    color: GUIDE_COLORS.creamLabel,
+  },
+  captionEditHint: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    lineHeight: 18,
+    color: GUIDE_COLORS.creamMuted,
+    marginBottom: GUIDE_SPACING.sm,
   },
   editButton: {
     flexDirection: "row",
@@ -165,8 +269,46 @@ export const styles = StyleSheet.create({
   },
   captionText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.creamInk,
     lineHeight: 24,
+  },
+
+  // Replace image file (pending / rejected)
+  replaceFileSection: {
+    marginBottom: GUIDE_SPACING.lg,
+  },
+  replaceFileLabel: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.creamLabel,
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  replaceFileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.md,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: `${GUIDE_COLORS.primary}40`,
+    backgroundColor: `${GUIDE_COLORS.primary}08`,
+  },
+  replaceFileButtonDisabled: {
+    opacity: 0.55,
+  },
+  replaceFileButtonText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.primary,
+  },
+  replaceFileHint: {
+    marginTop: GUIDE_SPACING.sm,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.textMuted,
+    lineHeight: 18,
   },
 
   // Edit Caption
@@ -174,13 +316,13 @@ export const styles = StyleSheet.create({
     gap: GUIDE_SPACING.md,
   },
   captionInput: {
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     borderWidth: 1,
     borderColor: GUIDE_COLORS.primary,
     padding: GUIDE_SPACING.md,
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
     minHeight: 80,
     textAlignVertical: "top",
   },
@@ -194,12 +336,14 @@ export const styles = StyleSheet.create({
     paddingVertical: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.lg,
     borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   cancelButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
+    color: GUIDE_COLORS.creamLabel,
   },
   saveButton: {
     paddingVertical: GUIDE_SPACING.sm,
@@ -222,20 +366,23 @@ export const styles = StyleSheet.create({
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.md,
-    borderRadius: GUIDE_BORDER_RADIUS.lg,
-    backgroundColor: "rgba(244, 67, 54, 0.08)",
+    alignSelf: "center",
+    gap: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    marginTop: GUIDE_SPACING.xl,
     marginBottom: GUIDE_SPACING.lg,
   },
   deleteButtonDisabled: {
     opacity: 0.5,
   },
   deleteButtonText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.error,
+    fontSize: 13,
+    fontWeight: "500" as const,
+    color: GUIDE_COLORS.creamMuted,
   },
 
   // Approved Notice
@@ -243,13 +390,64 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     padding: GUIDE_SPACING.md,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   approvedNoticeText: {
     flex: 1,
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.creamMuted,
+  },
+
+  // Metadata Section
+  metadataSection: {
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: GUIDE_SPACING.md,
+    marginBottom: GUIDE_SPACING.lg,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+  },
+  metadataTitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.creamLabel,
+    marginBottom: GUIDE_SPACING.md,
+  },
+  metadataRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.xs,
+  },
+  metadataLabel: {
+    flex: 1,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
+  },
+  metadataValue: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    color: GUIDE_COLORS.creamInk,
+  },
+  metadataDivider: {
+    height: 1,
+    backgroundColor: GUIDE_COLORS.creamBorder,
+    marginVertical: 2,
+  },
+
+  // Video Error Fallback
+  videoErrorFallback: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#111",
+  },
+  videoErrorText: {
+    color: "rgba(255,255,255,0.5)",
+    marginTop: GUIDE_SPACING.sm,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
   },
 });

@@ -685,6 +685,17 @@
     "formDaysLabel": "Ngày trong tuần",
     "formTimeLabel": "Giờ lễ",
     "formTimePlaceholder": "HH:MM (vd: 06:00)",
+    "timeTapToSelect": "Chạm để chọn giờ",
+    "timePickerA11y": "Mở chọn giờ lễ",
+    "timeManualHint": "Hoặc nhập tay (HH:MM)",
+    "timePickerDone": "Xong",
+    "footerTotalSchedules": "Tổng cộng {{count}} lịch lễ",
+    "weekOverviewTitle": "Lịch tuần",
+    "weekOverviewA11yToggle": "Ẩn hoặc hiện lưới lịch tuần",
+    "clearDayFilter": "Bỏ lọc ngày",
+    "emptyForDay": "Chưa có lịch lễ nào vào {{day}} (theo bộ lọc hiện tại).",
+    "weekCellA11yNoMass": "{{day}}: không có lịch, không lọc",
+    "weekCellA11yHasMass": "{{day}}: {{count}} lịch, chạm để lọc danh sách",
     "formNoteLabel": "Ghi chú",
     "formNotePlaceholder": "Vd: Lễ sáng trong tuần...",
     "update": "Cập nhật",
@@ -764,7 +775,9 @@
       "locations": "Địa điểm"
     },
     "loading": "Đang tải...",
-    "noAddress": "Chưa có địa chỉ"
+    "noAddress": "Chưa có địa chỉ",
+    "fabAddEvent": "Tạo sự kiện mới",
+    "fabAddMedia": "Tải media lên"
   },
   "locationsTab": {
     "title": "Địa điểm lân cận",

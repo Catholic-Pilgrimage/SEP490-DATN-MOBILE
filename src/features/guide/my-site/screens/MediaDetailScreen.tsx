@@ -1,35 +1,59 @@
 /**
  * MediaDetailScreen
- * View media detail, edit caption, delete (for pending/rejected media)
+ * View media detail, edit caption, replace image file, delete (pending/rejected)
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useCallback, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   KeyboardAvoidingView,
   Linking,
   Platform,
-  ScrollView,
   StatusBar,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  Gesture,
+  GestureDetector,
+  ScrollView as GHScrollView,
+} from "react-native-gesture-handler";
+import Animated, {
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_COLORS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { deleteMedia, updateMedia } from "../../../../services/api/guide";
-import { MediaStatus } from "../../../../types/guide";
+import { MediaItem, MediaStatus } from "../../../../types/guide";
+import { MediaLightbox } from "../components/MediaLightbox";
 import { StatusBadge } from "../components/StatusBadge";
+import { compressGuideImage } from "../utils/compressGuideImage";
 import { styles } from "./MediaDetailScreen.styles";
+
+const ReanimatedScrollView = Animated.createAnimatedComponent(GHScrollView);
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 type MediaDetailRouteProp = RouteProp<MySiteStackParamList, "MediaDetail">;
 
@@ -39,20 +63,146 @@ const STATUS_LABELS: Record<MediaStatus, string> = {
   rejected: "Đã bị từ chối",
 };
 
+const LocalVideoPlayer = ({ url, style }: { url: string; style: any }) => {
+  const [hasError, setHasError] = useState(false);
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = true;
+  });
+
+  useEffect(() => {
+    const sub = player.addListener("statusChange", ({ status }: { status: string }) => {
+      if (status === "error") setHasError(true);
+    });
+    return () => sub.remove();
+  }, [player]);
+
+  if (hasError) {
+    return (
+      <View style={[style, styles.videoErrorFallback]}>
+        <MaterialIcons name="videocam-off" size={48} color="rgba(255,255,255,0.4)" />
+        <Text style={styles.videoErrorText}>Video không khả dụng</Text>
+      </View>
+    );
+  }
+
+  return (
+    <VideoView
+      style={style}
+      player={player}
+      allowsFullscreen
+      allowsPictureInPicture
+      contentFit="contain"
+    />
+  );
+};
+
 export const MediaDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute<MediaDetailRouteProp>();
-  const { media } = route.params;
+  const { media: initialMedia } = route.params;
 
-  // State
-  const [caption, setCaption] = useState(media.caption || "");
+  // State (displayMedia updates after caption/file replace success)
+  const [displayMedia, setDisplayMedia] = useState<MediaItem>(initialMedia);
+  const [caption, setCaption] = useState(initialMedia.caption || "");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPickerVisible, setIsPickerVisible] = useState(false);
+  const [isReplacingFile, setIsReplacingFile] = useState(false);
+  /** Phóng to: ảnh (pinch) / video file (fullscreen modal) — dùng RNGH+Reanimated, không thư viện ngoài */
+  const [lightbox, setLightbox] = useState<"off" | "image" | "video">("off");
 
-  const canEdit = media.status === "pending" || media.status === "rejected";
-  const canDelete = media.status === "pending" || media.status === "rejected";
+  const canEdit =
+    displayMedia.status === "pending" || displayMedia.status === "rejected";
+  const canDelete =
+    displayMedia.status === "pending" || displayMedia.status === "rejected";
+  /** Chỉ ảnh / panorama có file cục bộ — không áp dụng cho video YouTube */
+  const canReplaceImageFile =
+    canEdit &&
+    (displayMedia.type === "image" || displayMedia.type === "panorama");
+
+  // Swipe-to-dismiss (RNGH Pan + Reanimated — panel theo tay, đóng khi đủ kéo / vận tốc)
+  const translateY = useSharedValue(0);
+  const scrollY = useSharedValue(0);
+  const startTranslateY = useSharedValue(0);
+
+  const goBackDismiss = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollY.value = e.contentOffset.y;
+    },
+  });
+
+  const panGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY(8)
+        .failOffsetX([-48, 48])
+        .onStart(() => {
+          startTranslateY.value = translateY.value;
+        })
+        .onUpdate((e) => {
+          if (scrollY.value > 2) return;
+          const next = startTranslateY.value + e.translationY;
+          translateY.value = next > 0 ? next : 0;
+        })
+        .onEnd((e) => {
+          if (scrollY.value > 2) {
+            translateY.value = withSpring(0, { damping: 24, stiffness: 320 });
+            return;
+          }
+          const dismiss =
+            translateY.value > 110 || e.velocityY > 900;
+          if (dismiss) {
+            translateY.value = withTiming(
+              SCREEN_HEIGHT,
+              { duration: 240 },
+              (finished) => {
+                if (finished) runOnJS(goBackDismiss)();
+              },
+            );
+          } else {
+            translateY.value = withSpring(0, {
+              damping: 26,
+              stiffness: 300,
+            });
+          }
+        }),
+    [goBackDismiss],
+  );
+
+  const animatedRootStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  // Metadata helpers
+  const formatUploadDate = useCallback((dateStr: string) => {
+    const d = new Date(dateStr);
+    const day = d.getDate().toString().padStart(2, "0");
+    const month = (d.getMonth() + 1).toString().padStart(2, "0");
+    const year = d.getFullYear();
+    const hours = d.getHours().toString().padStart(2, "0");
+    const mins = d.getMinutes().toString().padStart(2, "0");
+    return `${day}/${month}/${year}, ${hours}:${mins}`;
+  }, []);
+
+  const getMediaTypeLabel = useCallback(() => {
+    switch (displayMedia.type) {
+      case "video": return "Video";
+      case "panorama": return "Panorama 360°";
+      default: return "Ảnh";
+    }
+  }, [displayMedia.type]);
+
+  const formatDuration = useCallback((secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }, []);
 
   // Get YouTube thumbnail
   const getYoutubeThumbnail = useCallback((url: string) => {
@@ -64,15 +214,9 @@ export const MediaDetailScreen: React.FC = () => {
       : null;
   }, []);
 
-  const isYouTube = media.type === "video" && media.url.includes("youtube");
-  const isLocalVideo = media.type === "video" && !isYouTube;
-  const thumbnailUrl = isYouTube ? getYoutubeThumbnail(media.url) : media.url;
-
-  // Init video player (even if not video, hooks must be called unconditionally)
-  const player = useVideoPlayer(isLocalVideo ? media.url : "", (player) => {
-    player.loop = true;
-    // Don't auto-play by default unless you want
-  });
+  const isYouTube = displayMedia.type === "video" && displayMedia.url.includes("youtube");
+  const isLocalVideo = displayMedia.type === "video" && !isYouTube;
+  const thumbnailUrl = isYouTube ? getYoutubeThumbnail(displayMedia.url) : displayMedia.url;
 
   // Handlers
   const handleBack = useCallback(() => {
@@ -80,30 +224,98 @@ export const MediaDetailScreen: React.FC = () => {
   }, [navigation]);
 
   const handleSaveCaption = useCallback(async () => {
-    if (caption === media.caption) {
+    if (caption === displayMedia.caption) {
       setIsEditing(false);
       return;
     }
 
     setIsSaving(true);
     try {
-      const result = await updateMedia(media.id, { caption });
+      const result = await updateMedia(displayMedia.id, { caption });
 
       if (result?.success) {
-        Alert.alert("Thành công", "Caption đã được cập nhật");
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: "Chú thích đã được cập nhật",
+        });
         setIsEditing(false);
+        if (result.data) setDisplayMedia(result.data);
       } else {
-        Alert.alert("Lỗi", result?.message || "Không thể cập nhật caption");
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: result?.message || "Không thể cập nhật chú thích",
+        });
       }
     } catch (error: any) {
       console.error("[MediaDetail] Update error:", error);
       // Error has been transformed by apiClient, just use error.message
       const errorMessage = error?.message || "Đã có lỗi xảy ra";
-      Alert.alert("Lỗi", errorMessage);
+      Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
     } finally {
       setIsSaving(false);
     }
-  }, [caption, media.id, media.caption]);
+  }, [caption, displayMedia.id, displayMedia.caption]);
+
+  const handleMediaPickedForReplace = useCallback(
+    async (result: ImagePicker.ImagePickerResult) => {
+      if (result.canceled || !result.assets[0] || !canReplaceImageFile) return;
+
+      setIsReplacingFile(true);
+      try {
+        const asset = result.assets[0];
+        const imgType =
+          displayMedia.type === "panorama" ? "panorama" : "image";
+
+        let fileUri = asset.uri;
+        try {
+          const compressed = await compressGuideImage(asset.uri, imgType);
+          fileUri = compressed.uri;
+        } catch (e) {
+          console.error("[MediaDetail] Compress error:", e);
+        }
+
+        const fileName = `image_${Date.now()}.jpg`;
+        const resultUpdate = await updateMedia(displayMedia.id, {
+          type: displayMedia.type,
+          file: {
+            uri: fileUri,
+            name: fileName,
+            type: "image/jpeg",
+          },
+        });
+
+        if (resultUpdate?.success && resultUpdate.data) {
+          setDisplayMedia(resultUpdate.data);
+          setCaption(resultUpdate.data.caption || "");
+          Toast.show({
+            type: "success",
+            text1: "Đã cập nhật ảnh",
+            text2:
+              "Nếu chuyển sang «Chờ duyệt», bạn vẫn có thể sửa chú thích hoặc thay ảnh thêm trước khi admin duyệt.",
+            visibilityTime: 4500,
+          });
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Lỗi",
+            text2: resultUpdate?.message || "Không thể cập nhật file ảnh",
+          });
+        }
+      } catch (error: any) {
+        console.error("[MediaDetail] Replace file error:", error);
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: error?.message || "Đã có lỗi xảy ra",
+        });
+      } finally {
+        setIsReplacingFile(false);
+      }
+    },
+    [canReplaceImageFile, displayMedia.id, displayMedia.type],
+  );
 
   const handleDelete = useCallback(() => {
     Alert.alert("Xóa media", "Bạn có chắc chắn muốn xóa media này?", [
@@ -114,31 +326,38 @@ export const MediaDetailScreen: React.FC = () => {
         onPress: async () => {
           setIsDeleting(true);
           try {
-            const result = await deleteMedia(media.id);
+            const result = await deleteMedia(displayMedia.id);
 
             if (result?.success) {
-              Alert.alert("Thành công", "Media đã được xóa", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
+              Toast.show({
+                type: "success",
+                text1: "Đã xóa",
+                text2: "Media đã được gỡ khỏi thư viện.",
+              });
+              setTimeout(() => navigation.goBack(), 400);
             } else {
-              Alert.alert("Lỗi", result?.message || "Không thể xóa media");
+              Toast.show({
+                type: "error",
+                text1: "Lỗi",
+                text2: result?.message || "Không thể xóa media",
+              });
             }
           } catch (error: any) {
             console.error("[MediaDetail] Delete error:", error);
             // Error has been transformed by apiClient, just use error.message
             const errorMessage = error?.message || "Đã có lỗi xảy ra";
-            Alert.alert("Lỗi", errorMessage);
+            Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
           } finally {
             setIsDeleting(false);
           }
         },
       },
     ]);
-  }, [media.id, navigation]);
+  }, [displayMedia.id, navigation]);
 
   // Get media type icon
   const getMediaTypeIcon = () => {
-    switch (media.type) {
+    switch (displayMedia.type) {
       case "video":
         return "videocam";
       case "panorama":
@@ -149,46 +368,89 @@ export const MediaDetailScreen: React.FC = () => {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <GestureDetector gesture={panGesture}>
+      <Animated.View
+        style={[
+          styles.container,
+          { paddingTop: insets.top },
+          animatedRootStyle,
+        ]}
+      >
       <StatusBar barStyle="light-content" backgroundColor="#000" translucent />
 
       {/* Full Screen Image or Video */}
       <View style={styles.imageContainer}>
+        {isReplacingFile && (
+          <View style={styles.replaceOverlay} pointerEvents="none">
+            <ActivityIndicator size="large" color={GUIDE_COLORS.surface} />
+            <Text style={styles.replaceOverlayText}>Đang tải ảnh lên...</Text>
+          </View>
+        )}
         {isLocalVideo ? (
-          <VideoView
-            style={styles.fullImage}
-            player={player}
-            allowsFullscreen
-            allowsPictureInPicture
-            contentFit="contain"
-          />
+          <Pressable
+            style={styles.imagePressable}
+            onPress={() => setLightbox("video")}
+            disabled={isReplacingFile}
+            accessibilityRole="button"
+            accessibilityLabel="Xem video phóng to"
+          >
+            <LocalVideoPlayer url={displayMedia.url} style={styles.fullImage} />
+          </Pressable>
         ) : (
-          <Image
-            source={{ uri: thumbnailUrl || media.url }}
-            style={styles.fullImage}
-            resizeMode="contain"
-          />
+          <Pressable
+            style={styles.imagePressable}
+            onPress={() => setLightbox("image")}
+            disabled={isReplacingFile}
+            accessibilityRole="button"
+            accessibilityLabel="Phóng to ảnh"
+          >
+            <Image
+              key={displayMedia.url}
+              source={{ uri: thumbnailUrl || displayMedia.url }}
+              style={styles.fullImage}
+              resizeMode="contain"
+            />
+          </Pressable>
         )}
 
-        {/* Overlay gradient */}
-        <View style={styles.topOverlay} pointerEvents="none" />
-        <View style={styles.bottomOverlay} pointerEvents="none" />
+        {/* Thin edge scrims — không phủ cả khung hình như overlay đặc */}
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.12)", "transparent"]}
+          locations={[0, 0.42, 1]}
+          style={styles.topGradientScrim}
+        />
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            "transparent",
+            "rgba(245, 237, 227, 0.35)",
+            "rgba(253, 248, 240, 0.96)",
+          ]}
+          locations={[0, 0.42, 1]}
+          style={styles.bottomGradientScrim}
+        />
 
         {/* Header (on top of image) */}
         <View style={[styles.header, { top: insets.top + GUIDE_SPACING.sm }]}>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleBack}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
             <MaterialIcons
               name="arrow-back"
-              size={24}
+              size={22}
               color={GUIDE_COLORS.surface}
             />
           </TouchableOpacity>
 
-          <StatusBadge status={media.status} label={STATUS_LABELS[media.status]} />
+          <View style={styles.statusBadgeShell}>
+            <StatusBadge
+              status={displayMedia.status}
+              label={STATUS_LABELS[displayMedia.status]}
+            />
+          </View>
         </View>
 
         {/* Media type badge */}
@@ -199,9 +461,9 @@ export const MediaDetailScreen: React.FC = () => {
             color={GUIDE_COLORS.surface}
           />
           <Text style={styles.mediaTypeBadgeText}>
-            {media.type === "video"
+            {displayMedia.type === "video"
               ? "Video"
-              : media.type === "panorama"
+              : displayMedia.type === "panorama"
                 ? "360°"
                 : "Photo"}
           </Text>
@@ -211,11 +473,15 @@ export const MediaDetailScreen: React.FC = () => {
         {isYouTube && (
           <TouchableOpacity
             style={styles.playButton}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             onPress={() => {
-              if (media.url) {
-                Linking.openURL(media.url).catch(() => {
-                  Alert.alert("Lỗi", "Không thể mở video này");
+              if (displayMedia.url) {
+                Linking.openURL(displayMedia.url).catch(() => {
+                  Toast.show({
+                    type: "error",
+                    text1: "Lỗi",
+                    text2: "Không thể mở video này",
+                  });
                 });
               }
             }}
@@ -234,13 +500,21 @@ export const MediaDetailScreen: React.FC = () => {
         style={styles.contentPanel}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
+        {/* Drag Indicator Affordance */}
+        <View style={styles.dragHandleContainer}>
+          <View style={styles.dragHandle} />
+        </View>
+
+        <ReanimatedScrollView
           style={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
+          bounces
         >
           {/* Rejection Reason (if rejected) */}
-          {media.status === "rejected" && media.rejection_reason && (
+          {displayMedia.status === "rejected" && displayMedia.rejection_reason && (
             <View style={styles.rejectionContainer}>
               <View style={styles.rejectionHeader}>
                 <MaterialIcons
@@ -251,7 +525,7 @@ export const MediaDetailScreen: React.FC = () => {
                 <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
               </View>
               <Text style={styles.rejectionReason}>
-                {media.rejection_reason}
+                {displayMedia.rejection_reason}
               </Text>
             </View>
           )}
@@ -259,7 +533,7 @@ export const MediaDetailScreen: React.FC = () => {
           {/* Caption Section */}
           <View style={styles.captionSection}>
             <View style={styles.captionHeader}>
-              <Text style={styles.captionLabel}>Caption</Text>
+              <Text style={styles.captionLabel}>Chú thích</Text>
               {canEdit && !isEditing && (
                 <TouchableOpacity
                   style={styles.editButton}
@@ -270,16 +544,26 @@ export const MediaDetailScreen: React.FC = () => {
                     size={18}
                     color={GUIDE_COLORS.primary}
                   />
-                  <Text style={styles.editButtonText}>Edit</Text>
+                  <Text style={styles.editButtonText}>Sửa</Text>
                 </TouchableOpacity>
               )}
             </View>
+            {canEdit && !isEditing && displayMedia.status === "pending" && (
+              <Text style={styles.captionEditHint}>
+                Đang chờ duyệt — bạn vẫn có thể sửa chú thích hoặc thay file ảnh bất cứ lúc nào trước khi được duyệt.
+              </Text>
+            )}
+            {canEdit && !isEditing && displayMedia.status === "rejected" && (
+              <Text style={styles.captionEditHint}>
+                Bạn có thể sửa chú thích, thay ảnh mới hoặc xóa bản nháp; sau khi cập nhật, media có thể chuyển lại «Chờ duyệt» và vẫn chỉnh sửa được như trên.
+              </Text>
+            )}
 
             {isEditing ? (
               <View style={styles.editCaptionContainer}>
                 <TextInput
                   style={styles.captionInput}
-                  placeholder="Nhập caption..."
+                  placeholder="Nhập chú thích..."
                   placeholderTextColor={GUIDE_COLORS.gray400}
                   value={caption}
                   onChangeText={setCaption}
@@ -291,7 +575,7 @@ export const MediaDetailScreen: React.FC = () => {
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={() => {
-                      setCaption(media.caption || "");
+                      setCaption(displayMedia.caption || "");
                       setIsEditing(false);
                     }}
                   >
@@ -318,13 +602,76 @@ export const MediaDetailScreen: React.FC = () => {
               </View>
             ) : (
               <Text style={styles.captionText}>
-                {media.caption || "Không có caption"}
+                {displayMedia.caption || "Không có chú thích"}
               </Text>
             )}
           </View>
 
-          {/* Info Section */}
-          {/* Removed generic Info Section */}
+          {/* Thay file ảnh (chờ duyệt / từ chối) */}
+          {canReplaceImageFile && (
+            <View style={styles.replaceFileSection}>
+              <Text style={styles.replaceFileLabel}>File ảnh</Text>
+              <TouchableOpacity
+                style={[
+                  styles.replaceFileButton,
+                  isReplacingFile && styles.replaceFileButtonDisabled,
+                ]}
+                onPress={() => setIsPickerVisible(true)}
+                disabled={isReplacingFile || isSaving || isEditing}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons
+                  name="photo-library"
+                  size={20}
+                  color={GUIDE_COLORS.primary}
+                />
+                <Text style={styles.replaceFileButtonText}>
+                  Chọn ảnh khác từ thư viện
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.replaceFileHint}>
+                Ảnh mới sẽ thay thế file hiện tại và gửi lại để duyệt.
+              </Text>
+            </View>
+          )}
+
+          {/* Media Info */}
+          <View style={styles.metadataSection}>
+            <Text style={styles.metadataTitle}>Thông tin chi tiết</Text>
+
+            <View style={styles.metadataRow}>
+              <MaterialIcons name="calendar-today" size={16} color={GUIDE_COLORS.creamMuted} />
+              <Text style={styles.metadataLabel}>Ngày tải lên</Text>
+              <Text style={styles.metadataValue}>{formatUploadDate(displayMedia.created_at)}</Text>
+            </View>
+
+            <View style={styles.metadataDivider} />
+
+            <View style={styles.metadataRow}>
+              <MaterialIcons name={getMediaTypeIcon()} size={16} color={GUIDE_COLORS.creamMuted} />
+              <Text style={styles.metadataLabel}>Loại</Text>
+              <Text style={styles.metadataValue}>{getMediaTypeLabel()}</Text>
+            </View>
+
+            <View style={styles.metadataDivider} />
+
+            <View style={styles.metadataRow}>
+              <MaterialIcons name="label-outline" size={16} color={GUIDE_COLORS.creamMuted} />
+              <Text style={styles.metadataLabel}>Mã</Text>
+              <Text style={styles.metadataValue}>{displayMedia.code}</Text>
+            </View>
+
+            {displayMedia.type === "video" && displayMedia.duration != null && (
+              <>
+                <View style={styles.metadataDivider} />
+                <View style={styles.metadataRow}>
+                  <MaterialIcons name="timer" size={16} color={GUIDE_COLORS.creamMuted} />
+                  <Text style={styles.metadataLabel}>Thời lượng</Text>
+                  <Text style={styles.metadataValue}>{formatDuration(displayMedia.duration)}</Text>
+                </View>
+              </>
+            )}
+          </View>
 
           {/* Delete Button */}
           {canDelete && (
@@ -338,13 +685,13 @@ export const MediaDetailScreen: React.FC = () => {
               activeOpacity={0.8}
             >
               {isDeleting ? (
-                <ActivityIndicator size="small" color={GUIDE_COLORS.error} />
+                <ActivityIndicator size="small" color={GUIDE_COLORS.creamMuted} />
               ) : (
                 <>
                   <MaterialIcons
                     name="delete-outline"
-                    size={20}
-                    color={GUIDE_COLORS.error}
+                    size={16}
+                    color={GUIDE_COLORS.creamMuted}
                   />
                   <Text style={styles.deleteButtonText}>Xóa bản nháp này</Text>
                 </>
@@ -353,21 +700,42 @@ export const MediaDetailScreen: React.FC = () => {
           )}
 
           {/* Cannot edit/delete notice for approved media */}
-          {media.status === "approved" && (
+          {displayMedia.status === "approved" && (
             <View style={styles.approvedNotice}>
               <MaterialIcons
                 name="lock"
                 size={18}
-                color={GUIDE_COLORS.textMuted}
+                color={GUIDE_COLORS.creamMuted}
               />
               <Text style={styles.approvedNoticeText}>
                 Media đã được duyệt không thể chỉnh sửa hoặc xóa
               </Text>
             </View>
           )}
-        </ScrollView>
+        </ReanimatedScrollView>
       </KeyboardAvoidingView>
-    </View>
+
+      <MediaLightbox
+        visible={lightbox !== "off"}
+        onClose={() => setLightbox("off")}
+        imageUri={
+          lightbox === "image"
+            ? thumbnailUrl || displayMedia.url
+            : undefined
+        }
+        videoUrl={lightbox === "video" ? displayMedia.url : undefined}
+      />
+
+      <MediaPickerModal
+        visible={isPickerVisible}
+        onClose={() => setIsPickerVisible(false)}
+        onMediaPicked={handleMediaPickedForReplace}
+        mediaTypes="images"
+        allowsEditing={displayMedia.type === "image"}
+        title="Chọn ảnh thay thế"
+      />
+      </Animated.View>
+    </GestureDetector>
   );
 };
 

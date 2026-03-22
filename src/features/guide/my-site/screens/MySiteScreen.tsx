@@ -27,7 +27,12 @@ import { useResponsive } from "../../../../hooks/useResponsive";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import guideSiteApi from "../../../../services/api/guide/siteApi";
 import { EventItem, MediaItem } from "../../../../types/guide";
-import { EventsTab, LocationsTab, SchedulesTab } from "../components";
+import {
+  EventsTab,
+  GuideFabButton,
+  LocationsTab,
+  SchedulesTab,
+} from "../components";
 import MediaTab from "../components/MediaTab";
 import { PREMIUM_COLORS } from "../constants";
 import { styles } from "./MySiteScreen.styles";
@@ -125,6 +130,7 @@ const MySiteScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(
     (initialTab && TAB_MAP[initialTab]) || "events",
   );
+  const [isMediaSelectMode, setIsMediaSelectMode] = useState(false);
 
   useEffect(() => {
     if (initialTab && TAB_MAP[initialTab]) {
@@ -276,6 +282,7 @@ const MySiteScreen: React.FC = () => {
           <MediaTab
             onMediaPress={handleMediaPress}
             onUploadPress={handleUploadPress}
+            onSelectModeChange={setIsMediaSelectMode}
           />
         </View>
       )}
@@ -330,20 +337,23 @@ const MySiteScreen: React.FC = () => {
         )}
 
       {/* Floating Action Button - Premium with better shadow */}
-      {/* Only show for tabs that don't have their own FAB */}
-      {!["schedules", "locations"].includes(activeTab) && (
+      {/* Only show for tabs that don't have their own FAB, and hide during Media select mode */}
+      {!["schedules", "locations"].includes(activeTab) && !isMediaSelectMode && (
         <Animated.View
           style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}
         >
-          <TouchableOpacity
-            style={styles.fab}
+          <GuideFabButton
+            size={60}
+            iconSize={iconSize(28)}
             onPress={handleAddNew}
             onPressIn={handleFabPressIn}
             onPressOut={handleFabPressOut}
-            activeOpacity={1}
-          >
-            <MaterialIcons name="add" size={iconSize(28)} color="#FFFFFF" />
-          </TouchableOpacity>
+            accessibilityLabel={
+              activeTab === "media"
+                ? t("mySiteScreen.fabAddMedia")
+                : t("mySiteScreen.fabAddEvent")
+            }
+          />
         </Animated.View>
       )}
     </View>
