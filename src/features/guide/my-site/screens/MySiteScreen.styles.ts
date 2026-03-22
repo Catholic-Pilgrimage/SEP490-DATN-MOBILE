@@ -35,6 +35,7 @@ export const styles = StyleSheet.create({
   mediaTabContainer: {
     flex: 1,
     paddingHorizontal: GUIDE_SPACING.lg,
+    overflow: "hidden",
   },
 
   // Site Header
@@ -200,32 +201,5 @@ export const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     color: GUIDE_COLORS.gray400,
     textAlign: "center",
-  },
-
-  // FAB - Premium with soft floating shadow
-  fabContainer: {
-    position: "absolute",
-    bottom: 24,
-    right: 20,
-    zIndex: 20,
-  },
-  fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: PREMIUM_COLORS.gold,
-    justifyContent: "center",
-    alignItems: "center",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.15,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
   },
 });

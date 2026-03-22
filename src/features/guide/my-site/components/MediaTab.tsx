@@ -5,30 +5,39 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    RefreshControl,
-    SectionList,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Image,
+  LayoutChangeEvent,
+  RefreshControl,
+  SectionList,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
+import {
+  GUIDE_COLORS,
+  GUIDE_SPACING,
+} from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
-import { getMedia, deleteMedia } from "../../../../services/api/guide";
+import { deleteMedia, getMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
 import { PREMIUM_COLORS } from "../constants";
 import type { FilterItem } from "./FilterBottomSheet";
-import { FilterBottomSheet, FilterTrigger } from "./FilterBottomSheet";
-import { MediaFilterSheet } from "./MediaFilterSheet";
-import { NUM_COLUMNS, styles } from "./MediaTab.styles";
+import {
+  getFabScrollBottomInset,
+  GUIDE_FAB_SIZE,
+  GuideFabButton,
+} from "./GuideFabButton";
 import { LocalVideoThumbnail } from "./LocalVideoThumbnail";
+import { MediaFilterSheet } from "./MediaFilterSheet";
+import { GRID_GAP, NUM_COLUMNS, styles } from "./MediaTab.styles";
 import { StatusBadge } from "./StatusBadge";
 
 // ============================================
@@ -41,7 +50,6 @@ type StatusFilter = "all" | MediaStatus;
 interface MediaTabProps {
   onMediaPress: (media: MediaItem) => void;
   onUploadPress: () => void;
-  onSelectModeChange?: (isSelectMode: boolean) => void;
 }
 
 // ============================================
@@ -163,11 +171,7 @@ const MediaTypeIcon: React.FC<MediaTypeIconProps> = ({ type, duration }) => {
 // EMPTY STATE COMPONENT
 // ============================================
 
-interface EmptyStateProps {
-  onUploadPress: () => void;
-}
-
-const EmptyState: React.FC<EmptyStateProps> = ({ onUploadPress }) => {
+const EmptyState: React.FC = () => {
   const { t } = useTranslation();
   return (
     <View style={styles.emptyState}>
@@ -180,14 +184,6 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onUploadPress }) => {
       </View>
       <Text style={styles.emptyTitle}>{t("mediaTab.empty")}</Text>
       <Text style={styles.emptyDescription}>{t("mediaTab.emptyDesc")}</Text>
-      <TouchableOpacity
-        style={styles.emptyButton}
-        onPress={onUploadPress}
-        activeOpacity={0.8}
-      >
-        <MaterialIcons name="add" size={20} color={GUIDE_COLORS.surface} />
-        <Text style={styles.emptyButtonText}>{t("mediaTab.uploadMedia")}</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -198,6 +194,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ onUploadPress }) => {
 
 interface MediaGridItemProps {
   item: MediaItem;
+  itemSize: number;
   onPress: () => void;
   statusFilter: StatusFilter;
   isSelectMode: boolean;
@@ -205,13 +202,14 @@ interface MediaGridItemProps {
   onLongPress: () => void;
 }
 
-const MediaGridItem: React.FC<MediaGridItemProps> = ({ 
-  item, 
-  onPress, 
-  statusFilter, 
-  isSelectMode, 
-  isSelected, 
-  onLongPress 
+const MediaGridItem: React.FC<MediaGridItemProps> = ({
+  item,
+  itemSize,
+  onPress,
+  statusFilter,
+  isSelectMode,
+  isSelected,
+  onLongPress,
 }) => {
   const { t } = useTranslation();
 
@@ -225,8 +223,7 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
       : null;
   };
 
-  const isYouTubeVideo =
-    item.type === "video" && item.url.includes("youtube");
+  const isYouTubeVideo = item.type === "video" && item.url.includes("youtube");
   const youtubeThumb = isYouTubeVideo ? getVideoThumbnail(item.url) : null;
 
   const imageStyle = [
@@ -236,7 +233,7 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
 
   return (
     <TouchableOpacity
-      style={styles.gridItem}
+      style={[styles.gridItem, { width: itemSize, height: itemSize }]}
       onPress={onPress}
       onLongPress={onLongPress}
       delayLongPress={300}
@@ -251,13 +248,20 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
           resizeMode="cover"
         />
       )}
-      {statusFilter === "all" && item.status !== "approved" && !isSelectMode && (
-        <View style={styles.statusBadgeContainer}>
-          <StatusBadge status={item.status} label={getStatusLabel(item.status, t)} />
-        </View>
+      {statusFilter === "all" &&
+        item.status !== "approved" &&
+        !isSelectMode && (
+          <View style={styles.statusBadgeContainer}>
+            <StatusBadge
+              status={item.status}
+              label={getStatusLabel(item.status, t)}
+            />
+          </View>
+        )}
+      {!isSelectMode && (
+        <MediaTypeIcon type={item.type} duration={item.duration} />
       )}
-      {!isSelectMode && <MediaTypeIcon type={item.type} duration={item.duration} />}
-      
+
       {isSelectMode && item.status === "approved" && (
         <View style={styles.approvedLockOverlay}>
           <MaterialIcons name="lock" size={22} color="rgba(255,255,255,0.85)" />
@@ -265,10 +269,10 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
       )}
       {isSelectMode && item.status !== "approved" && (
         <View style={styles.selectCheckboxContainer}>
-          <MaterialIcons 
-            name={isSelected ? "check-circle" : "radio-button-unchecked"} 
-            size={24} 
-            color={isSelected ? GUIDE_COLORS.primary : "rgba(255,255,255,0.8)"} 
+          <MaterialIcons
+            name={isSelected ? "check-circle" : "radio-button-unchecked"}
+            size={24}
+            color={isSelected ? GUIDE_COLORS.primary : "rgba(255,255,255,0.8)"}
           />
         </View>
       )}
@@ -283,21 +287,49 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
 export const MediaTab: React.FC<MediaTabProps> = ({
   onMediaPress,
   onUploadPress,
-  onSelectModeChange,
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  /** Chiều rộng thực của vùng lưới (sau padding parent) — tránh lệch Dimensions vs layout bị clip cột phải */
+  const [gridLayoutWidth, setGridLayoutWidth] = useState(() => {
+    const w = Dimensions.get("window").width;
+    return Math.max(0, w - GUIDE_SPACING.lg * 2);
+  });
+
+  const onGridLayout = useCallback((e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0) setGridLayoutWidth(w);
+  }, []);
+
+  const itemSize = useMemo(
+    () =>
+      Math.max(
+        48,
+        Math.floor(
+          (gridLayoutWidth - GRID_GAP * (NUM_COLUMNS - 1)) / NUM_COLUMNS,
+        ),
+      ),
+    [gridLayoutWidth],
+  );
+
+  const sectionListContentStyle = useMemo(
+    () => [
+      styles.sectionListContent,
+      {
+        paddingBottom: getFabScrollBottomInset(
+          GUIDE_FAB_SIZE,
+          insets.bottom,
+        ),
+      },
+    ],
+    [insets.bottom],
+  );
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deletingBatch, setDeletingBatch] = useState(false);
-
-  // Notify parent about select mode changes (to hide FAB)
-  useEffect(() => {
-    onSelectModeChange?.(isSelectMode);
-  }, [isSelectMode, onSelectModeChange]);
 
   const typeFilters = useMemo(() => getTypeFilters(t), [t]);
   const statusFilters = useMemo(() => getStatusFilters(t), [t]);
@@ -337,78 +369,98 @@ export const MediaTab: React.FC<MediaTabProps> = ({
     refetch();
   }, [refetch]);
 
-  const handleMediaPress = useCallback((item: MediaItem) => {
-    if (isSelectMode) {
-      // Approved items cannot be selected for deletion
-      if (item.status === "approved") return;
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(item.id)) {
-          next.delete(item.id);
-        } else {
-          next.add(item.id);
-        }
-        return next;
-      });
-    } else {
-      onMediaPress(item);
-    }
-  }, [isSelectMode, onMediaPress]);
+  const handleMediaPress = useCallback(
+    (item: MediaItem) => {
+      if (isSelectMode) {
+        // Approved items cannot be selected for deletion
+        if (item.status === "approved") return;
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(item.id)) {
+            next.delete(item.id);
+          } else {
+            next.add(item.id);
+          }
+          return next;
+        });
+      } else {
+        onMediaPress(item);
+      }
+    },
+    [isSelectMode, onMediaPress],
+  );
 
-  const handleLongPress = useCallback((item: MediaItem) => {
-    // Cannot start select mode from an approved item
-    if (item.status === "approved") return;
-    if (!isSelectMode) {
-      setIsSelectMode(true);
-      setSelectedIds(new Set([item.id]));
-    }
-  }, [isSelectMode]);
+  const handleLongPress = useCallback(
+    (item: MediaItem) => {
+      // Cannot start select mode from an approved item
+      if (item.status === "approved") return;
+      if (!isSelectMode) {
+        setIsSelectMode(true);
+        setSelectedIds(new Set([item.id]));
+      }
+    },
+    [isSelectMode],
+  );
 
   const handleDeleteBatch = useCallback(() => {
-    Alert.alert("Xóa ảnh", `Bạn có chắc chắn muốn xóa ${selectedIds.size} ảnh đã chọn?`, [
-      { text: "Hủy", style: "cancel" },
-      { text: "Xóa", style: "destructive", onPress: async () => {
-        setDeletingBatch(true);
-        try {
-          const results = await Promise.allSettled(Array.from(selectedIds).map(id => deleteMedia(id)));
-          const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value?.success)).length;
-          const succeeded = selectedIds.size - failed;
+    Alert.alert(
+      "Xóa ảnh",
+      `Bạn có chắc chắn muốn xóa ${selectedIds.size} ảnh đã chọn?`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            setDeletingBatch(true);
+            try {
+              const results = await Promise.allSettled(
+                Array.from(selectedIds).map((id) => deleteMedia(id)),
+              );
+              const failed = results.filter(
+                (r) =>
+                  r.status === "rejected" ||
+                  (r.status === "fulfilled" && !r.value?.success),
+              ).length;
+              const succeeded = selectedIds.size - failed;
 
-          if (failed === 0) {
-            Toast.show({
-              type: "success",
-              text1: "Thành công",
-              text2: `Đã xóa ${succeeded} ảnh được chọn`,
-            });
-          } else if (succeeded === 0) {
-            Toast.show({
-              type: "error",
-              text1: "Lỗi",
-              text2: "Không thể xóa ảnh nào. Vui lòng thử lại sau.",
-            });
-          } else {
-            Toast.show({
-              type: "info",
-              text1: "Hoàn tất một phần",
-              text2: `Đã xóa ${succeeded} ảnh, ${failed} ảnh thất bại`,
-              visibilityTime: 4000,
-            });
-          }
-          
-          setSelectedIds(new Set());
-          setIsSelectMode(false);
-          refetch();
-        } catch (e: any) {
-          Toast.show({
-            type: "error",
-            text1: "Lỗi",
-            text2: "Hệ thống xảy ra lỗi không xác định",
-          });
-        } finally {
-          setDeletingBatch(false);
-        }
-      }}
-    ]);
+              if (failed === 0) {
+                Toast.show({
+                  type: "success",
+                  text1: "Thành công",
+                  text2: `Đã xóa ${succeeded} ảnh được chọn`,
+                });
+              } else if (succeeded === 0) {
+                Toast.show({
+                  type: "error",
+                  text1: "Lỗi",
+                  text2: "Không thể xóa ảnh nào. Vui lòng thử lại sau.",
+                });
+              } else {
+                Toast.show({
+                  type: "info",
+                  text1: "Hoàn tất một phần",
+                  text2: `Đã xóa ${succeeded} ảnh, ${failed} ảnh thất bại`,
+                  visibilityTime: 4000,
+                });
+              }
+
+              setSelectedIds(new Set());
+              setIsSelectMode(false);
+              refetch();
+            } catch (e: any) {
+              Toast.show({
+                type: "error",
+                text1: "Lỗi",
+                text2: "Hệ thống xảy ra lỗi không xác định",
+              });
+            } finally {
+              setDeletingBatch(false);
+            }
+          },
+        },
+      ],
+    );
   }, [selectedIds, refetch]);
 
   // Group media by date (like Photos app)
@@ -473,28 +525,43 @@ export const MediaTab: React.FC<MediaTabProps> = ({
 
   const sections = groupMediaByDate(mediaList);
 
-  // Render a row of grid items (3 per row)
-  const renderGridRow = (items: MediaItem[], startIndex: number) => (
-    <View style={styles.gridRow} key={`row-${startIndex}`}>
-      {items.map((item) => (
-        <MediaGridItem
-          key={item.id}
-          item={item}
-          onPress={() => handleMediaPress(item)}
-          onLongPress={() => handleLongPress(item)}
-          statusFilter={statusFilter}
-          isSelectMode={isSelectMode}
-          isSelected={selectedIds.has(item.id)}
-        />
-      ))}
-      {/* Fill empty spots if less than 3 items */}
-      {items.length < NUM_COLUMNS &&
-        Array(NUM_COLUMNS - items.length)
-          .fill(null)
-          .map((_, i) => (
-            <View key={`empty-${i}`} style={styles.gridItemEmpty} />
-          ))}
-    </View>
+  const renderGridRow = useCallback(
+    (items: MediaItem[], startIndex: number) => (
+      <View style={styles.gridRow} key={`row-${startIndex}`}>
+        {items.map((item) => (
+          <MediaGridItem
+            key={item.id}
+            item={item}
+            itemSize={itemSize}
+            onPress={() => handleMediaPress(item)}
+            onLongPress={() => handleLongPress(item)}
+            statusFilter={statusFilter}
+            isSelectMode={isSelectMode}
+            isSelected={selectedIds.has(item.id)}
+          />
+        ))}
+        {items.length < NUM_COLUMNS &&
+          Array(NUM_COLUMNS - items.length)
+            .fill(null)
+            .map((_, i) => (
+              <View
+                key={`empty-${i}`}
+                style={[
+                  styles.gridItemEmpty,
+                  { width: itemSize, height: itemSize },
+                ]}
+              />
+            ))}
+      </View>
+    ),
+    [
+      itemSize,
+      statusFilter,
+      isSelectMode,
+      selectedIds,
+      handleMediaPress,
+      handleLongPress,
+    ],
   );
 
   return (
@@ -504,7 +571,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({
         <Text style={styles.sectionTitleMain}>
           {t("mediaTab.libraryTitle")}
         </Text>
-        
+
         {/* Unified Filter Button */}
         <TouchableOpacity
           style={[
@@ -512,28 +579,38 @@ export const MediaTab: React.FC<MediaTabProps> = ({
             (typeFilter !== "all" || statusFilter !== "all") && {
               borderColor: GUIDE_COLORS.primary,
               backgroundColor: `${GUIDE_COLORS.primary}10`,
-            }
+            },
           ]}
           onPress={() => setShowFilterSheet(true)}
           activeOpacity={0.8}
         >
-          <Ionicons 
-            name="filter" 
-            size={14} 
-            color={(typeFilter !== "all" || statusFilter !== "all") ? GUIDE_COLORS.primary : GUIDE_COLORS.textSecondary} 
+          <Ionicons
+            name="filter"
+            size={14}
+            color={
+              typeFilter !== "all" || statusFilter !== "all"
+                ? GUIDE_COLORS.primary
+                : GUIDE_COLORS.textSecondary
+            }
           />
-          <Text 
+          <Text
             style={[
-              styles.mainFilterText, 
-              (typeFilter !== "all" || statusFilter !== "all") && { color: GUIDE_COLORS.primary }
+              styles.mainFilterText,
+              (typeFilter !== "all" || statusFilter !== "all") && {
+                color: GUIDE_COLORS.primary,
+              },
             ]}
           >
             {t("mediaTab.filter", "Bộ lọc")}
           </Text>
-          <Ionicons 
-            name="chevron-down" 
-            size={14} 
-            color={(typeFilter !== "all" || statusFilter !== "all") ? GUIDE_COLORS.primary : GUIDE_COLORS.textSecondary} 
+          <Ionicons
+            name="chevron-down"
+            size={14}
+            color={
+              typeFilter !== "all" || statusFilter !== "all"
+                ? GUIDE_COLORS.primary
+                : GUIDE_COLORS.textSecondary
+            }
           />
           {(typeFilter !== "all" || statusFilter !== "all") && (
             <View style={styles.activeFilterBadge} />
@@ -562,21 +639,23 @@ export const MediaTab: React.FC<MediaTabProps> = ({
           <Text style={styles.loadingText}>{t("mediaTab.loading")}</Text>
         </View>
       ) : mediaList.length === 0 ? (
-        <EmptyState onUploadPress={onUploadPress} />
+        <EmptyState />
       ) : (
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }} onLayout={onGridLayout}>
           <SectionList
             sections={sections}
-            keyExtractor={(item, index) => (item[0]?.id || "empty") + "-row-" + index}
+            keyExtractor={(item, index) =>
+              (item[0]?.id || "empty") + "-row-" + index
+            }
             renderItem={({ item, index }) => renderGridRow(item, index)}
             renderSectionHeader={({ section: { title, count } }) => (
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>{title}</Text>
                 <Text style={styles.sectionCount}>{count}</Text>
-               </View>
+              </View>
             )}
             renderSectionFooter={() => <View style={styles.sectionGrid} />}
-            contentContainerStyle={styles.sectionListContent}
+            contentContainerStyle={sectionListContentStyle}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={false}
             refreshControl={
@@ -591,11 +670,18 @@ export const MediaTab: React.FC<MediaTabProps> = ({
 
           {/* Floating Action Bar for Batch Mode */}
           {isSelectMode && (
-            <View style={[styles.actionBar, { bottom: GUIDE_SPACING.lg + insets.bottom }]}>
-              <Text style={styles.actionBarText}>Đã chọn {selectedIds.size}</Text>
+            <View
+              style={[
+                styles.actionBar,
+                { bottom: GUIDE_SPACING.lg + insets.bottom },
+              ]}
+            >
+              <Text style={styles.actionBarText}>
+                Đã chọn {selectedIds.size}
+              </Text>
               <View style={styles.actionBarButtons}>
-                <TouchableOpacity 
-                  style={styles.cancelSelectButton} 
+                <TouchableOpacity
+                  style={styles.cancelSelectButton}
                   onPress={() => {
                     setIsSelectMode(false);
                     setSelectedIds(new Set());
@@ -603,8 +689,11 @@ export const MediaTab: React.FC<MediaTabProps> = ({
                 >
                   <Text style={styles.cancelSelectText}>Hủy</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.deleteBatchButton, selectedIds.size === 0 && styles.disabledButton]} 
+                <TouchableOpacity
+                  style={[
+                    styles.deleteBatchButton,
+                    selectedIds.size === 0 && styles.disabledButton,
+                  ]}
                   onPress={handleDeleteBatch}
                   disabled={selectedIds.size === 0 || deletingBatch}
                 >
@@ -613,7 +702,9 @@ export const MediaTab: React.FC<MediaTabProps> = ({
                   ) : (
                     <>
                       <MaterialIcons name="delete" size={18} color="#fff" />
-                      <Text style={styles.deleteBatchText}>Xóa ({selectedIds.size})</Text>
+                      <Text style={styles.deleteBatchText}>
+                        Xóa ({selectedIds.size})
+                      </Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -622,6 +713,23 @@ export const MediaTab: React.FC<MediaTabProps> = ({
           )}
         </View>
       )}
+
+      <GuideFabButton
+        onPress={onUploadPress}
+        accessibilityLabel={t("mySiteScreen.fabAddMedia")}
+        label={
+          !loading && mediaList.length === 0
+            ? t("mediaTab.uploadMedia")
+            : undefined
+        }
+        hideOnKeyboard
+        style={[
+          isSelectMode && {
+            opacity: 0,
+            pointerEvents: "none",
+          },
+        ]}
+      />
     </View>
   );
 };

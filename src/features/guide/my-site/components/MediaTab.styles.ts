@@ -91,9 +91,8 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     color: GUIDE_COLORS.textMuted,
   },
-  sectionListContent: {
-    paddingBottom: GUIDE_SPACING.xxl,
-  },
+  /** paddingBottom: MediaTab (getFabScrollBottomInset) */
+  sectionListContent: {},
   sectionGrid: {
     marginBottom: GUIDE_SPACING.md,
   },
@@ -102,10 +101,7 @@ export const styles = StyleSheet.create({
     gap: GRID_GAP,
     marginBottom: GRID_GAP,
   },
-  gridItemEmpty: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
-  },
+  gridItemEmpty: {},
 
   // Loading
   loadingContainer: {
@@ -120,10 +116,8 @@ export const styles = StyleSheet.create({
     color: GUIDE_COLORS.textMuted,
   },
 
-  // Grid
+  // Grid — width/height từ MediaTab (onLayout + Math.floor) để khớp vùng thật, không clip cột phải
   gridItem: {
-    width: ITEM_SIZE,
-    height: ITEM_SIZE,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     overflow: "hidden",
     backgroundColor: GUIDE_COLORS.gray100,

@@ -2,22 +2,9 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Animated,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { ScrollView, StatusBar, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDE_COLORS } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
@@ -27,12 +14,7 @@ import { useResponsive } from "../../../../hooks/useResponsive";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import guideSiteApi from "../../../../services/api/guide/siteApi";
 import { EventItem, MediaItem } from "../../../../types/guide";
-import {
-  EventsTab,
-  GuideFabButton,
-  LocationsTab,
-  SchedulesTab,
-} from "../components";
+import { EventsTab, LocationsTab, SchedulesTab } from "../components";
 import MediaTab from "../components/MediaTab";
 import { PREMIUM_COLORS } from "../constants";
 import { styles } from "./MySiteScreen.styles";
@@ -130,15 +112,12 @@ const MySiteScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>(
     (initialTab && TAB_MAP[initialTab]) || "events",
   );
-  const [isMediaSelectMode, setIsMediaSelectMode] = useState(false);
 
   useEffect(() => {
     if (initialTab && TAB_MAP[initialTab]) {
       setActiveTab(TAB_MAP[initialTab]);
     }
   }, [initialTab]);
-  const { spacing, fontSize, iconSize } = useResponsive();
-  const fabScale = useRef(new Animated.Value(1)).current;
 
   // Fetch assigned site info from API
   const { data: siteData, isLoading: isSiteLoading } = useQuery({
@@ -165,22 +144,6 @@ const MySiteScreen: React.FC = () => {
     ? `${siteData.district ? siteData.district + ", " : ""}${siteData.province || siteData.address}`
     : t("mySiteScreen.noAddress");
 
-  // FAB animation
-  const handleFabPressIn = () => {
-    Animated.spring(fabScale, {
-      toValue: 0.9,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handleFabPressOut = () => {
-    Animated.spring(fabScale, {
-      toValue: 1,
-      friction: 3,
-      useNativeDriver: true,
-    }).start();
-  };
-
   // Event handlers
   const handleEventPress = useCallback(
     (event: EventItem) => {
@@ -204,15 +167,6 @@ const MySiteScreen: React.FC = () => {
   const handleUploadPress = useCallback(() => {
     navigation.navigate("MediaUpload");
   }, [navigation]);
-
-  // FAB handler
-  const handleAddNew = useCallback(() => {
-    if (activeTab === "media") {
-      navigation.navigate("MediaUpload");
-    } else if (activeTab === "events") {
-      navigation.navigate("EventDetail", { event: undefined });
-    }
-  }, [navigation, activeTab]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -282,7 +236,6 @@ const MySiteScreen: React.FC = () => {
           <MediaTab
             onMediaPress={handleMediaPress}
             onUploadPress={handleUploadPress}
-            onSelectModeChange={setIsMediaSelectMode}
           />
         </View>
       )}
@@ -324,38 +277,18 @@ const MySiteScreen: React.FC = () => {
 
       {/* Other tabs use ScrollView */}
       {!ALL_TABS.includes(activeTab) && (
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Shifts Section - REMOVED (Moved to Bottom Tab) */}
-
-            {/* Bottom Spacing */}
-            <View style={{ height: 120 }} />
-          </ScrollView>
-        )}
-
-      {/* Floating Action Button - Premium with better shadow */}
-      {/* Only show for tabs that don't have their own FAB, and hide during Media select mode */}
-      {!["schedules", "locations"].includes(activeTab) && !isMediaSelectMode && (
-        <Animated.View
-          style={[styles.fabContainer, { transform: [{ scale: fabScale }] }]}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          <GuideFabButton
-            size={60}
-            iconSize={iconSize(28)}
-            onPress={handleAddNew}
-            onPressIn={handleFabPressIn}
-            onPressOut={handleFabPressOut}
-            accessibilityLabel={
-              activeTab === "media"
-                ? t("mySiteScreen.fabAddMedia")
-                : t("mySiteScreen.fabAddEvent")
-            }
-          />
-        </Animated.View>
+          {/* Shifts Section - REMOVED (Moved to Bottom Tab) */}
+
+          {/* Bottom Spacing */}
+          <View style={{ height: 120 }} />
+        </ScrollView>
       )}
+
     </View>
   );
 };
