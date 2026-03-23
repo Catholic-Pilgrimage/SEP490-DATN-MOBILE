@@ -1,18 +1,18 @@
 /**
  * Phóng to ảnh / video — chỉ dùng RNGH + Reanimated (không thêm thư viện).
  * - Ảnh: pinch + kéo khi đã zoom, nút đóng, chạm nền đóng.
- * - Video (file): fullscreen trong Modal, nút đóng (VideoView đã có fullscreen native).
+ * - Video (file): fullscreen trong Modal, nút đóng (không dùng fullscreen native — chỉ nút header / đóng).
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import {
   Dimensions,
   Image,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getBounded16by9Size } from "../utils/videoFullscreenLayout";
 
 const { width: SW, height: SH } = Dimensions.get("window");
 
@@ -151,6 +152,11 @@ export const MediaLightbox: React.FC<Props> = ({
         animationType="fade"
         onRequestClose={onClose}
         presentationStyle="fullScreen"
+        supportedOrientations={[
+          "portrait",
+          "landscape-left",
+          "landscape-right",
+        ]}
       >
         <VideoLightboxInner url={videoUrl} onClose={onClose} insetsTop={insets.top} />
       </Modal>
@@ -199,19 +205,30 @@ function VideoLightboxInner({
   onClose: () => void;
   insetsTop: number;
 }) {
+  const { width: W, height: H } = useWindowDimensions();
+  const playerSize = useMemo(
+    () => getBounded16by9Size(W, H, 0.88),
+    [W, H],
+  );
+
   const player = useVideoPlayer(url, (p) => {
     p.loop = true;
   });
 
   return (
-    <View style={styles.root}>
-      <VideoView
-        style={styles.videoFull}
-        player={player}
-        allowsFullscreen
-        allowsPictureInPicture
-        contentFit="contain"
-      />
+    <View style={styles.videoRoot}>
+      <View style={styles.videoCenterShell}>
+        <VideoView
+          style={{
+            width: playerSize.width,
+            height: playerSize.height,
+          }}
+          player={player}
+          allowsFullscreen={false}
+          allowsPictureInPicture
+          contentFit="contain"
+        />
+      </View>
       <Pressable
         style={[styles.closeBtn, { top: insetsTop + 8 }]}
         onPress={onClose}
@@ -230,6 +247,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  videoRoot: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoCenterShell: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   imageBox: {
     width: SW,
     height: SH * 0.92,
@@ -239,11 +268,6 @@ const styles = StyleSheet.create({
   fullImage: {
     width: SW,
     height: SH * 0.85,
-  },
-  videoFull: {
-    ...StyleSheet.absoluteFillObject,
-    marginTop: Platform.OS === "ios" ? 44 : 24,
-    marginBottom: 24,
   },
   closeBtn: {
     position: "absolute",

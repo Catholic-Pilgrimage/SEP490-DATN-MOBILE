@@ -19,11 +19,8 @@ import MediaTab from "../components/MediaTab";
 import { PREMIUM_COLORS } from "../constants";
 import { styles } from "./MySiteScreen.styles";
 
-// Navigation type
-type MySiteNavigationProp = NativeStackNavigationProp<
-  MySiteStackParamList,
-  "MySiteHome"
->;
+// Navigation — toàn bộ stack (MediaDetail, SiteModels3d, …)
+type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList>;
 
 type TabType = "events" | "media" | "schedules" | "locations";
 
@@ -168,6 +165,10 @@ const MySiteScreen: React.FC = () => {
     navigation.navigate("MediaUpload");
   }, [navigation]);
 
+  const handleOpenSiteModels3d = useCallback(() => {
+    navigation.navigate("SiteModels3d");
+  }, [navigation]);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar
@@ -236,6 +237,7 @@ const MySiteScreen: React.FC = () => {
           <MediaTab
             onMediaPress={handleMediaPress}
             onUploadPress={handleUploadPress}
+            onOpenSiteModels3d={handleOpenSiteModels3d}
           />
         </View>
       )}

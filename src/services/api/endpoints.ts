@@ -201,6 +201,8 @@ export const GUIDE_ENDPOINTS = {
   // Local Guide Media - Media management for assigned site
   LOCAL_GUIDE_MEDIA: {
     LIST: `${API_BASE}/local-guide/media`,
+    /** Media đã duyệt của site (gồm model_3d do Manager upload — không có trong LIST). */
+    SITE_MEDIA_LIST: `${API_BASE}/local-guide/site-media`,
     UPLOAD: `${API_BASE}/local-guide/media`,
     UPDATE: (id: string) => `${API_BASE}/local-guide/media/${id}`,
     DELETE: (id: string) => `${API_BASE}/local-guide/media/${id}`,

@@ -3,31 +3,27 @@
  */
 import * as ImageManipulator from "expo-image-manipulator";
 
-const COMPRESSION_CONFIG = {
-  image: { maxWidth: 2000, maxHeight: 2000, quality: 0.8 },
-  panorama: { maxWidth: 4096, maxHeight: 2048, quality: 0.85 },
+const IMAGE_COMPRESSION = {
+  maxWidth: 2000,
+  maxHeight: 2000,
+  quality: 0.8,
 } as const;
-
-export type CompressableGuideImageType = "image" | "panorama";
 
 export async function compressGuideImage(
   uri: string,
-  type: CompressableGuideImageType,
 ): Promise<{ uri: string; width: number; height: number }> {
-  const config = COMPRESSION_CONFIG[type];
-
   const manipulated = await ImageManipulator.manipulateAsync(
     uri,
     [
       {
         resize: {
-          width: config.maxWidth,
-          height: config.maxHeight,
+          width: IMAGE_COMPRESSION.maxWidth,
+          height: IMAGE_COMPRESSION.maxHeight,
         },
       },
     ],
     {
-      compress: config.quality,
+      compress: IMAGE_COMPRESSION.quality,
       format: ImageManipulator.SaveFormat.JPEG,
     },
   );

@@ -278,7 +278,7 @@ const getMediaMetaLabel = (media: MediaItem): string => {
   const typeLabels: Record<string, string> = {
     image: 'Hình ảnh',
     video: 'Video',
-    panorama: 'Ảnh 360°',
+    model_3d: 'Mô hình 3D',
   };
 
   return typeLabels[media.type] || media.type;

@@ -8,35 +8,45 @@ import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  LayoutChangeEvent,
-  RefreshControl,
-  SectionList,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    LayoutChangeEvent,
+    RefreshControl,
+    SectionList,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  GUIDE_COLORS,
-  GUIDE_SPACING,
+    GUIDE_COLORS,
+    GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import { deleteMedia, getMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
-import { PREMIUM_COLORS } from "../constants";
-import type { FilterItem } from "./FilterBottomSheet";
 import {
-  getFabScrollBottomInset,
-  GUIDE_FAB_SIZE,
-  GuideFabButton,
+  getVideoThumbnail,
+  isYoutubeVideoMedia,
+  sortMediaByDate,
+} from "../../../../utils/mediaUtils";
+import { PREMIUM_COLORS } from "../constants";
+import {
+  GuideFilterIconButton,
+  type FilterItem,
+} from "./FilterBottomSheet";
+import {
+    getFabBottomOffset,
+    getFabScrollBottomInset,
+    GUIDE_FAB_SIZE,
+    GuideFabButton,
 } from "./GuideFabButton";
 import { LocalVideoThumbnail } from "./LocalVideoThumbnail";
 import { MediaFilterSheet } from "./MediaFilterSheet";
+import { SiteModels3dEntryButton } from "./SiteModels3dEntryButton";
 import { GRID_GAP, NUM_COLUMNS, styles } from "./MediaTab.styles";
 import { StatusBadge } from "./StatusBadge";
 
@@ -44,12 +54,15 @@ import { StatusBadge } from "./StatusBadge";
 // TYPES
 // ============================================
 
-type TypeFilter = "all" | MediaType;
+/** Thư viện list: chỉ ảnh + video — mô hình 3D xem ở màn SiteModels3d */
+type TypeFilter = "all" | "image" | "video";
 type StatusFilter = "all" | MediaStatus;
 
 interface MediaTabProps {
   onMediaPress: (media: MediaItem) => void;
   onUploadPress: () => void;
+  /** Nút mô hình 3D (site-media) — full màn, không có trong lưới */
+  onOpenSiteModels3d: () => void;
 }
 
 // ============================================
@@ -79,11 +92,11 @@ const getTypeFilters = (t: (key: string) => string): FilterItem[] => [
     icon: "videocam",
   },
   {
-    key: "panorama",
-    label: t("mediaTab.typePanorama"),
+    key: "model_3d",
+    label: t("mediaTab.typeModel3d"),
     color: PREMIUM_COLORS.brown,
     bgColor: PREMIUM_COLORS.brownLight,
-    icon: "panorama-fish-eye",
+    icon: "view-in-ar",
   },
 ];
 
@@ -142,6 +155,15 @@ interface MediaTypeIconProps {
 const MediaTypeIcon: React.FC<MediaTypeIconProps> = ({ type, duration }) => {
   if (type === "image") return null;
 
+  if (type === "model_3d") {
+    return (
+      <View style={styles.model3dBadge}>
+        <MaterialIcons name="view-in-ar" size={12} color="#FFF" />
+        <Text style={styles.model3dBadgeText}>3D</Text>
+      </View>
+    );
+  }
+
   if (type === "video") {
     const formatDuration = (secs: number) => {
       const m = Math.floor(secs / 60);
@@ -159,12 +181,7 @@ const MediaTypeIcon: React.FC<MediaTypeIconProps> = ({ type, duration }) => {
     );
   }
 
-  return (
-    <View style={styles.panaromaIndicator}>
-      <MaterialIcons name="360" size={12} color="#FFF" />
-      <Text style={styles.videoDuration}>360°</Text>
-    </View>
-  );
+  return null;
 };
 
 // ============================================
@@ -213,18 +230,10 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  // For YouTube videos, extract thumbnail
-  const getVideoThumbnail = (url: string) => {
-    const videoId = url.match(
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
-    )?.[1];
-    return videoId
-      ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`
-      : null;
-  };
-
-  const isYouTubeVideo = item.type === "video" && item.url.includes("youtube");
-  const youtubeThumb = isYouTubeVideo ? getVideoThumbnail(item.url) : null;
+  const isYouTubeVideo = isYoutubeVideoMedia(item);
+  const youtubeThumb = isYouTubeVideo
+    ? getVideoThumbnail(item.url, "mqdefault")
+    : null;
 
   const imageStyle = [
     styles.gridItemImage,
@@ -239,7 +248,15 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
       delayLongPress={300}
       activeOpacity={0.85}
     >
-      {item.type === "video" && !isYouTubeVideo ? (
+      {item.type === "model_3d" ? (
+        <View
+          style={[
+            styles.gridItemImage,
+            styles.model3dGridCell,
+            isSelectMode && isSelected && styles.gridItemImageSelected,
+          ]}
+        />
+      ) : item.type === "video" && !isYouTubeVideo ? (
         <LocalVideoThumbnail style={imageStyle} />
       ) : (
         <Image
@@ -287,6 +304,7 @@ const MediaGridItem: React.FC<MediaGridItemProps> = ({
 export const MediaTab: React.FC<MediaTabProps> = ({
   onMediaPress,
   onUploadPress,
+  onOpenSiteModels3d,
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -316,10 +334,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({
     () => [
       styles.sectionListContent,
       {
-        paddingBottom: getFabScrollBottomInset(
-          GUIDE_FAB_SIZE,
-          insets.bottom,
-        ),
+        paddingBottom: getFabScrollBottomInset(GUIDE_FAB_SIZE, insets.bottom),
       },
     ],
     [insets.bottom],
@@ -353,7 +368,9 @@ export const MediaTab: React.FC<MediaTabProps> = ({
       const response = await getMedia(params);
       if (!response?.success)
         throw new Error(response?.message || "Failed to fetch media");
-      return response.data?.data || [];
+      const list: MediaItem[] = [...(response.data?.data || [])];
+
+      return sortMediaByDate(list, "desc");
     },
     staleTime: 1000 * 30,
   });
@@ -568,54 +585,33 @@ export const MediaTab: React.FC<MediaTabProps> = ({
     <View style={styles.container}>
       {/* Header Container */}
       <View style={styles.headerContainer}>
-        <Text style={styles.sectionTitleMain}>
-          {t("mediaTab.libraryTitle")}
+        <Text
+          style={styles.sectionTitleMain}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          accessibilityRole="header"
+        >
+          {t("mediaTab.libraryTitleShort", t("mediaTab.libraryTitle"))}
         </Text>
 
-        {/* Unified Filter Button */}
-        <TouchableOpacity
-          style={[
-            styles.mainFilterButton,
-            (typeFilter !== "all" || statusFilter !== "all") && {
-              borderColor: GUIDE_COLORS.primary,
-              backgroundColor: `${GUIDE_COLORS.primary}10`,
-            },
-          ]}
-          onPress={() => setShowFilterSheet(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="filter"
-            size={14}
-            color={
-              typeFilter !== "all" || statusFilter !== "all"
-                ? GUIDE_COLORS.primary
-                : GUIDE_COLORS.textSecondary
-            }
+        <View style={styles.headerActions}>
+          {/*
+            Chỉ icon — tiết kiệm chỗ; nhãn đầy đủ qua accessibility (Material / iOS VoiceOver).
+          */}
+          <SiteModels3dEntryButton
+            variant="toolbar"
+            onPress={onOpenSiteModels3d}
+            label={t("mediaTab.openSite3d")}
+            accessibilityHint={t("mediaTab.openSite3dHint")}
           />
-          <Text
-            style={[
-              styles.mainFilterText,
-              (typeFilter !== "all" || statusFilter !== "all") && {
-                color: GUIDE_COLORS.primary,
-              },
-            ]}
-          >
-            {t("mediaTab.filter", "Bộ lọc")}
-          </Text>
-          <Ionicons
-            name="chevron-down"
-            size={14}
-            color={
-              typeFilter !== "all" || statusFilter !== "all"
-                ? GUIDE_COLORS.primary
-                : GUIDE_COLORS.textSecondary
-            }
+
+          <GuideFilterIconButton
+            filtered={typeFilter !== "all" || statusFilter !== "all"}
+            accentColor={GUIDE_COLORS.primary}
+            onPress={() => setShowFilterSheet(true)}
+            accessibilityLabel={t("mediaTab.filter")}
           />
-          {(typeFilter !== "all" || statusFilter !== "all") && (
-            <View style={styles.activeFilterBadge} />
-          )}
-        </TouchableOpacity>
+        </View>
       </View>
 
       {/* Unified Filter Bottom Sheet */}
@@ -673,7 +669,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({
             <View
               style={[
                 styles.actionBar,
-                { bottom: GUIDE_SPACING.lg + insets.bottom },
+                { bottom: getFabBottomOffset(insets.bottom) },
               ]}
             >
               <Text style={styles.actionBarText}>

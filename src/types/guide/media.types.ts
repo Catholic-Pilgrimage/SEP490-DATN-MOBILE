@@ -8,9 +8,14 @@
 // ============================================
 
 /**
- * Media type
+ * Media type (API / GET list).
+ * Upload từ app Guide: chỉ `image` | `video` (file hoặc URL YouTube → lưu `video`).
+ * `model_3d` do hệ thống quản trị; client chỉ đọc & hiển thị.
  */
-export type MediaType = "image" | "video" | "panorama";
+export type MediaType = "image" | "video" | "model_3d";
+
+/** Chỉ `image` | `video` gửi được từ app Guide (file hoặc YouTube → video). */
+export type GuideUploadableMediaType = Extract<MediaType, "image" | "video">;
 
 /**
  * Media approval status
@@ -75,6 +80,7 @@ export interface RNFileObject {
 /**
  * Parameters for fetching media list
  * GET /api/local-guide/media
+ * @param type - Optional filter; allowed values: `image` | `video` | `model_3d`
  */
 export interface GetMediaParams {
   page?: number;
@@ -85,11 +91,20 @@ export interface GetMediaParams {
 }
 
 /**
+ * GET /api/local-guide/site-media — toàn bộ media đã duyệt của site (Local Guide xem được, gồm 3D).
+ * Cùng cấu trúc response với {@link MediaListData} nếu backend dùng chung wrapper.
+ */
+export type GetSiteMediaParams = Pick<
+  GetMediaParams,
+  "page" | "limit" | "type"
+>;
+
+/**
  * Request body for uploading media with file
  * POST /api/local-guide/media (multipart/form-data)
  */
 export interface UploadMediaRequest {
-  type: MediaType;
+  type: GuideUploadableMediaType;
   caption?: string;
   file?: RNFileObject;
 }
@@ -99,7 +114,7 @@ export interface UploadMediaRequest {
  * POST /api/local-guide/media (application/json)
  */
 export interface UploadMediaWithYouTubeRequest {
-  type: MediaType;
+  type: "video";
   url: string;
   caption?: string;
 }

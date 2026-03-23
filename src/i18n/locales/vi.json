@@ -708,8 +708,13 @@
   },
   "mediaTab": {
     "libraryTitle": "Thư viện media",
+    "libraryTitleShort": "Thư viện",
     "filterTitle": "Lọc media",
     "filterActive": "Đã lọc",
+    "openSite3d": "Mô hình 3D",
+    "openSite3dHint": "Mở xem mô hình 3D đã duyệt của site, toàn màn hình",
+    "floatingOpen3d": "Toàn màn 3D",
+    "floatingOpen3dHint": "Mở xem mô hình toàn màn hình, xoay và phóng to thoải mái hơn",
     "filter": "Bộ lọc",
     "apply": "Áp dụng",
     "typeSection": "Loại media",
@@ -728,7 +733,7 @@
     "statusRejectedDesc": "Media bị từ chối",
     "loading": "Đang tải media...",
     "empty": "Chưa có media nào",
-    "emptyDesc": "Hãy upload ảnh, video hoặc\nmô hình 3D cho site của bạn",
+    "emptyDesc": "Hãy upload ảnh hoặc video cho site.\nMô hình 3D (đã duyệt) xem qua nút Mô hình 3D.",
     "uploadMedia": "Upload Media",
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -741,6 +746,19 @@
     "dayName6": "Thứ 7",
     "dateFormat": "{{dayName}}, {{day}} tháng {{month}}",
     "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
+  },
+  "siteModels3d": {
+    "title": "Mô hình 3D site",
+    "loading": "Đang tải mô hình…",
+    "empty": "Chưa có mô hình 3D đã duyệt",
+    "emptyHint": "Mô hình do quản trị thêm trên web. Sau khi duyệt sẽ hiển thị tại đây.",
+    "modelIndex": "Mô hình {{index}}",
+    "pickModel": "Chọn mô hình",
+    "pickModelHint": "Chạm chip hoặc dùng mũi tên để xem mô hình khác.",
+    "modelCounter": "{{current}} / {{total}}",
+    "prevModel": "Mô hình trước",
+    "nextModel": "Mô hình sau",
+    "narrationReservedHint": "Khu vực dành cho thuyết minh (sắp có)"
   },
   "mediaUpload": {
     "screenTitle": "Thêm media",

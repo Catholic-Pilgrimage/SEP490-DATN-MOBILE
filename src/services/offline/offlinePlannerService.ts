@@ -76,7 +76,7 @@ export interface OfflinePlannerSite {
 export interface OfflinePlannerSiteMedia {
   id: string;
   site_id: string;
-  media_type: "image" | "video" | "panorama";
+  media_type: "image" | "video" | "model_3d";
   media_url: string;
   thumbnail_url?: string;
   title?: string;

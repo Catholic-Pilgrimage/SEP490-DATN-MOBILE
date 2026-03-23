@@ -707,8 +707,13 @@
   },
   "mediaTab": {
     "libraryTitle": "Media library",
+    "libraryTitleShort": "Library",
     "filterTitle": "Filter media",
     "filterActive": "Filtered",
+    "openSite3d": "3D models",
+    "openSite3dHint": "Open approved site 3D models fullscreen",
+    "floatingOpen3d": "Fullscreen 3D",
+    "floatingOpen3dHint": "Open the model fullscreen for easier rotate and zoom",
     "filter": "Filter",
     "apply": "Apply",
     "typeSection": "Media type",
@@ -727,7 +732,7 @@
     "statusRejectedDesc": "Rejected media",
     "loading": "Loading media...",
     "empty": "No media yet",
-    "emptyDesc": "Upload photos, videos or\n3D models for your site",
+    "emptyDesc": "Upload photos or videos for your site.\nApproved 3D models: use the 3D button.",
     "uploadMedia": "Upload Media",
     "today": "Today",
     "yesterday": "Yesterday",
@@ -740,6 +745,19 @@
     "dayName6": "Saturday",
     "dateFormat": "{{dayName}}, {{month}}/{{day}}",
     "dateFormatWithYear": "{{dayName}}, {{month}}/{{day}}/{{year}}"
+  },
+  "siteModels3d": {
+    "title": "Site 3D models",
+    "loading": "Loading models…",
+    "empty": "No approved 3D models yet",
+    "emptyHint": "Models are added by admins on the web. They appear here once approved.",
+    "modelIndex": "Model {{index}}",
+    "pickModel": "Choose a model",
+    "pickModelHint": "Tap a chip or use arrows to switch models.",
+    "modelCounter": "{{current}} / {{total}}",
+    "prevModel": "Previous model",
+    "nextModel": "Next model",
+    "narrationReservedHint": "Reserved for narration (coming soon)"
   },
   "mediaUpload": {
     "screenTitle": "Add media",
