@@ -207,6 +207,13 @@ export const GUIDE_ENDPOINTS = {
     UPDATE: (id: string) => `${API_BASE}/local-guide/media/${id}`,
     DELETE: (id: string) => `${API_BASE}/local-guide/media/${id}`,
     RESTORE: (id: string) => `${API_BASE}/local-guide/media/${id}/restore`,
+    /**
+     * Thuyết minh Model 3D (TTS VBee / upload audio).
+     * Backend: `PUT` & `DELETE` …/media/:id/narrative — multipart + `narration_text` | `audio_file`
+     */
+    TTS_VOICES: `${API_BASE}/local-guide/media/voices`,
+    NARRATIVE: (mediaId: string) =>
+      `${API_BASE}/local-guide/media/${mediaId}/narrative`,
   },
 
   // Local Guide Nearby Places - Đề xuất địa điểm lân cận (ăn uống, lưu trú, y tế)

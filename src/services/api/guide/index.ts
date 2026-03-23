@@ -8,6 +8,7 @@
  * // Or import specific functions
  * import { getAssignedSite } from '@/services/api/guide/siteApi';
  * import { getEvents, createEvent } from '@/services/api/guide/eventApi';
+ * import { getTtsVoices, updateModelNarrative } from '@/services/api/guide/narrativeApi';
  */
 
 // Site API
@@ -17,6 +18,10 @@ export { default as guideSiteApi } from "./siteApi";
 // Media API
 export * from "./mediaApi";
 export { default as guideMediaApi } from "./mediaApi";
+
+// Model 3D narrative (TTS & audio upload) — backend `narrativeController.js`
+export * from "./narrativeApi";
+export { default as guideNarrativeApi } from "./narrativeApi";
 
 // Event API
 export * from "./eventApi";
@@ -52,6 +57,7 @@ import dashboardApi from "./dashboardHomeApi";
 import guideEventApi from "./eventApi";
 import massScheduleApi from "./massScheduleApi";
 import guideMediaApi from "./mediaApi";
+import guideNarrativeApi from "./narrativeApi";
 import shiftSubmissionApi from "./shiftSubmissionApi";
 import guideSiteApi from "./siteApi";
 import guideSOSApi from "./sosApi";
@@ -59,6 +65,7 @@ import guideSOSApi from "./sosApi";
 const guideApis = {
   site: guideSiteApi,
   media: guideMediaApi,
+  narrative: guideNarrativeApi,
   event: guideEventApi,
   dashboard: dashboardApi,
   massSchedule: massScheduleApi,

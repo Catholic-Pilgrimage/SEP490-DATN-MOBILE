@@ -21,6 +21,9 @@ export * from "./site.types";
 // Media types
 export * from "./media.types";
 
+// Model 3D narrative (TTS / audio) — API layer: `services/api/guide/narrativeApi.ts`
+export * from "./narrative.types";
+
 // Event types
 export * from "./event.types";
 
