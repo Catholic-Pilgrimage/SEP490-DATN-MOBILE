@@ -24,6 +24,7 @@ import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { getSiteApprovedMedia } from "../../../../services/api/guide";
 import { MediaItem } from "../../../../types/guide";
 import { ModelViewerWebView } from "../components/ModelViewerWebView";
+import { SiteModelNarrativePanel } from "../components/SiteModelNarrativePanel";
 import { PREMIUM_COLORS } from "../constants";
 
 const SiteModels3dScreen: React.FC = () => {
@@ -33,7 +34,7 @@ const SiteModels3dScreen: React.FC = () => {
     useNavigation<NativeStackNavigationProp<MySiteStackParamList>>();
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const { data: models = [], isLoading } = useQuery({
+  const { data: models = [], isLoading, refetch: refetchModels } = useQuery({
     queryKey: GUIDE_KEYS.siteModels3d(),
     queryFn: async () => {
       const res = await getSiteApprovedMedia({ type: "model_3d" });
@@ -91,7 +92,12 @@ const SiteModels3dScreen: React.FC = () => {
         >
           <MaterialIcons name="arrow-back" size={24} color="#fff" />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text
+          style={styles.headerTitle}
+          numberOfLines={1}
+          accessibilityRole="header"
+          accessibilityLabel={t("siteModels3d.title")}
+        >
           {t("siteModels3d.title")}
         </Text>
         <View style={styles.headerBtn} />
@@ -103,8 +109,14 @@ const SiteModels3dScreen: React.FC = () => {
             <Text style={styles.pickTitle}>
               {t("siteModels3d.pickModel")}
             </Text>
-            <Text style={styles.pickCounter}>
-              {t("siteModels3d.modelCounter", {
+            <Text
+              style={styles.pickCounter}
+              accessibilityLabel={t("siteModels3d.modelCounterA11y", {
+                current: selectedIndex + 1,
+                total: models.length,
+              })}
+            >
+              {t("siteModels3d.modelCounterLabeled", {
                 current: selectedIndex + 1,
                 total: models.length,
               })}
@@ -195,6 +207,17 @@ const SiteModels3dScreen: React.FC = () => {
             <MaterialIcons name="view-in-ar" size={56} color={GUIDE_COLORS.gray500} />
             <Text style={styles.emptyTitle}>{t("siteModels3d.empty")}</Text>
             <Text style={styles.emptyHint}>{t("siteModels3d.emptyHint")}</Text>
+            <Pressable
+              style={styles.emptyCta}
+              onPress={() =>
+                navigation.navigate("MySiteHome", { initialTab: "media" })
+              }
+              accessibilityRole="button"
+              accessibilityLabel={t("siteModels3d.emptyCta")}
+            >
+              <MaterialIcons name="photo-library" size={20} color="#1a1a1a" />
+              <Text style={styles.emptyCtaText}>{t("siteModels3d.emptyCta")}</Text>
+            </Pressable>
           </View>
         ) : (
           <ModelViewerWebView
@@ -206,14 +229,14 @@ const SiteModels3dScreen: React.FC = () => {
         )}
       </View>
 
-      {/*
-        Reserved for future: nhập text → TTS thuyết minh (đặt controls trong khối này).
-        Giữ minHeight 0 — khi làm tính năng, tăng minHeight / thêm TextInput + nút phát.
-      */}
-      <View
-        style={[styles.narrationReserved, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.sm) }]}
-        accessibilityElementsHidden
-      />
+      {selected ? (
+        <SiteModelNarrativePanel
+          key={selected.id}
+          media={selected}
+          bottomInset={Math.max(insets.bottom, GUIDE_SPACING.sm)}
+          onRefreshModels={() => refetchModels()}
+        />
+      ) : null}
     </View>
   );
 };
@@ -242,6 +265,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
     color: "#fff",
+    paddingHorizontal: 4,
   },
   multiPicker: {
     paddingBottom: GUIDE_SPACING.xs,
@@ -354,9 +378,20 @@ const styles = StyleSheet.create({
     color: GUIDE_COLORS.gray500,
     textAlign: "center",
   },
-  narrationReserved: {
-    minHeight: 0,
-    backgroundColor: "#000",
+  emptyCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: PREMIUM_COLORS.gold,
+    borderRadius: 12,
+  },
+  emptyCtaText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1a1a1a",
   },
 });
 

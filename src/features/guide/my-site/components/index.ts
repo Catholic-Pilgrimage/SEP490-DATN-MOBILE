@@ -32,6 +32,8 @@ export {
   type YoutubeFullscreenClosePayload,
 } from "./YoutubeFullscreenModal";
 export { default as MediaTab } from "./MediaTab";
+export { SiteModelNarrativePanel } from "./SiteModelNarrativePanel";
+export type { SiteModelNarrativePanelProps } from "./SiteModelNarrativePanel";
 export { default as SchedulesTab } from "./SchedulesTab";
 export { StatusBadge } from "./StatusBadge";
 

@@ -165,8 +165,16 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
     <View style={[styles.wrap, fullscreen && styles.wrapFullscreen, style]}>
       {loading && !error && (
         <View style={styles.loadingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-          <Text style={styles.loadingText}>Đang tải mô hình…</Text>
+          <View style={styles.skeletonStage}>
+            <View style={styles.skeletonCube} />
+            <View style={styles.skeletonShine} />
+          </View>
+          <View style={styles.skeletonBars}>
+            <View style={[styles.skeletonBar, { width: "72%" }]} />
+            <View style={[styles.skeletonBar, { width: "48%" }]} />
+          </View>
+          <ActivityIndicator size="large" color={GUIDE_COLORS.primary} style={styles.loadingSpinner} />
+          <Text style={styles.loadingText}>Đang tải mô hình 3D…</Text>
         </View>
       )}
       {error ? (
@@ -231,13 +239,50 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(18,16,12,0.85)",
+    backgroundColor: "rgba(18,16,12,0.92)",
     zIndex: 2,
+    paddingHorizontal: 32,
+  },
+  skeletonStage: {
+    width: 120,
+    height: 120,
+    marginBottom: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  skeletonCube: {
+    width: 88,
+    height: 88,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  skeletonShine: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  skeletonBars: {
+    width: "100%",
+    maxWidth: 220,
+    gap: 8,
+    marginBottom: 16,
+  },
+  skeletonBar: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignSelf: "center",
+  },
+  loadingSpinner: {
+    marginTop: 4,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 14,
     color: "rgba(255,255,255,0.75)",
+    textAlign: "center",
   },
   fallback: {
     flex: 1,
