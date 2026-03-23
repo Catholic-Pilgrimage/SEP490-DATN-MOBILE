@@ -30,6 +30,8 @@ export interface EventItem {
   site_id: string;
   code: string;
   name: string;
+  /** Backend: optional string (e.g. solemn_feast, retreat, mass) */
+  category?: string | null;
   description: string;
   start_date: string; // YYYY-MM-DD
   end_date: string; // YYYY-MM-DD
@@ -95,6 +97,8 @@ export interface GetEventsParams {
  */
 export interface CreateEventRequest {
   name: string; // Max 255 chars
+  /** Optional; max 100 chars on backend */
+  category?: string;
   description?: string; // Max 2000 chars
   start_date: string; // Format: YYYY-MM-DD
   end_date?: string; // Format: YYYY-MM-DD
@@ -112,6 +116,8 @@ export interface CreateEventRequest {
  */
 export interface UpdateEventRequest {
   name?: string;
+  /** Send empty string to clear category (multipart) */
+  category?: string;
   description?: string;
   start_date?: string;
   end_date?: string;

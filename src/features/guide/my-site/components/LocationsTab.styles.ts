@@ -31,10 +31,11 @@ export const styles = StyleSheet.create({
     flex: 1,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
   },
+  /** Cùng tinh thần GuideFab: sát góc phải-đáy trong khung map (không dùng GuideFabButton ở tab này). */
   addButton: {
     position: "absolute",
-    bottom: getSpacing(GUIDE_SPACING.md),
-    right: getSpacing(GUIDE_SPACING.md),
+    bottom: getSpacing(GUIDE_SPACING.sm),
+    right: getSpacing(GUIDE_SPACING.sm),
     borderRadius: 28,
     zIndex: 10,
     ...Platform.select({

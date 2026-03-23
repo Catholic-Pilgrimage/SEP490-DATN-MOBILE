@@ -429,3 +429,99 @@ export function getPasswordStrengthLabel(strength: number): string {
   const labels = ['Rất yếu', 'Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'];
   return labels[strength] || labels[0];
 }
+
+// ============================================
+// EVENT FORM VALIDATORS
+// ============================================
+
+export interface EventFormData {
+  name: string;
+  category: string;
+  startDate: Date | null;
+  endDate: Date | null;
+  startTime: Date | null;
+  endTime: Date | null;
+}
+
+export interface EventFormErrors {
+  [key: string]: string | undefined;
+  name?: string;
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+/**
+ * Validate a specific step of the Event Form
+ */
+export function validateEventStep(step: number, data: EventFormData): EventFormErrors {
+  const errors: EventFormErrors = {};
+
+  if (step === 0) {
+    if (!data.name.trim()) {
+      errors.name = "Vui lòng nhập tên sự kiện";
+    }
+    if (!data.category) {
+      errors.category = "Vui lòng chọn loại sự kiện";
+    }
+  }
+
+  if (step === 1) {
+    if (!data.startDate) {
+      errors.startDate = "Vui lòng chọn ngày bắt đầu";
+    }
+    if (!data.endDate) {
+      errors.endDate = "Vui lòng chọn ngày kết thúc";
+    }
+    if (!data.startTime) {
+      errors.startTime = "Vui lòng chọn giờ bắt đầu";
+    }
+    if (!data.endTime) {
+      errors.endTime = "Vui lòng chọn giờ kết thúc";
+    }
+
+    if (data.startDate && data.endDate && data.endDate < data.startDate) {
+      errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+    }
+    if (data.startTime && data.endTime && data.startDate && data.endDate) {
+      const sameDay = formatDateForApi(data.startDate) === formatDateForApi(data.endDate);
+      if (sameDay && data.endTime <= data.startTime) {
+        errors.endTime = "Giờ kết thúc phải sau giờ bắt đầu";
+      }
+    }
+  }
+
+  return errors;
+}
+
+/**
+ * Validate the entire Event form
+ */
+export function validateEventFullForm(data: EventFormData): EventFormErrors {
+  const step0Errors = validateEventStep(0, data);
+  const step1Errors = validateEventStep(1, data);
+  
+  return {
+    ...step0Errors,
+    ...step1Errors,
+  };
+}
+
+/**
+ * Format time for API (HH:MM)
+ */
+export function formatTimeForApi(date: Date): string {
+  return date.toTimeString().substring(0, 5);
+}
+
+/**
+ * Helper to parse time string (HH:MM:SS) returning a new Date object
+ */
+export function parseTime(timeStr: string): Date {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}

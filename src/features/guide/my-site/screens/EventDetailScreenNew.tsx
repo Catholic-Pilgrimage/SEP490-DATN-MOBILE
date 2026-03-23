@@ -3,21 +3,24 @@
  * View, Create, Edit events with real API
  *
  * Modes:
- * - Create: No eventId passed
+ * - Create: No eventId passed → multi-step form with progress indicator
  * - View/Edit: eventId passed, fetch event data
  *
  * Features:
+ * - Multi-step form (3 steps) with progress indicator
+ * - Inline validation feedback with error messages
+ * - Date validation (end date >= start date, auto-suggest)
+ * - Event category dropdown
  * - Banner image upload with compression
- * - Date/Time pickers
- * - Form validation
- * - Status display for existing events
+ * - Accessible button contrast (WCAG AA)
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,7 +44,21 @@ import {
   updateEvent,
 } from "../../../../services/api/guide";
 import { EventStatus } from "../../../../types/guide";
+import {
+  formatDateForApi,
+  formatTimeForApi,
+  parseTime,
+  validateEventFullForm,
+  validateEventStep,
+} from "../../../../utils/validation";
 import { StatusBadge } from "../components/StatusBadge";
+import {
+  CATEGORY_GROUP_GRADIENTS,
+  DEFAULT_EVENT_GRADIENT as DEFAULT_GRADIENT,
+  EVENT_CATEGORY_GROUPS,
+  findCategoryByValue,
+  parseEventCategoryAndDescription,
+} from "../utils/eventCategoryUi";
 import { styles } from "./EventDetailScreenNew.styles";
 
 type EventDetailRouteProp = RouteProp<MySiteStackParamList, "EventDetail">;
@@ -53,7 +70,96 @@ const STATUS_LABELS: Record<EventStatus, string> = {
 };
 
 // ============================================
-// INPUT FIELD
+// CONSTANTS
+// ============================================
+
+/** Form step definitions for multi-step form */
+const FORM_STEPS = [
+  { key: "basic", label: "Thông tin cơ bản", icon: "info" as const },
+  { key: "datetime", label: "Thời gian", icon: "schedule" as const },
+  { key: "location", label: "Địa điểm & Ảnh bìa", icon: "place" as const },
+];
+
+// ============================================
+// STEP INDICATOR
+// ============================================
+
+interface StepIndicatorProps {
+  currentStep: number;
+  totalSteps: number;
+  steps: typeof FORM_STEPS;
+}
+
+const StepIndicator: React.FC<StepIndicatorProps> = ({
+  currentStep,
+  totalSteps,
+  steps,
+}) => {
+  const progress = ((currentStep + 1) / totalSteps) * 100;
+
+  return (
+    <View style={styles.stepIndicatorContainer}>
+      {/* Progress bar */}
+      <View style={styles.progressBarBg}>
+        <View
+          style={[styles.progressBarFill, { width: `${progress}%` }]}
+        />
+      </View>
+      {/* Step label */}
+      <View style={styles.stepLabelRow}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>
+            {currentStep + 1}/{totalSteps}
+          </Text>
+        </View>
+        <Text style={styles.stepLabelText}>{steps[currentStep].label}</Text>
+      </View>
+      {/* Step dots */}
+      <View style={styles.stepDotsRow}>
+        {steps.map((step, index) => (
+          <View key={step.key} style={styles.stepDotItem}>
+            <View
+              style={[
+                styles.stepDot,
+                index < currentStep && styles.stepDotCompleted,
+                index === currentStep && styles.stepDotActive,
+                index > currentStep && styles.stepDotInactive,
+              ]}
+            >
+              {index < currentStep ? (
+                <MaterialIcons
+                  name="check"
+                  size={12}
+                  color={GUIDE_COLORS.surface}
+                />
+              ) : (
+                <Text
+                  style={[
+                    styles.stepDotNumber,
+                    index === currentStep && styles.stepDotNumberActive,
+                  ]}
+                >
+                  {index + 1}
+                </Text>
+              )}
+            </View>
+            {index < steps.length - 1 && (
+              <View
+                style={[
+                  styles.stepConnector,
+                  index < currentStep && styles.stepConnectorCompleted,
+                ]}
+              />
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+// ============================================
+// INPUT FIELD WITH INLINE VALIDATION
 // ============================================
 
 interface InputFieldProps {
@@ -67,6 +173,7 @@ interface InputFieldProps {
   required?: boolean;
   editable?: boolean;
   maxLength?: number;
+  error?: string;
 }
 
 const InputField: React.FC<InputFieldProps> = ({
@@ -80,18 +187,32 @@ const InputField: React.FC<InputFieldProps> = ({
   required = false,
   editable = true,
   maxLength,
+  error,
 }) => (
   <View style={styles.fieldContainer}>
     <View style={styles.labelRow}>
       <Text style={styles.label}>{label}</Text>
-      {required && <Text style={styles.required}>*</Text>}
+      {required && <Text style={styles.required}> *</Text>}
     </View>
-    <View style={[styles.inputContainer, !editable && styles.inputDisabled]}>
-      {icon && (
+    <View
+      style={[
+        styles.inputContainer,
+        !editable && styles.inputDisabled,
+        !!error && styles.inputError,
+      ]}
+    >
+      {/* Icon only for single-line inputs (not textarea) */}
+      {icon && !multiline && (
         <MaterialIcons
           name={icon}
           size={20}
-          color={editable ? GUIDE_COLORS.primary : GUIDE_COLORS.gray400}
+          color={
+            error
+              ? GUIDE_COLORS.error
+              : editable
+                ? GUIDE_COLORS.primary
+                : GUIDE_COLORS.gray400
+          }
           style={styles.inputIcon}
         />
       )}
@@ -99,7 +220,7 @@ const InputField: React.FC<InputFieldProps> = ({
         style={[
           styles.input,
           multiline && styles.inputMultiline,
-          icon && styles.inputWithIcon,
+          icon && !multiline && styles.inputWithIcon,
         ]}
         value={value}
         onChangeText={onChangeText}
@@ -112,16 +233,160 @@ const InputField: React.FC<InputFieldProps> = ({
         maxLength={maxLength}
       />
     </View>
-    {maxLength && (
-      <Text style={styles.charCount}>
-        {value.length}/{maxLength}
-      </Text>
+    {/* Inline error message */}
+    {error ? (
+      <View style={styles.errorRow}>
+        <MaterialIcons name="error-outline" size={14} color={GUIDE_COLORS.error} />
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    ) : (
+      maxLength && (
+        <Text style={styles.charCount}>
+          {value.length}/{maxLength}
+        </Text>
+      )
     )}
   </View>
 );
 
 // ============================================
-// DATE/TIME PICKER FIELD
+// CATEGORY PICKER (DROPDOWN)
+// ============================================
+
+interface CategoryPickerProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  editable?: boolean;
+  error?: string;
+}
+
+const CategoryPicker: React.FC<CategoryPickerProps> = ({
+  label,
+  value,
+  onChange,
+  required = false,
+  editable = true,
+  error,
+}) => {
+  const [showOptions, setShowOptions] = useState(false);
+
+  // Resolve display label from grouped data
+  const found = value ? findCategoryByValue(value) : null;
+  const selectedLabel = found ? found.item.label : "Chọn loại sự kiện";
+
+  return (
+    <View style={styles.fieldContainer}>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {required && <Text style={styles.required}> *</Text>}
+      </View>
+      <TouchableOpacity
+        style={[
+          styles.inputContainer,
+          !editable && styles.inputDisabled,
+          !!error && styles.inputError,
+        ]}
+        onPress={() => editable && setShowOptions(!showOptions)}
+        disabled={!editable}
+        activeOpacity={0.7}
+      >
+        <MaterialIcons
+          name="category"
+          size={20}
+          color={
+            error
+              ? GUIDE_COLORS.error
+              : editable
+                ? GUIDE_COLORS.primary
+                : GUIDE_COLORS.gray400
+          }
+          style={styles.inputIcon}
+        />
+        <Text
+          style={[
+            styles.input,
+            styles.inputWithIcon,
+            !value && styles.placeholder,
+          ]}
+        >
+          {value ? selectedLabel : "Chọn loại sự kiện"}
+        </Text>
+        <MaterialIcons
+          name={showOptions ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+          size={20}
+          color={GUIDE_COLORS.gray400}
+        />
+      </TouchableOpacity>
+      {/* Inline error */}
+      {error && (
+        <View style={styles.errorRow}>
+          <MaterialIcons name="error-outline" size={14} color={GUIDE_COLORS.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+      {/* Grouped Dropdown */}
+      {showOptions && (
+        <ScrollView
+          style={styles.dropdownContainer}
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={true}
+        >
+          {EVENT_CATEGORY_GROUPS.map((group) => (
+            <View key={group.groupLabel}>
+              {/* Group Header — non-clickable */}
+              <View style={styles.dropdownGroupHeader}>
+                <MaterialIcons
+                  name={group.icon}
+                  size={16}
+                  color={GUIDE_COLORS.textSecondary}
+                />
+                <Text style={styles.dropdownGroupLabel}>
+                  {group.groupLabel}
+                </Text>
+              </View>
+              {/* Group Items */}
+              {group.items.map((item) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.dropdownItem,
+                    value === item.value && styles.dropdownItemActive,
+                  ]}
+                  onPress={() => {
+                    onChange(item.value);
+                    setShowOptions(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      value === item.value && styles.dropdownItemTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {value === item.value && (
+                    <MaterialIcons
+                      name="check"
+                      size={18}
+                      color={GUIDE_COLORS.primary}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+};
+
+// ============================================
+// DATE/TIME PICKER FIELD WITH VALIDATION
 // ============================================
 
 interface DateTimeFieldProps {
@@ -132,6 +397,8 @@ interface DateTimeFieldProps {
   placeholder: string;
   required?: boolean;
   editable?: boolean;
+  error?: string;
+  minimumDate?: Date;
 }
 
 const DateTimeField: React.FC<DateTimeFieldProps> = ({
@@ -142,6 +409,8 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
   placeholder,
   required = false,
   editable = true,
+  error,
+  minimumDate,
 }) => {
   const [show, setShow] = useState(false);
 
@@ -164,17 +433,27 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
     <View style={styles.fieldContainer}>
       <View style={styles.labelRow}>
         <Text style={styles.label}>{label}</Text>
-        {required && <Text style={styles.required}>*</Text>}
+        {required && <Text style={styles.required}> *</Text>}
       </View>
       <TouchableOpacity
-        style={[styles.inputContainer, !editable && styles.inputDisabled]}
+        style={[
+          styles.inputContainer,
+          !editable && styles.inputDisabled,
+          !!error && styles.inputError,
+        ]}
         onPress={() => editable && setShow(true)}
         disabled={!editable}
       >
         <MaterialIcons
           name={mode === "date" ? "calendar-today" : "access-time"}
           size={20}
-          color={editable ? GUIDE_COLORS.primary : GUIDE_COLORS.gray400}
+          color={
+            error
+              ? GUIDE_COLORS.error
+              : editable
+                ? GUIDE_COLORS.primary
+                : GUIDE_COLORS.gray400
+          }
           style={styles.inputIcon}
         />
         <Text
@@ -192,6 +471,13 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
           color={GUIDE_COLORS.gray400}
         />
       </TouchableOpacity>
+      {/* Inline error */}
+      {error && (
+        <View style={styles.errorRow}>
+          <MaterialIcons name="error-outline" size={14} color={GUIDE_COLORS.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
 
       {show && (
         <DateTimePicker
@@ -199,6 +485,7 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
           mode={mode}
           is24Hour={true}
           display={Platform.OS === "ios" ? "spinner" : "default"}
+          minimumDate={minimumDate}
           onChange={(event, selectedDate) => {
             setShow(Platform.OS === "ios");
             if (selectedDate) {
@@ -222,18 +509,27 @@ export const EventDetailScreen: React.FC = () => {
   const { event: passedEvent } = route.params || {};
 
   // Mode management
-  const isCreateMode = !passedEvent; // Creating new event
+  const isCreateMode = !passedEvent;
   const canBeEdited =
     passedEvent?.status === "pending" || passedEvent?.status === "rejected";
 
   // isEditing: true when creating new OR when user clicked Edit button
   const [isEditing, setIsEditing] = useState(isCreateMode);
 
+  // Multi-step form state (only for create mode)
+  const [currentStep, setCurrentStep] = useState(0);
+
   // Form state
   const [name, setName] = useState(passedEvent?.name || "");
-  const [description, setDescription] = useState(
-    passedEvent?.description || "",
-  );
+
+  // Prefer API `category`; fallback: legacy "[Nhãn]" prefix in description
+  const parsedInitial = parseEventCategoryAndDescription({
+    description: passedEvent?.description,
+    category: passedEvent?.category,
+  });
+
+  const [description, setDescription] = useState(parsedInitial.description);
+  const [category, setCategory] = useState(parsedInitial.category);
   const [startDate, setStartDate] = useState<Date | null>(
     passedEvent?.start_date ? new Date(passedEvent.start_date) : null,
   );
@@ -259,37 +555,123 @@ export const EventDetailScreen: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Helper to parse time string (HH:MM:SS)
-  function parseTime(timeStr: string): Date {
-    const [hours, minutes] = timeStr.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  }
+  // Validation state — tracks which fields have been touched / have errors
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Format date for API (YYYY-MM-DD)
-  const formatDateForApi = (date: Date): string => {
-    return date.toISOString().split("T")[0];
-  };
+  // ============================================
+  // VALIDATION HELPERS
+  // ============================================
 
-  // Format time for API (HH:MM)
-  const formatTimeForApi = (date: Date): string => {
-    return date.toTimeString().substring(0, 5);
-  };
+  /** Clear a single field error when user starts fixing it */
+  const clearFieldError = useCallback((field: string) => {
+    setFieldErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  }, []);
 
-  // Toggle edit mode
+  // ============================================
+  // DATE AUTO-SUGGEST LOGIC
+  // ============================================
+
+  /** When startDate changes, auto-suggest endDate if not set yet */
+  const handleStartDateChange = useCallback(
+    (date: Date) => {
+      setStartDate(date);
+      clearFieldError("startDate");
+      // Auto-suggest: if endDate is null or endDate < new startDate, set endDate = startDate
+      if (!endDate || endDate < date) {
+        setEndDate(date);
+        clearFieldError("endDate");
+      }
+    },
+    [endDate, clearFieldError],
+  );
+
+  const handleEndDateChange = useCallback(
+    (date: Date) => {
+      setEndDate(date);
+      // Realtime validation
+      if (startDate && date < startDate) {
+        setFieldErrors((prev) => ({
+          ...prev,
+          endDate: "Ngày kết thúc phải sau ngày bắt đầu",
+        }));
+      } else {
+        clearFieldError("endDate");
+      }
+    },
+    [startDate, clearFieldError],
+  );
+
+  const handleStartTimeChange = useCallback(
+    (date: Date) => {
+      setStartTime(date);
+      clearFieldError("startTime");
+    },
+    [clearFieldError],
+  );
+
+  const handleEndTimeChange = useCallback(
+    (date: Date) => {
+      setEndTime(date);
+      if (startTime && startDate && endDate) {
+        const sameDay = formatDateForApi(startDate) === formatDateForApi(endDate);
+        if (sameDay && date <= startTime) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            endTime: "Giờ kết thúc phải sau giờ bắt đầu",
+          }));
+        } else {
+          clearFieldError("endTime");
+        }
+      }
+    },
+    [startTime, startDate, endDate, clearFieldError],
+  );
+
+  // ============================================
+  // STEP NAVIGATION
+  // ============================================
+
+  const handleNextStep = useCallback(() => {
+    const errors = validateEventStep(currentStep, { name, category, startDate, endDate, startTime, endTime });
+    if (Object.keys(errors).length === 0) {
+      setCurrentStep((prev) => Math.min(prev + 1, FORM_STEPS.length - 1));
+    } else {
+      setFieldErrors(errors as Record<string, string>);
+    }
+  }, [currentStep, name, category, startDate, endDate, startTime, endTime]);
+
+  const handlePrevStep = useCallback(() => {
+    setFieldErrors({});
+    setCurrentStep((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const isLastStep = currentStep === FORM_STEPS.length - 1;
+  const isFirstStep = currentStep === 0;
+
+  // ============================================
+  // EDIT MODE HANDLERS
+  // ============================================
+
   const handleEnableEdit = useCallback(() => {
     if (canBeEdited) {
       setIsEditing(true);
     }
   }, [canBeEdited]);
 
-  // Cancel edit mode (for existing events)
   const handleCancelEdit = useCallback(() => {
     if (!isCreateMode && passedEvent) {
-      // Reset form to original values
       setName(passedEvent.name || "");
-      setDescription(passedEvent.description || "");
+      const parsed = parseEventCategoryAndDescription({
+        description: passedEvent.description,
+        category: passedEvent.category,
+      });
+      setDescription(parsed.description);
+      setCategory(parsed.category);
       setStartDate(
         passedEvent.start_date ? new Date(passedEvent.start_date) : null,
       );
@@ -301,6 +683,7 @@ export const EventDetailScreen: React.FC = () => {
       setLocation(passedEvent.location || "");
       setBannerUri(passedEvent.banner_url || null);
       setNewBannerFile(null);
+      setFieldErrors({});
       setIsEditing(false);
     }
   }, [isCreateMode, passedEvent]);
@@ -317,15 +700,12 @@ export const EventDetailScreen: React.FC = () => {
     async (result: ImagePicker.ImagePickerResult) => {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-
-        // Compress image
         try {
           const compressed = await ImageManipulator.manipulateAsync(
             asset.uri,
             [{ resize: { width: 1200 } }],
             { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG },
           );
-
           setBannerUri(compressed.uri);
           setNewBannerFile({
             uri: compressed.uri,
@@ -345,22 +725,23 @@ export const EventDetailScreen: React.FC = () => {
     [],
   );
 
-  // Validate form
-  const validateForm = (): boolean => {
-    if (!name.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập tên sự kiện");
-      return false;
-    }
-    if (!startDate) {
-      Alert.alert("Lỗi", "Vui lòng chọn ngày bắt đầu");
-      return false;
-    }
-    return true;
-  };
+  // ============================================
+  // SAVE & DELETE
+  // ============================================
 
-  // Handle save
   const handleSave = useCallback(async () => {
-    if (!validateForm()) return;
+    console.log("[EventSave] handleSave called, isCreateMode:", isCreateMode);
+
+    // Validate full form
+    const errors = validateEventFullForm({ name, category, startDate, endDate, startTime, endTime });
+    const isValid = Object.keys(errors).length === 0;
+    
+    console.log("[EventSave] validation result:", isValid);
+    if (!isValid) {
+      console.log("[EventSave] validation failed, fieldErrors:", errors);
+      setFieldErrors(errors as Record<string, string>);
+      return;
+    }
 
     setSaving(true);
     try {
@@ -369,8 +750,15 @@ export const EventDetailScreen: React.FC = () => {
         start_date: formatDateForApi(startDate!),
       };
 
+      // Description: plain text only. Category is sent as its own field (backend column).
       if (description.trim()) {
         eventData.description = description.trim();
+      }
+      const catTrim = category.trim();
+      if (!isCreateMode) {
+        eventData.category = catTrim;
+      } else if (catTrim) {
+        eventData.category = catTrim;
       }
       if (endDate) {
         eventData.end_date = formatDateForApi(endDate);
@@ -388,12 +776,18 @@ export const EventDetailScreen: React.FC = () => {
         eventData.banner = newBannerFile;
       }
 
+      console.log("[EventSave] eventData:", JSON.stringify(eventData, null, 2));
+
       let result;
       if (!isCreateMode && passedEvent) {
+        console.log("[EventSave] calling updateEvent...");
         result = await updateEvent(passedEvent.id, eventData);
       } else {
+        console.log("[EventSave] calling createEvent...");
         result = await createEvent(eventData);
       }
+
+      console.log("[EventSave] API result:", JSON.stringify(result));
 
       if (result?.success) {
         Alert.alert(
@@ -402,16 +796,19 @@ export const EventDetailScreen: React.FC = () => {
           [{ text: "OK", onPress: () => navigation.goBack() }],
         );
       } else {
+        console.log("[EventSave] result.success is false:", result?.message);
         Alert.alert("Lỗi", result?.message || "Không thể lưu sự kiện");
       }
     } catch (error: any) {
-      Alert.alert("Lỗi", error.message || "Không thể lưu sự kiện");
+      console.log("[EventSave] CATCH error:", error?.message, error?.response?.data);
+      Alert.alert("Lỗi", error?.response?.data?.message || error.message || "Không thể lưu sự kiện");
     } finally {
       setSaving(false);
     }
   }, [
     name,
     description,
+    category,
     startDate,
     endDate,
     startTime,
@@ -423,7 +820,6 @@ export const EventDetailScreen: React.FC = () => {
     navigation,
   ]);
 
-  // Handle delete
   const handleDelete = useCallback(() => {
     if (!passedEvent) return;
 
@@ -453,23 +849,534 @@ export const EventDetailScreen: React.FC = () => {
     ]);
   }, [passedEvent, navigation]);
 
+  // ============================================
+  // RENDER STEP CONTENT (CREATE MODE)
+  // ============================================
+
+  const renderStepContent = useMemo(() => {
+    switch (currentStep) {
+      case 0:
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
+
+            <InputField
+              label="Tên sự kiện"
+              value={name}
+              onChangeText={(text) => {
+                setName(text);
+                clearFieldError("name");
+              }}
+              placeholder="VD: Lễ Giáng Sinh 2026"
+              icon="event"
+              required
+              editable={isEditing}
+              maxLength={255}
+              error={fieldErrors.name}
+            />
+
+            <CategoryPicker
+              label="Loại sự kiện"
+              value={category}
+              onChange={(val) => {
+                setCategory(val);
+                clearFieldError("category");
+              }}
+              required
+              editable={isEditing}
+              error={fieldErrors.category}
+            />
+
+            <InputField
+              label="Mô tả"
+              value={description}
+              onChangeText={(text) => {
+                setDescription(text);
+                clearFieldError("description");
+              }}
+              placeholder="Mô tả chi tiết về sự kiện..."
+              multiline
+              numberOfLines={4}
+              editable={isEditing}
+              maxLength={2000}
+              error={fieldErrors.description}
+            />
+          </View>
+        );
+
+      case 1:
+        return (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Thời gian diễn ra</Text>
+
+            <View style={styles.row}>
+              <View style={styles.halfField}>
+                <DateTimeField
+                  label="Ngày bắt đầu"
+                  value={startDate}
+                  onChange={handleStartDateChange}
+                  mode="date"
+                  placeholder="Chọn ngày"
+                  required
+                  editable={isEditing}
+                  error={fieldErrors.startDate}
+                />
+              </View>
+              <View style={styles.halfField}>
+                <DateTimeField
+                  label="Ngày kết thúc"
+                  value={endDate}
+                  onChange={handleEndDateChange}
+                  mode="date"
+                  placeholder="Chọn ngày"
+                  required
+                  editable={isEditing}
+                  error={fieldErrors.endDate}
+                  minimumDate={startDate || undefined}
+                />
+              </View>
+            </View>
+
+            {/* Visual connection between start and end date */}
+            {startDate && endDate && !fieldErrors.endDate && (
+              <View style={styles.dateRangeHint}>
+                <MaterialIcons
+                  name="date-range"
+                  size={16}
+                  color={GUIDE_COLORS.success}
+                />
+                <Text style={styles.dateRangeHintText}>
+                  {startDate.toLocaleDateString("vi-VN")} →{" "}
+                  {endDate.toLocaleDateString("vi-VN")}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.row}>
+              <View style={styles.halfField}>
+                <DateTimeField
+                  label="Giờ bắt đầu"
+                  value={startTime}
+                  onChange={handleStartTimeChange}
+                  mode="time"
+                  placeholder="Chọn giờ"
+                  required
+                  editable={isEditing}
+                  error={fieldErrors.startTime}
+                />
+              </View>
+              <View style={styles.halfField}>
+                <DateTimeField
+                  label="Giờ kết thúc"
+                  value={endTime}
+                  onChange={handleEndTimeChange}
+                  mode="time"
+                  placeholder="Chọn giờ"
+                  required
+                  editable={isEditing}
+                  error={fieldErrors.endTime}
+                />
+              </View>
+            </View>
+          </View>
+        );
+
+      case 2:
+        return (
+          <>
+            {/* Location */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Địa điểm</Text>
+              <InputField
+                label="Vị trí"
+                value={location}
+                onChangeText={(text) => {
+                  setLocation(text);
+                  clearFieldError("location");
+                }}
+                placeholder="VD: Sân nhà thờ chính"
+                icon="location-on"
+                editable={isEditing}
+                maxLength={255}
+                error={fieldErrors.location}
+              />
+            </View>
+
+            {/* Banner Image */}
+            <View style={styles.bannerSection}>
+              <Text style={styles.sectionTitle}>Ảnh bìa</Text>
+              <TouchableOpacity
+                style={styles.bannerContainer}
+                onPress={handlePickBanner}
+                disabled={!isEditing}
+                activeOpacity={0.8}
+              >
+                {bannerUri ? (
+                  <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
+                ) : (
+                  <LinearGradient
+                    colors={(CATEGORY_GROUP_GRADIENTS[category] || DEFAULT_GRADIENT).colors}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.bannerPlaceholder}
+                  >
+                    <MaterialIcons
+                      name={(CATEGORY_GROUP_GRADIENTS[category] || DEFAULT_GRADIENT).icon}
+                      size={40}
+                      color="rgba(255,255,255,0.25)"
+                    />
+                    <Text style={[styles.bannerPlaceholderText, { color: "rgba(255,255,255,0.7)" }]}>
+                      {isEditing ? "Nhấn để thêm ảnh bìa" : "Chưa có ảnh bìa"}
+                    </Text>
+                  </LinearGradient>
+                )}
+                {isEditing && bannerUri && (
+                  <View style={styles.bannerEditOverlay}>
+                    <MaterialIcons
+                      name="edit"
+                      size={20}
+                      color={GUIDE_COLORS.surface}
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.bannerHint}>
+                Tỉ lệ 16:9 · Định dạng JPG, PNG · Tối đa 5MB
+              </Text>
+            </View>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  }, [
+    currentStep,
+    name,
+    description,
+    category,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    location,
+    bannerUri,
+    isEditing,
+    fieldErrors,
+    clearFieldError,
+    handleStartDateChange,
+    handleEndDateChange,
+    handleStartTimeChange,
+    handleEndTimeChange,
+    handlePickBanner,
+  ]);
+
+  // ============================================
+  // RENDER FULL FORM (EDIT MODE / VIEW MODE)
+  // ============================================
+
+  const renderFullForm = () => (
+    <>
+      {/* Rejection Reason */}
+      {passedEvent?.status === "rejected" && passedEvent.rejection_reason && (
+        <View style={styles.rejectionBox}>
+          <MaterialIcons name="error" size={20} color={GUIDE_COLORS.error} />
+          <View style={styles.rejectionContent}>
+            <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
+            <Text style={styles.rejectionText}>
+              {passedEvent.rejection_reason}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Banner Image */}
+      <View style={styles.bannerSection}>
+        <Text style={styles.sectionTitle}>Ảnh bìa</Text>
+        <TouchableOpacity
+          style={styles.bannerContainer}
+          onPress={handlePickBanner}
+          disabled={!isEditing}
+          activeOpacity={0.8}
+        >
+          {bannerUri ? (
+            <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
+          ) : (
+            <LinearGradient
+              colors={(CATEGORY_GROUP_GRADIENTS[category] || DEFAULT_GRADIENT).colors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.bannerPlaceholder}
+            >
+              <MaterialIcons
+                name={(CATEGORY_GROUP_GRADIENTS[category] || DEFAULT_GRADIENT).icon}
+                size={40}
+                color="rgba(255,255,255,0.25)"
+              />
+              <Text style={[styles.bannerPlaceholderText, { color: "rgba(255,255,255,0.7)" }]}>
+                {isEditing ? "Nhấn để thêm ảnh bìa" : "Chưa có ảnh bìa"}
+              </Text>
+            </LinearGradient>
+          )}
+          {isEditing && bannerUri && (
+            <View style={styles.bannerEditOverlay}>
+              <MaterialIcons
+                name="edit"
+                size={20}
+                color={GUIDE_COLORS.surface}
+              />
+            </View>
+          )}
+        </TouchableOpacity>
+        <Text style={styles.bannerHint}>
+          Tỉ lệ 16:9 · Định dạng JPG, PNG · Tối đa 5MB
+          {"\n"}* Vui lòng upload ảnh liên quan đến sự kiện
+        </Text>
+      </View>
+
+      {/* Basic Info */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
+
+        <InputField
+          label="Tên sự kiện"
+          value={name}
+          onChangeText={(text) => {
+            setName(text);
+            clearFieldError("name");
+          }}
+          placeholder="VD: Lễ Giáng Sinh 2026"
+          icon="event"
+          required
+          editable={isEditing}
+          maxLength={255}
+          error={fieldErrors.name}
+        />
+
+        <CategoryPicker
+          label="Loại sự kiện"
+          value={category}
+          onChange={(val) => {
+            setCategory(val);
+            clearFieldError("category");
+          }}
+          editable={isEditing}
+          error={fieldErrors.category}
+        />
+
+        <InputField
+          label="Mô tả"
+          value={description}
+          onChangeText={(text) => {
+            setDescription(text);
+            clearFieldError("description");
+          }}
+          placeholder="Mô tả chi tiết về sự kiện..."
+          multiline
+          numberOfLines={4}
+          editable={isEditing}
+          maxLength={2000}
+          error={fieldErrors.description}
+        />
+      </View>
+
+      {/* Date & Time */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Thời gian diễn ra</Text>
+
+        <View style={styles.row}>
+          <View style={styles.halfField}>
+            <DateTimeField
+              label="Ngày bắt đầu"
+              value={startDate}
+              onChange={handleStartDateChange}
+              mode="date"
+              placeholder="Chọn ngày"
+              required
+              editable={isEditing}
+              error={fieldErrors.startDate}
+            />
+          </View>
+          <View style={styles.halfField}>
+            <DateTimeField
+              label="Ngày kết thúc"
+              value={endDate}
+              onChange={handleEndDateChange}
+              mode="date"
+              placeholder="Chọn ngày"
+              editable={isEditing}
+              error={fieldErrors.endDate}
+              minimumDate={startDate || undefined}
+            />
+          </View>
+        </View>
+
+        {startDate && endDate && !fieldErrors.endDate && (
+          <View style={styles.dateRangeHint}>
+            <MaterialIcons
+              name="date-range"
+              size={16}
+              color={GUIDE_COLORS.success}
+            />
+            <Text style={styles.dateRangeHintText}>
+              {startDate.toLocaleDateString("vi-VN")} →{" "}
+              {endDate.toLocaleDateString("vi-VN")}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.row}>
+          <View style={styles.halfField}>
+            <DateTimeField
+              label="Giờ bắt đầu"
+              value={startTime}
+              onChange={handleStartTimeChange}
+              mode="time"
+              placeholder="Chọn giờ"
+              editable={isEditing}
+              error={fieldErrors.startTime}
+            />
+          </View>
+          <View style={styles.halfField}>
+            <DateTimeField
+              label="Giờ kết thúc"
+              value={endTime}
+              onChange={handleEndTimeChange}
+              mode="time"
+              placeholder="Chọn giờ"
+              editable={isEditing}
+              error={fieldErrors.endTime}
+            />
+          </View>
+        </View>
+      </View>
+
+      {/* Location */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Địa điểm</Text>
+        <InputField
+          label="Vị trí"
+          value={location}
+          onChangeText={(text) => {
+            setLocation(text);
+            clearFieldError("location");
+          }}
+          placeholder="VD: Sân nhà thờ chính"
+          icon="location-on"
+          editable={isEditing}
+          maxLength={255}
+          error={fieldErrors.location}
+        />
+      </View>
+
+      {/* Info for approved events */}
+      {passedEvent?.status === "approved" && (
+        <View style={styles.infoBox}>
+          <MaterialIcons name="lock" size={20} color={GUIDE_COLORS.creamMuted} />
+          <Text style={styles.infoText}>
+            Sự kiện đã được duyệt không thể chỉnh sửa
+          </Text>
+        </View>
+      )}
+
+      {/* Edit Button for View Mode */}
+      {!isCreateMode && canBeEdited && !isEditing && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleEnableEdit}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons name="edit" size={22} color={GUIDE_COLORS.surface} />
+            <Text style={styles.editButtonText}>Chỉnh sửa sự kiện</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Action Buttons for Edit Mode (non-create) */}
+      {isEditing && !isCreateMode && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.saveButton, saving && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={saving || deleting}
+            activeOpacity={0.8}
+          >
+            {saving ? (
+              <ActivityIndicator color="#3D2000" />
+            ) : (
+              <>
+                <MaterialIcons name="save" size={22} color="#3D2000" />
+                <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={handleCancelEdit}
+            disabled={saving || deleting}
+            activeOpacity={0.8}
+          >
+            <MaterialIcons
+              name="close"
+              size={22}
+              color={GUIDE_COLORS.textSecondary}
+            />
+            <Text style={styles.cancelButtonText}>Hủy chỉnh sửa</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.deleteButton, deleting && styles.buttonDisabled]}
+            onPress={handleDelete}
+            disabled={saving || deleting}
+            activeOpacity={0.8}
+          >
+            {deleting ? (
+              <ActivityIndicator color={GUIDE_COLORS.error} />
+            ) : (
+              <>
+                <MaterialIcons
+                  name="delete-outline"
+                  size={22}
+                  color={GUIDE_COLORS.error}
+                />
+                <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+    </>
+  );
+
+  // ============================================
+  // RENDER
+  // ============================================
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={GUIDE_COLORS.background}
+        backgroundColor={GUIDE_COLORS.creamBg}
       />
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (isCreateMode && currentStep > 0) {
+              handlePrevStep();
+            } else {
+              navigation.goBack();
+            }
+          }}
         >
           <MaterialIcons
             name="arrow-back-ios"
             size={20}
-            color={GUIDE_COLORS.textPrimary}
+            color={GUIDE_COLORS.creamInk}
           />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
@@ -481,7 +1388,10 @@ export const EventDetailScreen: React.FC = () => {
         </Text>
         <View style={styles.headerRight}>
           {!isCreateMode && passedEvent && (
-            <StatusBadge status={passedEvent.status} label={STATUS_LABELS[passedEvent.status]} />
+            <StatusBadge
+              status={passedEvent.status}
+              label={STATUS_LABELS[passedEvent.status]}
+            />
           )}
           {!isCreateMode && canBeEdited && !isEditing && (
             <TouchableOpacity
@@ -499,6 +1409,15 @@ export const EventDetailScreen: React.FC = () => {
         {isCreateMode && <View style={{ width: 80 }} />}
       </View>
 
+      {/* Step Indicator (only in create mode) */}
+      {isCreateMode && (
+        <StepIndicator
+          currentStep={currentStep}
+          totalSteps={FORM_STEPS.length}
+          steps={FORM_STEPS}
+        />
+      )}
+
       <KeyboardAvoidingView
         style={styles.content}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -509,252 +1428,50 @@ export const EventDetailScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Rejection Reason */}
-          {passedEvent?.status === "rejected" &&
-            passedEvent.rejection_reason && (
-              <View style={styles.rejectionBox}>
-                <MaterialIcons
-                  name="error"
-                  size={20}
-                  color={GUIDE_COLORS.error}
-                />
-                <View style={styles.rejectionContent}>
-                  <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
-                  <Text style={styles.rejectionText}>
-                    {passedEvent.rejection_reason}
-                  </Text>
-                </View>
-              </View>
-            )}
+          {isCreateMode ? renderStepContent : renderFullForm()}
 
-          {/* Banner Image */}
-          <View style={styles.bannerSection}>
-            <Text style={styles.sectionTitle}>Ảnh bìa</Text>
-            <TouchableOpacity
-              style={styles.bannerContainer}
-              onPress={handlePickBanner}
-              disabled={!isEditing}
-              activeOpacity={0.8}
-            >
-              {bannerUri ? (
-                <Image source={{ uri: bannerUri }} style={styles.bannerImage} />
-              ) : (
-                <View style={styles.bannerPlaceholder}>
+          {/* Step Navigation Buttons (create mode) */}
+          {isCreateMode && (
+            <View style={styles.stepNavigation}>
+              {!isFirstStep && (
+                <TouchableOpacity
+                  style={styles.stepNavButtonSecondary}
+                  onPress={handlePrevStep}
+                  activeOpacity={0.8}
+                >
                   <MaterialIcons
-                    name="add-photo-alternate"
-                    size={48}
-                    color={GUIDE_COLORS.gray300}
+                    name="arrow-back"
+                    size={20}
+                    color={GUIDE_COLORS.textSecondary}
                   />
-                  <Text style={styles.bannerPlaceholderText}>
-                    {isEditing ? "Thêm ảnh bìa" : "Chưa có ảnh bìa"}
-                  </Text>
-                </View>
+                  <Text style={styles.stepNavButtonSecondaryText}>Quay lại</Text>
+                </TouchableOpacity>
               )}
-              {isEditing && bannerUri && (
-                <View style={styles.bannerEditOverlay}>
-                  <MaterialIcons
-                    name="edit"
-                    size={24}
-                    color={GUIDE_COLORS.surface}
-                  />
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          {/* Basic Info */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
-
-            <InputField
-              label="Tên sự kiện"
-              value={name}
-              onChangeText={setName}
-              placeholder="VD: Lễ Giáng Sinh 2026"
-              icon="event"
-              required
-              editable={isEditing}
-              maxLength={255}
-            />
-
-            <InputField
-              label="Mô tả"
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Mô tả chi tiết về sự kiện..."
-              multiline
-              numberOfLines={4}
-              icon="description"
-              editable={isEditing}
-              maxLength={2000}
-            />
-          </View>
-
-          {/* Date & Time */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thời gian</Text>
-
-            <View style={styles.row}>
-              <View style={styles.halfField}>
-                <DateTimeField
-                  label="Ngày bắt đầu"
-                  value={startDate}
-                  onChange={setStartDate}
-                  mode="date"
-                  placeholder="Chọn ngày"
-                  required
-                  editable={isEditing}
-                />
-              </View>
-              <View style={styles.halfField}>
-                <DateTimeField
-                  label="Ngày kết thúc"
-                  value={endDate}
-                  onChange={setEndDate}
-                  mode="date"
-                  placeholder="Chọn ngày"
-                  editable={isEditing}
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={styles.halfField}>
-                <DateTimeField
-                  label="Giờ bắt đầu"
-                  value={startTime}
-                  onChange={setStartTime}
-                  mode="time"
-                  placeholder="Chọn giờ"
-                  editable={isEditing}
-                />
-              </View>
-              <View style={styles.halfField}>
-                <DateTimeField
-                  label="Giờ kết thúc"
-                  value={endTime}
-                  onChange={setEndTime}
-                  mode="time"
-                  placeholder="Chọn giờ"
-                  editable={isEditing}
-                />
-              </View>
-            </View>
-          </View>
-
-          {/* Location */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Địa điểm</Text>
-            <InputField
-              label="Vị trí"
-              value={location}
-              onChangeText={setLocation}
-              placeholder="VD: Sân nhà thờ chính"
-              icon="location-on"
-              editable={isEditing}
-              maxLength={255}
-            />
-          </View>
-
-          {/* Info for approved events */}
-          {passedEvent?.status === "approved" && (
-            <View style={styles.infoBox}>
-              <MaterialIcons
-                name="lock"
-                size={20}
-                color={GUIDE_COLORS.textMuted}
-              />
-              <Text style={styles.infoText}>
-                Sự kiện đã được duyệt không thể chỉnh sửa
-              </Text>
-            </View>
-          )}
-
-          {/* Edit Button for View Mode */}
-          {!isCreateMode && canBeEdited && !isEditing && (
-            <View style={styles.actionButtons}>
               <TouchableOpacity
-                style={styles.editButton}
-                onPress={handleEnableEdit}
-                activeOpacity={0.8}
-              >
-                <MaterialIcons
-                  name="edit"
-                  size={22}
-                  color={GUIDE_COLORS.surface}
-                />
-                <Text style={styles.editButtonText}>Chỉnh sửa sự kiện</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Action Buttons for Edit Mode */}
-          {isEditing && (
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[styles.saveButton, saving && styles.buttonDisabled]}
-                onPress={handleSave}
-                disabled={saving || deleting}
+                style={[
+                  styles.stepNavButtonPrimary,
+                  isFirstStep && styles.stepNavButtonFull,
+                  saving && styles.buttonDisabled,
+                ]}
+                onPress={isLastStep ? handleSave : handleNextStep}
+                disabled={saving}
                 activeOpacity={0.8}
               >
                 {saving ? (
-                  <ActivityIndicator color={GUIDE_COLORS.surface} />
+                  <ActivityIndicator color="#3D2000" />
                 ) : (
                   <>
                     <MaterialIcons
-                      name={isCreateMode ? "add" : "save"}
-                      size={22}
-                      color={GUIDE_COLORS.surface}
+                      name={isLastStep ? "check" : "arrow-forward"}
+                      size={20}
+                      color="#3D2000"
                     />
-                    <Text style={styles.saveButtonText}>
-                      {isCreateMode ? "Tạo sự kiện" : "Lưu thay đổi"}
+                    <Text style={styles.stepNavButtonPrimaryText}>
+                      {isLastStep ? "Tạo sự kiện" : "Tiếp theo"}
                     </Text>
                   </>
                 )}
               </TouchableOpacity>
-
-              {/* Cancel button when editing existing event */}
-              {!isCreateMode && (
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleCancelEdit}
-                  disabled={saving || deleting}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons
-                    name="close"
-                    size={22}
-                    color={GUIDE_COLORS.textSecondary}
-                  />
-                  <Text style={styles.cancelButtonText}>Hủy chỉnh sửa</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Delete button */}
-              {!isCreateMode && (
-                <TouchableOpacity
-                  style={[
-                    styles.deleteButton,
-                    deleting && styles.buttonDisabled,
-                  ]}
-                  onPress={handleDelete}
-                  disabled={saving || deleting}
-                  activeOpacity={0.8}
-                >
-                  {deleting ? (
-                    <ActivityIndicator color={GUIDE_COLORS.error} />
-                  ) : (
-                    <>
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={22}
-                        color={GUIDE_COLORS.error}
-                      />
-                      <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
             </View>
           )}
 
