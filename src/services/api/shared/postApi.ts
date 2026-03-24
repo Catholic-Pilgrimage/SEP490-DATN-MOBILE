@@ -169,9 +169,30 @@ export const addComment = async (
     postId: string,
     data: CreateFeedCommentRequest,
 ): Promise<ApiResponse<FeedPostComment>> => {
+    const payload: { content: string; parent_id?: string } = {
+        content: data.content,
+    };
+    if (data.parent_id) {
+        payload.parent_id = data.parent_id;
+    }
     const response = await apiClient.post<ApiResponse<FeedPostComment>>(
         ENDPOINTS.SHARED.POSTS.COMMENTS(postId),
-        data,
+        payload,
+    );
+    return response.data;
+};
+
+/**
+ * Trả lời comment — POST /posts/:id/comments/:commentId/reply (BE post.routes.js)
+ */
+export const replyComment = async (
+    postId: string,
+    parentCommentId: string,
+    data: Pick<CreateFeedCommentRequest, "content">,
+): Promise<ApiResponse<FeedPostComment>> => {
+    const response = await apiClient.post<ApiResponse<FeedPostComment>>(
+        ENDPOINTS.SHARED.POSTS.COMMENT_REPLY(postId, parentCommentId),
+        { content: data.content },
     );
     return response.data;
 };
@@ -220,6 +241,7 @@ const postApi = {
     // Comments
     getComments,
     addComment,
+    replyComment,
     updateComment,
     deleteComment,
 };

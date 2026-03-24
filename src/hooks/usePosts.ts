@@ -146,7 +146,12 @@ export const useAddComment = (postId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (data: CreateFeedCommentRequest) => postApi.addComment(postId, data),
+        mutationFn: (data: CreateFeedCommentRequest) =>
+            data.parent_id
+                ? postApi.replyComment(postId, data.parent_id, {
+                      content: data.content,
+                  })
+                : postApi.addComment(postId, data),
         onMutate: async () => {
             // Cancel any ongoing comments fetch to prevent race conditions
             await queryClient.cancelQueries({ queryKey: postKeys.comments(postId) });
