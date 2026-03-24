@@ -15,6 +15,9 @@ export * from "./journal.types";
 // Planner types
 export * from "./planner.types";
 
+// Wallet (pilgrim)
+export * from "./wallet.types";
+
 // Community types
 export * from "./community.types";
 

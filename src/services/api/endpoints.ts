@@ -90,7 +90,16 @@ export const PILGRIM_ENDPOINTS = {
     DELETE_MESSAGE: (id: string, messageId: string) =>
       `${API_BASE}/planners/${id}/messages/${messageId}`,
     CHECKINS_ME: `${API_BASE}/checkins/me`,
-    CHECKIN_ITEM: (id: string) => `${API_BASE}/planner-items/${id}/checkin`,
+    /** Khớp offline sync: /api/planners/:planId/items/:itemId/checkin */
+    CHECKIN_ITEM: (planId: string, itemId: string) =>
+      `${API_BASE}/planners/${planId}/items/${itemId}/checkin`,
+    PLANNER_STATUS: (id: string) => `${API_BASE}/planners/${id}/status`,
+    ITEM_STATUS: (planId: string, itemId: string) =>
+      `${API_BASE}/planners/${planId}/items/${itemId}/status`,
+    PROGRESS: (id: string) => `${API_BASE}/planners/${id}/progress`,
+    TRANSACTIONS: (id: string) => `${API_BASE}/planners/${id}/transactions`,
+    CANCEL_DEPOSIT: (id: string) =>
+      `${API_BASE}/planners/${id}/cancel-deposit`,
     CALENDAR_SYNC: (id: string) => `${API_BASE}/planners/${id}/calendar-sync`,
     OFFLINE_DATA: (id: string) => `${API_BASE}/planners/${id}/offline-data`,
     SYNC_OFFLINE_ACTIONS: `${API_BASE}/planners/sync/offline-actions`,
@@ -117,15 +126,15 @@ export const PILGRIM_ENDPOINTS = {
 
   // Community - Social features for pilgrims
   COMMUNITY: {
-    // Posts
-    POSTS: `${API_BASE}/community/posts`,
-    POST_DETAIL: (id: string) => `${API_BASE}/community/posts/${id}`,
-    CREATE_POST: `${API_BASE}/community/posts`,
-    LIKE_POST: (id: string) => `${API_BASE}/community/posts/${id}/like`,
-    COMMENTS: (postId: string) =>
-      `${API_BASE}/community/posts/${postId}/comments`,
-    ADD_COMMENT: (postId: string) =>
-      `${API_BASE}/community/posts/${postId}/comments`,
+    // Posts — mount backend tại `/api/posts` (post.routes.js)
+    POSTS: `${API_BASE}/posts`,
+    POST_DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
+    CREATE_POST: `${API_BASE}/posts`,
+    LIKE_POST: (id: string) => `${API_BASE}/posts/${id}/like`,
+    COMMENTS: (postId: string) => `${API_BASE}/posts/${postId}/comments`,
+    ADD_COMMENT: (postId: string) => `${API_BASE}/posts/${postId}/comments`,
+    COMMENT_REPLY: (postId: string, commentId: string) =>
+      `${API_BASE}/posts/${postId}/comments/${commentId}/reply`,
 
     // Testimonies
     TESTIMONIES: `${API_BASE}/community/testimonies`,
@@ -153,6 +162,15 @@ export const PILGRIM_ENDPOINTS = {
     MY_REQUEST: `${API_BASE}/verification-requests/me`,
     GUEST_TRANSITION: `${API_BASE}/verification/transition`,
     PILGRIM_TRANSITION: `${API_BASE}/verification-requests/transition`,
+  },
+
+  /** Wallet — `routes/wallet.routes.js` mount tại `/api/wallet` */
+  WALLET: {
+    INFO: `${API_BASE}/wallet`,
+    TRANSACTIONS: `${API_BASE}/wallet/transactions`,
+    TRANSACTION_DETAIL: (id: string) => `${API_BASE}/wallet/transactions/${id}`,
+    WITHDRAW: `${API_BASE}/wallet/withdraw`,
+    BANKS: `${API_BASE}/wallet/banks`,
   },
 } as const;
 
@@ -345,6 +363,8 @@ export const SHARED_ENDPOINTS = {
     COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
     COMMENT_DETAIL: (id: string, commentId: string) =>
       `${API_BASE}/posts/${id}/comments/${commentId}`,
+    COMMENT_REPLY: (id: string, commentId: string) =>
+      `${API_BASE}/posts/${id}/comments/${commentId}/reply`,
   },
 
   // Reports
