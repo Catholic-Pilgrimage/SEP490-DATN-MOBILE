@@ -125,7 +125,8 @@ const normalizeApiResponse = <T>(
 const OFFLINE_ITEM_PREFIX = "offline_";
 const ADD_ITEM_ENDPOINT_PATTERN = /^\/api\/planners\/([^/]+)\/items$/;
 const ITEM_ENDPOINT_PATTERN = /^\/api\/planners\/([^/]+)\/items\/([^/]+)$/;
-const CHECKIN_ENDPOINT_PATTERN = /^\/api\/planner-items\/([^/]+)\/checkin$/;
+const CHECKIN_ENDPOINT_PATTERN =
+  /^\/api\/planners\/([^/]+)\/items\/([^/]+)\/checkin$/;
 
 const getNestedString = (
   container: Record<string, any>,
@@ -354,7 +355,13 @@ const normalizeOfflinePlannerData = (
           id: itemId,
           planner_id: String(item.planner_id || item.plannerId || plannerId),
           site_id: siteId,
-          day_number: Number(item.day_number || item.dayNumber || item.day || 1),
+          day_number: Number(
+            item.day_number ??
+              item.leg_number ??
+              item.dayNumber ??
+              item.day ??
+              1,
+          ),
           order_in_day: Number(
             item.order_in_day ||
               item.order_index ||
@@ -982,7 +989,12 @@ class OfflineSyncService {
         : null;
 
     if (checkInMatch) {
-      return this.syncCheckInAction(action, checkInMatch[1], tempItemIdMap);
+      return this.syncCheckInAction(
+        action,
+        checkInMatch[1],
+        checkInMatch[2],
+        tempItemIdMap,
+      );
     }
 
     return {
@@ -1087,6 +1099,7 @@ class OfflineSyncService {
 
   private async syncCheckInAction(
     action: OfflineAction,
+    plannerId: string,
     itemId: string,
     tempItemIdMap: Map<string, string>,
   ): Promise<DirectSyncActionResult> {
@@ -1106,6 +1119,7 @@ class OfflineSyncService {
       "client_item_id",
     ]);
     const response = await pilgrimPlannerApi.checkInPlanItem(
+      plannerId,
       resolvedItemId,
       requestPayload as any,
     );

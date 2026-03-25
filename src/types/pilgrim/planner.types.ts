@@ -15,6 +15,7 @@ export type PlanStatus =
   | "cancelled";
 
 export type TransportationType =
+  | "motorbike"
   | "car"
   | "bus"
   | "train"
@@ -39,6 +40,11 @@ export interface PlanItem {
   planner_id?: string;
   site_id?: string;
   event_id?: string;
+  /** Trạng thái điểm đến từ BE: planned | in_progress | visited | skipped | ... */
+  status?: string;
+  /** BE trả về `leg_number` (ngày thứ mấy trong chuyến, bắt đầu 1). */
+  leg_number?: number;
+  /** Dùng nội bộ app / offline; khi đọc từ API ưu tiên đồng bộ với `leg_number`. */
   day_number?: number;
   order_index?: number;
   note?: string;
@@ -88,16 +94,24 @@ export interface PlanInvite {
   email: string;
   inviter_id?: string;
   role: "viewer";
-  status: "pending" | "accepted" | "rejected" | "expired";
+  status:
+    | "pending"
+    | "accepted"
+    | "rejected"
+    | "expired"
+    | "awaiting_payment";
   created_at: string;
   expires_at?: string;
   planner?: {
     id: string;
     name: string;
     estimated_days?: number;
+    number_of_days?: number;
     number_of_people?: number;
     transportation?: string;
     status?: string;
+    start_date?: string;
+    end_date?: string;
     owner?: PlanOwner;
   };
 }
@@ -106,8 +120,34 @@ export interface RespondInviteRequest {
   action: "accept" | "reject";
 }
 
+/** Dữ liệu tùy chọn khi POST /planners/invite/:token (ví dụ redirect thanh toán cọc) */
+export interface RespondInviteResponse {
+  checkout_url?: string;
+  payment_url?: string;
+  message?: string;
+  /** BE: đã trừ cọc từ ví, không cần PayOS */
+  paid_from_wallet?: boolean;
+  deposit_required?: boolean;
+  order_code?: number;
+  amount?: number;
+}
+
+/** Hàng trả về từ GET /planners/:id/members (owner + thành viên, flatten user) */
+export interface PlannerMemberApiRow {
+  id: string;
+  full_name: string;
+  email?: string;
+  avatar_url?: string;
+  joined_at?: string;
+  deposit_status?: string;
+  join_status?: string;
+}
+
 export interface GetMembersResponse {
-  members: PlanMember[];
+  total_slots?: number;
+  current_members?: number;
+  available_slots?: number;
+  members: PlannerMemberApiRow[];
 }
 
 export interface GetInvitesResponse {
@@ -176,6 +216,9 @@ export interface PlanEntity {
   id: string;
   user_id: string;
   name: string;
+  start_date?: string;
+  end_date?: string;
+  number_of_days?: number;
   estimated_days?: number;
   number_of_people: number;
   transportation: string;
@@ -190,6 +233,9 @@ export interface PlanEntity {
   items?: PlanItem[];
   items_by_day?: Record<string, PlanItem[]>;
   is_public?: boolean; // inferred from usage
+  /** Kế hoạch nhóm: cọc thành viên (VND) */
+  deposit_amount?: number;
+  penalty_percentage?: number;
 }
 
 export interface GetPlansResponse {
@@ -204,10 +250,6 @@ export interface GetPlansResponse {
 
 export interface AddPlanItemResponse {
   item: PlanItem;
-}
-
-export interface ReorderPlanItemsResponse {
-  items: PlanItem[];
 }
 
 export interface MessageSender {
@@ -245,24 +287,39 @@ export interface UploadMessageImageResponse {
 // API REQUEST TYPES
 // ============================================
 
+/** POST /api/planners — khớp BE (validator + Planner model) */
 export interface CreatePlanRequest {
   name: string;
-  estimated_days: number;
   number_of_people: number;
-  transportation: string;
+  /** motorbike | car | bus */
+  transportation?: string;
+  /** YYYY-MM-DD, từ ngày mai (BE) */
+  start_date?: string;
+  end_date?: string;
+  deposit_amount?: number;
+  penalty_percentage?: number;
 }
 
-export interface UpdatePlanRequest extends Partial<CreatePlanRequest> {
+export interface UpdatePlanRequest {
+  name?: string;
+  number_of_people?: number;
+  transportation?: string;
+  start_date?: string;
+  end_date?: string;
   status?: string;
+  deposit_amount?: number;
+  penalty_percentage?: number;
 }
 
+/** Body POST /api/planners/:id/items — BE validate `leg_number` (không dùng `day_number`). */
 export interface AddPlanItemRequest {
   site_id: string;
-  day_number: number;
+  leg_number: number;
   event_id?: string;
   note?: string;
   estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
   rest_duration?: string; // Format: text (e.g., "1 hour", "30 minutes", "2 hours 30 minutes")
+  travel_time_minutes?: number;
 }
 
 export interface UpdatePlanItemRequest {
@@ -274,24 +331,9 @@ export interface UpdatePlanItemRequest {
   rest_duration?: string; // Format: "30 minutes", "1 hour", "2 hours 30 minutes"
 }
 
-export interface ReorderPlanItemsRequest {
-  day_number: number;
-  item_ids: string[];
-}
-
 export interface InviteParticipantRequest {
   email: string; // BE dùng email (PlannerInvite.email allowNull: false)
   role: "viewer"; // BE chỉ validate isIn: [['viewer']]
-}
-
-export interface AISuggestionRequest {
-  region?: string;
-  duration: number;
-  interests?: string[];
-  startLocation?: {
-    latitude: number;
-    longitude: number;
-  };
 }
 
 export interface SendPlanMessageRequest {
@@ -346,6 +388,68 @@ export interface CheckInItemResponse {
   check_in: CheckInEntity;
 }
 
+export interface UpdatePlannerStatusRequest {
+  status: "ongoing" | "completed" | "expired";
+}
+
+export interface UpdatePlannerItemStatusRequest {
+  status: "visited" | "skipped";
+}
+
+export interface PlannerProgressMember {
+  user_id: string;
+  total_items: number;
+  checked_in: number;
+  skipped_by_planner: number;
+  missed: number;
+  completed: number;
+  percent: number;
+  history?: Array<{
+    planner_item_id: string;
+    status: string;
+    checkin_date?: string;
+  }>;
+}
+
+export interface PlannerProgressResponse {
+  planner_status: string;
+  total_items: number;
+  total_members: number;
+  member_progress: PlannerProgressMember[];
+}
+
+export interface PlannerTransactionsSummary {
+  total_fund_locked?: number;
+  total_penalty_pending?: number;
+  total_penalty_received?: number;
+  total_refunded?: number;
+}
+
+export interface PlannerTransactionEntry {
+  id?: string;
+  type?: string;
+  amount?: number;
+  label?: string;
+  status?: string;
+  created_at?: string;
+  meta?: {
+    planner_id?: string | null;
+    target_user_id?: string | null;
+    order_code?: string | null;
+  };
+  wallet?: {
+    user?: { id?: string; full_name?: string; email?: string; avatar_url?: string };
+  };
+}
+
+export interface PlannerTransactionsResponse {
+  summary?: PlannerTransactionsSummary;
+  transactions?: PlannerTransactionEntry[];
+  total?: number;
+  totalPages?: number;
+  currentPage?: number;
+}
+
 // ============================================
 // UI / LEGACY TYPES
 // ============================================
@@ -360,4 +464,7 @@ export interface PlanSummary {
   participantCount: number;
   isShared?: boolean;
   transportation?: TransportationType[];
+  /** YYYY-MM-DD từ API */
+  startDate?: string;
+  endDate?: string;
 }

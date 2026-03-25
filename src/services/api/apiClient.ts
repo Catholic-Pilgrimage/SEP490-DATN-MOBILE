@@ -216,8 +216,11 @@ function transformError(error: AxiosError): Error {
 
   const { status, data } = error.response as AxiosResponse<any>;
 
-  // Extract error message from API response
-  const apiMessage = data?.error?.message || data?.message;
+  // Extract error message from API response (hỗ trợ nhiều dạng body)
+  const apiMessage =
+    (typeof data?.error === "string" ? data.error : null) ??
+    data?.error?.message ??
+    data?.message;
 
   // Extract validation details if available
   const details = data?.error?.details || data?.details;
@@ -248,6 +251,10 @@ function transformError(error: AxiosError): Error {
       return new Error(fullMessage || ERROR_MESSAGES.ACCOUNT_LOCKED);
     case HTTP_STATUS.NOT_FOUND:
       return new Error(fullMessage || "Không tìm thấy tài nguyên.");
+    case HTTP_STATUS.CONFLICT:
+      return new Error(
+        fullMessage || "Dữ liệu xung đột với trạng thái hiện tại (ví dụ trùng ca).",
+      );
     case HTTP_STATUS.INTERNAL_SERVER_ERROR:
       return new Error(fullMessage || ERROR_MESSAGES.SERVER_ERROR);
     default:

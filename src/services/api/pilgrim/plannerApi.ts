@@ -1,57 +1,133 @@
 /**
- * Pilgrim Planner API
- * Handles trip planning for Pilgrims
+ * Pilgrim Planner API — /api/planners, /api/checkins/me
  *
- * Endpoints:
- * - GET    /api/plans              - List plans
- * - POST   /api/plans              - Create plan
- * - GET    /api/plans/:id          - Get plan detail
- * - PUT    /api/plans/:id          - Update plan
- * - DELETE /api/plans/:id          - Delete plan
- * - POST   /api/plans/ai-suggest   - Get AI suggestions
- * - POST   /api/plans/:id/invite   - Invite participant
- * - GET    /api/plans/:id/participants - Get participants
- * - GET    /api/checkins/me        - Get my check-ins
- * - POST   /api/planner-items/:id/checkin - Check-in at planner item
+ * Không dùng từ app: POST /api/planners/deposit-webhook (PayOS → backend).
+ * Các route không tồn tại trên BE hiện tại đã được gỡ khỏi client: ai-suggest, participants, reorder.
  */
 
 import { ApiResponse, PaginationParams } from "../../../types/api.types";
 import {
-    AddPlanItemRequest,
-    AddPlanItemResponse,
-    AISuggestionRequest,
-    CheckInEntity,
-    CheckInItemRequest,
-    CheckInItemResponse,
-    CreatePlanRequest,
-    GetInvitesResponse,
-    GetMembersResponse,
-    GetPlanMessagesResponse,
-    GetPlansResponse,
-    InviteParticipantRequest,
-    PlanCalendarSyncData,
-    PlanEntity,
-    PlanInvite,
-    PlanItem,
-    PlannerMessage,
-    PlanParticipant, // Keeping old type for now if needed, or remove if unused in updated functions
-    ReorderPlanItemsRequest,
-    ReorderPlanItemsResponse,
-    RespondInviteRequest,
-    SendPlanMessageRequest,
-    UpdatePlanItemRequest,
-    UpdatePlanRequest
+  AddPlanItemRequest,
+  AddPlanItemResponse,
+  CheckInEntity,
+  CheckInItemRequest,
+  CheckInItemResponse,
+  CreatePlanRequest,
+  GetInvitesResponse,
+  GetMembersResponse,
+  GetPlanMessagesResponse,
+  GetPlansResponse,
+  InviteParticipantRequest,
+  PlanCalendarSyncData,
+  PlanEntity,
+  PlanInvite,
+  PlanItem,
+  PlannerMessage,
+  PlannerProgressResponse,
+  PlannerTransactionsResponse,
+  PlanOwner,
+  PlanParticipant,
+  RespondInviteRequest,
+  RespondInviteResponse,
+  SendPlanMessageRequest,
+  UpdatePlanItemRequest,
+  UpdatePlannerItemStatusRequest,
+  UpdatePlannerStatusRequest,
+  UpdatePlanRequest,
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
 
-// ============================================
-// API FUNCTIONS
-// ============================================
+type InvitePreviewApiPayload =
+  | PlanInvite
+  | { invite: Record<string, unknown>; planner?: Record<string, unknown> };
 
-/**
- * Get list of plans
- */
+function isNestedInvitePreview(
+  d: unknown,
+): d is { invite: Record<string, unknown>; planner?: Record<string, unknown> } {
+  if (typeof d !== "object" || d === null) return false;
+  const o = d as Record<string, unknown>;
+  const inv = o.invite;
+  return typeof inv === "object" && inv !== null && !Array.isArray(inv);
+}
+
+function coerceInviteStatus(raw: unknown): PlanInvite["status"] {
+  if (
+    raw === "pending" ||
+    raw === "accepted" ||
+    raw === "rejected" ||
+    raw === "expired" ||
+    raw === "awaiting_payment"
+  ) {
+    return raw;
+  }
+  return "pending";
+}
+
+function mapPlannerFromInvitePreview(
+  pl: Record<string, unknown>,
+): NonNullable<PlanInvite["planner"]> {
+  const ownerRaw = pl.owner;
+  let owner: PlanOwner | undefined;
+  if (typeof ownerRaw === "object" && ownerRaw !== null) {
+    const or = ownerRaw as Record<string, unknown>;
+    owner = {
+      id: String(or.id ?? ""),
+      full_name: String(or.full_name ?? ""),
+      email: String(or.email ?? ""),
+      avatar_url: String(or.avatar_url ?? ""),
+    };
+  }
+  return {
+    id: String(pl.id ?? ""),
+    name: String(pl.name ?? ""),
+    estimated_days:
+      typeof pl.estimated_days === "number" ? pl.estimated_days : undefined,
+    number_of_days:
+      typeof pl.number_of_days === "number" ? pl.number_of_days : undefined,
+    number_of_people:
+      typeof pl.number_of_people === "number" ? pl.number_of_people : undefined,
+    transportation:
+      typeof pl.transportation === "string" ? pl.transportation : undefined,
+    status: typeof pl.status === "string" ? pl.status : undefined,
+    start_date: typeof pl.start_date === "string" ? pl.start_date : undefined,
+    end_date: typeof pl.end_date === "string" ? pl.end_date : undefined,
+    owner,
+  };
+}
+
+function normalizeInvitePreviewPayload(
+  token: string,
+  d: InvitePreviewApiPayload,
+): PlanInvite {
+  if (isNestedInvitePreview(d)) {
+    const inv = d.invite;
+    const plRaw = d.planner;
+    const planner =
+      plRaw && typeof plRaw === "object" && !Array.isArray(plRaw)
+        ? mapPlannerFromInvitePreview(plRaw as Record<string, unknown>)
+        : undefined;
+    return {
+      id: String(inv.id ?? ""),
+      planner_id: String(planner?.id ?? inv["planner_id"] ?? ""),
+      token: String(inv.token ?? token),
+      email: String(inv.email ?? ""),
+      inviter_id: inv.inviter_id != null ? String(inv.inviter_id) : undefined,
+      role: inv.role === "viewer" ? "viewer" : "viewer",
+      status: coerceInviteStatus(inv.status),
+      created_at: String(inv.created_at ?? ""),
+      expires_at: inv.expires_at != null ? String(inv.expires_at) : undefined,
+      planner,
+    };
+  }
+  const flat = d as PlanInvite;
+  return {
+    ...flat,
+    token: flat.token?.trim() ? flat.token : token,
+    status: coerceInviteStatus(flat.status),
+  };
+}
+
 export const getPlans = async (
   params?: PaginationParams,
 ): Promise<ApiResponse<GetPlansResponse>> => {
@@ -62,9 +138,6 @@ export const getPlans = async (
   return response.data;
 };
 
-/**
- * Get plan detail
- */
 export const getPlanDetail = async (
   id: string,
 ): Promise<ApiResponse<PlanEntity>> => {
@@ -74,9 +147,6 @@ export const getPlanDetail = async (
   return response.data;
 };
 
-/**
- * Get calendar sync payload for a plan
- */
 export const getPlanCalendarSync = async (
   planId: string,
 ): Promise<ApiResponse<PlanCalendarSyncData>> => {
@@ -86,9 +156,6 @@ export const getPlanCalendarSync = async (
   return response.data;
 };
 
-/**
- * Create new plan
- */
 export const createPlan = async (
   data: CreatePlanRequest,
 ): Promise<ApiResponse<PlanEntity>> => {
@@ -99,23 +166,71 @@ export const createPlan = async (
   return response.data;
 };
 
-/**
- * Update plan
- */
 export const updatePlan = async (
   id: string,
   data: UpdatePlanRequest,
 ): Promise<ApiResponse<PlanEntity>> => {
-  const response = await apiClient.patch<ApiResponse<PlanEntity>>(
+  const response = await apiClient.put<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.UPDATE(id),
     data,
   );
   return response.data;
 };
 
-/**
- * Delete plan
- */
+export const updatePlannerStatus = async (
+  planId: string,
+  data: UpdatePlannerStatusRequest,
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.patch<ApiResponse<PlanEntity>>(
+    PILGRIM_ENDPOINTS.PLANNER.PLANNER_STATUS(planId),
+    data,
+  );
+  return response.data;
+};
+
+export const updatePlannerItemStatus = async (
+  planId: string,
+  itemId: string,
+  data: UpdatePlannerItemStatusRequest,
+): Promise<ApiResponse<PlanItem>> => {
+  const response = await apiClient.patch<ApiResponse<PlanItem>>(
+    PILGRIM_ENDPOINTS.PLANNER.ITEM_STATUS(planId, itemId),
+    data,
+  );
+  return response.data;
+};
+
+export const getPlannerProgress = async (
+  planId: string,
+): Promise<ApiResponse<PlannerProgressResponse>> => {
+  const response = await apiClient.get<ApiResponse<PlannerProgressResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.PROGRESS(planId),
+  );
+  return response.data;
+};
+
+export const getPlannerTransactions = async (
+  planId: string,
+  params?: PaginationParams,
+): Promise<ApiResponse<PlannerTransactionsResponse>> => {
+  const response = await apiClient.get<
+    ApiResponse<PlannerTransactionsResponse>
+  >(PILGRIM_ENDPOINTS.PLANNER.TRANSACTIONS(planId), { params });
+  return response.data;
+};
+
+/** User đang có lời mời awaiting_payment (email khớp) — hủy link PayOS / reset hoặc reject */
+export const cancelPlannerDeposit = async (
+  planId: string,
+  body: { reject: boolean },
+): Promise<ApiResponse<{ message?: string }>> => {
+  const response = await apiClient.post<ApiResponse<{ message?: string }>>(
+    PILGRIM_ENDPOINTS.PLANNER.CANCEL_DEPOSIT(planId),
+    body,
+  );
+  return response.data;
+};
+
 export const deletePlan = async (id: string): Promise<ApiResponse<void>> => {
   const response = await apiClient.delete<ApiResponse<void>>(
     PILGRIM_ENDPOINTS.PLANNER.DELETE(id),
@@ -123,9 +238,6 @@ export const deletePlan = async (id: string): Promise<ApiResponse<void>> => {
   return response.data;
 };
 
-/**
- * Add item to plan
- */
 export const addPlanItem = async (
   planId: string,
   data: AddPlanItemRequest,
@@ -137,9 +249,6 @@ export const addPlanItem = async (
   return response.data;
 };
 
-/**
- * Update an item in plan
- */
 export const updatePlanItem = async (
   planId: string,
   itemId: string,
@@ -152,9 +261,6 @@ export const updatePlanItem = async (
   return response.data;
 };
 
-/**
- * Delete item from plan
- */
 export const deletePlanItem = async (
   planId: string,
   itemId: string,
@@ -165,36 +271,6 @@ export const deletePlanItem = async (
   return response.data;
 };
 
-/**
- * Reorder items in plan
- */
-export const reorderPlanItems = async (
-  planId: string,
-  data: ReorderPlanItemsRequest,
-): Promise<ApiResponse<ReorderPlanItemsResponse>> => {
-  const response = await apiClient.patch<ApiResponse<ReorderPlanItemsResponse>>(
-    PILGRIM_ENDPOINTS.PLANNER.REORDER_ITEMS(planId),
-    data,
-  );
-  return response.data;
-};
-
-/**
- * Get AI trip suggestions
- */
-export const getAISuggestions = async (
-  data: AISuggestionRequest,
-): Promise<ApiResponse<PlanEntity>> => {
-  const response = await apiClient.post<ApiResponse<PlanEntity>>(
-    PILGRIM_ENDPOINTS.PLANNER.AI_SUGGEST,
-    data,
-  );
-  return response.data;
-};
-
-/**
- * Invite participant to plan
- */
 export const inviteParticipant = async (
   planId: string,
   data: InviteParticipantRequest,
@@ -206,63 +282,49 @@ export const inviteParticipant = async (
   return response.data;
 };
 
-/**
- * Get plan participants (legacy - kept for backward compat)
- */
-export const getParticipants = async (
-  planId: string,
-): Promise<ApiResponse<PlanParticipant[]>> => {
-  const response = await apiClient.get<ApiResponse<PlanParticipant[]>>(
-    PILGRIM_ENDPOINTS.PLANNER.PARTICIPANTS(planId),
-  );
-  return response.data;
-};
-
-/**
- * Preview plan via invite token (no auth required)
- * GET /api/planners/invite/{token}
- */
 export const getPlanByInviteToken = async (
   token: string,
 ): Promise<ApiResponse<PlanInvite>> => {
-  const response = await apiClient.get<ApiResponse<PlanInvite>>(
+  const response = await apiClient.get<ApiResponse<InvitePreviewApiPayload>>(
     PILGRIM_ENDPOINTS.PLANNER.INVITE_BY_TOKEN(token),
   );
-  return response.data;
+  const body = response.data;
+  const raw = body.data;
+  if (raw == null) {
+    return { ...body, data: undefined };
+  }
+  return {
+    ...body,
+    data: normalizeInvitePreviewPayload(token, raw),
+  };
 };
 
-/**
- * Respond to invite (accept/reject)
- * POST /api/planners/invite/{token}
- */
 export const respondToInvite = async (
   token: string,
   data: RespondInviteRequest,
-): Promise<ApiResponse<void>> => {
-  const response = await apiClient.post<ApiResponse<void>>(
-    PILGRIM_ENDPOINTS.PLANNER.INVITE_BY_TOKEN(token),
-    data,
-  );
+): Promise<ApiResponse<RespondInviteResponse | void>> => {
+  const response = await apiClient.post<
+    ApiResponse<RespondInviteResponse | void>
+  >(PILGRIM_ENDPOINTS.PLANNER.INVITE_BY_TOKEN(token), data);
   return response.data;
 };
 
-/**
- * Get list of invites for a plan
- * GET /api/planners/{id}/invites
- */
 export const getPlanInvites = async (
   planId: string,
 ): Promise<ApiResponse<GetInvitesResponse>> => {
-  const response = await apiClient.get<ApiResponse<GetInvitesResponse>>(
-    PILGRIM_ENDPOINTS.PLANNER.INVITES(planId),
-  );
-  return response.data;
+  const response = await apiClient.get<
+    ApiResponse<PlanInvite[] | GetInvitesResponse>
+  >(PILGRIM_ENDPOINTS.PLANNER.INVITES(planId));
+  const body = response.data;
+  const raw = body.data;
+  const invites = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && "invites" in raw
+      ? (raw as GetInvitesResponse).invites
+      : [];
+  return { ...body, data: { invites } };
 };
 
-/**
- * Get members of a plan
- * GET /api/planners/{id}/members
- */
 export const getPlanMembers = async (
   planId: string,
 ): Promise<ApiResponse<GetMembersResponse>> => {
@@ -272,10 +334,6 @@ export const getPlanMembers = async (
   return response.data;
 };
 
-/**
- * Remove a member from a plan
- * DELETE /api/planners/{id}/members/{memberId}
- */
 export const removePlanMember = async (
   planId: string,
   memberId: string,
@@ -286,9 +344,6 @@ export const removePlanMember = async (
   return response.data;
 };
 
-/**
- * Get plan messages (chat)
- */
 export const getPlanMessages = async (
   planId: string,
   params?: PaginationParams,
@@ -300,9 +355,6 @@ export const getPlanMessages = async (
   return response.data;
 };
 
-/**
- * Send message to plan (chat)
- */
 export const sendPlanMessage = async (
   planId: string,
   data: SendPlanMessageRequest,
@@ -314,9 +366,6 @@ export const sendPlanMessage = async (
   return response.data;
 };
 
-/**
- * Delete message from plan (chat)
- */
 export const deletePlanMessage = async (
   planId: string,
   messageId: string,
@@ -327,10 +376,6 @@ export const deletePlanMessage = async (
   return response.data;
 };
 
-/**
- * Get my check-ins
- * API returns array directly in data field, not wrapped in check_ins key
- */
 export const getMyCheckIns = async (
   params?: PaginationParams,
 ): Promise<ApiResponse<CheckInEntity[]>> => {
@@ -341,50 +386,36 @@ export const getMyCheckIns = async (
   return response.data;
 };
 
-/**
- * Check-in at a planner item
- */
 export const checkInPlanItem = async (
+  planId: string,
   itemId: string,
   data: CheckInItemRequest,
 ): Promise<ApiResponse<CheckInItemResponse>> => {
   const response = await apiClient.post<ApiResponse<CheckInItemResponse>>(
-    PILGRIM_ENDPOINTS.PLANNER.CHECKIN_ITEM(itemId),
+    PILGRIM_ENDPOINTS.PLANNER.CHECKIN_ITEM(planId, itemId),
     data,
   );
   return response.data;
 };
 
-/**
- * Get offline data for a plan
- * GET /api/planners/{id}/offline-data
- */
 export const getOfflineData = async (
   planId: string,
-): Promise<ApiResponse<any>> => {
-  const response = await apiClient.get<ApiResponse<any>>(
+): Promise<ApiResponse<unknown>> => {
+  const response = await apiClient.get<ApiResponse<unknown>>(
     PILGRIM_ENDPOINTS.PLANNER.OFFLINE_DATA(planId),
   );
   return response.data;
 };
 
-/**
- * Sync offline actions
- * POST /api/planners/sync/offline-actions
- */
 export const syncOfflineActions = async (
-  data: any,
-): Promise<ApiResponse<any>> => {
-  const response = await apiClient.post<ApiResponse<any>>(
+  data: unknown,
+): Promise<ApiResponse<unknown>> => {
+  const response = await apiClient.post<ApiResponse<unknown>>(
     PILGRIM_ENDPOINTS.PLANNER.SYNC_OFFLINE_ACTIONS,
     data,
   );
   return response.data;
 };
-
-// ============================================
-// EXPORT
-// ============================================
 
 const pilgrimPlannerApi = {
   getPlans,
@@ -392,10 +423,13 @@ const pilgrimPlannerApi = {
   getPlanCalendarSync,
   createPlan,
   updatePlan,
+  updatePlannerStatus,
+  updatePlannerItemStatus,
+  getPlannerProgress,
+  getPlannerTransactions,
+  cancelPlannerDeposit,
   deletePlan,
-  getAISuggestions,
   inviteParticipant,
-  getParticipants,
   getPlanByInviteToken,
   respondToInvite,
   getPlanInvites,
@@ -404,7 +438,6 @@ const pilgrimPlannerApi = {
   addPlanItem,
   updatePlanItem,
   deletePlanItem,
-  reorderPlanItems,
   getPlanMessages,
   sendPlanMessage,
   deletePlanMessage,
