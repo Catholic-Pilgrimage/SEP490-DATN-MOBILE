@@ -1,10 +1,11 @@
 // MySite Stack Navigator - handles navigation within My Site feature
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { 
-  MySiteScreen, 
+import {
+  MySiteScreen,
   MediaUploadScreen,
   MediaDetailScreen,
+  SiteModels3dScreen,
 } from '../features/guide/my-site/screens';
 import EventDetailScreen from '../features/guide/my-site/screens/EventDetailScreenNew';
 import { EventItem, MediaItem } from '../types/guide';
@@ -14,6 +15,7 @@ export type MySiteStackParamList = {
   EventDetail: { event?: EventItem };
   MediaUpload: undefined;
   MediaDetail: { media: MediaItem };
+  SiteModels3d: undefined;
 };
 
 const Stack = createNativeStackNavigator<MySiteStackParamList>();
@@ -30,6 +32,7 @@ export const MySiteNavigator = () => {
       <Stack.Screen name="EventDetail" component={EventDetailScreen} />
       <Stack.Screen name="MediaUpload" component={MediaUploadScreen} />
       <Stack.Screen name="MediaDetail" component={MediaDetailScreen} />
+      <Stack.Screen name="SiteModels3d" component={SiteModels3dScreen} />
     </Stack.Navigator>
   );
 };

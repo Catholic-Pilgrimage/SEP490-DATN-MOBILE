@@ -3,7 +3,8 @@
  * Handles media operations for Local Guide
  *
  * Endpoints:
- * - GET    /api/local-guide/media          - List media
+ * - GET    /api/local-guide/media          - List media (bản của Local Guide; không gồm 3D do Manager)
+ * - GET    /api/local-guide/site-media     - Media đã duyệt của site (gồm model_3d)
  * - POST   /api/local-guide/media          - Upload media
  * - PUT    /api/local-guide/media/:id      - Update media
  * - DELETE /api/local-guide/media/:id      - Delete media (soft)
@@ -13,14 +14,23 @@
 import { ApiResponse } from "../../../types/api.types";
 import {
     GetMediaParams,
+    GetSiteMediaParams,
     MediaItem,
     MediaListData,
     UpdateMediaRequest,
     UploadMediaRequest,
     UploadMediaWithYouTubeRequest,
 } from "../../../types/guide";
+import { normalizeMediaItem } from "../../../utils/mediaUtils";
 import apiClient from "../apiClient";
 import { GUIDE_ENDPOINTS } from "../endpoints";
+
+function normalizeMediaListData(data: MediaListData): MediaListData {
+  return {
+    ...data,
+    data: data.data.map(normalizeMediaItem),
+  };
+}
 
 // ============================================
 // API FUNCTIONS
@@ -30,6 +40,7 @@ import { GUIDE_ENDPOINTS } from "../endpoints";
  * Get media list for the local guide's site
  *
  * @param params - Query parameters for filtering and pagination
+ * @param params.type - Optional: `image` | `video` | `model_3d` (API values)
  * @returns Paginated list of media items
  *
  * Response codes:
@@ -44,7 +55,29 @@ export const getMedia = async (
     GUIDE_ENDPOINTS.LOCAL_GUIDE_MEDIA.LIST,
     { params },
   );
-  return response.data;
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaListData(out.data) };
+  }
+  return out;
+};
+
+/**
+ * Media đã duyệt của site (Local Guide) — dùng để hiển thị mô hình 3D do Manager upload,
+ * không xuất hiện trong {@link getMedia}.
+ */
+export const getSiteApprovedMedia = async (
+  params?: GetSiteMediaParams,
+): Promise<ApiResponse<MediaListData>> => {
+  const response = await apiClient.get<ApiResponse<MediaListData>>(
+    GUIDE_ENDPOINTS.LOCAL_GUIDE_MEDIA.SITE_MEDIA_LIST,
+    { params },
+  );
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaListData(out.data) };
+  }
+  return out;
 };
 
 /**
@@ -88,7 +121,11 @@ export const uploadMedia = async (
       headers: { "Content-Type": "multipart/form-data" },
     },
   );
-  return response.data;
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaItem(out.data) };
+  }
+  return out;
 };
 
 /**
@@ -118,7 +155,11 @@ export const uploadMediaWithYouTube = async (
       headers: { "Content-Type": "application/json" },
     },
   );
-  return response.data;
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaItem(out.data) };
+  }
+  return out;
 };
 
 /**
@@ -144,7 +185,7 @@ export const updateMedia = async (
   if (data.type) formData.append("type", data.type);
   if (data.caption !== undefined) formData.append("caption", data.caption);
   if (data.url) formData.append("url", data.url);
-  
+
   // React Native FormData format for file upload
   if (data.file) {
     formData.append("file", {
@@ -161,7 +202,11 @@ export const updateMedia = async (
       headers: { "Content-Type": "multipart/form-data" },
     },
   );
-  return response.data;
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaItem(out.data) };
+  }
+  return out;
 };
 
 /**
@@ -203,7 +248,11 @@ export const restoreMedia = async (
   const response = await apiClient.patch<ApiResponse<MediaItem>>(
     GUIDE_ENDPOINTS.LOCAL_GUIDE_MEDIA.RESTORE(id),
   );
-  return response.data;
+  const out = response.data;
+  if (out.success && out.data) {
+    return { ...out, data: normalizeMediaItem(out.data) };
+  }
+  return out;
 };
 
 // ============================================
@@ -212,6 +261,7 @@ export const restoreMedia = async (
 
 const guideMediaApi = {
   getMedia,
+  getSiteApprovedMedia,
   uploadMedia,
   uploadMediaWithYouTube,
   updateMedia,

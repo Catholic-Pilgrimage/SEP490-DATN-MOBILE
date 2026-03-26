@@ -15,7 +15,8 @@ import { MediaItem, MediaStatus, MediaType } from "../types/guide";
 export const MEDIA_MIME_TYPES: Record<MediaType, string[]> = {
   image: ["image/jpeg", "image/png", "image/webp", "image/gif"],
   video: ["video/mp4", "video/quicktime", "video/x-msvideo", "video/webm"],
-  panorama: ["image/jpeg", "image/png"],
+  /** Upload 3D qua app Guide không hỗ trợ — chỉ để đồng bộ type & label */
+  model_3d: ["model/gltf+json", "model/gltf-binary"],
 };
 
 /**
@@ -24,7 +25,7 @@ export const MEDIA_MIME_TYPES: Record<MediaType, string[]> = {
 export const MEDIA_MAX_SIZES: Record<MediaType, number> = {
   image: 10 * 1024 * 1024, // 10MB
   video: 100 * 1024 * 1024, // 100MB
-  panorama: 20 * 1024 * 1024, // 20MB
+  model_3d: 50 * 1024 * 1024, // 50MB — tham chiếu; upload do Manager
 };
 
 /**
@@ -33,7 +34,7 @@ export const MEDIA_MAX_SIZES: Record<MediaType, number> = {
 export const MEDIA_TYPE_LABELS: Record<MediaType, string> = {
   image: "Hình ảnh",
   video: "Video",
-  panorama: "Ảnh 360°",
+  model_3d: "Mô hình 3D",
 };
 
 /**
@@ -144,6 +145,13 @@ export const validateMediaUpload = (
   file?: File | Blob,
   url?: string,
 ): MediaValidationResult => {
+  if (mediaType === "model_3d") {
+    return {
+      valid: false,
+      error: "Upload mô hình 3D do quản lý site thực hiện trên hệ thống quản trị.",
+    };
+  }
+
   // For video, either file or YouTube URL is required
   if (mediaType === "video") {
     if (!file && !url) {
@@ -158,7 +166,7 @@ export const validateMediaUpload = (
     }
   }
 
-  // For image and panorama, file is required
+  // For image (and model_3d blocked above), file is required
   if (mediaType !== "video" && !file) {
     return {
       valid: false,
@@ -186,36 +194,50 @@ export const validateMediaUpload = (
 // HELPERS
 // ============================================
 
-/**
- * Get thumbnail URL from video URL
- */
-export const getVideoThumbnail = (url: string): string | null => {
-  // Extract YouTube video ID
-  const youtubeMatch = url.match(
-    /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/,
-  );
+/** Chuẩn ID video YouTube (watch, embed, shorts, youtu.be). */
+const YOUTUBE_VIDEO_ID_REGEX =
+  /(?:youtube\.com\/(?:[^/\n\s]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\s]{11})/;
 
-  if (youtubeMatch) {
-    const videoId = youtubeMatch[1];
-    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-  }
+export function extractYoutubeVideoId(url: string): string | null {
+  const m = url.match(YOUTUBE_VIDEO_ID_REGEX);
+  return m?.[1] ?? null;
+}
 
-  return null;
-};
-
-/**
- * Check if media can be edited (only pending or rejected)
- */
-export const canEditMedia = (media: MediaItem): boolean => {
-  return media.status === "pending" || media.status === "rejected";
-};
+/** Kích thước ảnh preview từ i.ytimg (grid dùng mq để nhẹ hơn hq). */
+export type YoutubeThumbnailSize =
+  | "default"
+  | "mqdefault"
+  | "hqdefault"
+  | "sddefault"
+  | "maxresdefault";
 
 /**
- * Check if media can be deleted (only pending or rejected)
+ * URL thumbnail YouTube từ link (dùng chung grid / detail / upload preview).
  */
-export const canDeleteMedia = (media: MediaItem): boolean => {
-  return media.status === "pending" || media.status === "rejected";
+export const getVideoThumbnail = (
+  url: string,
+  size: YoutubeThumbnailSize = "hqdefault",
+): string | null => {
+  const videoId = extractYoutubeVideoId(url);
+  if (!videoId) return null;
+  return `https://img.youtube.com/vi/${videoId}/${size}.jpg`;
 };
+
+/** Video YouTube nhúng (type video + URL parse được ID). */
+export function isYoutubeVideoMedia(item: {
+  type: MediaType;
+  url: string;
+}): boolean {
+  return item.type === "video" && extractYoutubeVideoId(item.url) !== null;
+}
+
+/** Chỉ pending / rejected được sửa hoặc xóa — cùng điều kiện. */
+const canModifyPendingOrRejected = (media: MediaItem): boolean =>
+  media.status === "pending" || media.status === "rejected";
+
+export const canEditMedia = canModifyPendingOrRejected;
+
+export const canDeleteMedia = canModifyPendingOrRejected;
 
 /**
  * Check if media can be restored
@@ -245,12 +267,22 @@ export const getMediaTypeIcon = (type: MediaType): string => {
       return "image";
     case "video":
       return "videocam";
-    case "panorama":
-      return "360";
+    case "model_3d":
+      return "view-in-ar";
     default:
       return "insert-drive-file";
   }
 };
+
+/**
+ * API cũ có thể vẫn trả `panorama` — coi như ảnh thường.
+ */
+export function normalizeMediaItem(item: MediaItem): MediaItem {
+  if ((item.type as string) === "panorama") {
+    return { ...item, type: "image" };
+  }
+  return item;
+}
 
 /**
  * Filter active media from list

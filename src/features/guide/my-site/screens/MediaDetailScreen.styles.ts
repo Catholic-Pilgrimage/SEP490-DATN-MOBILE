@@ -5,6 +5,7 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
+import { PREMIUM_COLORS } from "../constants";
 
 export const styles = StyleSheet.create({
   /** Nền kem — phần dưới hero + transition mềm */
@@ -29,6 +30,31 @@ export const styles = StyleSheet.create({
   imagePressable: {
     width: "100%",
     height: "100%",
+  },
+  /**
+   * Hero 4:3 — YouTube 16:9: căn giữa theo chiều dọc, tránh khoảng đen lệch một phía
+   * (iframe full trước đây gây letterbox trong WebView).
+   */
+  youtubeHeroShell: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  /** Khung 16:9 full chiều ngang, cao suy ra từ tỷ lệ — nằm giữa vùng đen */
+  youtubeEmbedFrame: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    minHeight: 0,
+    minWidth: 0,
+    alignSelf: "stretch",
+  },
+  youtubeInlinePlaceholder: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    alignSelf: "stretch",
+    backgroundColor: "#000",
   },
   replaceOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -71,6 +97,11 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 10,
   },
+  headerRightCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerButton: {
     width: 40,
     height: 40,
@@ -91,6 +122,21 @@ export const styles = StyleSheet.create({
         elevation: 6,
       },
     }),
+  },
+  /** Nút fullscreen mô hình 3D — nổi bật trên nền tối */
+  headerButtonModel3d: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    borderColor: "rgba(0,0,0,0.14)",
+    borderWidth: 1,
+  },
+  /** CTA phía trên panel — chỉ mô hình 3D */
+  model3dFullscreenCtaWrap: {
+    position: "absolute",
+    left: GUIDE_SPACING.md,
+    right: GUIDE_SPACING.md,
+    alignItems: "center",
+    zIndex: 8,
+    pointerEvents: "box-none",
   },
   /** Viền kính nhẹ quanh badge trạng thái — tách khỏi nền ảnh */
   statusBadgeShell: {
@@ -140,6 +186,34 @@ export const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: GUIDE_COLORS.surface,
+  },
+
+  /** YouTube hero: overlay giữa — tap mở fullscreen */
+  youtubePlayOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
+    zIndex: 6,
+  },
+  youtubePlayCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.45,
+        shadowRadius: 10,
+      },
+      android: { elevation: 10 },
+    }),
   },
 
   // Play Button

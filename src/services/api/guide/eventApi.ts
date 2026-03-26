@@ -73,6 +73,9 @@ export const createEvent = async (
   if (data.description) {
     formData.append("description", data.description);
   }
+  if (data.category?.trim()) {
+    formData.append("category", data.category.trim());
+  }
   if (data.end_date) {
     formData.append("end_date", data.end_date);
   }
@@ -100,6 +103,7 @@ export const createEvent = async (
     formData,
     {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000, // 120s for image upload (server may cold-start)
     }
   );
   return response.data;
@@ -133,6 +137,9 @@ export const updateEvent = async (
   if (data.description !== undefined) {
     formData.append("description", data.description);
   }
+  if (data.category !== undefined) {
+    formData.append("category", data.category.trim());
+  }
   if (data.start_date !== undefined) {
     formData.append("start_date", data.start_date);
   }
@@ -163,6 +170,7 @@ export const updateEvent = async (
     formData,
     {
       headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000, // 120s for image upload (server may cold-start)
     }
   );
   return response.data;

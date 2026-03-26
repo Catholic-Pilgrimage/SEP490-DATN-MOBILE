@@ -1,29 +1,34 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
+import {
+  MAX_DEPOSIT_VND,
+  parsePenaltyPercent,
+  parseVndInteger,
+} from "../utils/depositInput.utils";
 
 // Helper functions for calendar
 const getDaysInMonth = (year: number, month: number) => {
@@ -52,6 +57,38 @@ const generateCalendarDays = (year: number, month: number) => {
   return days;
 };
 
+/** Ngày local YYYY-MM-DD — trùng cách BE validate DATEONLY */
+function toLocalYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseYMDLocal(ymd: string): Date {
+  const [y, mo, da] = ymd.split("-").map((x) => parseInt(x, 10));
+  return new Date(y, mo - 1, da);
+}
+
+function addDaysToYMD(ymd: string, days: number): string {
+  const d = parseYMDLocal(ymd);
+  d.setDate(d.getDate() + days);
+  return toLocalYMD(d);
+}
+
+function tomorrowYMD(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toLocalYMD(d);
+}
+
+function inclusiveTripDays(startYMD: string, endYMD: string): number {
+  const a = parseYMDLocal(startYMD).getTime();
+  const b = parseYMDLocal(endYMD).getTime();
+  if (b < a) return 0;
+  return Math.ceil((b - a) / (1000 * 60 * 60 * 24)) + 1;
+}
+
 const CreatePlanScreen = ({ navigation }: any) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -63,26 +100,46 @@ const CreatePlanScreen = ({ navigation }: any) => {
     });
     return () => {
       navigation.getParent()?.setOptions({
-        tabBarStyle: { display: "flex" }, 
+        tabBarStyle: { display: "flex" },
       });
     };
   }, [navigation]);
 
-  // Form State
   const [name, setName] = useState("");
-  const [estimatedDays, setEstimatedDays] = useState(4); // Default 4 days
 
-  // Date picker modal states
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [startDate, setStartDate] = useState(() => tomorrowYMD());
+  const [endDate, setEndDate] = useState(() =>
+    addDaysToYMD(tomorrowYMD(), 3),
+  );
 
-  // Calendar navigation states
-  const [calendarDate, setCalendarDate] = useState(() => new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
-  // Extra fields to satisfy API
+  const [startCalendarDate, setStartCalendarDate] = useState(() => {
+    const t0 = parseYMDLocal(tomorrowYMD());
+    return new Date(t0.getFullYear(), t0.getMonth(), 1);
+  });
+  const [endCalendarDate, setEndCalendarDate] = useState(() => {
+    const t0 = parseYMDLocal(addDaysToYMD(tomorrowYMD(), 3));
+    return new Date(t0.getFullYear(), t0.getMonth(), 1);
+  });
+
   const [peopleCount, setPeopleCount] = useState(1);
-  const [transportation, setTransportation] = useState("bus"); // Default bus
+  /** BE: motorbike | car | bus */
+  const [transportation, setTransportation] = useState<"bus" | "car" | "motorbike">(
+    "bus",
+  );
+
+  const [depositAmountInput, setDepositAmountInput] = useState("");
+  const [penaltyPercentInput, setPenaltyPercentInput] = useState("0");
 
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (endDate < startDate) {
+      setEndDate(startDate);
+    }
+  }, [startDate, endDate]);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -95,20 +152,71 @@ const CreatePlanScreen = ({ navigation }: any) => {
       return;
     }
 
-    if (estimatedDays < 1) {
-      Alert.alert(t("common.error"), "Số ngày phải từ 1 trở lên");
+    const minStart = tomorrowYMD();
+    if (startDate < minStart) {
+      Alert.alert(
+        t("common.error"),
+        t("planner.startDateTomorrowRule", {
+          defaultValue: "Ngày bắt đầu phải từ ngày mai trở đi (theo quy định hệ thống).",
+        }),
+      );
       return;
+    }
+
+    if (endDate < startDate) {
+      Alert.alert(
+        t("common.error"),
+        t("planner.endDateMustAfterStart", {
+          defaultValue: "Ngày kết thúc phải sau hoặc trùng ngày bắt đầu.",
+        }),
+      );
+      return;
+    }
+
+    const tripDays = inclusiveTripDays(startDate, endDate);
+    if (tripDays > 30) {
+      Alert.alert(
+        t("common.error"),
+        t("planner.maxTripDays", {
+          defaultValue: "Chuyến không được quá 30 ngày (tính cả ngày đi và ngày về).",
+        }),
+      );
+      return;
+    }
+
+    let depositVnd: number | undefined;
+    let penaltyPct: number | undefined;
+    if (peopleCount > 1) {
+      const dep = parseVndInteger(depositAmountInput);
+      if (!Number.isFinite(dep) || dep <= 0) {
+        Alert.alert(t("common.error"), t("planner.depositRequiredForGroup"));
+        return;
+      }
+      if (dep > MAX_DEPOSIT_VND) {
+        Alert.alert(t("common.error"), t("planner.depositInvalid"));
+        return;
+      }
+      const pen = parsePenaltyPercent(penaltyPercentInput);
+      if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
+        Alert.alert(t("common.error"), t("planner.penaltyInvalid"));
+        return;
+      }
+      depositVnd = dep;
+      penaltyPct = pen;
     }
 
     try {
       setLoading(true);
 
-      // Payload construction
       const payload: CreatePlanRequest = {
-        name,
-        estimated_days: estimatedDays,
+        name: name.trim(),
         number_of_people: peopleCount,
         transportation,
+        start_date: startDate,
+        end_date: endDate,
+        ...(peopleCount > 1 && depositVnd !== undefined && penaltyPct !== undefined
+          ? { deposit_amount: depositVnd, penalty_percentage: penaltyPct }
+          : {}),
       };
 
       const response = await pilgrimPlannerApi.createPlan(payload);
@@ -155,7 +263,12 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
         {/* Background Pattern */}
         <View style={styles.backgroundPattern} pointerEvents="none">
-           <Ionicons name="compass-outline" size={300} color={COLORS.textTertiary} style={{opacity: 0.1, position: 'absolute', top: -50, right: -50}} />
+          <Ionicons
+            name="compass-outline"
+            size={300}
+            color={COLORS.textTertiary}
+            style={{ opacity: 0.1, position: "absolute", top: -50, right: -50 }}
+          />
         </View>
 
         {/* Header */}
@@ -178,9 +291,18 @@ const CreatePlanScreen = ({ navigation }: any) => {
         >
           {/* Section 1: Name */}
           <View style={styles.section}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
               <Ionicons name="trail-sign" size={20} color="#D97706" />
-              <Text style={[styles.label, { marginBottom: 0 }]}>{t("planner.journeyName")}</Text>
+              <Text style={[styles.label, { marginBottom: 0 }]}>
+                {t("planner.journeyName")}
+              </Text>
             </View>
             <TextInput
               style={styles.input}
@@ -193,61 +315,123 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Time Calculation */}
           {(() => {
-             const diffTime = Math.abs(new Date(endDate).getTime() - new Date(startDate).getTime());
-             const diffNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-             const diffDays = diffNights + 1;
-             
-             return (
-               <>
-                 {/* Section 2: Time block */}
-                 <View style={styles.section}>
-                   <View style={{ flexDirection: "row", alignItems: "center", marginBottom: SPACING.sm, justifyContent: "space-between" }}>
-                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                       <Ionicons name="calendar" size={20} color="#D97706" />
-                       <Text style={[styles.label, { marginBottom: 0 }]}>Thời gian hành hương</Text>
-                     </View>
-                     <View style={styles.durationBadge}>
-                       <Text style={styles.durationBadgeText}>{diffDays} Ngày {diffNights} Đêm</Text>
-                     </View>
-                   </View>
+            const diffTime = Math.abs(
+              new Date(endDate).getTime() - new Date(startDate).getTime(),
+            );
+            const diffNights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffDays = diffNights + 1;
 
-                   <View style={[styles.card, { flexDirection: "row", padding: 0, overflow: "hidden" }]}>
-                     {/* Start Date */}
-                     <TouchableOpacity
-                       style={{ flex: 1, padding: SPACING.md, borderRightWidth: 1, borderRightColor: COLORS.border }}
-                       onPress={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
-                     >
-                       <Text style={styles.dateDisplayLabel}>Ngày đi</Text>
-                       <Text style={styles.dateDisplayValue}>
-                         {new Date(startDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                       </Text>
-                       <Text style={styles.dateDisplaySub}>
-                         ({new Date(startDate).toLocaleDateString("vi-VN", { weekday: "short" })})
-                       </Text>
-                     </TouchableOpacity>
-                     
-                     {/* Arrow */}
-                     <View style={{ justifyContent: "center", alignItems: "center", width: 40, backgroundColor: "#F9FAFB" }}>
-                       <Ionicons name="arrow-forward" size={20} color={COLORS.textTertiary} />
-                     </View>
+            return (
+              <>
+                {/* Section 2: Time block */}
+                <View style={styles.section}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: SPACING.sm,
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons name="calendar" size={20} color="#D97706" />
+                      <Text style={[styles.label, { marginBottom: 0 }]}>
+                        Thời gian hành hương
+                      </Text>
+                    </View>
+                    <View style={styles.durationBadge}>
+                      <Text style={styles.durationBadgeText}>
+                        {diffDays} Ngày {diffNights} Đêm
+                      </Text>
+                    </View>
+                  </View>
 
-                     {/* End Date */}
-                     <TouchableOpacity
-                       style={{ flex: 1, padding: SPACING.md }}
-                       onPress={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
-                     >
-                       <Text style={styles.dateDisplayLabel}>Ngày về</Text>
-                       <Text style={styles.dateDisplayValue}>
-                         {new Date(endDate).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}
-                       </Text>
-                       <Text style={styles.dateDisplaySub}>
-                         ({new Date(endDate).toLocaleDateString("vi-VN", { weekday: "short" })})
-                       </Text>
-                     </TouchableOpacity>
-                   </View>
-                 </View>
-               </>
-             );
+                  <View
+                    style={[
+                      styles.card,
+                      { flexDirection: "row", padding: 0, overflow: "hidden" },
+                    ]}
+                  >
+                    {/* Start Date */}
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        padding: SPACING.md,
+                        borderRightWidth: 1,
+                        borderRightColor: COLORS.border,
+                      }}
+                      onPress={() => {
+                        setShowStartPicker(!showStartPicker);
+                        setShowEndPicker(false);
+                      }}
+                    >
+                      <Text style={styles.dateDisplayLabel}>Ngày đi</Text>
+                      <Text style={styles.dateDisplayValue}>
+                        {new Date(startDate).toLocaleDateString("vi-VN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </Text>
+                      <Text style={styles.dateDisplaySub}>
+                        (
+                        {new Date(startDate).toLocaleDateString("vi-VN", {
+                          weekday: "short",
+                        })}
+                        )
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Arrow */}
+                    <View
+                      style={{
+                        justifyContent: "center",
+                        alignItems: "center",
+                        width: 40,
+                        backgroundColor: "#F9FAFB",
+                      }}
+                    >
+                      <Ionicons
+                        name="arrow-forward"
+                        size={20}
+                        color={COLORS.textTertiary}
+                      />
+                    </View>
+
+                    {/* End Date */}
+                    <TouchableOpacity
+                      style={{ flex: 1, padding: SPACING.md }}
+                      onPress={() => {
+                        setShowEndPicker(!showEndPicker);
+                        setShowStartPicker(false);
+                      }}
+                    >
+                      <Text style={styles.dateDisplayLabel}>Ngày về</Text>
+                      <Text style={styles.dateDisplayValue}>
+                        {new Date(endDate).toLocaleDateString("vi-VN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </Text>
+                      <Text style={styles.dateDisplaySub}>
+                        (
+                        {new Date(endDate).toLocaleDateString("vi-VN", {
+                          weekday: "short",
+                        })}
+                        )
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </>
+            );
           })()}
 
           {showStartPicker && (
@@ -314,9 +498,10 @@ const CreatePlanScreen = ({ navigation }: any) => {
                       startCalendarDate.getMonth() + 1,
                     ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                     const isSelected = dateStr === startDate;
-                    const today = new Date().toISOString().split("T")[0];
+                    const today = toLocalYMD(new Date());
                     const isToday = dateStr === today;
-                    const isPast = new Date(dateStr) <= new Date(today);
+                    const minSelectable = tomorrowYMD();
+                    const isBeforeRule = dateStr < minSelectable;
 
                     return (
                       <TouchableOpacity
@@ -325,15 +510,15 @@ const CreatePlanScreen = ({ navigation }: any) => {
                           styles.calendarDay,
                           isSelected && styles.calendarDaySelected,
                           isToday && !isSelected && styles.calendarDayToday,
-                          isPast && styles.calendarDayDisabled,
+                          isBeforeRule && styles.calendarDayDisabled,
                         ]}
                         onPress={() => {
-                          if (!isPast) {
+                          if (!isBeforeRule) {
                             setStartDate(dateStr);
                             setShowStartPicker(false);
                           }
                         }}
-                        disabled={isPast}
+                        disabled={isBeforeRule}
                       >
                         <Text
                           style={[
@@ -342,7 +527,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             isToday &&
                               !isSelected &&
                               styles.calendarDayTextToday,
-                            isPast && styles.calendarDayTextDisabled,
+                            isBeforeRule && styles.calendarDayTextDisabled,
                           ]}
                         >
                           {day}
@@ -419,9 +604,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                       endCalendarDate.getMonth() + 1,
                     ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                     const isSelected = dateStr === endDate;
-                    const today = new Date().toISOString().split("T")[0];
+                    const today = toLocalYMD(new Date());
                     const isToday = dateStr === today;
-                    const isPast = new Date(dateStr) <= new Date(today);
+                    const isBeforeStart = dateStr < startDate;
 
                     return (
                       <TouchableOpacity
@@ -430,15 +615,15 @@ const CreatePlanScreen = ({ navigation }: any) => {
                           styles.calendarDay,
                           isSelected && styles.calendarDaySelected,
                           isToday && !isSelected && styles.calendarDayToday,
-                          isPast && styles.calendarDayDisabled,
+                          isBeforeStart && styles.calendarDayDisabled,
                         ]}
                         onPress={() => {
-                          if (!isPast) {
+                          if (!isBeforeStart) {
                             setEndDate(dateStr);
                             setShowEndPicker(false);
                           }
                         }}
-                        disabled={isPast}
+                        disabled={isBeforeStart}
                       >
                         <Text
                           style={[
@@ -447,7 +632,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                             isToday &&
                               !isSelected &&
                               styles.calendarDayTextToday,
-                            isPast && styles.calendarDayTextDisabled,
+                            isBeforeStart && styles.calendarDayTextDisabled,
                           ]}
                         >
                           {day}
@@ -462,72 +647,252 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
           {/* Section 4: Participants */}
           <View style={styles.section}>
-             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-               <Ionicons name="people" size={20} color="#D97706" />
-               <Text style={[styles.label, { marginBottom: 0 }]}>Số lượng người tham gia</Text>
-             </View>
-             <View style={[styles.card, { padding: SPACING.md }]}>
-               <View style={[styles.counterRow, { backgroundColor: "transparent", padding: 0 }]}>
-                 <Text style={{ fontSize: 16, color: COLORS.textPrimary, fontWeight: "600" }}>Số người đi</Text>
-                 <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-                    <TouchableOpacity
-                      onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
-                      style={styles.counterBtnOutline}
-                    >
-                      <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={styles.counterValueBig}>{peopleCount}</Text>
-                    <TouchableOpacity
-                      onPress={() => setPeopleCount(Math.min(50, peopleCount + 1))}
-                      style={styles.counterBtnOutline}
-                    >
-                      <Ionicons name="add" size={18} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
-                 </View>
-               </View>
-               <View style={{ marginTop: 16, backgroundColor: "#FEF3C7", padding: 12, borderRadius: 8, flexDirection: "row", gap: 8 }}>
-                  <Ionicons name="sparkles" size={16} color="#D97706" style={{ marginTop: 2 }} />
-                  <Text style={{ fontSize: 13, color: "#D97706", flex: 1, lineHeight: 18, fontWeight: "500" }}>
-                    Bạn có thể tạo mã QR để mời bạn bè tham gia nhóm sau khi lên lịch trình!
-                  </Text>
-               </View>
-             </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons name="people" size={20} color="#D97706" />
+              <Text style={[styles.label, { marginBottom: 0 }]}>
+                Số lượng người tham gia
+              </Text>
+            </View>
+            <View style={[styles.card, { padding: SPACING.md }]}>
+              <View
+                style={[
+                  styles.counterRow,
+                  { backgroundColor: "transparent", padding: 0 },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: COLORS.textPrimary,
+                    fontWeight: "600",
+                  }}
+                >
+                  Số người đi
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 16,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
+                    style={styles.counterBtnOutline}
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={18}
+                      color={COLORS.textPrimary}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.counterValueBig}>{peopleCount}</Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setPeopleCount(Math.min(50, peopleCount + 1))
+                    }
+                    style={styles.counterBtnOutline}
+                  >
+                    <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View
+                style={{
+                  marginTop: 16,
+                  backgroundColor: "#FEF3C7",
+                  padding: 12,
+                  borderRadius: 8,
+                  flexDirection: "row",
+                  gap: 8,
+                }}
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={16}
+                  color="#D97706"
+                  style={{ marginTop: 2 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: "#D97706",
+                    flex: 1,
+                    lineHeight: 18,
+                    fontWeight: "500",
+                  }}
+                >
+                  Bạn có thể tạo mã QR để mời bạn bè tham gia nhóm sau khi lên
+                  lịch trình!
+                </Text>
+              </View>
+            </View>
           </View>
+
+          {peopleCount > 1 ? (
+            <View style={styles.section}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                <Ionicons name="cash-outline" size={20} color="#D97706" />
+                <Text style={[styles.label, { marginBottom: 0 }]}>
+                  {t("planner.depositAmountLabel")}
+                </Text>
+              </View>
+              <View style={[styles.card, { padding: SPACING.md }]}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    color: COLORS.textSecondary,
+                    marginBottom: 12,
+                    lineHeight: 18,
+                  }}
+                >
+                  {t("planner.groupDepositSectionHint")}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: COLORS.textSecondary,
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("planner.depositAmountLabel")}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={depositAmountInput}
+                  onChangeText={setDepositAmountInput}
+                  placeholder={t("planner.depositPlaceholder")}
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="number-pad"
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: COLORS.textSecondary,
+                    marginTop: 6,
+                    marginBottom: 16,
+                  }}
+                >
+                  {t("planner.depositAmountHint")}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: COLORS.textSecondary,
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("planner.penaltyPercentageLabel")}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={penaltyPercentInput}
+                  onChangeText={setPenaltyPercentInput}
+                  placeholder="0"
+                  placeholderTextColor={COLORS.textSecondary}
+                  keyboardType="number-pad"
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: COLORS.textSecondary,
+                    marginTop: 6,
+                  }}
+                >
+                  {t("planner.penaltyPercentageHint")}
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
           {/* Section 5: Transport */}
           <View style={styles.section}>
-             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-               <Ionicons name="car" size={20} color="#D97706" />
-               <Text style={[styles.label, { marginBottom: 0 }]}>Phương tiện di chuyển chính</Text>
-             </View>
-             <View style={[styles.card, { padding: SPACING.md }]}>
-                <View style={styles.transportRow}>
-                  {[
-                    { value: "bus", icon: "bus" as const, label: "Xe buýt", color: "#FA8C16" },
-                    { value: "car", icon: "car" as const, label: "Ô tô", color: "#1890FF" },
-                    { value: "motorcycle", icon: "bicycle" as const, label: "Xe máy", color: "#10B981" },
-                  ].map((item) => (
-                    <TouchableOpacity
-                      key={item.value}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              <Ionicons name="car" size={20} color="#D97706" />
+              <Text style={[styles.label, { marginBottom: 0 }]}>
+                Phương tiện di chuyển chính
+              </Text>
+            </View>
+            <View style={[styles.card, { padding: SPACING.md }]}>
+              <View style={styles.transportRow}>
+                {(
+                  [
+                    {
+                      value: "bus" as const,
+                      icon: "bus" as const,
+                      label: "Xe buýt",
+                      color: "#FA8C16",
+                    },
+                    {
+                      value: "car" as const,
+                      icon: "car" as const,
+                      label: "Ô tô",
+                      color: "#1890FF",
+                    },
+                    {
+                      value: "motorbike" as const,
+                      icon: "bicycle" as const,
+                      label: "Xe máy",
+                      color: "#10B981",
+                    },
+                  ] as const
+                ).map((item) => (
+                  <TouchableOpacity
+                    key={item.value}
+                    style={[
+                      styles.transportIconBox,
+                      transportation === item.value
+                        ? styles.transportIconBoxSelected
+                        : {},
+                    ]}
+                    onPress={() => setTransportation(item.value)}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={28}
+                      color={
+                        transportation === item.value
+                          ? COLORS.white
+                          : item.color
+                      }
+                    />
+                    <Text
                       style={[
-                        styles.transportIconBox,
-                        transportation === item.value ? styles.transportIconBoxSelected : {},
+                        { fontSize: 12, marginTop: 8, fontWeight: "600" },
+                        transportation === item.value
+                          ? { color: COLORS.white }
+                          : { color: COLORS.textSecondary },
                       ]}
-                      onPress={() => setTransportation(item.value)}
                     >
-                      <Ionicons
-                        name={item.icon}
-                        size={28}
-                        color={transportation === item.value ? COLORS.white : item.color}
-                      />
-                      <Text style={[
-                         { fontSize: 12, marginTop: 8, fontWeight: "600" }, 
-                         transportation === item.value ? { color: COLORS.white } : { color: COLORS.textSecondary }
-                      ]}>{item.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-             </View>
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
 
           <View style={{ height: 100 }} />

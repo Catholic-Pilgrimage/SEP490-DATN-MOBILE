@@ -28,6 +28,8 @@ export interface FeedPostComment {
     id: string;
     post_id: string;
     user_id: string;
+    /** Bình luận gốc: null/undefined; phản hồi: id comment cha (BE `parent_id`) */
+    parent_id?: string | null;
     content: string;
     status: string;
     created_at: string;
@@ -46,6 +48,8 @@ export interface UpdateFeedPostRequest {
 
 export interface CreateFeedCommentRequest {
     content: string;
+    /** Gửi qua POST .../comments/reply/:id hoặc body `parent_id` tùy API client */
+    parent_id?: string;
 }
 
 export interface UpdateFeedCommentRequest {

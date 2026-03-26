@@ -1,28 +1,30 @@
 import { StyleSheet } from "react-native";
 import {
-    GUIDE_BORDER_RADIUS,
-    GUIDE_COLORS,
-    GUIDE_SHADOWS,
-    GUIDE_SPACING,
-    GUIDE_TYPOGRAPHY,
+  GUIDE_BORDER_RADIUS,
+  GUIDE_COLORS,
+  GUIDE_SHADOWS,
+  GUIDE_SPACING,
+  GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: GUIDE_COLORS.background,
+    backgroundColor: GUIDE_COLORS.creamBg,
   },
 
-  // Header
+  // ============================================
+  // HEADER
+  // ============================================
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
     borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.gray100,
+    borderBottomColor: GUIDE_COLORS.creamBorder,
   },
   backButton: {
     width: 40,
@@ -33,10 +35,115 @@ export const styles = StyleSheet.create({
   headerTitle: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+  },
+  editHeaderButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    justifyContent: "center",
+    alignItems: "center",
   },
 
-  // Content
+  // ============================================
+  // STEP INDICATOR
+  // ============================================
+  stepIndicatorContainer: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.creamBorder,
+  },
+  progressBarBg: {
+    height: 3,
+    backgroundColor: GUIDE_COLORS.gray200,
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: GUIDE_SPACING.sm,
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: GUIDE_COLORS.primary,
+    borderRadius: 2,
+  },
+  stepLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: GUIDE_SPACING.sm,
+    gap: GUIDE_SPACING.sm,
+  },
+  stepBadge: {
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: 2,
+    borderRadius: GUIDE_BORDER_RADIUS.sm,
+  },
+  stepBadgeText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.primaryDark,
+  },
+  stepLabelText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.creamInk,
+  },
+  stepDotsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepDotItem: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  stepDotCompleted: {
+    backgroundColor: GUIDE_COLORS.success,
+  },
+  stepDotActive: {
+    backgroundColor: GUIDE_COLORS.primary,
+  },
+  stepDotInactive: {
+    backgroundColor: GUIDE_COLORS.gray200,
+  },
+  stepDotNumber: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.gray400,
+  },
+  stepDotNumberActive: {
+    color: GUIDE_COLORS.surface,
+  },
+  stepConnector: {
+    width: 40,
+    height: 2,
+    backgroundColor: GUIDE_COLORS.gray200,
+    marginHorizontal: GUIDE_SPACING.xs,
+  },
+  stepConnectorCompleted: {
+    backgroundColor: GUIDE_COLORS.success,
+  },
+
+  // ============================================
+  // CONTENT
+  // ============================================
   content: {
     flex: 1,
   },
@@ -48,29 +155,36 @@ export const styles = StyleSheet.create({
     paddingTop: GUIDE_SPACING.md,
   },
 
-  // Sections
+  // ============================================
+  // SECTIONS — Sentence case, bold, darker color
+  // ============================================
   section: {
     marginBottom: GUIDE_SPACING.lg,
   },
   sectionTitle: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamInk,
     marginBottom: GUIDE_SPACING.sm,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
+    // No textTransform (sentence case by default)
+    // No letterSpacing
   },
 
-  // Banner
+  // ============================================
+  // BANNER — Reduced height ~120px
+  // ============================================
   bannerSection: {
     marginBottom: GUIDE_SPACING.lg,
   },
   bannerContainer: {
     width: "100%",
-    height: 180,
+    height: 120,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     overflow: "hidden",
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderStyle: "dashed",
   },
   bannerImage: {
     width: "100%",
@@ -80,25 +194,33 @@ export const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    gap: GUIDE_SPACING.xs,
   },
   bannerPlaceholderText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.gray400,
-    marginTop: GUIDE_SPACING.xs,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
   },
   bannerEditOverlay: {
     position: "absolute",
-    bottom: GUIDE_SPACING.sm,
-    right: GUIDE_SPACING.sm,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    bottom: GUIDE_SPACING.xs,
+    right: GUIDE_SPACING.xs,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     alignItems: "center",
   },
+  bannerHint: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.creamMuted,
+    marginTop: GUIDE_SPACING.xs,
+    textAlign: "center",
+  },
 
-  // Input Field
+  // ============================================
+  // INPUT FIELD
+  // ============================================
   fieldContainer: {
     marginBottom: GUIDE_SPACING.md,
   },
@@ -109,24 +231,30 @@ export const styles = StyleSheet.create({
   label: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamLabel,
   },
   required: {
     color: GUIDE_COLORS.error,
-    marginLeft: 2,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray200,
+    borderColor: GUIDE_COLORS.creamBorder,
     paddingHorizontal: GUIDE_SPACING.sm,
     minHeight: 48,
   },
   inputDisabled: {
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    opacity: 0.92,
+  },
+  inputError: {
+    borderColor: GUIDE_COLORS.error,
+    borderWidth: 1.5,
   },
   inputIcon: {
     marginRight: GUIDE_SPACING.xs,
@@ -134,7 +262,7 @@ export const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
     paddingVertical: GUIDE_SPACING.sm,
   },
   inputWithIcon: {
@@ -148,13 +276,100 @@ export const styles = StyleSheet.create({
     color: GUIDE_COLORS.gray400,
   },
   charCount: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
-    color: GUIDE_COLORS.textMuted,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.creamMuted,
     textAlign: "right",
     marginTop: 4,
   },
 
-  // Row layout
+  // ============================================
+  // INLINE ERROR
+  // ============================================
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  errorText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.error,
+    flex: 1,
+  },
+
+  // ============================================
+  // DATE RANGE HINT
+  // ============================================
+  dateRangeHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.successLight,
+    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: GUIDE_SPACING.xs,
+    borderRadius: GUIDE_BORDER_RADIUS.sm,
+    marginBottom: GUIDE_SPACING.md,
+  },
+  dateRangeHintText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.successDark,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+  },
+
+  // ============================================
+  // CATEGORY DROPDOWN (Grouped)
+  // ============================================
+  dropdownContainer: {
+    marginTop: GUIDE_SPACING.xs,
+    maxHeight: 300,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    ...GUIDE_SHADOWS.md,
+    overflow: "hidden",
+  },
+  dropdownGroupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.xs,
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.sm,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.creamBorder,
+  },
+  dropdownGroupLabel: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamLabel,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: GUIDE_SPACING.lg + GUIDE_SPACING.xs,
+    paddingVertical: GUIDE_SPACING.sm + 2,
+    borderBottomWidth: 1,
+    borderBottomColor: GUIDE_COLORS.creamBorder,
+  },
+  dropdownItemActive: {
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+  },
+  dropdownItemText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    color: GUIDE_COLORS.creamInk,
+  },
+  dropdownItemTextActive: {
+    color: GUIDE_COLORS.primaryDark,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+  },
+
+  // ============================================
+  // ROW LAYOUT
+  // ============================================
   row: {
     flexDirection: "row",
     gap: GUIDE_SPACING.md,
@@ -163,7 +378,9 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Rejection Box
+  // ============================================
+  // REJECTION BOX
+  // ============================================
   rejectionBox: {
     flexDirection: "row",
     backgroundColor: "#FFEBEE",
@@ -186,23 +403,29 @@ export const styles = StyleSheet.create({
     color: GUIDE_COLORS.error,
   },
 
-  // Info Box
+  // ============================================
+  // INFO BOX
+  // ============================================
   infoBox: {
     flexDirection: "row",
     alignItems: "center",
     gap: GUIDE_SPACING.sm,
     padding: GUIDE_SPACING.md,
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     marginBottom: GUIDE_SPACING.lg,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   infoText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.creamMuted,
     flex: 1,
   },
 
-  // Action Buttons
+  // ============================================
+  // ACTION BUTTONS
+  // ============================================
   actionButtons: {
     gap: GUIDE_SPACING.md,
     marginTop: GUIDE_SPACING.lg,
@@ -222,6 +445,7 @@ export const styles = StyleSheet.create({
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: GUIDE_COLORS.surface,
   },
+  // Save button — text changed to dark brown for WCAG AA contrast
   saveButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -235,30 +459,30 @@ export const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
-    color: GUIDE_COLORS.surface,
+    color: "#3D2000", // Dark brown for contrast on gold background
   },
   cancelButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     paddingVertical: GUIDE_SPACING.md,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     borderWidth: 1,
-    borderColor: GUIDE_COLORS.gray300,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   cancelButtonText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
-    color: GUIDE_COLORS.textSecondary,
+    color: GUIDE_COLORS.creamLabel,
   },
   deleteButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamElevated,
     paddingVertical: GUIDE_SPACING.md,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     borderWidth: 1,
@@ -273,18 +497,48 @@ export const styles = StyleSheet.create({
     opacity: 0.6,
   },
 
-  // Header Right
-  headerRight: {
+  // ============================================
+  // STEP NAVIGATION BUTTONS (Create mode)
+  // ============================================
+  stepNavigation: {
+    flexDirection: "row",
+    gap: GUIDE_SPACING.md,
+    marginTop: GUIDE_SPACING.xl,
+  },
+  stepNavButtonPrimary: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: GUIDE_SPACING.sm,
-  },
-  editHeaderButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: GUIDE_COLORS.gray100,
     justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.primary,
+    paddingVertical: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    ...GUIDE_SHADOWS.md,
+  },
+  stepNavButtonFull: {
+    flex: 1,
+  },
+  stepNavButtonPrimaryText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#3D2000", // Dark brown for WCAG AA contrast on gold
+  },
+  stepNavButtonSecondary: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    paddingVertical: GUIDE_SPACING.md,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+  },
+  stepNavButtonSecondaryText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+    color: GUIDE_COLORS.creamLabel,
   },
 });

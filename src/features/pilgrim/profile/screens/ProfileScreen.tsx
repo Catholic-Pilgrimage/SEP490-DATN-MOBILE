@@ -255,6 +255,12 @@ const ProfileScreen = () => {
       route: "FavoriteSites",
     },
     {
+      icon: "wallet-outline",
+      label: t("profile.menu.wallet"),
+      requireAuth: true,
+      route: "Wallet",
+    },
+    {
       icon: "hand-left-outline",
       label: t("profile.menu.sosHistory"),
       requireAuth: true,
@@ -312,6 +318,7 @@ const ProfileScreen = () => {
       item.route === "EditProfile" ||
       item.route === "OfflineDownloads" ||
       item.route === "SOSHistory" ||
+      item.route === "Wallet" ||
       item.route === "Settings" ||
       item.route === "VerificationRequest"
     ) {
@@ -321,9 +328,9 @@ const ProfileScreen = () => {
     }
   };
 
-  // Group menu items
-  const accountItems = menuItems.slice(0, 5);
-  const settingsItems = menuItems.slice(5);
+  // Nhóm: tài khoản + ví + SOS + offline → cài đặt & lịch sử
+  const accountItems = menuItems.slice(0, 6);
+  const settingsItems = menuItems.slice(6);
 
   return (
     <ImageBackground

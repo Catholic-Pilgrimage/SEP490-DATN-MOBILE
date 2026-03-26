@@ -8,6 +8,11 @@ export const GUIDE_KEYS = {
     site: (id?: string) => [...GUIDE_KEYS.all, 'site', id ? id : 'current'] as const,
     events: (filters?: Record<string, any>) => [...GUIDE_KEYS.all, 'events', filters] as const,
     media: (filters?: Record<string, any>) => [...GUIDE_KEYS.all, 'media', filters] as const,
+    /** Mô hình 3D đã duyệt (site-media) — màn xem full không qua list */
+    siteModels3d: () => [...GUIDE_KEYS.all, 'siteModels3d'] as const,
+    /** Danh sách giọng TTS (VBee) — GET /local-guide/media/voices */
+    narrativeTtsVoices: (language?: string) =>
+        [...GUIDE_KEYS.all, 'narrative', 'ttsVoices', language ?? 'all'] as const,
     schedules: (filters?: Record<string, any>) => [...GUIDE_KEYS.all, 'schedules', filters] as const,
     notifications: () => [...GUIDE_KEYS.all, 'notifications'] as const,
     dashboard: {

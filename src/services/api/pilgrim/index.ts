@@ -33,6 +33,10 @@ export { default as pilgrimVerificationApi } from "./verificationApi";
 export * from "./dashboardApi";
 export { default as pilgrimDashboardApi } from "./dashboardApi";
 
+// Wallet API
+export * from "./walletApi";
+export { default as pilgrimWalletApi } from "./walletApi";
+
 // Combined Pilgrim API
 import pilgrimCommunityApi from "./communityApi";
 import pilgrimDashboardApi from "./dashboardApi";
@@ -40,6 +44,7 @@ import pilgrimJournalApi from "./journalApi";
 import pilgrimPlannerApi from "./plannerApi";
 import pilgrimSiteApi from "./siteApi";
 import pilgrimVerificationApi from "./verificationApi";
+import pilgrimWalletApi from "./walletApi";
 
 const pilgrimApis = {
   site: pilgrimSiteApi,
@@ -48,6 +53,7 @@ const pilgrimApis = {
   community: pilgrimCommunityApi,
   verification: pilgrimVerificationApi,
   dashboard: pilgrimDashboardApi,
+  wallet: pilgrimWalletApi,
 };
 
 export default pilgrimApis;

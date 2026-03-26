@@ -29,6 +29,7 @@ import {
     usePostDetail,
 } from "../../../../hooks/usePosts";
 import ReportPostModal from "../components/ReportPostModal";
+import type { FeedPostComment } from "../../../../types/post.types";
 
 // ─── Utilities ───────────────────────────────────────────
 
@@ -50,6 +51,40 @@ const formatTime = (dateString: string) => {
 
   return date.toLocaleDateString("vi-VN");
 };
+
+/** Gom danh sách phẳng từ BE (có `parent_id`) thành hàng hiển thị theo cây, thứ tự thời gian trong từng nhánh. */
+function buildCommentThreadRows(
+  comments: FeedPostComment[],
+): Array<{ comment: FeedPostComment; depth: number }> {
+  const byParent = new Map<string | null, FeedPostComment[]>();
+  for (const c of comments) {
+    const raw = c.parent_id;
+    const pid =
+      raw === undefined || raw === null || raw === ""
+        ? null
+        : String(raw);
+    if (!byParent.has(pid)) {
+      byParent.set(pid, []);
+    }
+    byParent.get(pid)!.push(c);
+  }
+  for (const arr of byParent.values()) {
+    arr.sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+  }
+  const rows: Array<{ comment: FeedPostComment; depth: number }> = [];
+  const walk = (parentId: string | null, depth: number) => {
+    const children = byParent.get(parentId) ?? [];
+    for (const c of children) {
+      rows.push({ comment: c, depth });
+      walk(c.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return rows;
+}
 
 // ─── Sub-components ──────────────────────────────────────
 
@@ -215,11 +250,27 @@ const FeedItemActions = ({
 
 // ─── Comment Item with Local Guide support ───────────────
 
-const CommentItem = ({ item, isGuide }: { item: any; isGuide: boolean }) => (
-  <View style={[styles.commentItem, isGuide && styles.commentItemGuide]}>
-    {item.author?.avatar_url ? (
+const CommentItem = ({
+  comment,
+  depth,
+  isGuide,
+  onReply,
+}: {
+  comment: FeedPostComment;
+  depth: number;
+  isGuide: boolean;
+  onReply: (c: FeedPostComment) => void;
+}) => (
+  <View
+    style={[
+      styles.commentItem,
+      isGuide && styles.commentItemGuide,
+      { paddingLeft: SPACING.lg + depth * 14 },
+    ]}
+  >
+    {comment.author?.avatar_url ? (
       <Image
-        source={{ uri: item.author.avatar_url }}
+        source={{ uri: comment.author.avatar_url }}
         style={[styles.commentAvatar, isGuide && styles.commentAvatarGuide]}
       />
     ) : (
@@ -240,7 +291,7 @@ const CommentItem = ({ item, isGuide }: { item: any; isGuide: boolean }) => (
             color: isGuide ? "#9A6C00" : COLORS.textPrimary,
           }}
         >
-          {item.author?.full_name?.charAt(0) || "U"}
+          {comment.author?.full_name?.charAt(0) || "U"}
         </Text>
       </View>
     )}
@@ -252,7 +303,7 @@ const CommentItem = ({ item, isGuide }: { item: any; isGuide: boolean }) => (
           <Text
             style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
           >
-            {item.author?.full_name}
+            {comment.author?.full_name}
           </Text>
           {isGuide ? (
             <View style={styles.commentGuideBadge}>
@@ -265,9 +316,17 @@ const CommentItem = ({ item, isGuide }: { item: any; isGuide: boolean }) => (
             </View>
           )}
         </View>
-        <Text style={styles.commentText}>{item.content}</Text>
+        <Text style={styles.commentText}>{comment.content}</Text>
       </View>
-      <Text style={styles.commentTime}>{formatTime(item.created_at)}</Text>
+      <View style={styles.commentMetaRow}>
+        <Text style={styles.commentTime}>{formatTime(comment.created_at)}</Text>
+        <TouchableOpacity
+          onPress={() => onReply(comment)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.replyLink}>Trả lời</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   </View>
 );
@@ -281,6 +340,10 @@ export default function PostDetailScreen() {
   const autoFocusComment = route.params?.autoFocusComment;
   const { user } = useAuth();
   const [commentText, setCommentText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [showReport, setShowReport] = useState(false);
   const commentInputRef = useRef<TextInput>(null);
   const flatListRef = useRef<any>(null);
@@ -310,10 +373,14 @@ export default function PostDetailScreen() {
     if (!commentText.trim()) return;
 
     addCommentMutation.mutate(
-      { content: commentText.trim() },
+      {
+        content: commentText.trim(),
+        ...(replyingTo ? { parent_id: replyingTo.id } : {}),
+      },
       {
         onSuccess: () => {
           setCommentText("");
+          setReplyingTo(null);
         },
         onError: (err) => {
           Toast.show({
@@ -329,9 +396,27 @@ export default function PostDetailScreen() {
   const comments = React.useMemo(() => {
     if (!commentsData) return [];
     return commentsData.pages.flatMap(
-      (page: any) => page.data?.items || page.items || page.comments || [],
+      (page: any) =>
+        page.comments ??
+        page.data?.comments ??
+        page.data?.items ??
+        page.items ??
+        [],
     );
   }, [commentsData]);
+
+  const commentRows = React.useMemo(
+    () => buildCommentThreadRows(comments as FeedPostComment[]),
+    [comments],
+  );
+
+  const handleReplyPress = React.useCallback((c: FeedPostComment) => {
+    setReplyingTo({
+      id: c.id,
+      name: c.author?.full_name || "Người dùng",
+    });
+    commentInputRef.current?.focus();
+  }, []);
 
   const renderPostHeader = () => {
     if (isLoadingPost) {
@@ -438,19 +523,26 @@ export default function PostDetailScreen() {
         <FlatList
           ref={flatListRef}
           style={{ flex: 1 }}
-          data={comments}
-          keyExtractor={(item: any, index: number) =>
-            item.id || `comment-${index}`
+          data={commentRows}
+          keyExtractor={(row, index: number) =>
+            row.comment.id || `comment-${index}`
           }
           ListHeaderComponent={renderPostHeader}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: SPACING.xxl }}
           onEndReached={() => {
             if (hasNextPage) fetchNextPage();
           }}
-          renderItem={({ item }) => {
+          renderItem={({ item: row }) => {
             const isCommentByGuide =
-              item.author?.role === "local_guide";
-            return <CommentItem item={item} isGuide={isCommentByGuide} />;
+              row.comment.author?.role === "local_guide";
+            return (
+              <CommentItem
+                comment={row.comment}
+                depth={row.depth}
+                isGuide={isCommentByGuide}
+                onReply={handleReplyPress}
+              />
+            );
           }}
           ListEmptyComponent={
             !isLoadingComments && !isLoadingPost ? (
@@ -468,6 +560,20 @@ export default function PostDetailScreen() {
             ) : null
           }
         />
+
+        {replyingTo ? (
+          <View style={styles.replyBanner}>
+            <Text style={styles.replyBannerText} numberOfLines={1}>
+              Trả lời <Text style={styles.replyBannerName}>{replyingTo.name}</Text>
+            </Text>
+            <TouchableOpacity
+              onPress={() => setReplyingTo(null)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.replyBannerCancel}>Hủy</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Comment Input */}
         <View
@@ -488,16 +594,18 @@ export default function PostDetailScreen() {
               isCurrentUserGuide && styles.commentInputGuide,
             ]}
             placeholder={
-              isCurrentUserGuide
-                ? "Bình luận với tư cách Local Guide..."
-                : "Thêm lời nguyện cầu hoặc bình luận..."
+              replyingTo
+                ? `Trả lời ${replyingTo.name}...`
+                : isCurrentUserGuide
+                  ? "Bình luận với tư cách Local Guide..."
+                  : "Thêm lời nguyện cầu hoặc bình luận..."
             }
             placeholderTextColor={COLORS.textTertiary}
             value={commentText}
             onChangeText={setCommentText}
             multiline
             onFocus={() => {
-              if (comments.length > 0) {
+              if (commentRows.length > 0) {
                 setTimeout(() => {
                   flatListRef.current?.scrollToEnd({ animated: true });
                 }, 500);
@@ -676,7 +784,7 @@ const styles = StyleSheet.create({
   },
   commentItem: {
     flexDirection: "row",
-    paddingHorizontal: SPACING.lg,
+    paddingRight: SPACING.lg,
     marginBottom: 16,
   },
   commentItemGuide: {
@@ -744,6 +852,42 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textPrimary,
     lineHeight: 20,
+  },
+  commentMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    marginTop: 4,
+  },
+  replyLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.primary,
+  },
+  replyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    backgroundColor: "#EEF2FF",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderLight,
+  },
+  replyBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginRight: SPACING.sm,
+  },
+  replyBannerName: {
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  replyBannerCancel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   commentTime: {
     fontSize: 12,

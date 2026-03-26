@@ -4,20 +4,26 @@
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { useVideoPlayer, VideoView } from "expo-video";
-import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { useVideoPlayer, VideoView } from "expo-video";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
-  Linking,
   Platform,
-  StatusBar,
   Pressable,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
@@ -38,6 +44,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import type { YoutubeIframeRef } from "react-native-youtube-iframe";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_COLORS,
@@ -46,8 +53,20 @@ import {
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { deleteMedia, updateMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus } from "../../../../types/guide";
+import {
+  isYoutubeVideoMedia,
+  normalizeMediaItem,
+} from "../../../../utils/mediaUtils";
 import { MediaLightbox } from "../components/MediaLightbox";
+import { Model3dFullscreenModal } from "../components/Model3dFullscreenModal";
+import { ModelViewerWebView } from "../components/ModelViewerWebView";
+import { SiteModels3dEntryButton } from "../components/SiteModels3dEntryButton";
 import { StatusBadge } from "../components/StatusBadge";
+import { YoutubeEmbedWebView } from "../components/YoutubeEmbedWebView";
+import {
+  YoutubeFullscreenModal,
+  type YoutubeFullscreenClosePayload,
+} from "../components/YoutubeFullscreenModal";
 import { compressGuideImage } from "../utils/compressGuideImage";
 import { styles } from "./MediaDetailScreen.styles";
 
@@ -70,16 +89,23 @@ const LocalVideoPlayer = ({ url, style }: { url: string; style: any }) => {
   });
 
   useEffect(() => {
-    const sub = player.addListener("statusChange", ({ status }: { status: string }) => {
-      if (status === "error") setHasError(true);
-    });
+    const sub = player.addListener(
+      "statusChange",
+      ({ status }: { status: string }) => {
+        if (status === "error") setHasError(true);
+      },
+    );
     return () => sub.remove();
   }, [player]);
 
   if (hasError) {
     return (
       <View style={[style, styles.videoErrorFallback]}>
-        <MaterialIcons name="videocam-off" size={48} color="rgba(255,255,255,0.4)" />
+        <MaterialIcons
+          name="videocam-off"
+          size={48}
+          color="rgba(255,255,255,0.4)"
+        />
         <Text style={styles.videoErrorText}>Video không khả dụng</Text>
       </View>
     );
@@ -89,7 +115,7 @@ const LocalVideoPlayer = ({ url, style }: { url: string; style: any }) => {
     <VideoView
       style={style}
       player={player}
-      allowsFullscreen
+      allowsFullscreen={false}
       allowsPictureInPicture
       contentFit="contain"
     />
@@ -97,30 +123,47 @@ const LocalVideoPlayer = ({ url, style }: { url: string; style: any }) => {
 };
 
 export const MediaDetailScreen: React.FC = () => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute<MediaDetailRouteProp>();
   const { media: initialMedia } = route.params;
+  const initialNormalized = normalizeMediaItem(initialMedia);
 
   // State (displayMedia updates after caption/file replace success)
-  const [displayMedia, setDisplayMedia] = useState<MediaItem>(initialMedia);
-  const [caption, setCaption] = useState(initialMedia.caption || "");
+  const [displayMedia, setDisplayMedia] =
+    useState<MediaItem>(initialNormalized);
+  const [caption, setCaption] = useState(initialNormalized.caption || "");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPickerVisible, setIsPickerVisible] = useState(false);
   const [isReplacingFile, setIsReplacingFile] = useState(false);
-  /** Phóng to: ảnh (pinch) / video file (fullscreen modal) — dùng RNGH+Reanimated, không thư viện ngoài */
   const [lightbox, setLightbox] = useState<"off" | "image" | "video">("off");
+  const [youtubeInlinePlayOneShot, setYoutubeInlinePlayOneShot] =
+    useState(false);
+  const [youtubeInlineStart, setYoutubeInlineStart] = useState(0);
+  const [youtubeInlineMountKey, setYoutubeInlineMountKey] = useState(0);
+  const [youtubeFullscreenOpen, setYoutubeFullscreenOpen] = useState(false);
+  const [youtubeFsInstanceKey, setYoutubeFsInstanceKey] = useState(0);
+  const [youtubeFsStartAt, setYoutubeFsStartAt] = useState(0);
+  const [youtubeFsAutoPlay, setYoutubeFsAutoPlay] = useState(false);
+  const youtubeInlineRef = useRef<YoutubeIframeRef>(null);
+  const youtubePlaybackActiveRef = useRef(false);
+  const [model3dFullscreenOpen, setModel3dFullscreenOpen] = useState(false);
+  const [model3dFsInstanceKey, setModel3dFsInstanceKey] = useState(0);
+
+  const openModel3dFullscreen = useCallback(() => {
+    setModel3dFsInstanceKey((k) => k + 1);
+    setModel3dFullscreenOpen(true);
+  }, []);
 
   const canEdit =
     displayMedia.status === "pending" || displayMedia.status === "rejected";
   const canDelete =
     displayMedia.status === "pending" || displayMedia.status === "rejected";
-  /** Chỉ ảnh / panorama có file cục bộ — không áp dụng cho video YouTube */
-  const canReplaceImageFile =
-    canEdit &&
-    (displayMedia.type === "image" || displayMedia.type === "panorama");
+  /** Chỉ ảnh có file cục bộ — không áp dụng cho video YouTube */
+  const canReplaceImageFile = canEdit && displayMedia.type === "image";
 
   // Swipe-to-dismiss (RNGH Pan + Reanimated — panel theo tay, đóng khi đủ kéo / vận tốc)
   const translateY = useSharedValue(0);
@@ -155,8 +198,7 @@ export const MediaDetailScreen: React.FC = () => {
             translateY.value = withSpring(0, { damping: 24, stiffness: 320 });
             return;
           }
-          const dismiss =
-            translateY.value > 110 || e.velocityY > 900;
+          const dismiss = translateY.value > 110 || e.velocityY > 900;
           if (dismiss) {
             translateY.value = withTiming(
               SCREEN_HEIGHT,
@@ -192,9 +234,12 @@ export const MediaDetailScreen: React.FC = () => {
 
   const getMediaTypeLabel = useCallback(() => {
     switch (displayMedia.type) {
-      case "video": return "Video";
-      case "panorama": return "Panorama 360°";
-      default: return "Ảnh";
+      case "video":
+        return "Video";
+      case "model_3d":
+        return "Mô hình 3D";
+      default:
+        return "Ảnh";
     }
   }, [displayMedia.type]);
 
@@ -204,19 +249,43 @@ export const MediaDetailScreen: React.FC = () => {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }, []);
 
-  // Get YouTube thumbnail
-  const getYoutubeThumbnail = useCallback((url: string) => {
-    const videoId = url.match(
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
-    )?.[1];
-    return videoId
-      ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-      : null;
+  const isYouTube = isYoutubeVideoMedia(displayMedia);
+  const isLocalVideo = displayMedia.type === "video" && !isYouTube;
+  const isModel3d = displayMedia.type === "model_3d";
+  const thumbnailUrl = displayMedia.url;
+  const handleYoutubeStateChange = useCallback((state: string) => {
+    if (state === "playing") youtubePlaybackActiveRef.current = true;
+    if (state === "paused" || state === "ended") {
+      youtubePlaybackActiveRef.current = false;
+      setYoutubeInlinePlayOneShot(false);
+    }
   }, []);
 
-  const isYouTube = displayMedia.type === "video" && displayMedia.url.includes("youtube");
-  const isLocalVideo = displayMedia.type === "video" && !isYouTube;
-  const thumbnailUrl = isYouTube ? getYoutubeThumbnail(displayMedia.url) : displayMedia.url;
+  const openYoutubeFullscreen = useCallback(async () => {
+    let t = 0;
+    try {
+      const cur = await youtubeInlineRef.current?.getCurrentTime();
+      if (typeof cur === "number" && !Number.isNaN(cur)) {
+        t = cur;
+      }
+    } catch {
+      /* noop */
+    }
+    setYoutubeFsStartAt(Math.max(0, Math.floor(t)));
+    setYoutubeFsAutoPlay(youtubePlaybackActiveRef.current);
+    setYoutubeFsInstanceKey((k) => k + 1);
+    setYoutubeFullscreenOpen(true);
+  }, []);
+
+  const handleYoutubeFullscreenClose = useCallback(
+    (payload: YoutubeFullscreenClosePayload) => {
+      setYoutubeFullscreenOpen(false);
+      setYoutubeInlineStart(payload.resumeAt);
+      setYoutubeInlinePlayOneShot(payload.resumePlaying);
+      setYoutubeInlineMountKey((k) => k + 1);
+    },
+    [],
+  );
 
   // Handlers
   const handleBack = useCallback(() => {
@@ -265,12 +334,10 @@ export const MediaDetailScreen: React.FC = () => {
       setIsReplacingFile(true);
       try {
         const asset = result.assets[0];
-        const imgType =
-          displayMedia.type === "panorama" ? "panorama" : "image";
 
         let fileUri = asset.uri;
         try {
-          const compressed = await compressGuideImage(asset.uri, imgType);
+          const compressed = await compressGuideImage(asset.uri);
           fileUri = compressed.uri;
         } catch (e) {
           console.error("[MediaDetail] Compress error:", e);
@@ -360,8 +427,8 @@ export const MediaDetailScreen: React.FC = () => {
     switch (displayMedia.type) {
       case "video":
         return "videocam";
-      case "panorama":
-        return "panorama-fish-eye";
+      case "model_3d":
+        return "view-in-ar";
       default:
         return "photo-camera";
     }
@@ -376,364 +443,470 @@ export const MediaDetailScreen: React.FC = () => {
           animatedRootStyle,
         ]}
       >
-      <StatusBar barStyle="light-content" backgroundColor="#000" translucent />
-
-      {/* Full Screen Image or Video */}
-      <View style={styles.imageContainer}>
-        {isReplacingFile && (
-          <View style={styles.replaceOverlay} pointerEvents="none">
-            <ActivityIndicator size="large" color={GUIDE_COLORS.surface} />
-            <Text style={styles.replaceOverlayText}>Đang tải ảnh lên...</Text>
-          </View>
-        )}
-        {isLocalVideo ? (
-          <Pressable
-            style={styles.imagePressable}
-            onPress={() => setLightbox("video")}
-            disabled={isReplacingFile}
-            accessibilityRole="button"
-            accessibilityLabel="Xem video phóng to"
-          >
-            <LocalVideoPlayer url={displayMedia.url} style={styles.fullImage} />
-          </Pressable>
-        ) : (
-          <Pressable
-            style={styles.imagePressable}
-            onPress={() => setLightbox("image")}
-            disabled={isReplacingFile}
-            accessibilityRole="button"
-            accessibilityLabel="Phóng to ảnh"
-          >
-            <Image
-              key={displayMedia.url}
-              source={{ uri: thumbnailUrl || displayMedia.url }}
-              style={styles.fullImage}
-              resizeMode="contain"
-            />
-          </Pressable>
-        )}
-
-        {/* Thin edge scrims — không phủ cả khung hình như overlay đặc */}
-        <LinearGradient
-          pointerEvents="none"
-          colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.12)", "transparent"]}
-          locations={[0, 0.42, 1]}
-          style={styles.topGradientScrim}
-        />
-        <LinearGradient
-          pointerEvents="none"
-          colors={[
-            "transparent",
-            "rgba(245, 237, 227, 0.35)",
-            "rgba(253, 248, 240, 0.96)",
-          ]}
-          locations={[0, 0.42, 1]}
-          style={styles.bottomGradientScrim}
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor="#000"
+          translucent
         />
 
-        {/* Header (on top of image) */}
-        <View style={[styles.header, { top: insets.top + GUIDE_SPACING.sm }]}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleBack}
-            activeOpacity={0.75}
-          >
-            <MaterialIcons
-              name="arrow-back"
-              size={22}
-              color={GUIDE_COLORS.surface}
-            />
-          </TouchableOpacity>
-
-          <View style={styles.statusBadgeShell}>
-            <StatusBadge
-              status={displayMedia.status}
-              label={STATUS_LABELS[displayMedia.status]}
-            />
-          </View>
-        </View>
-
-        {/* Media type badge */}
-        <View style={styles.mediaTypeBadge}>
-          <MaterialIcons
-            name={getMediaTypeIcon()}
-            size={18}
-            color={GUIDE_COLORS.surface}
-          />
-          <Text style={styles.mediaTypeBadgeText}>
-            {displayMedia.type === "video"
-              ? "Video"
-              : displayMedia.type === "panorama"
-                ? "360°"
-                : "Photo"}
-          </Text>
-        </View>
-
-        {/* Play button ONLY for YouTube video */}
-        {isYouTube && (
-          <TouchableOpacity
-            style={styles.playButton}
-            activeOpacity={0.85}
-            onPress={() => {
-              if (displayMedia.url) {
-                Linking.openURL(displayMedia.url).catch(() => {
-                  Toast.show({
-                    type: "error",
-                    text1: "Lỗi",
-                    text2: "Không thể mở video này",
-                  });
-                });
-              }
-            }}
-          >
-            <MaterialIcons
-              name="play-arrow"
-              size={48}
-              color={GUIDE_COLORS.surface}
-            />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Content Panel */}
-      <KeyboardAvoidingView
-        style={styles.contentPanel}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Drag Indicator Affordance */}
-        <View style={styles.dragHandleContainer}>
-          <View style={styles.dragHandle} />
-        </View>
-
-        <ReanimatedScrollView
-          style={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onScroll={scrollHandler}
-          scrollEventThrottle={16}
-          bounces
-        >
-          {/* Rejection Reason (if rejected) */}
-          {displayMedia.status === "rejected" && displayMedia.rejection_reason && (
-            <View style={styles.rejectionContainer}>
-              <View style={styles.rejectionHeader}>
-                <MaterialIcons
-                  name="error"
-                  size={20}
-                  color={GUIDE_COLORS.error}
-                />
-                <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
-              </View>
-              <Text style={styles.rejectionReason}>
-                {displayMedia.rejection_reason}
-              </Text>
+        {/* Full Screen Image or Video */}
+        <View style={styles.imageContainer}>
+          {isReplacingFile && (
+            <View style={styles.replaceOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color={GUIDE_COLORS.surface} />
+              <Text style={styles.replaceOverlayText}>Đang tải ảnh lên...</Text>
             </View>
           )}
+          {isLocalVideo ? (
+            <View style={styles.imagePressable} accessibilityLabel="Video">
+              <LocalVideoPlayer
+                url={displayMedia.url}
+                style={styles.fullImage}
+              />
+            </View>
+          ) : isYouTube ? (
+            <View
+              style={[styles.imagePressable, styles.youtubeHeroShell]}
+              accessibilityLabel="Video YouTube nhúng"
+            >
+              {!youtubeFullscreenOpen ? (
+                <YoutubeEmbedWebView
+                  ref={youtubeInlineRef}
+                  key={`yt-inline-${displayMedia.id}-${youtubeInlineMountKey}`}
+                  videoUrl={displayMedia.url}
+                  style={styles.youtubeEmbedFrame}
+                  startSeconds={youtubeInlineStart}
+                  play={youtubeInlinePlayOneShot}
+                  preventNativeFullscreen
+                  onChangeState={handleYoutubeStateChange}
+                />
+              ) : (
+                <View style={styles.youtubeInlinePlaceholder} />
+              )}
+            </View>
+          ) : isModel3d ? (
+            <>
+              <View
+                style={styles.imagePressable}
+                accessibilityLabel="Mô hình 3D — xoay, chụm để zoom"
+              >
+                {!model3dFullscreenOpen ? (
+                  <ModelViewerWebView
+                    modelUrl={displayMedia.url}
+                    style={styles.fullImage}
+                  />
+                ) : (
+                  <View
+                    style={[styles.fullImage, { backgroundColor: "#12100c" }]}
+                  />
+                )}
+              </View>
+              {!model3dFullscreenOpen ? (
+                <View
+                  style={[
+                    styles.model3dFullscreenCtaWrap,
+                    { bottom: GUIDE_SPACING.md },
+                  ]}
+                  pointerEvents="box-none"
+                >
+                  <SiteModels3dEntryButton
+                    variant="hero"
+                    onPress={openModel3dFullscreen}
+                    label={t("mediaTab.floatingOpen3d")}
+                    accessibilityHint={t("mediaTab.floatingOpen3dHint")}
+                  />
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Pressable
+              style={styles.imagePressable}
+              onPress={() => setLightbox("image")}
+              disabled={isReplacingFile}
+              accessibilityRole="button"
+              accessibilityLabel="Phóng to ảnh"
+            >
+              <Image
+                key={displayMedia.url}
+                source={{ uri: thumbnailUrl || displayMedia.url }}
+                style={styles.fullImage}
+                resizeMode="contain"
+              />
+            </Pressable>
+          )}
 
-          {/* Caption Section */}
-          <View style={styles.captionSection}>
-            <View style={styles.captionHeader}>
-              <Text style={styles.captionLabel}>Chú thích</Text>
-              {canEdit && !isEditing && (
+          {/* Thin edge scrims — không phủ cả khung hình như overlay đặc */}
+          <LinearGradient
+            pointerEvents="none"
+            colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0.12)", "transparent"]}
+            locations={[0, 0.42, 1]}
+            style={styles.topGradientScrim}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={[
+              "transparent",
+              "rgba(245, 237, 227, 0.35)",
+              "rgba(253, 248, 240, 0.96)",
+            ]}
+            locations={[0, 0.42, 1]}
+            style={styles.bottomGradientScrim}
+          />
+
+          {/* Header (on top of image) */}
+          <View style={[styles.header, { top: insets.top + GUIDE_SPACING.sm }]}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleBack}
+              activeOpacity={0.75}
+            >
+              <MaterialIcons
+                name="arrow-back"
+                size={22}
+                color={GUIDE_COLORS.surface}
+              />
+            </TouchableOpacity>
+
+            <View style={styles.headerRightCluster}>
+              {isYouTube ? (
                 <TouchableOpacity
-                  style={styles.editButton}
-                  onPress={() => setIsEditing(true)}
+                  style={styles.headerButton}
+                  onPress={openYoutubeFullscreen}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Phóng to video"
                 >
                   <MaterialIcons
-                    name="edit"
-                    size={18}
+                    name="fullscreen"
+                    size={22}
+                    color={GUIDE_COLORS.surface}
+                  />
+                </TouchableOpacity>
+              ) : isModel3d ? (
+                <TouchableOpacity
+                  style={[styles.headerButton, styles.headerButtonModel3d]}
+                  onPress={openModel3dFullscreen}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("mediaTab.floatingOpen3d")}
+                  accessibilityHint={t("mediaTab.floatingOpen3dHint")}
+                >
+                  <MaterialIcons
+                    name="fullscreen"
+                    size={22}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+              ) : null}
+              <View style={styles.statusBadgeShell}>
+                <StatusBadge
+                  status={displayMedia.status}
+                  label={STATUS_LABELS[displayMedia.status]}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Media type badge */}
+          <View style={styles.mediaTypeBadge}>
+            <MaterialIcons
+              name={getMediaTypeIcon()}
+              size={18}
+              color={GUIDE_COLORS.surface}
+            />
+            <Text style={styles.mediaTypeBadgeText}>
+              {displayMedia.type === "video"
+                ? "Video"
+                : displayMedia.type === "model_3d"
+                  ? "3D"
+                  : "Photo"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Content Panel */}
+        <KeyboardAvoidingView
+          style={styles.contentPanel}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Drag Indicator Affordance */}
+          <View style={styles.dragHandleContainer}>
+            <View style={styles.dragHandle} />
+          </View>
+
+          <ReanimatedScrollView
+            style={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            onScroll={scrollHandler}
+            scrollEventThrottle={16}
+            bounces
+          >
+            {/* Rejection Reason (if rejected) */}
+            {displayMedia.status === "rejected" &&
+              displayMedia.rejection_reason && (
+                <View style={styles.rejectionContainer}>
+                  <View style={styles.rejectionHeader}>
+                    <MaterialIcons
+                      name="error"
+                      size={20}
+                      color={GUIDE_COLORS.error}
+                    />
+                    <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
+                  </View>
+                  <Text style={styles.rejectionReason}>
+                    {displayMedia.rejection_reason}
+                  </Text>
+                </View>
+              )}
+
+            {/* Caption Section */}
+            <View style={styles.captionSection}>
+              <View style={styles.captionHeader}>
+                <Text style={styles.captionLabel}>Chú thích</Text>
+                {canEdit && !isEditing && (
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => setIsEditing(true)}
+                  >
+                    <MaterialIcons
+                      name="edit"
+                      size={18}
+                      color={GUIDE_COLORS.primary}
+                    />
+                    <Text style={styles.editButtonText}>Sửa</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {canEdit && !isEditing && displayMedia.status === "pending" && (
+                <Text style={styles.captionEditHint}>
+                  Đang chờ duyệt — bạn vẫn có thể sửa chú thích hoặc thay file
+                  ảnh bất cứ lúc nào trước khi được duyệt.
+                </Text>
+              )}
+              {canEdit && !isEditing && displayMedia.status === "rejected" && (
+                <Text style={styles.captionEditHint}>
+                  Bạn có thể sửa chú thích, thay ảnh mới hoặc xóa bản nháp; sau
+                  khi cập nhật, media có thể chuyển lại «Chờ duyệt» và vẫn chỉnh
+                  sửa được như trên.
+                </Text>
+              )}
+
+              {isEditing ? (
+                <View style={styles.editCaptionContainer}>
+                  <TextInput
+                    style={styles.captionInput}
+                    placeholder="Nhập chú thích..."
+                    placeholderTextColor={GUIDE_COLORS.gray400}
+                    value={caption}
+                    onChangeText={setCaption}
+                    multiline
+                    maxLength={500}
+                    autoFocus
+                  />
+                  <View style={styles.editActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setCaption(displayMedia.caption || "");
+                        setIsEditing(false);
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>Hủy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.saveButton,
+                        isSaving && styles.saveButtonDisabled,
+                      ]}
+                      onPress={handleSaveCaption}
+                      disabled={isSaving}
+                    >
+                      {isSaving ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={GUIDE_COLORS.surface}
+                        />
+                      ) : (
+                        <Text style={styles.saveButtonText}>Lưu</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.captionText}>
+                  {displayMedia.caption || "Không có chú thích"}
+                </Text>
+              )}
+            </View>
+
+            {/* Thay file ảnh (chờ duyệt / từ chối) */}
+            {canReplaceImageFile && (
+              <View style={styles.replaceFileSection}>
+                <Text style={styles.replaceFileLabel}>File ảnh</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.replaceFileButton,
+                    isReplacingFile && styles.replaceFileButtonDisabled,
+                  ]}
+                  onPress={() => setIsPickerVisible(true)}
+                  disabled={isReplacingFile || isSaving || isEditing}
+                  activeOpacity={0.85}
+                >
+                  <MaterialIcons
+                    name="photo-library"
+                    size={20}
                     color={GUIDE_COLORS.primary}
                   />
-                  <Text style={styles.editButtonText}>Sửa</Text>
+                  <Text style={styles.replaceFileButtonText}>
+                    Chọn ảnh khác từ thư viện
+                  </Text>
                 </TouchableOpacity>
-              )}
-            </View>
-            {canEdit && !isEditing && displayMedia.status === "pending" && (
-              <Text style={styles.captionEditHint}>
-                Đang chờ duyệt — bạn vẫn có thể sửa chú thích hoặc thay file ảnh bất cứ lúc nào trước khi được duyệt.
-              </Text>
-            )}
-            {canEdit && !isEditing && displayMedia.status === "rejected" && (
-              <Text style={styles.captionEditHint}>
-                Bạn có thể sửa chú thích, thay ảnh mới hoặc xóa bản nháp; sau khi cập nhật, media có thể chuyển lại «Chờ duyệt» và vẫn chỉnh sửa được như trên.
-              </Text>
-            )}
-
-            {isEditing ? (
-              <View style={styles.editCaptionContainer}>
-                <TextInput
-                  style={styles.captionInput}
-                  placeholder="Nhập chú thích..."
-                  placeholderTextColor={GUIDE_COLORS.gray400}
-                  value={caption}
-                  onChangeText={setCaption}
-                  multiline
-                  maxLength={500}
-                  autoFocus
-                />
-                <View style={styles.editActions}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => {
-                      setCaption(displayMedia.caption || "");
-                      setIsEditing(false);
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>Hủy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.saveButton,
-                      isSaving && styles.saveButtonDisabled,
-                    ]}
-                    onPress={handleSaveCaption}
-                    disabled={isSaving}
-                  >
-                    {isSaving ? (
-                      <ActivityIndicator
-                        size="small"
-                        color={GUIDE_COLORS.surface}
-                      />
-                    ) : (
-                      <Text style={styles.saveButtonText}>Lưu</Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.replaceFileHint}>
+                  Ảnh mới sẽ thay thế file hiện tại và gửi lại để duyệt.
+                </Text>
               </View>
-            ) : (
-              <Text style={styles.captionText}>
-                {displayMedia.caption || "Không có chú thích"}
-              </Text>
             )}
-          </View>
 
-          {/* Thay file ảnh (chờ duyệt / từ chối) */}
-          {canReplaceImageFile && (
-            <View style={styles.replaceFileSection}>
-              <Text style={styles.replaceFileLabel}>File ảnh</Text>
+            {/* Media Info */}
+            <View style={styles.metadataSection}>
+              <Text style={styles.metadataTitle}>Thông tin chi tiết</Text>
+
+              <View style={styles.metadataRow}>
+                <MaterialIcons
+                  name="calendar-today"
+                  size={16}
+                  color={GUIDE_COLORS.creamMuted}
+                />
+                <Text style={styles.metadataLabel}>Ngày tải lên</Text>
+                <Text style={styles.metadataValue}>
+                  {formatUploadDate(displayMedia.created_at)}
+                </Text>
+              </View>
+
+              <View style={styles.metadataDivider} />
+
+              <View style={styles.metadataRow}>
+                <MaterialIcons
+                  name={getMediaTypeIcon()}
+                  size={16}
+                  color={GUIDE_COLORS.creamMuted}
+                />
+                <Text style={styles.metadataLabel}>Loại</Text>
+                <Text style={styles.metadataValue}>{getMediaTypeLabel()}</Text>
+              </View>
+
+              <View style={styles.metadataDivider} />
+
+              <View style={styles.metadataRow}>
+                <MaterialIcons
+                  name="label-outline"
+                  size={16}
+                  color={GUIDE_COLORS.creamMuted}
+                />
+                <Text style={styles.metadataLabel}>Mã</Text>
+                <Text style={styles.metadataValue}>{displayMedia.code}</Text>
+              </View>
+
+              {displayMedia.type === "video" &&
+                displayMedia.duration != null && (
+                  <>
+                    <View style={styles.metadataDivider} />
+                    <View style={styles.metadataRow}>
+                      <MaterialIcons
+                        name="timer"
+                        size={16}
+                        color={GUIDE_COLORS.creamMuted}
+                      />
+                      <Text style={styles.metadataLabel}>Thời lượng</Text>
+                      <Text style={styles.metadataValue}>
+                        {formatDuration(displayMedia.duration)}
+                      </Text>
+                    </View>
+                  </>
+                )}
+            </View>
+
+            {/* Delete Button */}
+            {canDelete && (
               <TouchableOpacity
                 style={[
-                  styles.replaceFileButton,
-                  isReplacingFile && styles.replaceFileButtonDisabled,
+                  styles.deleteButton,
+                  isDeleting && styles.deleteButtonDisabled,
                 ]}
-                onPress={() => setIsPickerVisible(true)}
-                disabled={isReplacingFile || isSaving || isEditing}
-                activeOpacity={0.85}
+                onPress={handleDelete}
+                disabled={isDeleting}
+                activeOpacity={0.8}
               >
-                <MaterialIcons
-                  name="photo-library"
-                  size={20}
-                  color={GUIDE_COLORS.primary}
-                />
-                <Text style={styles.replaceFileButtonText}>
-                  Chọn ảnh khác từ thư viện
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.replaceFileHint}>
-                Ảnh mới sẽ thay thế file hiện tại và gửi lại để duyệt.
-              </Text>
-            </View>
-          )}
-
-          {/* Media Info */}
-          <View style={styles.metadataSection}>
-            <Text style={styles.metadataTitle}>Thông tin chi tiết</Text>
-
-            <View style={styles.metadataRow}>
-              <MaterialIcons name="calendar-today" size={16} color={GUIDE_COLORS.creamMuted} />
-              <Text style={styles.metadataLabel}>Ngày tải lên</Text>
-              <Text style={styles.metadataValue}>{formatUploadDate(displayMedia.created_at)}</Text>
-            </View>
-
-            <View style={styles.metadataDivider} />
-
-            <View style={styles.metadataRow}>
-              <MaterialIcons name={getMediaTypeIcon()} size={16} color={GUIDE_COLORS.creamMuted} />
-              <Text style={styles.metadataLabel}>Loại</Text>
-              <Text style={styles.metadataValue}>{getMediaTypeLabel()}</Text>
-            </View>
-
-            <View style={styles.metadataDivider} />
-
-            <View style={styles.metadataRow}>
-              <MaterialIcons name="label-outline" size={16} color={GUIDE_COLORS.creamMuted} />
-              <Text style={styles.metadataLabel}>Mã</Text>
-              <Text style={styles.metadataValue}>{displayMedia.code}</Text>
-            </View>
-
-            {displayMedia.type === "video" && displayMedia.duration != null && (
-              <>
-                <View style={styles.metadataDivider} />
-                <View style={styles.metadataRow}>
-                  <MaterialIcons name="timer" size={16} color={GUIDE_COLORS.creamMuted} />
-                  <Text style={styles.metadataLabel}>Thời lượng</Text>
-                  <Text style={styles.metadataValue}>{formatDuration(displayMedia.duration)}</Text>
-                </View>
-              </>
-            )}
-          </View>
-
-          {/* Delete Button */}
-          {canDelete && (
-            <TouchableOpacity
-              style={[
-                styles.deleteButton,
-                isDeleting && styles.deleteButtonDisabled,
-              ]}
-              onPress={handleDelete}
-              disabled={isDeleting}
-              activeOpacity={0.8}
-            >
-              {isDeleting ? (
-                <ActivityIndicator size="small" color={GUIDE_COLORS.creamMuted} />
-              ) : (
-                <>
-                  <MaterialIcons
-                    name="delete-outline"
-                    size={16}
+                {isDeleting ? (
+                  <ActivityIndicator
+                    size="small"
                     color={GUIDE_COLORS.creamMuted}
                   />
-                  <Text style={styles.deleteButtonText}>Xóa bản nháp này</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
+                ) : (
+                  <>
+                    <MaterialIcons
+                      name="delete-outline"
+                      size={16}
+                      color={GUIDE_COLORS.creamMuted}
+                    />
+                    <Text style={styles.deleteButtonText}>
+                      Xóa bản nháp này
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
 
-          {/* Cannot edit/delete notice for approved media */}
-          {displayMedia.status === "approved" && (
-            <View style={styles.approvedNotice}>
-              <MaterialIcons
-                name="lock"
-                size={18}
-                color={GUIDE_COLORS.creamMuted}
-              />
-              <Text style={styles.approvedNoticeText}>
-                Media đã được duyệt không thể chỉnh sửa hoặc xóa
-              </Text>
-            </View>
-          )}
-        </ReanimatedScrollView>
-      </KeyboardAvoidingView>
+            {/* Cannot edit/delete notice for approved media */}
+            {displayMedia.status === "approved" && (
+              <View style={styles.approvedNotice}>
+                <MaterialIcons
+                  name="lock"
+                  size={18}
+                  color={GUIDE_COLORS.creamMuted}
+                />
+                <Text style={styles.approvedNoticeText}>
+                  Media đã được duyệt không thể chỉnh sửa hoặc xóa
+                </Text>
+              </View>
+            )}
+          </ReanimatedScrollView>
+        </KeyboardAvoidingView>
 
-      <MediaLightbox
-        visible={lightbox !== "off"}
-        onClose={() => setLightbox("off")}
-        imageUri={
-          lightbox === "image"
-            ? thumbnailUrl || displayMedia.url
-            : undefined
-        }
-        videoUrl={lightbox === "video" ? displayMedia.url : undefined}
-      />
+        <MediaLightbox
+          visible={lightbox !== "off"}
+          onClose={() => setLightbox("off")}
+          imageUri={
+            lightbox === "image" ? thumbnailUrl || displayMedia.url : undefined
+          }
+          videoUrl={lightbox === "video" ? displayMedia.url : undefined}
+        />
 
-      <MediaPickerModal
-        visible={isPickerVisible}
-        onClose={() => setIsPickerVisible(false)}
-        onMediaPicked={handleMediaPickedForReplace}
-        mediaTypes="images"
-        allowsEditing={displayMedia.type === "image"}
-        title="Chọn ảnh thay thế"
-      />
+        <YoutubeFullscreenModal
+          visible={youtubeFullscreenOpen && isYouTube}
+          instanceKey={youtubeFsInstanceKey}
+          videoUrl={displayMedia.url}
+          startAtSeconds={youtubeFsStartAt}
+          autoPlay={youtubeFsAutoPlay}
+          onClose={handleYoutubeFullscreenClose}
+        />
+
+        <Model3dFullscreenModal
+          visible={model3dFullscreenOpen && isModel3d}
+          instanceKey={model3dFsInstanceKey}
+          modelUrl={displayMedia.url}
+          onClose={() => setModel3dFullscreenOpen(false)}
+        />
+
+        <MediaPickerModal
+          visible={isPickerVisible}
+          onClose={() => setIsPickerVisible(false)}
+          onMediaPicked={handleMediaPickedForReplace}
+          mediaTypes="images"
+          allowsEditing={displayMedia.type === "image"}
+          title="Chọn ảnh thay thế"
+        />
       </Animated.View>
     </GestureDetector>
   );

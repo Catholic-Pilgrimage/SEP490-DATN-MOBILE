@@ -4,9 +4,10 @@
  * Calls real API: GET /api/local-guide/events
  * Premium UI Design with Bottom Sheet Filter (Gold Standard)
  */
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -19,6 +20,8 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Swipeable } from "react-native-gesture-handler";
 import {
     GUIDE_COLORS,
     GUIDE_SPACING,
@@ -30,13 +33,50 @@ import { PREMIUM_COLORS } from "../constants";
 import { styles } from "./EventsTab.styles";
 import type { FilterItem } from "./FilterBottomSheet";
 import { FilterBottomSheet, FilterTrigger } from "./FilterBottomSheet";
+import {
+  getFabScrollBottomInset,
+  GUIDE_FAB_SIZE,
+  GuideFabButton,
+} from "./GuideFabButton";
 import { StatusBadge } from "./StatusBadge";
+import {
+  CATEGORY_GROUP_GRADIENTS,
+  EVENT_CATEGORY_GROUPS,
+  getCategoryGradientForList,
+  getEventCategoryLabel,
+  resolveEventCategorySlug,
+  stripLegacyCategoryTag,
+} from "../utils/eventCategoryUi";
 
 // ============================================
 // TYPES
 // ============================================
 
 type StatusFilter = "all" | EventStatus;
+
+const getCategoryFilterItems = (t: (key: string) => string): FilterItem[] => {
+  const all: FilterItem = {
+    key: "all",
+    label: t("eventsTab.categoryAll"),
+    color: PREMIUM_COLORS.brown,
+    bgColor: PREMIUM_COLORS.brownLight,
+    icon: "category",
+    description: t("eventsTab.categoryAllDesc"),
+  };
+  const items: FilterItem[] = EVENT_CATEGORY_GROUPS.flatMap((g) => g.items).map(
+    (item) => {
+      const th = CATEGORY_GROUP_GRADIENTS[item.value];
+      return {
+        key: item.value,
+        label: item.label,
+        color: th?.colors[1] ?? PREMIUM_COLORS.gold,
+        bgColor: "#FFF9F5",
+        icon: (th?.icon ?? "event") as string,
+      };
+    },
+  );
+  return [all, ...items];
+};
 
 interface EventsTabProps {
   onEventPress: (event: EventItem) => void;
@@ -104,65 +144,103 @@ interface EventCardProps {
 const EventCard: React.FC<EventCardProps> = React.memo(
   ({ event, onPress, onDelete }) => {
     const { t } = useTranslation();
-    const [showMenu, setShowMenu] = useState(false);
     const canEdit = event.status === "pending" || event.status === "rejected";
 
-    // Format date display
     const formatDate = (dateStr: string) => {
       const date = new Date(dateStr);
+      const localizedMonth = date.toLocaleDateString("vi-VN", {
+        month: "short",
+      });
       return {
         day: date.getDate().toString().padStart(2, "0"),
-        month: date
-          .toLocaleDateString("vi-VN", { month: "short" })
-          .toUpperCase(),
+        month: localizedMonth.charAt(0).toUpperCase() + localizedMonth.slice(1),
         year: date.getFullYear().toString(),
       };
     };
 
-    // Format time display
+    // Format time display with overnight detection
     const formatTime = (timeStr: string) => {
       if (!timeStr) return "";
       return timeStr.substring(0, 5); // HH:MM
     };
 
+    const toMin = (t: string) => {
+      if (!t) return 0;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + (m || 0);
+    };
+
+    const isOvernight =
+      event.start_time &&
+      event.end_time &&
+      toMin(event.end_time) < toMin(event.start_time);
+
     const dateInfo = formatDate(event.start_date);
 
+    const displayDescription = event.description
+      ? stripLegacyCategoryTag(event.description)
+      : "";
+
+    const gradientTheme = getCategoryGradientForList(
+      event.description,
+      event.category,
+    );
+
+    const categoryLabel = getEventCategoryLabel(event);
+
     const handleMenuPress = () => {
-      if (!canEdit) return;
-      Alert.alert(event.name, t("eventsTab.chooseAction"), [
-        { text: t("eventsTab.edit"), onPress: () => onPress() },
-        {
-          text: t("eventsTab.delete"),
-          style: "destructive",
-          onPress: () => onDelete(),
-        },
-        { text: t("eventsTab.cancel"), style: "cancel" },
-      ]);
+      const buttons: any[] = [{ text: t("eventsTab.cancel"), style: "cancel" }];
+
+      if (canEdit) {
+        buttons.unshift({
+          text: t("eventsTab.edit"),
+          onPress: () => onPress(),
+        });
+      } else {
+        buttons.unshift({ text: "Xem chi tiết", onPress: () => onPress() });
+      }
+
+      Alert.alert(event.name, t("eventsTab.chooseAction"), buttons);
+    };
+
+    const renderRightActions = () => {
+      if (!canEdit) return null;
+      return (
+        <TouchableOpacity
+          style={styles.deleteSwipeAction}
+          onPress={onDelete}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="trash-outline" size={24} color="#FFF" />
+          <Text style={styles.deleteSwipeText}>{t("eventsTab.delete")}</Text>
+        </TouchableOpacity>
+      );
     };
 
     return (
-      <TouchableOpacity
-        style={styles.eventCard}
-        onPress={onPress}
-        activeOpacity={0.95}
+      <Swipeable
+        renderRightActions={renderRightActions}
+        containerStyle={styles.swipeableContainer}
+        overshootRight={false}
       >
-        {/* Date Column - Rounded corners */}
-        <View style={styles.dateColumn}>
-          <Text style={styles.dateDay}>{dateInfo.day}</Text>
-          <Text style={styles.dateMonth}>{dateInfo.month}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.eventCard}
+          onPress={onPress}
+          activeOpacity={0.7}
+        >
+          {/* Date Column */}
+          <View style={styles.dateColumn}>
+            <Text style={styles.dateDay}>{dateInfo.day}</Text>
+            <Text style={styles.dateMonth}>{dateInfo.month}</Text>
+          </View>
 
-        {/* Perforated Line Effect */}
-        <View style={styles.perforatedLine} />
-
-        {/* Content Column */}
-        <View style={styles.contentColumn}>
-          {/* Header with title */}
-          <View style={styles.cardHeader}>
-            <Text style={styles.eventName} numberOfLines={1}>
-              {event.name}
-            </Text>
-            {canEdit && (
+          {/* Content Column */}
+          <View style={styles.contentColumn}>
+            {/* Header with title and menu */}
+            <View style={styles.cardHeader}>
+              <Text style={styles.eventName} numberOfLines={2}>
+                {event.name}
+              </Text>
               <TouchableOpacity
                 style={styles.menuButton}
                 onPress={handleMenuPress}
@@ -171,73 +249,103 @@ const EventCard: React.FC<EventCardProps> = React.memo(
                 <Ionicons
                   name="ellipsis-vertical"
                   size={18}
-                  color={GUIDE_COLORS.gray400}
+                  color={GUIDE_COLORS.textSecondary}
                 />
               </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Status Badge - Below title */}
-          <View style={styles.badgeRow}>
-            <StatusBadge status={event.status} label={getStatusLabel(event.status, t)} />
-          </View>
-
-          {/* Description */}
-          {event.description ? (
-            <Text style={styles.eventDescription} numberOfLines={1}>
-              {event.description}
-            </Text>
-          ) : null}
-
-          {/* Meta info row */}
-          <View style={styles.metaRow}>
-            {(event.start_time || event.end_time) && (
-              <View style={styles.metaItem}>
-                <Ionicons
-                  name="time-outline"
-                  size={14}
-                  color={PREMIUM_COLORS.gold}
-                />
-                <Text style={styles.metaText}>
-                  {formatTime(event.start_time)}
-                  {event.end_time ? ` - ${formatTime(event.end_time)}` : ""}
-                </Text>
-              </View>
-            )}
-            {event.location && (
-              <View style={styles.metaItem}>
-                <Ionicons
-                  name="location-outline"
-                  size={14}
-                  color={PREMIUM_COLORS.gold}
-                />
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {event.location}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Rejection Reason */}
-          {event.status === "rejected" && event.rejection_reason && (
-            <View style={styles.rejectionBox}>
-              <Ionicons name="alert-circle" size={14} color="#E74C3C" />
-              <Text style={styles.rejectionText} numberOfLines={1}>
-                {event.rejection_reason}
-              </Text>
             </View>
-          )}
-        </View>
 
-        {/* Thumbnail */}
-        {event.banner_url ? (
-          <Image
-            source={{ uri: event.banner_url }}
-            style={styles.thumbnail}
-            resizeMode="cover"
-          />
-        ) : null}
-      </TouchableOpacity>
+            {/* Status Badge */}
+            <View style={styles.badgeRow}>
+              <StatusBadge
+                status={event.status}
+                label={getStatusLabel(event.status, t)}
+              />
+              {categoryLabel ? (
+                <Text style={styles.categoryChip} numberOfLines={1}>
+                  {categoryLabel}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Description — strip [Category] tag */}
+            {displayDescription ? (
+              <Text style={styles.eventDescription} numberOfLines={1}>
+                {displayDescription}
+              </Text>
+            ) : null}
+
+            {/* Meta info row */}
+            <View style={styles.metaRow}>
+              {(event.start_time || event.end_time) && (
+                <View style={styles.metaItem}>
+                  <Ionicons
+                    name="time-outline"
+                    size={14}
+                    color={PREMIUM_COLORS.gold}
+                  />
+                  <Text style={styles.metaText}>
+                    {formatTime(event.start_time)}
+                    {event.end_time ? ` - ${formatTime(event.end_time)}` : ""}
+                  </Text>
+                  {isOvernight && (
+                    <View style={styles.overnightBadge}>
+                      <Text style={styles.overnightText}>+1</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+              {event.location && (
+                <View style={styles.metaItem}>
+                  <Ionicons
+                    name="location-outline"
+                    size={14}
+                    color={PREMIUM_COLORS.gold}
+                  />
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {event.location}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Rejection Reason */}
+            {event.status === "rejected" && event.rejection_reason && (
+              <View style={styles.rejectionBox}>
+                <Ionicons name="alert-circle" size={14} color="#E74C3C" />
+                <Text style={styles.rejectionText} numberOfLines={1}>
+                  {event.rejection_reason}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Thumbnail Column with Container */}
+          <View style={styles.thumbnailContainer}>
+            <View style={styles.thumbnailWrapper}>
+              {event.banner_url ? (
+                <Image
+                  source={{ uri: event.banner_url }}
+                  style={styles.thumbnail}
+                  resizeMode="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={gradientTheme.colors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.thumbnail, styles.thumbnailGradient]}
+                >
+                  <MaterialIcons
+                    name={gradientTheme.icon}
+                    size={24}
+                    color="rgba(255,255,255,0.7)"
+                  />
+                </LinearGradient>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Swipeable>
     );
   },
 );
@@ -249,13 +357,44 @@ const EventCard: React.FC<EventCardProps> = React.memo(
 interface EmptyStateProps {
   onCreatePress: () => void;
   statusFilter: StatusFilter;
+  categoryFilter: string;
+  statusFilters: FilterItem[];
+  categoryFilters: FilterItem[];
 }
 
-const EmptyState: React.FC<
-  EmptyStateProps & { filters: FilterItem[] }
-> = ({ onCreatePress, statusFilter, filters }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({
+  onCreatePress,
+  statusFilter,
+  categoryFilter,
+  statusFilters,
+  categoryFilters,
+}) => {
   const { t } = useTranslation();
-  const filterInfo = filters.find((f) => f.key === statusFilter);
+  const statusInfo = statusFilters.find((f) => f.key === statusFilter);
+  const catInfo = categoryFilters.find((f) => f.key === categoryFilter);
+  const noStatusFilter = statusFilter === "all";
+  const noCategoryFilter = categoryFilter === "all";
+
+  const title = (() => {
+    if (noStatusFilter && noCategoryFilter) return t("eventsTab.empty");
+    if (!noStatusFilter && !noCategoryFilter) {
+      return t("eventsTab.emptyFilteredBoth", {
+        status: (statusInfo?.label ?? "").toLowerCase(),
+        category: catInfo?.label ?? "",
+      });
+    }
+    if (!noCategoryFilter) {
+      return t("eventsTab.emptyFilteredCategory", {
+        category: catInfo?.label ?? "",
+      });
+    }
+    return t("eventsTab.emptyFiltered", {
+      status: (statusInfo?.label ?? "").toLowerCase(),
+    });
+  })();
+
+  const showCreateCta = noStatusFilter && noCategoryFilter;
+
   return (
     <View style={styles.emptyState}>
       <View style={styles.emptyIconContainer}>
@@ -265,13 +404,17 @@ const EmptyState: React.FC<
           color={PREMIUM_COLORS.gold}
         />
       </View>
-      <Text style={styles.emptyTitle}>
-        {statusFilter === "all"
-          ? t("eventsTab.empty")
-          : t("eventsTab.emptyFiltered", {
-              status: filterInfo?.label.toLowerCase(),
-            })}
-      </Text>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      {showCreateCta && (
+        <TouchableOpacity
+          style={styles.emptyButton}
+          onPress={onCreatePress}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={20} color="#FFF" />
+          <Text style={styles.emptyButtonText}>Tạo sự kiện đầu tiên</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -285,10 +428,25 @@ export const EventsTab: React.FC<EventsTabProps> = ({
   onCreatePress,
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const listContentStyle = useMemo(
+    () => [
+      styles.listContent,
+      {
+        paddingBottom: getFabScrollBottomInset(
+          GUIDE_FAB_SIZE,
+          insets.bottom,
+        ),
+      },
+    ],
+    [insets.bottom],
+  );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const queryClient = useQueryClient();
   const statusFilters = useMemo(() => getStatusFilters(t), [t]);
+  const categoryFilters = useMemo(() => getCategoryFilterItems(t), [t]);
 
   const {
     data: events = [],
@@ -309,6 +467,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     },
     staleTime: 1000 * 30, // 30 seconds stale
   });
+
+  const filteredEvents = useMemo(() => {
+    if (categoryFilter === "all") return events;
+    return events.filter(
+      (e) => resolveEventCategorySlug(e) === categoryFilter,
+    );
+  }, [events, categoryFilter]);
 
   // Refetch on focus to ensure data is fresh
   useFocusEffect(
@@ -376,8 +541,15 @@ export const EventsTab: React.FC<EventsTabProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
+        </View>
+        <GuideFabButton
+          onPress={onCreatePress}
+          accessibilityLabel={t("mySiteScreen.fabAddEvent")}
+          hideOnKeyboard
+        />
       </View>
     );
   }
@@ -392,6 +564,8 @@ export const EventsTab: React.FC<EventsTabProps> = ({
           onPress={() => setShowFilterSheet(true)}
           filters={statusFilters}
           defaultLabel={t("eventsTab.filter")}
+          secondaryActiveFilter={categoryFilter}
+          secondaryFilters={categoryFilters}
         />
       </View>
 
@@ -403,14 +577,19 @@ export const EventsTab: React.FC<EventsTabProps> = ({
         onClose={() => setShowFilterSheet(false)}
         filters={statusFilters}
         title={t("eventsTab.filterTitle")}
+        primarySectionTitle={t("eventsTab.filterSectionStatus")}
+        secondarySectionTitle={t("eventsTab.filterSectionCategory")}
+        secondaryFilters={categoryFilters}
+        activeSecondaryFilter={categoryFilter}
+        onSecondaryFilterChange={setCategoryFilter}
       />
 
       {/* Events List */}
       <FlatList
-        data={events}
+        data={filteredEvents}
         renderItem={renderEventItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={listContentStyle}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -424,12 +603,20 @@ export const EventsTab: React.FC<EventsTabProps> = ({
           <EmptyState
             onCreatePress={onCreatePress}
             statusFilter={statusFilter}
-            filters={statusFilters}
+            categoryFilter={categoryFilter}
+            statusFilters={statusFilters}
+            categoryFilters={categoryFilters}
           />
         }
         ItemSeparatorComponent={() => (
           <View style={{ height: GUIDE_SPACING.md }} />
         )}
+      />
+
+      <GuideFabButton
+        onPress={onCreatePress}
+        accessibilityLabel={t("mySiteScreen.fabAddEvent")}
+        hideOnKeyboard
       />
     </View>
   );

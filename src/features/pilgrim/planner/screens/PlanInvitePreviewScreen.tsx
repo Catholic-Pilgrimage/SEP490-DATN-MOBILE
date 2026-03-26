@@ -2,11 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useState } from "react";
+import type { TFunction } from "i18next";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  AppState,
+  AppStateStatus,
   Image,
   ImageBackground,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -22,12 +27,35 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+import { ERROR_MESSAGES } from "../../../../config/api.config";
 import { useAuth } from "../../../../hooks/useAuth";
 import { RootStackParamList } from "../../../../navigation/RootNavigator";
 import { pilgrimPlannerApi } from "../../../../services/api/pilgrim";
-import { PlanInvite } from "../../../../types/pilgrim";
+import { PlanInvite, RespondInviteResponse } from "../../../../types/pilgrim";
 
 const BG_IMAGE = require("../../../../../assets/images/bg1.jpg");
+
+function humanizeInviteApiMessage(raw: string, t: TFunction): string {
+  if (!raw) return "";
+  if (raw.includes("Share planner must have a deposit amount configured")) {
+    return t("planner.inviteDepositNotConfigured");
+  }
+  if (raw.includes("Failed to create payment link")) {
+    return t("planner.invitePaymentLinkFailed");
+  }
+  return raw;
+}
+
+function isTransientNetworkError(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  const m = e.message;
+  return (
+    m === ERROR_MESSAGES.NETWORK_ERROR ||
+    m === ERROR_MESSAGES.TIMEOUT_ERROR ||
+    m.includes("Network Error") ||
+    m.includes("ECONNABORTED")
+  );
+}
 
 const TRANSPORT_MAP: Record<
   string,
@@ -61,6 +89,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "PlanInvitePreview">;
 
 const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
   const { token } = route.params;
+  const { t } = useTranslation();
   const { isGuest, user } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -69,6 +98,8 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
   const [responding, setResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGuestLogin, setShowGuestLogin] = useState(false);
+  const [awaitingPayReturn, setAwaitingPayReturn] = useState(false);
+  const joinSuccessShownRef = useRef(false);
 
   /**
    * Lưu token vào AsyncStorage trước khi user được chuyển sang màn hình Login.
@@ -79,8 +110,41 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
   }, [token]);
 
   useEffect(() => {
+    joinSuccessShownRef.current = false;
+    setAwaitingPayReturn(false);
     fetchInvitePreview();
   }, [token]);
+
+  useEffect(() => {
+    const onAppState = (state: AppStateStatus) => {
+      if (state !== "active" || !awaitingPayReturn) return;
+      void (async () => {
+        try {
+          const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
+          if (!res.success || !res.data) return;
+          setInvite(res.data);
+          if (
+            res.data.status === "accepted" &&
+            !joinSuccessShownRef.current
+          ) {
+            joinSuccessShownRef.current = true;
+            setAwaitingPayReturn(false);
+            Toast.show({
+              type: "success",
+              text1: t("planner.inviteJoinSuccessTitle"),
+              text2: t("planner.inviteJoinSuccessBody"),
+              visibilityTime: 2800,
+              onHide: () => navigation.navigate("Main" as never),
+            });
+          }
+        } catch {
+          /* silent — user có thể mở lại app khi chưa có mạng */
+        }
+      })();
+    };
+    const sub = AppState.addEventListener("change", onAppState);
+    return () => sub.remove();
+  }, [awaitingPayReturn, token, navigation, t]);
 
   const fetchInvitePreview = async () => {
     try {
@@ -108,37 +172,108 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
 
     try {
       setResponding(true);
-      const res = await pilgrimPlannerApi.respondToInvite(token, { action });
+
+      let res: Awaited<
+        ReturnType<typeof pilgrimPlannerApi.respondToInvite>
+      > | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          res = await pilgrimPlannerApi.respondToInvite(token, { action });
+          break;
+        } catch (e) {
+          if (attempt === 0 && isTransientNetworkError(e)) {
+            await new Promise((r) => setTimeout(r, 700));
+            continue;
+          }
+          throw e;
+        }
+      }
+      if (!res) {
+        throw new Error(
+          t("planner.inviteRespondFailed", {
+            defaultValue: "Không thể phản hồi lời mời.",
+          }),
+        );
+      }
+
       if (res.success) {
-        if (action === "accept") {
-          Toast.show({
-            type: "success",
-            text1: "Tham gia thành công! 🎉",
-            text2: res.message,
-            visibilityTime: 2500,
-            onHide: () => navigation.navigate("Main"),
-          });
-        } else {
+        if (action === "reject") {
           Toast.show({
             type: "info",
-            text1: "Đã từ chối",
+            text1: t("planner.depositInviteRejected", {
+              defaultValue: "Đã từ chối",
+            }),
             text2: res.message,
             visibilityTime: 2000,
             onHide: () => navigation.goBack(),
           });
+          return;
         }
+
+        const extra = res.data as RespondInviteResponse | undefined;
+        const payUrl = extra?.checkout_url || extra?.payment_url;
+        const fromWallet = extra?.paid_from_wallet === true;
+
+        if (fromWallet) {
+          Toast.show({
+            type: "success",
+            text1: t("planner.inviteJoinWalletTitle"),
+            text2: extra?.message || res.message,
+            visibilityTime: 2800,
+            onHide: () => navigation.navigate("Main" as never),
+          });
+          setInvite((prev) =>
+            prev ? { ...prev, status: "accepted" } : prev,
+          );
+          return;
+        }
+
+        if (payUrl) {
+          const can = await Linking.canOpenURL(payUrl);
+          if (can) await Linking.openURL(payUrl);
+          setAwaitingPayReturn(true);
+          setInvite((prev) =>
+            prev ? { ...prev, status: "awaiting_payment" } : prev,
+          );
+          Toast.show({
+            type: "info",
+            text1: t("planner.invitePaymentOpenedTitle"),
+            text2: t("planner.invitePaymentOpenedBody"),
+            visibilityTime: 5500,
+          });
+          return;
+        }
+
+        Toast.show({
+          type: "success",
+          text1: t("planner.inviteJoinSuccessTitle"),
+          text2: res.message,
+          visibilityTime: 2500,
+          onHide: () => navigation.navigate("Main" as never),
+        });
       } else {
+        const raw = res.message || res.error?.message || "";
         Toast.show({
           type: "error",
-          text1: "Không thể phản hồi",
-          text2: res.message || res.error?.message || "Vui lòng thử lại.",
+          text1: t("common.error"),
+          text2:
+            humanizeInviteApiMessage(raw, t) ||
+            t("planner.inviteRespondFailed", {
+              defaultValue: "Không thể phản hồi lời mời.",
+            }),
         });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const raw =
+        e instanceof Error ? e.message : typeof e === "string" ? e : "";
       Toast.show({
         type: "error",
-        text1: "Đã xảy ra lỗi",
-        text2: e.message || "Vui lòng thử lại.",
+        text1: t("common.error"),
+        text2:
+          humanizeInviteApiMessage(raw, t) ||
+          t("planner.inviteRespondFailed", {
+            defaultValue: "Không thể phản hồi lời mời.",
+          }),
       });
     } finally {
       setResponding(false);
@@ -220,8 +355,39 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
 
   const planner = invite.planner;
   const isExpired = invite.status === "expired";
+  const isAwaitingPayment = invite.status === "awaiting_payment";
+  const showAcceptReject =
+    !isExpired && invite.status === "pending";
   const isAlreadyResponded =
     invite.status === "accepted" || invite.status === "rejected";
+
+  const formatViDate = (iso?: string) => {
+    if (!iso) return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+  const startDateLabel = planner ? formatViDate(planner.start_date) : null;
+  const endDateLabel = planner ? formatViDate(planner.end_date) : null;
+  const dayCount =
+    planner?.number_of_days ?? planner?.estimated_days ?? null;
+
+  const openWalletTab = () => {
+    (navigation as { navigate: (name: string, params?: object) => void }).navigate(
+      "Main",
+      {
+        screen: "MainTabs",
+        params: {
+          screen: "Ho so",
+          params: { screen: "Wallet" },
+        },
+      },
+    );
+  };
 
   // ─── Main ───
   return (
@@ -263,15 +429,19 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
         <View
           style={[
             styles.iconWrapper,
-            isAlreadyResponded && {
+            (isAlreadyResponded || isAwaitingPayment) && {
               backgroundColor:
                 invite.status === "accepted"
                   ? "rgba(40,167,69,0.12)"
-                  : "rgba(220,53,69,0.12)",
+                  : isAwaitingPayment
+                    ? "rgba(207,170,58,0.15)"
+                    : "rgba(220,53,69,0.12)",
               borderColor:
                 invite.status === "accepted"
                   ? "rgba(40,167,69,0.35)"
-                  : "rgba(220,53,69,0.35)",
+                  : isAwaitingPayment
+                    ? "rgba(207,170,58,0.4)"
+                    : "rgba(220,53,69,0.35)",
             },
             isExpired && {
               backgroundColor: "rgba(133,100,4,0.1)",
@@ -285,9 +455,11 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
                 ? "time-outline"
                 : invite.status === "accepted"
                   ? "checkmark-circle-outline"
-                  : invite.status === "rejected"
-                    ? "close-circle-outline"
-                    : "mail-unread-outline"
+                  : isAwaitingPayment
+                    ? "wallet-outline"
+                    : invite.status === "rejected"
+                      ? "close-circle-outline"
+                      : "mail-unread-outline"
             }
             size={48}
             color={
@@ -295,9 +467,11 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
                 ? INVITE_COLORS.warning
                 : invite.status === "accepted"
                   ? INVITE_COLORS.success
-                  : invite.status === "rejected"
-                    ? INVITE_COLORS.danger
-                    : INVITE_COLORS.primary
+                  : isAwaitingPayment
+                    ? INVITE_COLORS.primary
+                    : invite.status === "rejected"
+                      ? INVITE_COLORS.danger
+                      : INVITE_COLORS.primary
             }
           />
         </View>
@@ -339,7 +513,7 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
         <View style={styles.divider} />
 
         {/* Date */}
-        {planner && (
+        {planner && (startDateLabel || endDateLabel) && (
           <View style={styles.infoRow}>
             <Ionicons
               name="calendar-outline"
@@ -347,24 +521,14 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
               color={INVITE_COLORS.primary}
             />
             <Text style={styles.infoText}>
-              {new Date(planner.start_date).toLocaleDateString("vi-VN", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })}
-              {planner.end_date
-                ? ` – ${new Date(planner.end_date).toLocaleDateString("vi-VN", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    year: "numeric",
-                  })}`
-                : ""}
+              {startDateLabel ?? "—"}
+              {endDateLabel ? ` – ${endDateLabel}` : ""}
             </Text>
           </View>
         )}
 
         {/* Số ngày */}
-        {planner?.number_of_days != null && (
+        {dayCount != null && (
           <View style={styles.infoRow}>
             <Ionicons
               name="time-outline"
@@ -372,8 +536,7 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
               color={INVITE_COLORS.primary}
             />
             <Text style={styles.infoText}>
-              <Text style={styles.infoTextBold}>{planner.number_of_days}</Text>{" "}
-              ngày
+              <Text style={styles.infoTextBold}>{dayCount}</Text> ngày
             </Text>
           </View>
         )}
@@ -461,10 +624,22 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
             </Text>
           </View>
         )}
+        {isAwaitingPayment && (
+          <View style={[styles.statusBadge, styles.statusAwaitingPayment]}>
+            <Ionicons
+              name="wallet-outline"
+              size={16}
+              color={INVITE_COLORS.warning}
+            />
+            <Text style={[styles.statusText, { color: INVITE_COLORS.warning }]}>
+              Chờ thanh toán cọc
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Buttons — fixed bottom */}
-      {!isExpired && !isAlreadyResponded && (
+      {showAcceptReject && (
         <View
           style={[
             styles.actionBar,
@@ -511,8 +686,8 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
         </View>
       )}
 
-      {/* Banner "đã xử lý" — thay thế action bar khi status khác pending */}
-      {(isAlreadyResponded || isExpired) && (
+      {/* Banner khi không còn pending (hết hạn / đã phản hồi / chờ cọc) */}
+      {(isAlreadyResponded || isExpired || isAwaitingPayment) && (
         <View
           style={[
             styles.processedBar,
@@ -520,40 +695,59 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
             isExpired && styles.processedBarExpired,
             invite.status === "accepted" && styles.processedBarAccepted,
             invite.status === "rejected" && styles.processedBarRejected,
+            isAwaitingPayment && styles.processedBarAwaitingPayment,
           ]}
         >
           <Ionicons
             name={
               isExpired
                 ? "time-outline"
-                : invite.status === "accepted"
-                  ? "checkmark-circle"
-                  : "close-circle"
+                : isAwaitingPayment
+                  ? "wallet-outline"
+                  : invite.status === "accepted"
+                    ? "checkmark-circle"
+                    : "close-circle"
             }
             size={22}
             color={
               isExpired
                 ? INVITE_COLORS.warning
-                : invite.status === "accepted"
-                  ? INVITE_COLORS.success
-                  : INVITE_COLORS.danger
+                : isAwaitingPayment
+                  ? INVITE_COLORS.warning
+                  : invite.status === "accepted"
+                    ? INVITE_COLORS.success
+                    : INVITE_COLORS.danger
             }
           />
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.processedBarTitle}>
               {isExpired
                 ? "Lời mời đã hết hạn"
-                : invite.status === "accepted"
-                  ? "Lời mời này đã được xử lý"
-                  : "Lời mời này đã được xử lý"}
+                : isAwaitingPayment
+                  ? "Hoàn tất thanh toán cọc"
+                  : invite.status === "accepted"
+                    ? "Lời mời này đã được xử lý"
+                    : "Lời mời này đã được xử lý"}
             </Text>
             <Text style={styles.processedBarSub}>
               {isExpired
                 ? "Token đã quá 7 ngày, không thể phản hồi."
-                : invite.status === "accepted"
-                  ? "Bạn đã chấp nhận lời mời này trước đó."
-                  : "Bạn đã từ chối lời mời này trước đó."}
+                : isAwaitingPayment
+                  ? "Bạn đã chấp nhận tham gia. Hoàn tất cọc qua liên kết thanh toán hoặc kiểm tra Ví trong Hồ sơ."
+                  : invite.status === "accepted"
+                    ? "Bạn đã chấp nhận lời mời này trước đó."
+                    : "Bạn đã từ chối lời mời này trước đó."}
             </Text>
+            {isAwaitingPayment && (
+              <TouchableOpacity
+                style={styles.walletCta}
+                onPress={openWalletTab}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.walletCtaText}>Mở Ví</Text>
+                <Ionicons name="chevron-forward" size={18} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       )}
@@ -730,6 +924,10 @@ const styles = StyleSheet.create({
     backgroundColor: INVITE_COLORS.dangerBg,
     borderColor: INVITE_COLORS.danger,
   },
+  statusAwaitingPayment: {
+    backgroundColor: INVITE_COLORS.warningBg,
+    borderColor: "#ffc107",
+  },
   statusText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: "700",
@@ -806,6 +1004,26 @@ const styles = StyleSheet.create({
   processedBarRejected: {
     backgroundColor: "rgba(248,215,218,0.97)",
     borderTopColor: INVITE_COLORS.danger,
+  },
+  processedBarAwaitingPayment: {
+    alignItems: "flex-start",
+  },
+  walletCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    marginTop: SPACING.sm,
+    alignSelf: "flex-start",
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: INVITE_COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  walletCtaText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: TYPOGRAPHY.fontSize.sm,
   },
   processedBarTitle: {
     fontSize: TYPOGRAPHY.fontSize.md,

@@ -27,52 +27,25 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.md,
     paddingTop: GUIDE_SPACING.sm,
     paddingBottom: GUIDE_SPACING.sm,
   },
   sectionTitleMain: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: GUIDE_SPACING.xs,
     fontSize: 16,
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
   },
-  mainFilterButton: {
+  headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: GUIDE_BORDER_RADIUS.full,
-    backgroundColor: GUIDE_COLORS.surface,
-    borderWidth: 1,
-    borderColor: GUIDE_COLORS.borderLight,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-      },
-      android: { elevation: 2 },
-    }),
+    gap: GUIDE_SPACING.xs,
+    flexShrink: 0,
   },
-  mainFilterText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: GUIDE_COLORS.textSecondary,
-  },
-  activeFilterBadge: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: GUIDE_COLORS.error,
-    borderWidth: 1.5,
-    borderColor: "#FFF",
-  },
-
   // Section Headers (grouped by date)
   sectionHeader: {
     flexDirection: "row",
@@ -167,17 +140,30 @@ export const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: "600",
   },
-  panaromaIndicator: {
+  model3dBadge: {
     position: "absolute",
     bottom: 6,
     right: 6,
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+    gap: 3,
+    backgroundColor: "rgba(60, 45, 25, 0.92)",
+    paddingVertical: 3,
+    paddingHorizontal: 6,
     borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(236, 182, 19, 0.45)",
+  },
+  model3dBadgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+  model3dGridCell: {
+    backgroundColor: "#1e1a14",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(236, 182, 19, 0.2)",
   },
 
   // Empty State
@@ -248,7 +234,6 @@ export const styles = StyleSheet.create({
   },
   actionBar: {
     position: "absolute",
-    bottom: GUIDE_SPACING.lg,
     left: GUIDE_SPACING.lg,
     right: GUIDE_SPACING.lg,
     backgroundColor: "#fff",

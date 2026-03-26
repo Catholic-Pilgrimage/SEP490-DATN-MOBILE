@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import {
     GUIDE_BORDER_RADIUS,
     GUIDE_COLORS,
@@ -32,10 +32,34 @@ export const styles = StyleSheet.create({
     color: GUIDE_COLORS.textPrimary,
   },
 
-  // List
   listContent: {
     paddingHorizontal: GUIDE_SPACING.md,
-    paddingBottom: 120,
+  },
+
+  swipeableContainer: {
+    // To allow the shadow of the inner card to be visible, we don't hide overflow tightly if not needed.
+    // However, if the red background peaks through the corners, we handle it via border-radius.
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: "transparent",
+  },
+  deleteSwipeAction: {
+    backgroundColor: "#E74C3C",
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.lg,
+    borderBottomRightRadius: GUIDE_BORDER_RADIUS.lg,
+    height: "100%",
+  },
+  deleteSwipeText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
 
   // Event Card - Ticket style with rounded date column
@@ -45,20 +69,12 @@ export const styles = StyleSheet.create({
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     overflow: "hidden",
     minHeight: 110,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    // Note: iOS shadow moved to swipeableContainer to avoid clipping
   },
   dateColumn: {
-    width: 64,
+    width: 56,
     backgroundColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
@@ -66,14 +82,8 @@ export const styles = StyleSheet.create({
     borderTopLeftRadius: GUIDE_BORDER_RADIUS.lg,
     borderBottomLeftRadius: GUIDE_BORDER_RADIUS.lg,
   },
-  perforatedLine: {
-    width: 2,
-    backgroundColor: PREMIUM_COLORS.cream,
-    marginVertical: GUIDE_SPACING.sm,
-    borderRadius: 1,
-  },
   dateDay: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: "800",
     color: "#FFF",
     letterSpacing: -0.5,
@@ -88,35 +98,70 @@ export const styles = StyleSheet.create({
   contentColumn: {
     flex: 1,
     padding: GUIDE_SPACING.md,
-    paddingLeft: GUIDE_SPACING.sm,
+    paddingLeft: GUIDE_SPACING.md,
+    paddingRight: GUIDE_SPACING.xs,
     justifyContent: "center",
     gap: 6,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    overflow: "hidden",
   },
   badgeRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
   },
-  menuButton: {
-    padding: 6,
-    marginRight: -4,
+  categoryChip: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: PREMIUM_COLORS.brown,
+    backgroundColor: "rgba(199, 169, 78, 0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    overflow: "hidden",
+    maxWidth: "70%",
+  },
+  thumbnailContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 12,
+    paddingVertical: 12,
+  },
+  thumbnailWrapper: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#EAEAEA",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
   },
   thumbnail: {
-    width: 70,
+    width: "100%",
     height: "100%",
-    minHeight: 110,
+  },
+  thumbnailGradient: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  menuButton: {
+    padding: 2,
+    marginTop: -2,
+    marginRight: -4, // Keep button slightly padded comfortably
   },
 
   // Event Info
   eventName: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    flex: 1, // Restrict text width from pushing chevron off
+    fontSize: 15,
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
-    flex: 1,
     letterSpacing: -0.3,
   },
   eventDescription: {
@@ -137,7 +182,22 @@ export const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 12,
-    color: GUIDE_COLORS.textSecondary,
+    color: "#666666",
+  },
+  // Overnight "+1" badge for events crossing midnight
+  overnightBadge: {
+    backgroundColor: "#FFF3E0",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#FFB74D",
+    marginLeft: 2,
+  },
+  overnightText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#E65100",
   },
   rejectionBox: {
     flexDirection: "row",
@@ -175,7 +235,7 @@ export const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: "700",
     color: PREMIUM_COLORS.charcoal,
-    marginBottom: GUIDE_SPACING.xs,
+    marginBottom: GUIDE_SPACING.md,
     textAlign: "center",
   },
   emptyDescription: {

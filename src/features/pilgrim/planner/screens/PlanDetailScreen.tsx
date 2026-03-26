@@ -5,39 +5,43 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
-import { CalendarSyncError, useCalendarSync } from "../../../../hooks/useCalendarSync";
+import { useAuth } from "../../../../hooks/useAuth";
+import {
+    CalendarSyncError,
+    useCalendarSync,
+} from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
@@ -49,22 +53,29 @@ import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-  createOfflinePlannerItemId,
-  offlinePlannerService,
+    createOfflinePlannerItemId,
+    offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import {
-  NearbyPlaceCategory,
-  SiteEvent,
-  SiteNearbyPlace,
-  SiteSummary,
+    NearbyPlaceCategory,
+    SiteEvent,
+    SiteNearbyPlace,
+    SiteSummary,
 } from "../../../../types/pilgrim";
 import {
-  PlanEntity,
-  PlanItem,
-  PlanParticipant,
-  UpdatePlanItemRequest,
+    AddPlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    UpdatePlanItemRequest,
+    UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
+import { SharePlanModal } from "../components/SharePlanModal";
+import {
+    MAX_DEPOSIT_VND,
+    parsePenaltyPercent,
+    parseVndInteger,
+} from "../utils/depositInput.utils";
 
 interface LocalSiteSnapshot {
   id: string;
@@ -75,18 +86,16 @@ interface LocalSiteSnapshot {
   longitude?: number;
 }
 
-const mapOfflineNearbyPlace = (
-  place: {
-    id: string;
-    name: string;
-    place_type: string;
-    address: string;
-    latitude?: string | number;
-    longitude?: string | number;
-    phone?: string;
-    description?: string;
-  },
-): SiteNearbyPlace => ({
+const mapOfflineNearbyPlace = (place: {
+  id: string;
+  name: string;
+  place_type: string;
+  address: string;
+  latitude?: string | number;
+  longitude?: string | number;
+  phone?: string;
+  description?: string;
+}): SiteNearbyPlace => ({
   id: place.id,
   code: place.id,
   name: place.name,
@@ -147,7 +156,8 @@ const buildPlanFromItemsByDay = (
 
   const flatItems = dayKeys.flatMap((dayKey) => normalized[dayKey]);
   const highestDay =
-    dayKeys.reduce((maxDay, dayKey) => Math.max(maxDay, Number(dayKey)), 1) || 1;
+    dayKeys.reduce((maxDay, dayKey) => Math.max(maxDay, Number(dayKey)), 1) ||
+    1;
 
   return {
     ...currentPlan,
@@ -227,7 +237,10 @@ const applyLocalAddItem = (
   return buildPlanFromItemsByDay(
     {
       ...currentPlan,
-      number_of_days: Math.max(currentPlan.number_of_days || 1, draft.day_number),
+      number_of_days: Math.max(
+        currentPlan.number_of_days || 1,
+        draft.day_number,
+      ),
     },
     itemsByDay,
   );
@@ -294,9 +307,15 @@ const applyLocalDeleteItem = (currentPlan: PlanEntity, itemId: string) => {
 const PlanDetailScreen = ({ route, navigation }: any) => {
   const { planId, autoAddSiteId, autoAddDay } = route.params;
   const { t } = useTranslation();
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const isPlanOwner = useMemo(
+    () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
+    [plan, user?.id],
+  );
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
   const { confirm, ConfirmModal } = useConfirm();
   const { isOffline, offlineQueueCount } = useOffline();
@@ -475,13 +494,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   >(undefined);
   const [note, setNote] = useState("");
 
-  // Share/Participants state
   const [showShareModal, setShowShareModal] = useState(false);
-  const [participants, setParticipants] = useState<PlanParticipant[]>([]);
-  const [loadingParticipants, setLoadingParticipants] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"viewer">("viewer");
-  const [inviting, setInviting] = useState(false);
 
   // Cross-day auto-push states
   const [crossDayWarning, setCrossDayWarning] = useState<string | null>(null);
@@ -544,6 +557,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [editPlanEndDate, setEditPlanEndDate] = useState("");
   const [editPlanPeople, setEditPlanPeople] = useState(1);
   const [editPlanTransportation, setEditPlanTransportation] = useState("bus");
+  const [editPlanDepositInput, setEditPlanDepositInput] = useState("");
+  const [editPlanPenaltyInput, setEditPlanPenaltyInput] = useState("0");
   const [savingPlan, setSavingPlan] = useState(false);
   const [showEditStartDatePicker, setShowEditStartDatePicker] = useState(false);
   const [showEditEndDatePicker, setShowEditEndDatePicker] = useState(false);
@@ -557,8 +572,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   // Calendar Sync Modal state
   const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
   const [calendarSyncSuccess, setCalendarSyncSuccess] = useState(false);
-  const [calendarSyncResult, setCalendarSyncResult] = useState<PlannerCalendarSyncResult | undefined>();
-  const [calendarSyncError, setCalendarSyncError] = useState<CalendarSyncError | undefined>();
+  const [calendarSyncResult, setCalendarSyncResult] = useState<
+    PlannerCalendarSyncResult | undefined
+  >();
+  const [calendarSyncError, setCalendarSyncError] = useState<
+    CalendarSyncError | undefined
+  >();
 
   // Offline Download state
   const {
@@ -627,7 +646,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     });
   };
 
-  const getKnownSiteSnapshot = (siteId: string): LocalSiteSnapshot | undefined => {
+  const getKnownSiteSnapshot = (
+    siteId: string,
+  ): LocalSiteSnapshot | undefined => {
     const knownSites = [
       ...sites,
       ...favorites,
@@ -754,7 +775,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         }
 
         try {
-          const offlineData = await offlinePlannerService.getPlannerData(planId);
+          const offlineData =
+            await offlinePlannerService.getPlannerData(planId);
           const filteredPlaces = (offlineData?.nearby_places || [])
             .filter(
               (place) =>
@@ -917,7 +939,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2: response.message ||
+          text2:
+            response.message ||
             t("planner.loadDetailError", {
               defaultValue: "Không thể tải chi tiết kế hoạch",
             }),
@@ -954,6 +977,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setEditPlanEndDate(plan.end_date || "");
     setEditPlanPeople(plan.number_of_people || 1);
     setEditPlanTransportation(plan.transportation || "bus");
+    const da = plan.deposit_amount;
+    setEditPlanDepositInput(
+      typeof da === "number" && da > 0 ? String(Math.round(da)) : "",
+    );
+    const pp = plan.penalty_percentage;
+    setEditPlanPenaltyInput(
+      typeof pp === "number" && Number.isFinite(pp)
+        ? String(Math.round(pp))
+        : "0",
+    );
     setShowEditPlanModal(true);
   };
 
@@ -974,13 +1007,51 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         return;
       }
 
-      const response = await pilgrimPlannerApi.updatePlan(planId, {
+      let depositAmount = 0;
+      let penaltyPct = 0;
+      if (editPlanPeople > 1) {
+        const dep = parseVndInteger(editPlanDepositInput);
+        if (!Number.isFinite(dep) || dep <= 0) {
+          Toast.show({
+            type: "error",
+            text1: t("common.error"),
+            text2: t("planner.depositRequiredForGroup"),
+          });
+          return;
+        }
+        if (dep > MAX_DEPOSIT_VND) {
+          Toast.show({
+            type: "error",
+            text1: t("common.error"),
+            text2: t("planner.depositInvalid"),
+          });
+          return;
+        }
+        const pen = parsePenaltyPercent(editPlanPenaltyInput);
+        if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
+          Toast.show({
+            type: "error",
+            text1: t("common.error"),
+            text2: t("planner.penaltyInvalid"),
+          });
+          return;
+        }
+        depositAmount = dep;
+        penaltyPct = pen;
+      }
+
+      const updateBody: UpdatePlanRequest = {
         name: editPlanName.trim(),
         start_date: editPlanStartDate,
         end_date: editPlanEndDate,
         number_of_people: editPlanPeople,
         transportation: editPlanTransportation,
-      });
+        ...(editPlanPeople > 1
+          ? { deposit_amount: depositAmount, penalty_percentage: penaltyPct }
+          : { deposit_amount: 0, penalty_percentage: 0 }),
+      };
+
+      const response = await pilgrimPlannerApi.updatePlan(planId, updateBody);
       if (response.success) {
         if (isAvailableOffline) {
           await offlinePlannerService.updatePlannerMetadata(planId, {
@@ -989,6 +1060,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             end_date: editPlanEndDate,
             number_of_people: editPlanPeople,
             transportation: editPlanTransportation,
+            ...(editPlanPeople > 1
+              ? {
+                  deposit_amount: depositAmount,
+                  penalty_percentage: penaltyPct,
+                }
+              : { deposit_amount: 0, penalty_percentage: 0 }),
           });
         }
 
@@ -1014,79 +1091,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       });
     } finally {
       setSavingPlan(false);
-    }
-  };
-
-  const loadParticipants = async () => {
-    try {
-      setLoadingParticipants(true);
-      const response = await pilgrimPlannerApi.getParticipants(planId);
-      if (response.success && response.data) {
-        setParticipants(response.data);
-      }
-    } catch (error: any) {
-      // Silently handle 404 - participants feature might not be implemented yet
-      if (error?.message?.includes("Không tìm thấy")) {
-        setParticipants([]);
-        // Log as info instead of error
-        console.log(
-          "Participants endpoint not available, using plan owner only",
-        );
-      } else {
-        // Log other errors
-        console.error("Load participants error:", error);
-      }
-    } finally {
-      setLoadingParticipants(false);
-    }
-  };
-
-  const handleInviteParticipant = async () => {
-    if (isOffline) {
-      showConnectionRequiredAlert();
-      return;
-    }
-
-    if (!inviteEmail.trim()) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("planner.emailRequired", { defaultValue: "Please enter an email address" }),
-      });
-      return;
-    }
-
-    try {
-      setInviting(true);
-      const response = await pilgrimPlannerApi.inviteParticipant(planId, {
-        email: inviteEmail.trim().toLowerCase(),
-        role: inviteRole,
-      });
-
-      if (response.success) {
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("planner.inviteSent", { defaultValue: "Invitation sent successfully" }),
-        });
-        setInviteEmail("");
-        loadParticipants();
-      } else {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2: response.message || t("planner.inviteFailed", { defaultValue: "Failed to send invitation" }),
-        });
-      }
-    } catch (error: any) {
-      console.error("Invite participant error:", error);
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: error.message || t("planner.inviteFailed", { defaultValue: "Failed to send invitation" }),
-      });
-    } finally {
-      setInviting(false);
     }
   };
 
@@ -1132,7 +1136,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
 
     setShowShareModal(true);
-    loadParticipants();
   };
 
   const handleDeletePlan = () => {
@@ -1172,7 +1175,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 Toast.show({
                   type: "error",
                   text1: t("common.error"),
-                  text2: response.message ||
+                  text2:
+                    response.message ||
                     t("planner.deleteFailed", {
                       defaultValue: "Xóa kế hoạch thất bại",
                     }),
@@ -1203,7 +1207,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
 
     const response = await syncPlanToCalendar(planId);
-    
+
     if (response.success && response.result) {
       setCalendarSyncSuccess(true);
       setCalendarSyncResult(response.result);
@@ -1213,7 +1217,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setCalendarSyncResult(undefined);
       setCalendarSyncError(response.error);
     }
-    
+
     setShowCalendarSyncModal(true);
   };
 
@@ -1249,10 +1253,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         const shouldClearPending = await confirm({
           type: "danger",
           title: t("common.error", { defaultValue: "Lỗi" }),
-          message: `${result.message}\n\n${t("offline.clearPendingActionsPrompt", {
-            defaultValue:
-              "Nếu hành động này đang bị máy chủ từ chối, bạn có thể xóa hàng chờ đồng bộ trên thiết bị này.",
-          })}`,
+          message: `${result.message}\n\n${t(
+            "offline.clearPendingActionsPrompt",
+            {
+              defaultValue:
+                "Nếu hành động này đang bị máy chủ từ chối, bạn có thể xóa hàng chờ đồng bộ trên thiết bị này.",
+            },
+          )}`,
           confirmText: t("offline.clearPendingActions", {
             defaultValue: "Xóa hàng chờ đồng bộ",
           }),
@@ -1280,7 +1287,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       Toast.show({
         type: "error",
         text1: t("common.error"),
-        text2: error.message || t("planner.syncFailed", { defaultValue: "Dong bo that bai" }),
+        text2:
+          error.message ||
+          t("planner.syncFailed", { defaultValue: "Dong bo that bai" }),
       });
     } finally {
       setSyncingOfflineActions(false);
@@ -1297,9 +1306,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     setShowOfflineModal(true);
     resetOfflineDownload();
-    
+
     const result = await downloadPlanner(planId);
-    
+
     if (result.success) {
       await checkOfflineAvailability();
     }
@@ -1359,9 +1368,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowMenuDropdown(false);
     const confirmed = await confirm({
       type: "danger",
-      title: t("offline.deleteOfflineData", { defaultValue: "Xóa dữ liệu ngoại tuyến" }),
+      title: t("offline.deleteOfflineData", {
+        defaultValue: "Xóa dữ liệu ngoại tuyến",
+      }),
       message: t("offline.deleteOfflineConfirm", {
-        defaultValue: "Bạn có chắc muốn xóa dữ liệu ngoại tuyến của kế hoạch này?",
+        defaultValue:
+          "Bạn có chắc muốn xóa dữ liệu ngoại tuyến của kế hoạch này?",
       }),
       confirmText: t("common.delete", { defaultValue: "Xóa" }),
       cancelText: t("common.cancel", { defaultValue: "Hủy" }),
@@ -1374,7 +1386,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setOfflineTileUrlTemplate(undefined);
         Toast.show({
           type: "success",
-          text1: t("offline.deleteSuccess", { defaultValue: "Đã xóa dữ liệu ngoại tuyến" }),
+          text1: t("offline.deleteSuccess", {
+            defaultValue: "Đã xóa dữ liệu ngoại tuyến",
+          }),
         });
       }
     }
@@ -1425,7 +1439,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 Toast.show({
                   type: "error",
                   text1: t("common.error"),
-                  text2: response.message ||
+                  text2:
+                    response.message ||
                     t("planner.removeItemFailed", {
                       defaultValue: "Xóa địa điểm thất bại",
                     }),
@@ -1436,7 +1451,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               Toast.show({
                 type: "error",
                 text1: t("common.error"),
-                text2: error.message ||
+                text2:
+                  error.message ||
                   t("planner.removeItemFailed", {
                     defaultValue: "Xóa địa điểm thất bại",
                   }),
@@ -1473,8 +1489,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowEditItemModal(true);
 
     // Calculate route from previous item to this item using VietMap
-    const dayItems: PlanItem[] =
-      plan?.items_by_day?.[String(item.day_number)] || [];
+    const dayKey = String(item.day_number ?? item.leg_number ?? 1);
+    const dayItems: PlanItem[] = plan?.items_by_day?.[dayKey] || [];
     const currentIndex = dayItems.findIndex((i) => i.id === item.id);
     if (currentIndex > 0) {
       const prevItem = dayItems[currentIndex - 1];
@@ -1853,35 +1869,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     try {
       setAddingItem(true);
-      const payload: any = {
-        site_id: siteId,
-        day_number: selectedDay,
-        note: note.trim() || undefined,
-        estimated_time: estimatedTime,
-      };
-
-      if (selectedEventId) {
-        payload.event_id = selectedEventId;
-      }
-
-      if (travelTimeMinutes !== undefined) {
-        payload.travel_time_minutes = travelTimeMinutes;
-      }
 
       // Convert minutes to duration format with proper singular/plural
       const totalMinutes = restDuration;
       const durationHours = Math.floor(totalMinutes / 60);
       const remainingMinutes = totalMinutes % 60;
 
+      let restDurationStr: string;
       if (durationHours > 0 && remainingMinutes > 0) {
-        payload.rest_duration = `${durationHours} hour${durationHours > 1 ? "s" : ""} ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}`;
+        restDurationStr = `${durationHours} hour${durationHours > 1 ? "s" : ""} ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}`;
       } else if (durationHours > 0) {
-        payload.rest_duration = `${durationHours} hour${durationHours > 1 ? "s" : ""}`;
+        restDurationStr = `${durationHours} hour${durationHours > 1 ? "s" : ""}`;
       } else {
-        payload.rest_duration = `${totalMinutes} minute${totalMinutes > 1 ? "s" : ""}`;
+        restDurationStr = `${totalMinutes} minute${totalMinutes > 1 ? "s" : ""}`;
       }
 
-      console.log("🚀 SENDING PAYLOAD:", payload);
+      const localDraft = {
+        site_id: siteId,
+        day_number: selectedDay,
+        note: note.trim() || undefined,
+        estimated_time: estimatedTime,
+        rest_duration: restDurationStr,
+        ...(selectedEventId ? { event_id: selectedEventId } : {}),
+      };
+
+      const apiPayload: AddPlanItemRequest = {
+        site_id: siteId,
+        leg_number: selectedDay,
+        estimated_time: estimatedTime,
+        rest_duration: restDurationStr,
+        ...(localDraft.note ? { note: localDraft.note } : {}),
+        ...(selectedEventId ? { event_id: selectedEventId } : {}),
+        ...(travelTimeMinutes !== undefined
+          ? { travel_time_minutes: travelTimeMinutes }
+          : {}),
+      };
       const siteSnapshot = getKnownSiteSnapshot(siteId);
       const isOnline = await networkService.checkConnection();
 
@@ -1892,7 +1914,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           endpoint: `/api/planners/${planId}/items`,
           method: "POST",
           data: {
-            ...payload,
+            ...apiPayload,
             client_item_id: tempItemId,
           },
         });
@@ -1902,14 +1924,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             applyLocalAddItem(
               currentPlan,
               planId,
-              payload,
+              localDraft,
               tempItemId,
               siteSnapshot,
             ),
           () =>
             offlinePlannerService.addPlannerItem(planId, {
               id: tempItemId,
-              ...payload,
+              ...localDraft,
               site: siteSnapshot
                 ? {
                     id: siteSnapshot.id,
@@ -1934,7 +1956,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         return;
       }
 
-      const response = await pilgrimPlannerApi.addPlanItem(planId, payload);
+      const response = await pilgrimPlannerApi.addPlanItem(planId, apiPayload);
 
       if (response.success) {
         const createdItemId = response.data?.item?.id;
@@ -1944,7 +1966,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             applyLocalAddItem(
               currentPlan,
               planId,
-              payload,
+              localDraft,
               createdItemId,
               siteSnapshot,
             ),
@@ -1952,7 +1974,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             ? () =>
                 offlinePlannerService.addPlannerItem(planId, {
                   id: createdItemId,
-                  ...payload,
+                  ...localDraft,
                   site: siteSnapshot
                     ? {
                         id: siteSnapshot.id,
@@ -1980,7 +2002,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }
     } catch (error: any) {
       console.error("Add item error:", error);
-      console.error("Add item error response:", JSON.stringify(error?.response?.data));
+      console.error(
+        "Add item error response:",
+        JSON.stringify(error?.response?.data),
+      );
       const errMsg =
         error?.response?.data?.error?.message ||
         error?.response?.data?.message ||
@@ -2060,9 +2085,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               nearby_amenity_ids: newIds,
             }),
           () =>
-            offlinePlannerService.updatePlannerItem(planId, nearbyContextItem.id, {
-              nearby_amenity_ids: newIds,
-            }),
+            offlinePlannerService.updatePlannerItem(
+              planId,
+              nearbyContextItem.id,
+              {
+                nearby_amenity_ids: newIds,
+              },
+            ),
         );
 
         setSavedNearbyPlaceIds((prev) => new Set([...prev, place.id]));
@@ -2103,9 +2132,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               nearby_amenity_ids: newIds,
             }),
           () =>
-            offlinePlannerService.updatePlannerItem(planId, nearbyContextItem.id, {
-              nearby_amenity_ids: newIds,
-            }),
+            offlinePlannerService.updatePlannerItem(
+              planId,
+              nearbyContextItem.id,
+              {
+                nearby_amenity_ids: newIds,
+              },
+            ),
         );
         loadPlan();
       } else {
@@ -2160,9 +2193,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       nearby_amenity_ids: newIds,
                     }),
                   () =>
-                    offlinePlannerService.updatePlannerItem(planId, selectedItem.id, {
-                      nearby_amenity_ids: newIds,
-                    }),
+                    offlinePlannerService.updatePlannerItem(
+                      planId,
+                      selectedItem.id,
+                      {
+                        nearby_amenity_ids: newIds,
+                      },
+                    ),
                 );
 
                 setSelectedItem((prev) =>
@@ -2188,9 +2225,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       nearby_amenity_ids: newIds,
                     }),
                   () =>
-                    offlinePlannerService.updatePlannerItem(planId, selectedItem.id, {
-                      nearby_amenity_ids: newIds,
-                    }),
+                    offlinePlannerService.updatePlannerItem(
+                      planId,
+                      selectedItem.id,
+                      {
+                        nearby_amenity_ids: newIds,
+                      },
+                    ),
                 );
                 setSelectedItem((prev) =>
                   prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
@@ -2239,7 +2280,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               const isOnline = await networkService.checkConnection();
               if (!isOnline) {
                 await networkService.addToOfflineQueue({
-                  endpoint: `/api/planner-items/${itemId}/checkin`,
+                  endpoint: `/api/planners/${planId}/items/${itemId}/checkin`,
                   method: "POST",
                   data: {
                     planner_item_id: itemId,
@@ -2256,10 +2297,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 return;
               }
 
-              const response = await pilgrimPlannerApi.checkInPlanItem(itemId, {
-                latitude: location.latitude,
-                longitude: location.longitude,
-              });
+              const response = await pilgrimPlannerApi.checkInPlanItem(
+                planId,
+                itemId,
+                {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                },
+              );
 
               if (response.success) {
                 Toast.show({
@@ -2468,13 +2513,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 <Ionicons
                   name="create-outline"
                   size={20}
-                  color={isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E"}
+                  color={
+                    isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E"
+                  }
                   style={{ marginRight: 12 }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
-                    color: isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E",
+                    color: isOnlineOnlyActionDisabled
+                      ? COLORS.textTertiary
+                      : "#C08A2E",
                     fontWeight: "500",
                   }}
                 >
@@ -2497,16 +2546,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   name="calendar-outline"
                   size={20}
                   color={
-                    isOffline || syncingCalendar ? COLORS.textTertiary : "#2563EB"
+                    isOffline || syncingCalendar
+                      ? COLORS.textTertiary
+                      : "#2563EB"
                   }
                   style={{ marginRight: 12 }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
-                    color: isOffline || syncingCalendar
-                      ? COLORS.textTertiary
-                      : "#2563EB",
+                    color:
+                      isOffline || syncingCalendar
+                        ? COLORS.textTertiary
+                        : "#2563EB",
                     fontWeight: "500",
                   }}
                 >
@@ -2531,7 +2583,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     disabled={isOffline || syncingOfflineActions}
                   >
                     <Ionicons
-                      name={isOffline ? "cloud-offline-outline" : "sync-outline"}
+                      name={
+                        isOffline ? "cloud-offline-outline" : "sync-outline"
+                      }
                       size={20}
                       color={
                         isOffline || syncingOfflineActions
@@ -2592,17 +2646,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               {/* Offline Download/Delete Button */}
               {!isAvailableOffline ? (
                 <TouchableOpacity
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      padding: 12,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#F3F4F6",
-                      opacity: isOffline || downloadingOffline ? 0.5 : 1,
-                    }}
-                    onPress={handleDownloadOffline}
-                    disabled={isOffline || downloadingOffline}
-                  >
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F3F4F6",
+                    opacity: isOffline || downloadingOffline ? 0.5 : 1,
+                  }}
+                  onPress={handleDownloadOffline}
+                  disabled={isOffline || downloadingOffline}
+                >
                   <Ionicons
                     name="cloud-download-outline"
                     size={20}
@@ -2670,13 +2724,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 <Ionicons
                   name="trash-outline"
                   size={20}
-                  color={isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444"}
+                  color={
+                    isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444"
+                  }
                   style={{ marginRight: 12 }}
                 />
                 <Text
                   style={{
                     fontSize: 16,
-                    color: isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444",
+                    color: isOnlineOnlyActionDisabled
+                      ? COLORS.textTertiary
+                      : "#EF4444",
                     fontWeight: "500",
                   }}
                 >
@@ -2842,7 +2900,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 gap: 12,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
@@ -2912,7 +2972,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     paddingVertical: 10,
                     borderRadius: 14,
                     backgroundColor:
-                      isOffline || syncingOfflineActions ? "#CBD5E1" : "#2563EB",
+                      isOffline || syncingOfflineActions
+                        ? "#CBD5E1"
+                        : "#2563EB",
                   }}
                   onPress={handleSyncOfflineActions}
                   disabled={isOffline || syncingOfflineActions}
@@ -4371,164 +4433,15 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         />
       )}
 
-      {/* Share/Participants Modal */}
-      <Modal
+      <SharePlanModal
         visible={showShareModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowShareModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{t("planner.sharePlan")}</Text>
-            <TouchableOpacity onPress={() => setShowShareModal(false)}>
-              <Text style={styles.modalClose}>{t("planner.close")}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16 }}
-          >
-            {/* Invite Section */}
-            <View style={styles.inviteSection}>
-              <Text style={styles.shareSectionTitle}>
-                {t("planner.addMember")}
-              </Text>
-              <TextInput
-                style={styles.emailInput}
-                placeholder="Nhập email hoặc ID người dùng"
-                value={inviteEmail}
-                onChangeText={setInviteEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!isOffline}
-              />
-
-              {/* Role Info */}
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: COLORS.textSecondary,
-                  marginBottom: 12,
-                }}
-              >
-                Thành viên được mời sẽ có quyền xem kế hoạch này.
-              </Text>
-
-              <TouchableOpacity
-                style={[
-                  styles.inviteButton,
-                  (inviting || isOffline) && styles.disabledAction,
-                ]}
-                onPress={handleInviteParticipant}
-                disabled={inviting || isOffline}
-              >
-                {inviting ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons
-                      name="person-add-outline"
-                      size={20}
-                      color="#fff"
-                    />
-                    <Text style={styles.inviteButtonText}>Gửi lời mời</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Participants List */}
-            <View style={styles.participantsSection}>
-              <Text style={styles.shareSectionTitle}>
-                Thành viên ({participants.length + (plan?.owner ? 1 : 0)})
-              </Text>
-
-              {loadingParticipants ? (
-                <ActivityIndicator
-                  style={{ marginTop: 20 }}
-                  color={COLORS.primary}
-                />
-              ) : (
-                <>
-                  {/* Show plan owner first */}
-                  {plan?.owner && (
-                    <View style={styles.participantItem}>
-                      <View style={styles.participantAvatar}>
-                        {plan.owner.avatar_url ? (
-                          <Image
-                            source={{ uri: plan.owner.avatar_url }}
-                            style={styles.avatarImage}
-                          />
-                        ) : (
-                          <Ionicons
-                            name="person"
-                            size={24}
-                            color={COLORS.textSecondary}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.participantInfo}>
-                        <Text style={styles.participantName}>
-                          {plan.owner.full_name}
-                        </Text>
-                        <Text style={styles.participantRole}>Chủ sở hữu</Text>
-                      </View>
-                      <View style={styles.ownerBadge}>
-                        <Ionicons name="star" size={16} color="#FFD700" />
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Show other participants */}
-                  {participants.length === 0 ? (
-                    <Text style={styles.emptyParticipantsText}>
-                      Chưa có thành viên nào khác
-                    </Text>
-                  ) : (
-                    participants.map((participant) => (
-                      <View key={participant.id} style={styles.participantItem}>
-                        <View style={styles.participantAvatar}>
-                          {participant.userAvatar ? (
-                            <Image
-                              source={{ uri: participant.userAvatar }}
-                              style={styles.avatarImage}
-                            />
-                          ) : (
-                            <Ionicons
-                              name="person"
-                              size={24}
-                              color={COLORS.textSecondary}
-                            />
-                          )}
-                        </View>
-                        <View style={styles.participantInfo}>
-                          <Text style={styles.participantName}>
-                            {participant.userName}
-                          </Text>
-                          <Text style={styles.participantRole}>
-                            {participant.role === "owner"
-                              ? "Chủ sở hữu"
-                              : participant.role === "editor"
-                                ? "Chỉnh sửa"
-                                : "Xem"}
-                          </Text>
-                        </View>
-                        {participant.role === "owner" && (
-                          <View style={styles.ownerBadge}>
-                            <Ionicons name="star" size={16} color="#FFD700" />
-                          </View>
-                        )}
-                      </View>
-                    ))
-                  )}
-                </>
-              )}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setShowShareModal(false)}
+        planId={planId}
+        plan={plan}
+        isPlanOwner={isPlanOwner}
+        isOffline={isOffline}
+        onOfflineRequired={showConnectionRequiredAlert}
+      />
       {/* Edit Plan Modal */}
       <Modal
         visible={showEditPlanModal}
@@ -4836,6 +4749,94 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   <Ionicons name="add" size={18} color={COLORS.textPrimary} />
                 </TouchableOpacity>
               </View>
+
+              {editPlanPeople > 1 ? (
+                <View style={{ marginBottom: 20 }}>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "600",
+                      color: COLORS.textSecondary,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {t("planner.depositAmountLabel")}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: COLORS.textSecondary,
+                      marginBottom: 8,
+                      lineHeight: 17,
+                    }}
+                  >
+                    {t("planner.groupDepositSectionHint")}
+                  </Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      fontSize: 15,
+                      color: COLORS.textPrimary,
+                      marginBottom: 8,
+                      backgroundColor: "#FAFAFA",
+                    }}
+                    value={editPlanDepositInput}
+                    onChangeText={setEditPlanDepositInput}
+                    placeholder={t("planner.depositPlaceholder")}
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="number-pad"
+                  />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: COLORS.textSecondary,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {t("planner.depositAmountHint")}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: "600",
+                      color: COLORS.textSecondary,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {t("planner.penaltyPercentageLabel")}
+                  </Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      fontSize: 15,
+                      color: COLORS.textPrimary,
+                      marginBottom: 6,
+                      backgroundColor: "#FAFAFA",
+                    }}
+                    value={editPlanPenaltyInput}
+                    onChangeText={setEditPlanPenaltyInput}
+                    placeholder="0"
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="number-pad"
+                  />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: COLORS.textSecondary,
+                    }}
+                  >
+                    {t("planner.penaltyPercentageHint")}
+                  </Text>
+                </View>
+              ) : null}
 
               {/* Transport */}
               <Text
@@ -5494,122 +5495,6 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 16,
     fontWeight: "600",
-  },
-  // Share/Participants Modal Styles
-  inviteSection: {
-    marginBottom: SPACING.xl,
-  },
-  shareSectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  emailInput: {
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md,
-  },
-  roleSelection: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  roleButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.xs,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.backgroundCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  roleButtonActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  roleButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-  },
-  roleButtonTextActive: {
-    color: "#fff",
-  },
-  inviteButton: {
-    backgroundColor: COLORS.accent,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.xs,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    ...SHADOWS.small,
-  },
-  inviteButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  participantsSection: {
-    marginTop: SPACING.md,
-  },
-  emptyParticipantsText: {
-    textAlign: "center",
-    color: COLORS.textSecondary,
-    fontSize: 14,
-    marginTop: SPACING.lg,
-    fontStyle: "italic",
-  },
-  participantItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.sm,
-    ...SHADOWS.small,
-  },
-  participantAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: COLORS.background,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: SPACING.md,
-    overflow: "hidden",
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
-  participantInfo: {
-    flex: 1,
-  },
-  participantName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  participantRole: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  ownerBadge: {
-    padding: SPACING.xs,
   },
   // Nearby Places
   nearbyPlaceCard: {

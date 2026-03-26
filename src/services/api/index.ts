@@ -12,7 +12,9 @@ export {
 export { authApi, notificationApi, postApi, default as sharedApis, userApi } from './shared';
 
 // Guide APIs
-export { default as guideApis, guideDashboardApi, guideMediaApi, guideSOSApi, guideSiteApi } from './guide';
+export {
+    default as guideApis, guideDashboardApi, guideMediaApi, guideNarrativeApi, guideSOSApi, guideSiteApi
+} from './guide';
 
 // Pilgrim APIs
 export {

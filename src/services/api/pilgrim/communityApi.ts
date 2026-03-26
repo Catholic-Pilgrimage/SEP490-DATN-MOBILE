@@ -3,12 +3,8 @@
  * Handles community features for Pilgrims
  *
  * Endpoints:
- * - GET    /api/community/posts         - List posts
- * - POST   /api/community/posts         - Create post
- * - GET    /api/community/posts/:id     - Get post detail
- * - POST   /api/community/posts/:id/like - Like post
- * - GET    /api/community/posts/:id/comments - Get comments
- * - POST   /api/community/posts/:id/comments - Add comment
+ * - GET/POST /api/posts — bài viết & bình luận (khớp post.routes.js)
+ * - POST /api/posts/:id/comments/:commentId/reply — trả lời comment
  * - GET    /api/community/testimonies   - List testimonies
  * - POST   /api/community/testimonies   - Create testimony
  * - GET    /api/community/groups        - List groups
@@ -107,8 +103,27 @@ export const addComment = async (
   postId: string,
   data: CreateCommentRequest,
 ): Promise<ApiResponse<PostComment>> => {
+  const payload: { content: string; parent_id?: string } = {
+    content: data.content,
+  };
+  if (data.parentId) {
+    payload.parent_id = data.parentId;
+  }
   const response = await apiClient.post<ApiResponse<PostComment>>(
     PILGRIM_ENDPOINTS.COMMUNITY.ADD_COMMENT(postId),
+    payload,
+  );
+  return response.data;
+};
+
+/** POST /posts/:postId/comments/:commentId/reply */
+export const replyComment = async (
+  postId: string,
+  parentCommentId: string,
+  data: Pick<CreateCommentRequest, "content">,
+): Promise<ApiResponse<PostComment>> => {
+  const response = await apiClient.post<ApiResponse<PostComment>>(
+    PILGRIM_ENDPOINTS.COMMUNITY.COMMENT_REPLY(postId, parentCommentId),
     data,
   );
   return response.data;
@@ -207,6 +222,7 @@ const pilgrimCommunityApi = {
   // Comments
   getComments,
   addComment,
+  replyComment,
   // Testimonies
   getTestimonies,
   createTestimony,

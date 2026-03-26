@@ -40,14 +40,33 @@ const AnimatedTouchableOpacity =
 export const GUIDE_FAB_SIZE = 60;
 
 /**
+ * Khoảng cách từ cạnh phải vùng nội dung tab đến FAB (0 = sát mép phải khung list, trong padding ngang của MySite).
+ */
+export const GUIDE_FAB_RIGHT_INSET = 0;
+
+/**
+ * Phần offset đáy **thêm** vào safe-area — để 0 để FAB sát đáy vùng nội dung (thấy rõ khác lg 16px cũ).
+ * Dùng chung với thanh chọn batch (MediaTab) và {@link getFabScrollBottomInset}.
+ */
+export const GUIDE_FAB_BOTTOM_INSET = 0;
+
+/**
+ * Offset `bottom` (px) cho FAB / action bar absolute — luôn dùng cùng công thức với scroll padding.
+ */
+export function getFabBottomOffset(insetsBottom: number): number {
+  return GUIDE_FAB_BOTTOM_INSET + insetsBottom;
+}
+
+/**
  * Chỉ thêm khoảng trống **cuối** khi scroll để FAB không đè nội dung (không thu hẹp card).
- * Khớp vị trí FAB: `bottom: lg + safe area`.
+ * Khớp {@link getFabBottomOffset} + chiều cao FAB + buffer nhỏ.
  */
 export function getFabScrollBottomInset(
   fabSize: number,
   insetsBottom: number,
 ): number {
-  return fabSize + GUIDE_SPACING.lg + insetsBottom + GUIDE_SPACING.md;
+  const fromBottom = getFabBottomOffset(insetsBottom);
+  return fabSize + fromBottom + GUIDE_SPACING.xs;
 }
 
 /** @deprecated Dùng {@link getFabScrollBottomInset} nếu chỉ cần padding đáy. */
@@ -127,7 +146,7 @@ export const GuideFabButton: React.FC<GuideFabButtonProps> = ({
   label,
 }) => {
   const insets = useSafeAreaInsets();
-  const bottom = GUIDE_SPACING.lg + insets.bottom;
+  const bottom = getFabBottomOffset(insets.bottom);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scale = useSharedValue(1);
 
@@ -232,7 +251,7 @@ export const GuideFabButton: React.FC<GuideFabButtonProps> = ({
 const styles = StyleSheet.create({
   root: {
     position: "absolute",
-    right: GUIDE_SPACING.md,
+    right: GUIDE_FAB_RIGHT_INSET,
     zIndex: 20,
     backgroundColor: PREMIUM_COLORS.gold,
     alignItems: "center",

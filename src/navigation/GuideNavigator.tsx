@@ -132,7 +132,9 @@ export const GuideNavigator = () => {
           const routeName =
             getFocusedRouteNameFromRoute(route) ?? "MySiteHome";
           const isHidden =
-            routeName === "MediaDetail" || routeName === "MediaUpload";
+            routeName === "MediaDetail" ||
+            routeName === "MediaUpload" ||
+            routeName === "SiteModels3d";
 
           return {
             tabBarStyle: [

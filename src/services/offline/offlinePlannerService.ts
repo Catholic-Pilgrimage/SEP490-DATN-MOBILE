@@ -32,6 +32,8 @@ export interface OfflinePlannerData {
     is_public?: boolean;
     created_at?: string;
     updated_at?: string;
+    deposit_amount?: number;
+    penalty_percentage?: number;
   };
   items: OfflinePlannerItem[];
   sites: OfflinePlannerSite[];
@@ -76,7 +78,7 @@ export interface OfflinePlannerSite {
 export interface OfflinePlannerSiteMedia {
   id: string;
   site_id: string;
-  media_type: "image" | "video" | "panorama";
+  media_type: "image" | "video" | "model_3d";
   media_url: string;
   thumbnail_url?: string;
   title?: string;
@@ -231,7 +233,7 @@ const buildItemCollections = (
   const grouped: Record<string, PlanItem[]> = {};
 
   items.forEach((item) => {
-    const dayKey = String(item.day_number || 1);
+    const dayKey = String(item.day_number ?? item.leg_number ?? 1);
     if (!grouped[dayKey]) {
       grouped[dayKey] = [];
     }
@@ -303,7 +305,7 @@ const mapOfflineDataToPlanEntity = (
   const collections = buildItemCollections(planItems);
   const highestDay =
     planItems.reduce((currentMax, item) => {
-      return Math.max(currentMax, item.day_number || 1);
+      return Math.max(currentMax, item.day_number ?? item.leg_number ?? 1);
     }, 1) || 1;
 
   return {
@@ -322,6 +324,8 @@ const mapOfflineDataToPlanEntity = (
     updated_at: data.planner.updated_at || data.downloaded_at,
     number_of_days: Math.max(data.planner.total_days || 1, highestDay),
     is_public: data.planner.is_public || false,
+    deposit_amount: data.planner.deposit_amount,
+    penalty_percentage: data.planner.penalty_percentage,
     ...collections,
   };
 };

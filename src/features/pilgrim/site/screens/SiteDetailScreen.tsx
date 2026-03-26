@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo, useRef, useState } from "react";
 import {
@@ -28,6 +28,40 @@ import {
     SPACING,
     TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+
+// ============================================
+// GRADIENT THEME FOR EVENT CARDS (Pilgrim side)
+// ============================================
+
+interface GradientTheme {
+  colors: [string, string];
+  icon: keyof typeof MaterialIcons.glyphMap;
+}
+
+const CATEGORY_GRADIENTS: Record<string, GradientTheme> = {
+  "Lễ Trọng / Tuần Thánh":  { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Thánh Lễ Bí tích":       { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Rước kiệu / Cung nghinh":{ colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Chầu lượt / Tuần chầu":  { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Lễ Bổn mạng":            { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Hội chợ / Lễ hội":       { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Văn nghệ / Thánh ca":    { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Đại hội / Hội thao":     { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Tĩnh tâm":               { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Sa mạc / Cắm trại":      { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Khóa học / Giáo lý":     { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Hành hương":              { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
+  "Bác ái / Từ thiện":       { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
+};
+
+const DEFAULT_EVENT_GRADIENT: GradientTheme = { colors: ["#3D2000", "#C7A94E"], icon: "event" };
+
+const getEventGradient = (description?: string): GradientTheme => {
+  if (!description) return DEFAULT_EVENT_GRADIENT;
+  const match = description.match(/^\[(.+?)\]/);
+  if (match) return CATEGORY_GRADIENTS[match[1]] || DEFAULT_EVENT_GRADIENT;
+  return DEFAULT_EVENT_GRADIENT;
+};
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import {
@@ -578,11 +612,28 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       style={styles.largeEventCard}
                       activeOpacity={0.9}
                     >
-                      <Image
-                        source={{ uri: event.banner_url || site.coverImage }}
-                        style={styles.eventCardImage}
-                        resizeMode="cover"
-                      />
+                      {/* Banner or Gradient Fallback */}
+                      {event.banner_url ? (
+                        <Image
+                          source={{ uri: event.banner_url }}
+                          style={styles.eventCardImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={getEventGradient(event.description).colors}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.eventCardImage}
+                        >
+                          <MaterialIcons
+                            name={getEventGradient(event.description).icon}
+                            size={48}
+                            color="rgba(255,255,255,0.15)"
+                            style={{ position: "absolute", top: "35%", alignSelf: "center" }}
+                          />
+                        </LinearGradient>
+                      )}
                       <LinearGradient
                         colors={["transparent", "rgba(0,0,0,0.8)"]}
                         style={styles.eventCardOverlay}

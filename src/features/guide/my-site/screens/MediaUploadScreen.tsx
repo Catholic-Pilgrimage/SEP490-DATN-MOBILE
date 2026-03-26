@@ -1,24 +1,25 @@
 /**
  * MediaUploadScreen
- * Upload flow: Choose type → Select file/URL → Preview + Caption → Submit
+ * Upload flow: Choose type → Select file / paste YouTube URL → Preview + Caption → Submit
+ *
+ * Supported uploads: image (camera/library), video (record/library), YouTube URL → stored as `video`.
+ * Not uploaded here: `model_3d` (admin-only). GET /media types: image | video | model_3d.
  *
  * Features:
- * - Image compression (max 2MB, 2000px)
- * - EXIF orientation fix (automatic with expo-image-manipulator)
- * - HEIC → JPEG conversion
- * - Progress indicator
+ * - Image compression (expo-image-manipulator), HEIC → JPEG
+ * - Video: MIME inferred from picked asset (mp4/mov/webm)
  */
 import { MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   ScrollView,
   StatusBar,
@@ -39,6 +40,8 @@ import {
   uploadMediaWithYouTube,
 } from "../../../../services/api/guide";
 import { MediaType } from "../../../../types/guide";
+import { extractYoutubeVideoId } from "../../../../utils/mediaUtils";
+import { YoutubeEmbedWebView } from "../components/YoutubeEmbedWebView";
 import { styles } from "./MediaUploadScreen.styles";
 
 // ============================================
@@ -66,43 +69,38 @@ interface CompressedImage {
 // CONSTANTS
 // ============================================
 
-// Compression settings based on media type
-const COMPRESSION_CONFIG = {
-  image: { maxWidth: 2000, maxHeight: 2000, quality: 0.8, maxSizeMB: 2 },
-  panorama: { maxWidth: 4096, maxHeight: 2048, quality: 0.85, maxSizeMB: 5 },
-  video: { maxWidth: 1920, maxHeight: 1080, quality: 1, maxSizeMB: 100 },
-};
+const IMAGE_COMPRESSION = {
+  maxWidth: 2000,
+  maxHeight: 2000,
+  quality: 0.8,
+} as const;
 
-const MEDIA_TYPES: MediaTypeOption[] = [
-  {
-    type: "image",
-    label: "Ảnh",
-    icon: "photo-camera",
-    iconColor: GUIDE_COLORS.info,
-    description: "Upload ảnh từ thư viện",
-  },
-  {
-    type: "video",
-    label: "Video",
-    icon: "videocam",
-    iconColor: GUIDE_COLORS.error,
-    description: "Upload video từ thư viện",
-  },
-  {
-    type: "panorama",
-    label: "Panorama 360°",
-    icon: "panorama-fish-eye",
-    iconColor: GUIDE_COLORS.success,
-    description: "Upload ảnh panorama 360°",
-  },
-  {
-    type: "youtube",
-    label: "YouTube URL",
-    icon: "smart-display",
-    iconColor: "#FF0000",
-    description: "Nhập link video YouTube",
-  },
-];
+/** MIME + filename for multipart upload (expo may omit mime on some Android builds). */
+function buildVideoUploadFile(asset: ImagePicker.ImagePickerAsset): {
+  uri: string;
+  name: string;
+  type: string;
+} {
+  const fromUri = decodeURIComponent(
+    asset.uri.split("/").pop()?.split("?")[0] || "",
+  );
+  const rawName = asset.fileName || fromUri;
+  const name =
+    rawName && rawName.includes(".")
+      ? rawName
+      : `video_${Date.now()}.mp4`;
+  const lower = name.toLowerCase();
+  const mime =
+    asset.mimeType ||
+    (lower.endsWith(".mov") || lower.endsWith(".qt")
+      ? "video/quicktime"
+      : lower.endsWith(".webm")
+        ? "video/webm"
+        : lower.endsWith(".m4v")
+          ? "video/x-m4v"
+          : "video/mp4");
+  return { uri: asset.uri, name, type: mime };
+}
 
 // ============================================
 // COMPONENTS
@@ -146,6 +144,33 @@ const MediaTypeCard: React.FC<MediaTypeCardProps> = ({ option, onPress }) => (
 export const MediaUploadScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { t } = useTranslation();
+
+  const mediaTypeOptions = useMemo((): MediaTypeOption[] => {
+    return [
+      {
+        type: "image",
+        label: t("mediaUpload.typeImageLabel"),
+        icon: "photo-camera",
+        iconColor: GUIDE_COLORS.info,
+        description: t("mediaUpload.typeImageDesc"),
+      },
+      {
+        type: "video",
+        label: t("mediaUpload.typeVideoLabel"),
+        icon: "videocam",
+        iconColor: GUIDE_COLORS.error,
+        description: t("mediaUpload.typeVideoDesc"),
+      },
+      {
+        type: "youtube",
+        label: t("mediaUpload.typeYoutubeLabel"),
+        icon: "smart-display",
+        iconColor: "#FF0000",
+        description: t("mediaUpload.typeYoutubeDesc"),
+      },
+    ];
+  }, [t]);
 
   // State
   const [step, setStep] = useState<UploadStep>("select-type");
@@ -177,31 +202,22 @@ export const MediaUploadScreen: React.FC = () => {
   // IMAGE COMPRESSION
   // ============================================
 
-  /**
-   * Compress image using expo-image-manipulator
-   * - Resize to max dimensions
-   * - Convert to JPEG (fixes HEIC from iPhone)
-   * - Compress quality
-   * - Auto-fix EXIF orientation
-   */
+  /** Chỉ dùng cho upload ảnh (bước này không xử lý model_3d). */
   const compressImage = useCallback(
-    async (uri: string, type: MediaType): Promise<CompressedImage> => {
-      const config = COMPRESSION_CONFIG[type] || COMPRESSION_CONFIG.image;
-
-      // Manipulate image: resize and compress
+    async (uri: string): Promise<CompressedImage> => {
       const manipulated = await ImageManipulator.manipulateAsync(
         uri,
         [
           {
             resize: {
-              width: config.maxWidth,
-              height: config.maxHeight,
+              width: IMAGE_COMPRESSION.maxWidth,
+              height: IMAGE_COMPRESSION.maxHeight,
             },
           },
         ],
         {
-          compress: config.quality,
-          format: ImageManipulator.SaveFormat.JPEG, // Convert HEIC → JPEG
+          compress: IMAGE_COMPRESSION.quality,
+          format: ImageManipulator.SaveFormat.JPEG,
         },
       );
 
@@ -239,10 +255,7 @@ export const MediaUploadScreen: React.FC = () => {
         if (selectedType !== "video" && selectedType !== "youtube") {
           setCompressing(true);
           try {
-            const compressed = await compressImage(
-              asset.uri,
-              selectedType as MediaType,
-            );
+            const compressed = await compressImage(asset.uri);
             setCompressedImage(compressed);
           } catch (error) {
             console.error("Compression error:", error);
@@ -273,7 +286,8 @@ export const MediaUploadScreen: React.FC = () => {
         type === "video" ? "videos" : "images";
       setMediaPickerConfig({
         mediaTypes: mediaTypesOptions,
-        allowsEditing: type !== "panorama",
+        // Video: không crop/trim ở picker — tránh lỗi trên một số máy khi quay file dài
+        allowsEditing: type === "image",
       });
       setIsMediaPickerVisible(true);
     }
@@ -283,34 +297,24 @@ export const MediaUploadScreen: React.FC = () => {
     if (!youtubeUrl.trim()) {
       Toast.show({
         type: "error",
-        text1: "Thiếu link",
-        text2: "Vui lòng nhập link YouTube",
+        text1: t("mediaUpload.missingLink"),
+        text2: t("mediaUpload.enterUrlHint"),
       });
       return;
     }
 
-    // Validate YouTube URL
     const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
     if (!youtubeRegex.test(youtubeUrl)) {
       Toast.show({
         type: "error",
-        text1: "Link không hợp lệ",
-        text2: "Vui lòng dán đúng URL YouTube",
+        text1: t("mediaUpload.invalidYoutube"),
+        text2: t("mediaUpload.invalidYoutube"),
       });
       return;
     }
 
     setStep("preview");
-  }, [youtubeUrl]);
-
-  const getYoutubeThumbnail = useCallback((url: string) => {
-    const videoId = url.match(
-      /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
-    )?.[1];
-    return videoId
-      ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
-      : null;
-  }, []);
+  }, [youtubeUrl, t]);
 
   const handleSubmit = useCallback(async () => {
     if (!selectedType) return;
@@ -318,69 +322,63 @@ export const MediaUploadScreen: React.FC = () => {
     setUploading(true);
 
     try {
-      const mediaType: MediaType =
-        selectedType === "youtube" ? "video" : selectedType;
-
       let result;
 
       if (selectedType === "youtube") {
-        // YouTube URL: Send as JSON
         result = await uploadMediaWithYouTube({
-          type: mediaType,
+          type: "video",
           url: youtubeUrl.trim(),
           caption: caption.trim() || undefined,
         });
       } else {
-        // File upload: Send as multipart/form-data
-        // Use compressed image for images, original for video
         const fileUri =
           selectedType !== "video" && compressedImage
             ? compressedImage.uri
             : selectedFile?.uri;
 
-        if (!fileUri) {
+        if (!fileUri || !selectedFile) {
           throw new Error("No file selected");
         }
 
-        // Prepare file info for FormData
-        const fileName =
-          selectedType !== "video"
-            ? `image_${Date.now()}.jpg` // Compressed images are always JPEG
-            : `video_${Date.now()}.mp4`;
+        const filePayload =
+          selectedType === "video"
+            ? buildVideoUploadFile(selectedFile)
+            : {
+                uri: fileUri,
+                name: `image_${Date.now()}.jpg`,
+                type: "image/jpeg",
+              };
 
-        const mimeType = selectedType !== "video" ? "image/jpeg" : "video/mp4";
+        const uploadType: Extract<MediaType, "image" | "video"> =
+          selectedType === "video" ? "video" : "image";
 
         result = await uploadMedia({
-          type: mediaType,
+          type: uploadType,
           caption: caption.trim() || undefined,
-          file: {
-            uri: fileUri,
-            name: fileName,
-            type: mimeType,
-          },
+          file: filePayload,
         });
       }
 
       if (result?.success) {
         Toast.show({
           type: "success",
-          text1: "Đã gửi media",
-          text2: "Đang chờ duyệt. Bạn có thể theo dõi trong Thư viện media.",
+          text1: t("mediaUpload.successTitle"),
+          text2: t("mediaUpload.successBody"),
         });
         setTimeout(() => navigation.goBack(), 450);
       } else {
         Toast.show({
           type: "error",
-          text1: "Upload thất bại",
-          text2: result?.message || "Không thể upload media",
+          text1: t("mediaUpload.uploadFailed"),
+          text2: result?.message || t("mediaUpload.errorGeneric"),
         });
       }
     } catch (error) {
       console.error("Upload error:", error);
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: "Đã có lỗi xảy ra khi upload",
+        text1: t("mediaUpload.uploadFailed"),
+        text2: t("mediaUpload.errorGeneric"),
       });
     } finally {
       setUploading(false);
@@ -392,6 +390,7 @@ export const MediaUploadScreen: React.FC = () => {
     youtubeUrl,
     caption,
     navigation,
+    t,
   ]);
 
   // Render step content
@@ -400,12 +399,12 @@ export const MediaUploadScreen: React.FC = () => {
       case "select-type":
         return (
           <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Chọn loại media</Text>
+            <Text style={styles.stepTitle}>{t("mediaUpload.step1Title")}</Text>
             <Text style={styles.stepSubtitle}>
-              Bạn muốn upload loại nội dung nào?
+              {t("mediaUpload.step1Subtitle")}
             </Text>
             <View style={styles.typeList}>
-              {MEDIA_TYPES.map((option) => (
+              {mediaTypeOptions.map((option) => (
                 <MediaTypeCard
                   key={option.type}
                   option={option}
@@ -419,9 +418,9 @@ export const MediaUploadScreen: React.FC = () => {
       case "select-file":
         return (
           <View style={styles.stepContent}>
-            <Text style={styles.stepTitle}>Nhập YouTube URL</Text>
+            <Text style={styles.stepTitle}>{t("mediaUpload.stepYoutubeTitle")}</Text>
             <Text style={styles.stepSubtitle}>
-              Dán link video YouTube của bạn
+              {t("mediaUpload.stepYoutubeSubtitle")}
             </Text>
             <View style={styles.urlInputContainer}>
               <MaterialIcons
@@ -432,7 +431,7 @@ export const MediaUploadScreen: React.FC = () => {
               />
               <TextInput
                 style={styles.urlInput}
-                placeholder="https://youtube.com/watch?v=..."
+                placeholder={t("mediaUpload.urlPlaceholder")}
                 placeholderTextColor={GUIDE_COLORS.gray400}
                 value={youtubeUrl}
                 onChangeText={setYoutubeUrl}
@@ -450,7 +449,7 @@ export const MediaUploadScreen: React.FC = () => {
               disabled={!youtubeUrl.trim()}
               activeOpacity={0.8}
             >
-              <Text style={styles.continueButtonText}>Tiếp tục</Text>
+              <Text style={styles.continueButtonText}>{t("mediaUpload.continue")}</Text>
               <MaterialIcons
                 name="arrow-forward"
                 size={20}
@@ -460,19 +459,19 @@ export const MediaUploadScreen: React.FC = () => {
           </View>
         );
 
-      case "preview":
-        // Use compressed image for preview (if available), fallback to original
-        const thumbnailUrl =
+      case "preview": {
+        const thumbUri = compressedImage?.uri || selectedFile?.uri;
+        const youtubeId =
           selectedType === "youtube"
-            ? getYoutubeThumbnail(youtubeUrl)
-            : compressedImage?.uri || selectedFile?.uri;
+            ? extractYoutubeVideoId(youtubeUrl)
+            : null;
 
         return (
           <KeyboardAvoidingView
             style={styles.stepContent}
             behavior={Platform.OS === "ios" ? "padding" : undefined}
           >
-            <Text style={styles.stepTitle}>Preview & Caption</Text>
+            <Text style={styles.stepTitle}>{t("mediaUpload.stepPreviewTitle")}</Text>
 
             {/* Preview */}
             <View style={styles.previewContainer}>
@@ -488,7 +487,7 @@ export const MediaUploadScreen: React.FC = () => {
                       { marginTop: GUIDE_SPACING.md },
                     ]}
                   >
-                    Đang nén ảnh...
+                    {t("mediaUpload.compressingImage")}
                   </Text>
                 </View>
               ) : selectedType === "video" && selectedFile ? (
@@ -499,37 +498,18 @@ export const MediaUploadScreen: React.FC = () => {
                   allowsPictureInPicture
                   contentFit="contain"
                 />
-              ) : thumbnailUrl ? (
-                <>
-                  <Image
-                    source={{ uri: thumbnailUrl }}
-                    style={styles.previewImage}
-                    resizeMode="cover"
-                  />
-                  {selectedType === "youtube" && (
-                    <TouchableOpacity
-                      style={styles.playButton}
-                      activeOpacity={0.8}
-                      onPress={() => {
-                        if (youtubeUrl) {
-                          Linking.openURL(youtubeUrl).catch(() => {
-                            Toast.show({
-                              type: "error",
-                              text1: "Lỗi",
-                              text2: "Không thể mở video này",
-                            });
-                          });
-                        }
-                      }}
-                    >
-                      <MaterialIcons
-                        name="play-arrow"
-                        size={48}
-                        color={GUIDE_COLORS.surface}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </>
+              ) : selectedType === "youtube" && youtubeId ? (
+                <YoutubeEmbedWebView
+                  videoUrl={youtubeUrl}
+                  style={styles.previewImage}
+                  play={false}
+                />
+              ) : thumbUri ? (
+                <Image
+                  source={{ uri: thumbUri }}
+                  style={styles.previewImage}
+                  resizeMode="cover"
+                />
               ) : (
                 <View style={styles.previewPlaceholder}>
                   <MaterialIcons
@@ -548,21 +528,17 @@ export const MediaUploadScreen: React.FC = () => {
                       ? "smart-display"
                       : selectedType === "video"
                         ? "videocam"
-                        : selectedType === "panorama"
-                          ? "panorama-fish-eye"
-                          : "photo-camera"
+                        : "photo-camera"
                   }
                   size={16}
                   color={GUIDE_COLORS.surface}
                 />
                 <Text style={styles.previewTypeBadgeText}>
                   {selectedType === "youtube"
-                    ? "YouTube"
+                    ? t("mediaUpload.badgeYoutube")
                     : selectedType === "video"
-                      ? "Video"
-                      : selectedType === "panorama"
-                        ? "360°"
-                        : "Photo"}
+                      ? t("mediaUpload.badgeVideo")
+                      : t("mediaUpload.badgePhoto")}
                 </Text>
               </View>
             </View>
@@ -591,7 +567,7 @@ export const MediaUploadScreen: React.FC = () => {
                 color={GUIDE_COLORS.warning}
               />
               <Text style={styles.statusNoticeText}>
-                Media sẽ có trạng thái "Pending" và cần được Admin duyệt
+                {t("mediaUpload.pendingNotice")}
               </Text>
             </View>
 
@@ -614,12 +590,13 @@ export const MediaUploadScreen: React.FC = () => {
                     size={22}
                     color={GUIDE_COLORS.surface}
                   />
-                  <Text style={styles.submitButtonText}>Upload Media</Text>
+                  <Text style={styles.submitButtonText}>{t("mediaUpload.submit")}</Text>
                 </>
               )}
             </TouchableOpacity>
           </KeyboardAvoidingView>
         );
+      }
     }
   };
 
@@ -651,7 +628,7 @@ export const MediaUploadScreen: React.FC = () => {
             color={GUIDE_COLORS.creamInk}
           />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Upload Media</Text>
+        <Text style={styles.headerTitle}>{t("mediaUpload.screenTitle")}</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -703,7 +680,11 @@ export const MediaUploadScreen: React.FC = () => {
         mediaTypes={mediaPickerConfig.mediaTypes}
         allowsEditing={mediaPickerConfig.allowsEditing}
         quality={1}
-        title={selectedType === "video" ? "Upload Video" : "Upload Ảnh"}
+        title={
+          selectedType === "video"
+            ? t("mediaUpload.pickerTitleVideo")
+            : t("mediaUpload.pickerTitleImage")
+        }
       />
     </View>
   );
