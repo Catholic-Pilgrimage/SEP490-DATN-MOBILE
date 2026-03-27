@@ -1096,5 +1096,34 @@
     "selectedLocation": "Selected location",
     "searchingLocation": "Searching location...",
     "tapToViewDetail": "Tap to view detail"
+  },
+  "postDetail": {
+    "title": "Post details",
+    "prayersCount": "{{count}} Prayers",
+    "commentsCount": "{{count}} Comments",
+    "commentsTitle": "Comments ({{count}})",
+    "share": "Share",
+    "reply": "Reply",
+    "replyPlaceholder": "Reply to {{name}}...",
+    "commentAsGuidePlaceholder": "Comment as Local Guide...",
+    "commentPlaceholder": "Add a prayer or comment...",
+    "viewOneReply": "View 1 reply",
+    "viewAllReplies": "View all {{count}} replies",
+    "collapseReplies": "Hide replies",
+    "emptyTitle": "No comments yet",
+    "emptyText": "Be the first to share your thoughts!",
+    "postNotFound": "Post not found",
+    "anonymousUser": "Anonymous user",
+    "user": "User",
+    "defaultLocation": "Notre Dame Cathedral of Saigon",
+    "locatedAt": "At",
+    "addCommentError": "Unable to add comment.",
+    "timeAgo": {
+      "justNow": "Just now",
+      "secondsAgo": "{{count}} seconds ago",
+      "minutesAgo": "{{count}} minutes ago",
+      "hoursAgo": "{{count}} hours ago",
+      "daysAgo": "{{count}} days ago"
+    }
   }
 }

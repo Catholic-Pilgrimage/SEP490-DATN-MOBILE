@@ -1097,5 +1097,34 @@
     "selectedLocation": "Vị trí đã chọn",
     "searchingLocation": "Đang tìm vị trí...",
     "tapToViewDetail": "Nhấn để xem chi tiết"
+  },
+  "postDetail": {
+    "title": "Chi tiết bài viết",
+    "prayersCount": "{{count}} Lời cầu nguyện",
+    "commentsCount": "{{count}} Bình luận",
+    "commentsTitle": "Bình luận ({{count}})",
+    "share": "Chia sẻ",
+    "reply": "Trả lời",
+    "replyPlaceholder": "Trả lời {{name}}...",
+    "commentAsGuidePlaceholder": "Bình luận với tư cách Hướng dẫn viên...",
+    "commentPlaceholder": "Thêm lời cầu nguyện hoặc bình luận...",
+    "viewOneReply": "Xem 1 phản hồi",
+    "viewAllReplies": "Xem tất cả {{count}} phản hồi",
+    "collapseReplies": "Thu gọn phản hồi",
+    "emptyTitle": "Chưa có bình luận",
+    "emptyText": "Hãy là người đầu tiên chia sẻ cảm nghĩ!",
+    "postNotFound": "Bài viết không tồn tại",
+    "anonymousUser": "Người dùng ẩn danh",
+    "user": "Người dùng",
+    "defaultLocation": "Nhà thờ Đức Bà Sài Gòn",
+    "locatedAt": "Đang ở",
+    "addCommentError": "Không thể thêm bình luận.",
+    "timeAgo": {
+      "justNow": "Vừa xong",
+      "secondsAgo": "{{count}} giây trước",
+      "minutesAgo": "{{count}} phút trước",
+      "hoursAgo": "{{count}} giờ trước",
+      "daysAgo": "{{count}} ngày trước"
+    }
   }
 }

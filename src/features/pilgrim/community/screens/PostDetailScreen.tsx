@@ -1,6 +1,8 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import type { TFunction } from "i18next";
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   FlatList,
@@ -28,47 +30,81 @@ import {
   usePostComments,
   usePostDetail,
 } from "../../../../hooks/usePosts";
+import i18n from "../../../../i18n";
 import type { FeedPostComment } from "../../../../types/post.types";
 import ReportPostModal from "../components/ReportPostModal";
 
-// ─── Utilities ───────────────────────────────────────────
+// Utilities
 
-const formatTime = (dateString: string) => {
+const getDateLocale = (language: string) =>
+  language.startsWith("en") ? "en-US" : "vi-VN";
+
+const formatLocalizedTime = (
+  dateString: string,
+  t: TFunction,
+  language: string,
+) => {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return "";
 
+  const locale = getDateLocale(language);
   const now = new Date();
   const rawDiffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  // Avoid negative relative time when clocks differ slightly.
   if (rawDiffInSeconds < 0) {
-    if (Math.abs(rawDiffInSeconds) < 60) return "Vừa xong";
-    return date.toLocaleDateString("vi-VN");
+    if (Math.abs(rawDiffInSeconds) < 60) {
+      return t("postDetail.timeAgo.justNow", { defaultValue: "Just now" });
+    }
+    return date.toLocaleDateString(locale);
   }
 
   const diffInSeconds = rawDiffInSeconds;
-  if (diffInSeconds < 5) return "Vừa xong";
+  if (diffInSeconds < 5) {
+    return t("postDetail.timeAgo.justNow", { defaultValue: "Just now" });
+  }
 
-  if (diffInSeconds < 60) return `${diffInSeconds} giây trước`;
+  if (diffInSeconds < 60) {
+    return t("postDetail.timeAgo.secondsAgo", {
+      count: diffInSeconds,
+      defaultValue: "{{count}} seconds ago",
+    });
+  }
 
   const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
+  if (diffInMinutes < 60) {
+    return t("postDetail.timeAgo.minutesAgo", {
+      count: diffInMinutes,
+      defaultValue: "{{count}} minutes ago",
+    });
+  }
 
   const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) return `${diffInHours} giờ trước`;
+  if (diffInHours < 24) {
+    return t("postDetail.timeAgo.hoursAgo", {
+      count: diffInHours,
+      defaultValue: "{{count}} hours ago",
+    });
+  }
 
   const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) return `${diffInDays} ngày trước`;
+  if (diffInDays < 7) {
+    return t("postDetail.timeAgo.daysAgo", {
+      count: diffInDays,
+      defaultValue: "{{count}} days ago",
+    });
+  }
 
-  return date.toLocaleDateString("vi-VN");
+  return date.toLocaleDateString(locale);
 };
+
+const translate = i18n.t.bind(i18n) as TFunction;
 
 /**
  * Facebook-style comment structure:
  * - Top-level comments shown directly
  * - ALL replies (regardless of nesting depth in backend) are flattened
  *   and shown as 1-level indent under the root comment
- * - Initial collapsed: hide replies behind a single "Xem tất cả..." action
+ * - Initial collapsed: hide replies behind a single "View all..." action
  */
 interface CommentNode {
   comment: FeedPostComment;
@@ -123,7 +159,7 @@ function buildCommentTree(comments: FeedPostComment[]): CommentNode[] {
   }));
 }
 
-// ─── Sub-components ──────────────────────────────────────
+// Sub-components
 
 const FeedItemHeader = ({
   user,
@@ -137,84 +173,95 @@ const FeedItemHeader = ({
   location?: string;
   isHighlightedGuide?: boolean;
   onMorePress?: () => void;
-}) => (
-  <View style={styles.headerRow}>
-    <View style={styles.userInfo}>
-      {user.avatar ? (
-        <Image
-          source={{ uri: user.avatar }}
-          style={[styles.avatar, isHighlightedGuide && styles.avatarGuide]}
-        />
-      ) : (
-        <View
-          style={[
-            styles.avatar,
-            {
-              backgroundColor: COLORS.primary,
-              justifyContent: "center",
-              alignItems: "center",
-            },
-            isHighlightedGuide && styles.avatarGuide,
-          ]}
-        >
-          <Text
-            style={{ fontSize: 16, fontWeight: "bold", color: COLORS.white }}
-          >
-            {user.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
-      )}
-      <View style={{ flex: 1 }}>
-        <View style={styles.userNameRow}>
-          <Text
+}) => {
+  const { t, i18n } = useTranslation();
+
+  return (
+    <View style={styles.headerRow}>
+      <View style={styles.userInfo}>
+        {user.avatar ? (
+          <Image
+            source={{ uri: user.avatar }}
+            style={[styles.avatar, isHighlightedGuide && styles.avatarGuide]}
+          />
+        ) : (
+          <View
             style={[
-              styles.userName,
-              isHighlightedGuide && styles.userNameGuide,
+              styles.avatar,
+              {
+                backgroundColor: COLORS.primary,
+                justifyContent: "center",
+                alignItems: "center",
+              },
+              isHighlightedGuide && styles.avatarGuide,
             ]}
           >
-            {user.name}
-          </Text>
-          {isHighlightedGuide && (
-            <View style={styles.guideBadge}>
-              <MaterialIcons name="verified" size={12} color={COLORS.white} />
-              <Text style={styles.guideBadgeText}>Local Guide</Text>
-            </View>
-          )}
-        </View>
-        <View style={{ flexDirection: "column" }}>
-          <Text style={styles.timeText}>{formatTime(time)}</Text>
-          {location && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: 4,
-              }}
+            <Text
+              style={{ fontSize: 16, fontWeight: "bold", color: COLORS.white }}
             >
-              <Text style={{ fontSize: 12, marginRight: 4 }}>📍</Text>
-              <Text
+              {user.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <View style={styles.userNameRow}>
+            <Text
+              style={[
+                styles.userName,
+                isHighlightedGuide && styles.userNameGuide,
+              ]}
+            >
+              {user.name}
+            </Text>
+            {isHighlightedGuide && (
+              <View style={styles.guideBadge}>
+                <MaterialIcons name="verified" size={12} color={COLORS.white} />
+                <Text style={styles.guideBadgeText}>
+                  {t("profile.localGuide", { defaultValue: "Local Guide" })}
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={{ flexDirection: "column" }}>
+            <Text style={styles.timeText}>
+              {formatLocalizedTime(time, t, i18n.language)}
+            </Text>
+            {location && (
+              <View
                 style={{
-                  color: COLORS.textSecondary,
-                  fontSize: 13,
-                  fontWeight: "500",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 4,
                 }}
               >
-                Đang ở{" "}
-                <Text style={{ fontWeight: "700", color: COLORS.primary }}>
-                  {location}
+                <Text style={{ fontSize: 12, marginRight: 4 }}>📍</Text>
+                <Text
+                  style={{
+                    color: COLORS.textSecondary,
+                    fontSize: 13,
+                    fontWeight: "500",
+                  }}
+                >
+                  {t("postDetail.locatedAt", { defaultValue: "At" })}{" "}
+                  <Text style={{ fontWeight: "700", color: COLORS.primary }}>
+                    {location}
+                  </Text>
                 </Text>
-              </Text>
-            </View>
-          )}
+              </View>
+            )}
+          </View>
         </View>
       </View>
+      <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
+        <MaterialIcons
+          name="more-horiz"
+          size={24}
+          color={COLORS.textTertiary}
+        />
+      </TouchableOpacity>
     </View>
-    <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
-      <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
-    </TouchableOpacity>
-  </View>
-);
-
+  );
+};
 const FeedItemActions = ({
   stats,
   postId,
@@ -224,6 +271,7 @@ const FeedItemActions = ({
   postId: string;
   isLiked: boolean;
 }) => {
+  const { t } = useTranslation();
   const likePostMutation = useLikePost();
 
   return (
@@ -246,7 +294,10 @@ const FeedItemActions = ({
             marginLeft: 6,
           }}
         >
-          {stats.prayers} Prayers
+          {t("postDetail.prayersCount", {
+            count: stats.prayers,
+            defaultValue: "{{count}} Prayers",
+          })}
         </Text>
       </TouchableOpacity>
 
@@ -264,7 +315,10 @@ const FeedItemActions = ({
             marginLeft: 6,
           }}
         >
-          {stats.comments} Bình luận
+          {t("postDetail.commentsCount", {
+            count: stats.comments,
+            defaultValue: "{{count}} Comments",
+          })}
         </Text>
       </TouchableOpacity>
 
@@ -278,15 +332,12 @@ const FeedItemActions = ({
             marginLeft: 6,
           }}
         >
-          Chia sẻ
+          {t("postDetail.share", { defaultValue: "Share" })}
         </Text>
       </TouchableOpacity>
     </View>
   );
 };
-
-// ─── Reply Bubble (same style as CommentBubble but indented) ─────────────────
-
 const ReplyBubble = ({
   comment,
   isGuide,
@@ -321,7 +372,7 @@ const ReplyBubble = ({
             color: isGuide ? "#9A6C00" : COLORS.textPrimary,
           }}
         >
-          {comment.author?.full_name?.charAt(0) || "U"}
+          {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
         </Text>
       </View>
     )}
@@ -334,41 +385,44 @@ const ReplyBubble = ({
           <Text
             style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
           >
-            {comment.author?.full_name}
+            {comment.author?.full_name ||
+              translate("postDetail.user", { defaultValue: "User" })}
           </Text>
           {isGuide ? (
             <View style={styles.commentGuideBadge}>
               <MaterialIcons name="verified" size={10} color="#fff" />
-              <Text style={styles.commentGuideBadgeText}>Local Guide</Text>
+              <Text style={styles.commentGuideBadgeText}>
+                {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+              </Text>
             </View>
           ) : (
             <View
               style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
             >
               <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
-                Pilgrim
+                {translate("profile.pilgrimRole", { defaultValue: "Pilgrim" })}
               </Text>
             </View>
           )}
         </View>
-        {/* Show who they're replying to if it's a nested reply */}
         <Text style={styles.commentText}>{comment.content}</Text>
       </View>
       <View style={styles.commentMetaRow}>
-        <Text style={styles.commentTime}>{formatTime(comment.created_at)}</Text>
+        <Text style={styles.commentTime}>
+          {formatLocalizedTime(comment.created_at, translate, i18n.language)}
+        </Text>
         <TouchableOpacity
           onPress={() => onReply(comment)}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.replyLink}>Trả lời</Text>
+          <Text style={styles.replyLink}>
+            {translate("postDetail.reply", { defaultValue: "Reply" })}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
   </View>
 );
-
-// ─── Comment Item with Facebook-style replies ────────────────────────────────
-
 const CommentItem = ({
   node,
   isGuide,
@@ -381,14 +435,20 @@ const CommentItem = ({
   const { comment, replies } = node;
   const [expanded, setExpanded] = useState(false);
   const repliesToggleLabel = expanded
-    ? "Thu gọn phản hồi"
+    ? translate("postDetail.collapseReplies", {
+        defaultValue: "Hide replies",
+      })
     : replies.length === 1
-      ? "Xem 1 phản hồi"
-      : `Xem tất cả ${replies.length} phản hồi`;
+      ? translate("postDetail.viewOneReply", {
+          defaultValue: "View 1 reply",
+        })
+      : translate("postDetail.viewAllReplies", {
+          count: replies.length,
+          defaultValue: "View all {{count}} replies",
+        });
 
   return (
     <View style={styles.commentItem}>
-      {/* Root comment */}
       <View style={styles.commentRow}>
         {comment.author?.avatar_url ? (
           <Image
@@ -413,7 +473,7 @@ const CommentItem = ({
                 color: isGuide ? "#9A6C00" : COLORS.textPrimary,
               }}
             >
-              {comment.author?.full_name?.charAt(0) || "U"}
+              {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
             </Text>
           </View>
         )}
@@ -428,12 +488,15 @@ const CommentItem = ({
                   isGuide && styles.commentAuthorGuide,
                 ]}
               >
-                {comment.author?.full_name}
+                {comment.author?.full_name ||
+                  translate("postDetail.user", { defaultValue: "User" })}
               </Text>
               {isGuide ? (
                 <View style={styles.commentGuideBadge}>
                   <MaterialIcons name="verified" size={10} color="#fff" />
-                  <Text style={styles.commentGuideBadgeText}>Local Guide</Text>
+                  <Text style={styles.commentGuideBadgeText}>
+                    {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+                  </Text>
                 </View>
               ) : (
                 <View
@@ -445,7 +508,9 @@ const CommentItem = ({
                   <Text
                     style={[styles.commentGuideBadgeText, { color: "#666" }]}
                   >
-                    Pilgrim
+                    {translate("profile.pilgrimRole", {
+                      defaultValue: "Pilgrim",
+                    })}
                   </Text>
                 </View>
               )}
@@ -454,19 +519,20 @@ const CommentItem = ({
           </View>
           <View style={styles.commentMetaRow}>
             <Text style={styles.commentTime}>
-              {formatTime(comment.created_at)}
+              {formatLocalizedTime(comment.created_at, translate, i18n.language)}
             </Text>
             <TouchableOpacity
               onPress={() => onReply(comment)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.replyLink}>Trả lời</Text>
+              <Text style={styles.replyLink}>
+                {translate("postDetail.reply", { defaultValue: "Reply" })}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
-      {/* Replies section — Facebook style, all at 1 indent level */}
       {replies.length > 0 && (
         <View style={styles.repliesContainer}>
           {!expanded ? (
@@ -515,14 +581,12 @@ const CommentItem = ({
     </View>
   );
 };
-
-// ─── Main Screen ─────────────────────────────────────────
-
 export default function PostDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute<any>();
   const postId = route.params?.postId;
   const autoFocusComment = route.params?.autoFocusComment;
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [commentText, setCommentText] = useState("");
   const [replyingTo, setReplyingTo] = useState<{
@@ -570,8 +634,11 @@ export default function PostDetailScreen() {
         onError: (err) => {
           Toast.show({
             type: "error",
-            text1: "Lỗi",
-            text2: "Không thể thêm bình luận. " + (err.message || ""),
+            text1: t("common.error", { defaultValue: "Error" }),
+            text2:
+              t("postDetail.addCommentError", {
+                defaultValue: "Unable to add comment.",
+              }) + (err.message ? ` ${err.message}` : ""),
           });
         },
       },
@@ -596,13 +663,18 @@ export default function PostDetailScreen() {
     [comments],
   );
 
-  const handleReplyPress = React.useCallback((c: FeedPostComment) => {
-    setReplyingTo({
-      id: c.id,
-      name: c.author?.full_name || "Người dùng",
-    });
-    commentInputRef.current?.focus();
-  }, []);
+  const handleReplyPress = React.useCallback(
+    (c: FeedPostComment) => {
+      setReplyingTo({
+        id: c.id,
+        name:
+          c.author?.full_name ||
+          t("postDetail.user", { defaultValue: "User" }),
+      });
+      commentInputRef.current?.focus();
+    },
+    [t],
+  );
 
   const renderPostHeader = () => {
     if (isLoadingPost) {
@@ -616,14 +688,14 @@ export default function PostDetailScreen() {
       return (
         <View style={{ padding: SPACING.xl, alignItems: "center" }}>
           <Text style={{ color: COLORS.textSecondary }}>
-            Bài viết không tồn tại
+            {t("postDetail.postNotFound", { defaultValue: "Post not found" })}
           </Text>
         </View>
       );
     }
 
     const author = {
-      name: post.author?.full_name || "Người dùng ẩn danh",
+      name: post.author?.full_name || t("postDetail.anonymousUser", { defaultValue: "Anonymous user" }),
       avatar: post.author?.avatar_url,
     };
     const actualPost = post;
@@ -642,7 +714,9 @@ export default function PostDetailScreen() {
             time={actualPost.created_at}
             location={
               actualPost.status === "check_in"
-                ? "Nhà thờ Đức Bà Sài Gòn"
+                ? t("postDetail.defaultLocation", {
+                    defaultValue: "Notre Dame Cathedral of Saigon",
+                  })
                 : undefined
             }
             isHighlightedGuide={isPostAuthorGuide}
@@ -680,7 +754,12 @@ export default function PostDetailScreen() {
 
         <View style={styles.dividerHuge} />
         <View style={styles.paddingContent}>
-          <Text style={styles.commentsTitle}>Bình luận ({commentCount})</Text>
+          <Text style={styles.commentsTitle}>
+            {t("postDetail.commentsTitle", {
+              count: commentCount,
+              defaultValue: "Comments ({{count}})",
+            })}
+          </Text>
         </View>
       </View>
     );
@@ -697,7 +776,9 @@ export default function PostDetailScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi tiết bài viết</Text>
+        <Text style={styles.headerTitle}>
+          {t("postDetail.title", { defaultValue: "Post details" })}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -737,9 +818,15 @@ export default function PostDetailScreen() {
                   size={48}
                   color={COLORS.borderMedium}
                 />
-                <Text style={styles.emptyTitle}>Chưa có bình luận</Text>
+                <Text style={styles.emptyTitle}>
+                  {t("postDetail.emptyTitle", {
+                    defaultValue: "No comments yet",
+                  })}
+                </Text>
                 <Text style={styles.emptyText}>
-                  Hãy là người đầu tiên chia sẻ cảm nghĩ!
+                  {t("postDetail.emptyText", {
+                    defaultValue: "Be the first to share your thoughts!",
+                  })}
                 </Text>
               </View>
             ) : null
@@ -749,14 +836,16 @@ export default function PostDetailScreen() {
         {replyingTo ? (
           <View style={styles.replyBanner}>
             <Text style={styles.replyBannerText} numberOfLines={1}>
-              Trả lời{" "}
+              {t("postDetail.reply", { defaultValue: "Reply" })}{" "}
               <Text style={styles.replyBannerName}>{replyingTo.name}</Text>
             </Text>
             <TouchableOpacity
               onPress={() => setReplyingTo(null)}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.replyBannerCancel}>Hủy</Text>
+              <Text style={styles.replyBannerCancel}>
+                {t("common.cancel", { defaultValue: "Cancel" })}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -781,10 +870,17 @@ export default function PostDetailScreen() {
             ]}
             placeholder={
               replyingTo
-                ? `Trả lời ${replyingTo.name}...`
+                ? t("postDetail.replyPlaceholder", {
+                    name: replyingTo.name,
+                    defaultValue: "Reply to {{name}}...",
+                  })
                 : isCurrentUserGuide
-                  ? "Bình luận với tư cách Local Guide..."
-                  : "Thêm lời nguyện cầu hoặc bình luận..."
+                  ? t("postDetail.commentAsGuidePlaceholder", {
+                      defaultValue: "Comment as Local Guide...",
+                    })
+                  : t("postDetail.commentPlaceholder", {
+                      defaultValue: "Add a prayer or comment...",
+                    })
             }
             placeholderTextColor={COLORS.textTertiary}
             value={commentText}
@@ -829,7 +925,7 @@ export default function PostDetailScreen() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────
+// Styles
 
 const styles = StyleSheet.create({
   container: {
