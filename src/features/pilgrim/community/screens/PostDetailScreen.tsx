@@ -2,41 +2,52 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Toast from "react-native-toast-message";
 import {
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import {
-    useAddComment,
-    useLikePost,
-    usePostComments,
-    usePostDetail,
+  useAddComment,
+  useLikePost,
+  usePostComments,
+  usePostDetail,
 } from "../../../../hooks/usePosts";
-import ReportPostModal from "../components/ReportPostModal";
 import type { FeedPostComment } from "../../../../types/post.types";
+import ReportPostModal from "../components/ReportPostModal";
 
 // ─── Utilities ───────────────────────────────────────────
 
 const formatTime = (dateString: string) => {
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "";
+
   const now = new Date();
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  const rawDiffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  // Avoid negative relative time when clocks differ slightly.
+  if (rawDiffInSeconds < 0) {
+    if (Math.abs(rawDiffInSeconds) < 60) return "Vừa xong";
+    return date.toLocaleDateString("vi-VN");
+  }
+
+  const diffInSeconds = rawDiffInSeconds;
+  if (diffInSeconds < 5) return "Vừa xong";
 
   if (diffInSeconds < 60) return `${diffInSeconds} giây trước`;
 
@@ -52,38 +63,64 @@ const formatTime = (dateString: string) => {
   return date.toLocaleDateString("vi-VN");
 };
 
-/** Gom danh sách phẳng từ BE (có `parent_id`) thành hàng hiển thị theo cây, thứ tự thời gian trong từng nhánh. */
-function buildCommentThreadRows(
-  comments: FeedPostComment[],
-): Array<{ comment: FeedPostComment; depth: number }> {
-  const byParent = new Map<string | null, FeedPostComment[]>();
+/**
+ * Facebook-style comment structure:
+ * - Top-level comments shown directly
+ * - ALL replies (regardless of nesting depth in backend) are flattened
+ *   and shown as 1-level indent under the root comment
+ * - Initial collapsed: hide replies behind a single "Xem tất cả..." action
+ */
+interface CommentNode {
+  comment: FeedPostComment;
+  replies: FeedPostComment[]; // all descendants, flattened
+}
+
+function buildCommentTree(comments: FeedPostComment[]): CommentNode[] {
+  const byId = new Map<string, FeedPostComment>();
   for (const c of comments) {
+    byId.set(c.id, c);
+  }
+
+  // Find root ancestor for each comment
+  const getRootId = (c: FeedPostComment): string | null => {
     const raw = c.parent_id;
     const pid =
-      raw === undefined || raw === null || raw === ""
-        ? null
-        : String(raw);
-    if (!byParent.has(pid)) {
-      byParent.set(pid, []);
+      raw === undefined || raw === null || raw === "" ? null : String(raw);
+    if (pid === null) return null;
+    const parent = byId.get(pid);
+    if (!parent) return pid; // parent not loaded, treat pid as root
+    return getRootId(parent) ?? pid;
+  };
+
+  const roots: FeedPostComment[] = [];
+  const repliesByRoot = new Map<string, FeedPostComment[]>();
+
+  for (const c of comments) {
+    const rootId = getRootId(c);
+    if (rootId === null) {
+      roots.push(c);
+    } else {
+      if (!repliesByRoot.has(rootId)) repliesByRoot.set(rootId, []);
+      repliesByRoot.get(rootId)!.push(c);
     }
-    byParent.get(pid)!.push(c);
   }
-  for (const arr of byParent.values()) {
+
+  // Sort by time
+  roots.sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+  for (const arr of repliesByRoot.values()) {
     arr.sort(
       (a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
   }
-  const rows: Array<{ comment: FeedPostComment; depth: number }> = [];
-  const walk = (parentId: string | null, depth: number) => {
-    const children = byParent.get(parentId) ?? [];
-    for (const c of children) {
-      rows.push({ comment: c, depth });
-      walk(c.id, depth + 1);
-    }
-  };
-  walk(null, 0);
-  return rows;
+
+  return roots.map((root) => ({
+    comment: root,
+    replies: repliesByRoot.get(root.id) ?? [],
+  }));
 }
 
 // ─── Sub-components ──────────────────────────────────────
@@ -248,35 +285,27 @@ const FeedItemActions = ({
   );
 };
 
-// ─── Comment Item with Local Guide support ───────────────
+// ─── Reply Bubble (same style as CommentBubble but indented) ─────────────────
 
-const CommentItem = ({
+const ReplyBubble = ({
   comment,
-  depth,
   isGuide,
   onReply,
 }: {
   comment: FeedPostComment;
-  depth: number;
   isGuide: boolean;
   onReply: (c: FeedPostComment) => void;
 }) => (
-  <View
-    style={[
-      styles.commentItem,
-      isGuide && styles.commentItemGuide,
-      { paddingLeft: SPACING.lg + depth * 14 },
-    ]}
-  >
+  <View style={styles.replyRow}>
     {comment.author?.avatar_url ? (
       <Image
         source={{ uri: comment.author.avatar_url }}
-        style={[styles.commentAvatar, isGuide && styles.commentAvatarGuide]}
+        style={[styles.replyAvatar, isGuide && styles.commentAvatarGuide]}
       />
     ) : (
       <View
         style={[
-          styles.commentAvatar,
+          styles.replyAvatar,
           {
             backgroundColor: isGuide ? "#FDF6E3" : COLORS.surface0,
             justifyContent: "center",
@@ -288,6 +317,7 @@ const CommentItem = ({
         <Text
           style={{
             fontWeight: "bold",
+            fontSize: 11,
             color: isGuide ? "#9A6C00" : COLORS.textPrimary,
           }}
         >
@@ -295,6 +325,7 @@ const CommentItem = ({
         </Text>
       </View>
     )}
+
     <View style={styles.commentContent}>
       <View
         style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
@@ -311,11 +342,16 @@ const CommentItem = ({
               <Text style={styles.commentGuideBadgeText}>Local Guide</Text>
             </View>
           ) : (
-            <View style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}>
-              <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>Pilgrim</Text>
+            <View
+              style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
+            >
+              <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
+                Pilgrim
+              </Text>
             </View>
           )}
         </View>
+        {/* Show who they're replying to if it's a nested reply */}
         <Text style={styles.commentText}>{comment.content}</Text>
       </View>
       <View style={styles.commentMetaRow}>
@@ -330,6 +366,155 @@ const CommentItem = ({
     </View>
   </View>
 );
+
+// ─── Comment Item with Facebook-style replies ────────────────────────────────
+
+const CommentItem = ({
+  node,
+  isGuide,
+  onReply,
+}: {
+  node: CommentNode;
+  isGuide: boolean;
+  onReply: (c: FeedPostComment) => void;
+}) => {
+  const { comment, replies } = node;
+  const [expanded, setExpanded] = useState(false);
+  const repliesToggleLabel = expanded
+    ? "Thu gọn phản hồi"
+    : replies.length === 1
+      ? "Xem 1 phản hồi"
+      : `Xem tất cả ${replies.length} phản hồi`;
+
+  return (
+    <View style={styles.commentItem}>
+      {/* Root comment */}
+      <View style={styles.commentRow}>
+        {comment.author?.avatar_url ? (
+          <Image
+            source={{ uri: comment.author.avatar_url }}
+            style={[styles.commentAvatar, isGuide && styles.commentAvatarGuide]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.commentAvatar,
+              {
+                backgroundColor: isGuide ? "#FDF6E3" : COLORS.surface0,
+                justifyContent: "center",
+                alignItems: "center",
+              },
+              isGuide && styles.commentAvatarGuide,
+            ]}
+          >
+            <Text
+              style={{
+                fontWeight: "bold",
+                color: isGuide ? "#9A6C00" : COLORS.textPrimary,
+              }}
+            >
+              {comment.author?.full_name?.charAt(0) || "U"}
+            </Text>
+          </View>
+        )}
+        <View style={styles.commentContent}>
+          <View
+            style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+          >
+            <View style={styles.commentAuthorRow}>
+              <Text
+                style={[
+                  styles.commentAuthor,
+                  isGuide && styles.commentAuthorGuide,
+                ]}
+              >
+                {comment.author?.full_name}
+              </Text>
+              {isGuide ? (
+                <View style={styles.commentGuideBadge}>
+                  <MaterialIcons name="verified" size={10} color="#fff" />
+                  <Text style={styles.commentGuideBadgeText}>Local Guide</Text>
+                </View>
+              ) : (
+                <View
+                  style={[
+                    styles.commentGuideBadge,
+                    { backgroundColor: "#E0E0E0" },
+                  ]}
+                >
+                  <Text
+                    style={[styles.commentGuideBadgeText, { color: "#666" }]}
+                  >
+                    Pilgrim
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.commentText}>{comment.content}</Text>
+          </View>
+          <View style={styles.commentMetaRow}>
+            <Text style={styles.commentTime}>
+              {formatTime(comment.created_at)}
+            </Text>
+            <TouchableOpacity
+              onPress={() => onReply(comment)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.replyLink}>Trả lời</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Replies section — Facebook style, all at 1 indent level */}
+      {replies.length > 0 && (
+        <View style={styles.repliesContainer}>
+          {!expanded ? (
+            <TouchableOpacity
+              style={styles.viewMoreReplies}
+              onPress={() => setExpanded(true)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.viewMoreText}>{repliesToggleLabel}</Text>
+              <MaterialIcons
+                name="expand-more"
+                size={18}
+                color={COLORS.textSecondary}
+              />
+            </TouchableOpacity>
+          ) : (
+            <>
+              {replies.map((reply) => {
+                const isReplyGuide = reply.author?.role === "local_guide";
+                return (
+                  <ReplyBubble
+                    key={reply.id}
+                    comment={reply}
+                    isGuide={isReplyGuide}
+                    onReply={onReply}
+                  />
+                );
+              })}
+
+              <TouchableOpacity
+                style={styles.viewMoreReplies}
+                onPress={() => setExpanded(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.viewMoreText}>{repliesToggleLabel}</Text>
+                <MaterialIcons
+                  name="expand-less"
+                  size={18}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      )}
+    </View>
+  );
+};
 
 // ─── Main Screen ─────────────────────────────────────────
 
@@ -405,8 +590,9 @@ export default function PostDetailScreen() {
     );
   }, [commentsData]);
 
-  const commentRows = React.useMemo(
-    () => buildCommentThreadRows(comments as FeedPostComment[]),
+  // Build Facebook-style tree: root comments + all replies flattened at depth 1
+  const commentNodes = React.useMemo(
+    () => buildCommentTree(comments as FeedPostComment[]),
     [comments],
   );
 
@@ -523,22 +709,21 @@ export default function PostDetailScreen() {
         <FlatList
           ref={flatListRef}
           style={{ flex: 1 }}
-          data={commentRows}
-          keyExtractor={(row, index: number) =>
-            row.comment.id || `comment-${index}`
+          data={commentNodes}
+          keyExtractor={(node, index: number) =>
+            node.comment.id || `comment-${index}`
           }
           ListHeaderComponent={renderPostHeader}
           contentContainerStyle={{ flexGrow: 1, paddingBottom: SPACING.xxl }}
           onEndReached={() => {
             if (hasNextPage) fetchNextPage();
           }}
-          renderItem={({ item: row }) => {
+          renderItem={({ item: node }) => {
             const isCommentByGuide =
-              row.comment.author?.role === "local_guide";
+              node.comment.author?.role === "local_guide";
             return (
               <CommentItem
-                comment={row.comment}
-                depth={row.depth}
+                node={node}
                 isGuide={isCommentByGuide}
                 onReply={handleReplyPress}
               />
@@ -564,7 +749,8 @@ export default function PostDetailScreen() {
         {replyingTo ? (
           <View style={styles.replyBanner}>
             <Text style={styles.replyBannerText} numberOfLines={1}>
-              Trả lời <Text style={styles.replyBannerName}>{replyingTo.name}</Text>
+              Trả lời{" "}
+              <Text style={styles.replyBannerName}>{replyingTo.name}</Text>
             </Text>
             <TouchableOpacity
               onPress={() => setReplyingTo(null)}
@@ -605,7 +791,7 @@ export default function PostDetailScreen() {
             onChangeText={setCommentText}
             multiline
             onFocus={() => {
-              if (commentRows.length > 0) {
+              if (commentNodes.length > 0) {
                 setTimeout(() => {
                   flatListRef.current?.scrollToEnd({ animated: true });
                 }, 500);
@@ -782,24 +968,24 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: SPACING.sm,
   },
+
+  // Root comment wrapper
   commentItem: {
-    flexDirection: "row",
+    paddingHorizontal: SPACING.lg,
     paddingRight: SPACING.lg,
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  commentItemGuide: {
-    backgroundColor: "rgba(212, 175, 55, 0.06)",
-    paddingVertical: SPACING.sm,
-    marginHorizontal: SPACING.sm,
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: "#D4AF37",
+
+  // Row inside a comment (avatar + bubble)
+  commentRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
   },
   commentAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: SPACING.sm,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 10,
   },
   commentAvatarGuide: {
     borderWidth: 2,
@@ -811,14 +997,14 @@ const styles = StyleSheet.create({
   commentAuthorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 2,
+    gap: 4,
+    marginBottom: 1,
   },
   commentBubble: {
     backgroundColor: "#F0F2F5",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 14,
     alignSelf: "flex-start",
   },
   commentBubbleGuide: {
@@ -828,7 +1014,7 @@ const styles = StyleSheet.create({
   },
   commentAuthor: {
     fontWeight: "bold",
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textPrimary,
   },
   commentAuthorGuide: {
@@ -837,33 +1023,78 @@ const styles = StyleSheet.create({
   commentGuideBadge: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    gap: 2,
     backgroundColor: "#D4AF37",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
     borderRadius: 999,
   },
   commentGuideBadgeText: {
     color: "#fff",
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: "700",
   },
   commentText: {
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
   },
   commentMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: SPACING.md,
-    marginTop: 4,
+    gap: 10,
+    marginTop: 3,
+    marginLeft: 2,
   },
   replyLink: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     color: COLORS.primary,
   },
+  commentTime: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+  },
+
+  // Replies container (all indented, FB style)
+  repliesContainer: {
+    marginTop: 6,
+    marginLeft: 18,
+    paddingLeft: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: COLORS.borderLight,
+  },
+
+  // "View X more replies" row
+  viewMoreReplies: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 2,
+    paddingVertical: 2,
+  },
+  viewMoreText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+
+  // Individual reply row (inside repliesContainer)
+  replyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginTop: 6,
+  },
+  replyAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginTop: 2,
+    marginRight: 8,
+    flexShrink: 0,
+  },
+
+  // Reply banner
   replyBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -888,12 +1119,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.primary,
-  },
-  commentTime: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-    marginTop: 4,
-    marginLeft: 8,
   },
 
   // Empty state
