@@ -1,11 +1,11 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import React, { useCallback, useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import type { TFunction } from 'i18next';
+import React, { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Animated,
   Modal,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,18 +14,18 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
-} from "react-native";
-import Toast from "react-native-toast-message";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native';
+import Toast from 'react-native-toast-message';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BORDER_RADIUS,
   COLORS,
   SHADOWS,
   SPACING,
   TYPOGRAPHY,
-} from "../../../../constants/theme.constants";
-import reportApi from "../../../../services/api/shared/reportApi";
-import { ReportReason, ReportTargetType } from "../../../../types/report.types";
+} from '../../../../constants/theme.constants';
+import { createReport } from '../../../../services/api/shared/reportApi';
+import { ReportReason, ReportTargetType } from '../../../../types/report.types';
 
 interface ReportPostModalProps {
   visible: boolean;
@@ -41,54 +41,70 @@ interface ReasonOption {
   description: string;
 }
 
-const REPORT_REASONS: ReasonOption[] = [
+const getReportReasons = (t: TFunction): ReasonOption[] => [
   {
-    value: "spam",
-    icon: "block",
-    label: "Spam",
-    description: "Nội dung quảng cáo, lặp lại hoặc không liên quan",
+    value: 'spam',
+    icon: 'block',
+    label: t('report.reasons.spam.label', { defaultValue: 'Spam' }),
+    description: t('report.reasons.spam.description', {
+      defaultValue: 'Advertising, repeated, or irrelevant content',
+    }),
   },
   {
-    value: "harassment",
-    icon: "person-off",
-    label: "Quấy rối",
-    description: "Bắt nạt, đe dọa hoặc quấy rối người khác",
+    value: 'harassment',
+    icon: 'person-off',
+    label: t('report.reasons.harassment.label', { defaultValue: 'Harassment' }),
+    description: t('report.reasons.harassment.description', {
+      defaultValue: 'Bullying, threats, or harassment toward others',
+    }),
   },
   {
-    value: "hate_speech",
-    icon: "do-not-disturb",
-    label: "Ngôn từ thù ghét",
-    description: "Phân biệt đối xử, kỳ thị tôn giáo hoặc sắc tộc",
+    value: 'hate_speech',
+    icon: 'do-not-disturb',
+    label: t('report.reasons.hateSpeech.label', { defaultValue: 'Hate speech' }),
+    description: t('report.reasons.hateSpeech.description', {
+      defaultValue: 'Discrimination or attacks based on religion or ethnicity',
+    }),
   },
   {
-    value: "false_information",
-    icon: "report-gmailerrorred",
-    label: "Thông tin sai lệch",
-    description: "Tin giả, thông tin gây hiểu lầm",
+    value: 'false_information',
+    icon: 'report-gmailerrorred',
+    label: t('report.reasons.falseInformation.label', { defaultValue: 'False information' }),
+    description: t('report.reasons.falseInformation.description', {
+      defaultValue: 'Fake or misleading information',
+    }),
   },
   {
-    value: "violence",
-    icon: "warning",
-    label: "Bạo lực",
-    description: "Nội dung bạo lực hoặc kích động bạo lực",
+    value: 'violence',
+    icon: 'warning',
+    label: t('report.reasons.violence.label', { defaultValue: 'Violence' }),
+    description: t('report.reasons.violence.description', {
+      defaultValue: 'Violent content or incitement to violence',
+    }),
   },
   {
-    value: "nudity",
-    icon: "visibility-off",
-    label: "Nội dung không phù hợp",
-    description: "Hình ảnh hoặc nội dung khiêu dâm, phản cảm",
+    value: 'nudity',
+    icon: 'visibility-off',
+    label: t('report.reasons.nudity.label', { defaultValue: 'Inappropriate content' }),
+    description: t('report.reasons.nudity.description', {
+      defaultValue: 'Sexual, explicit, or sensitive imagery/content',
+    }),
   },
   {
-    value: "scam",
-    icon: "gpp-bad",
-    label: "Lừa đảo",
-    description: "Lừa đảo tài chính hoặc giả mạo danh tính",
+    value: 'scam',
+    icon: 'gpp-bad',
+    label: t('report.reasons.scam.label', { defaultValue: 'Scam' }),
+    description: t('report.reasons.scam.description', {
+      defaultValue: 'Financial scams or impersonation',
+    }),
   },
   {
-    value: "other",
-    icon: "more-horiz",
-    label: "Lý do khác",
-    description: "Lý do không nằm trong danh sách trên",
+    value: 'other',
+    icon: 'more-horiz',
+    label: t('report.reasons.other.label', { defaultValue: 'Other reason' }),
+    description: t('report.reasons.other.description', {
+      defaultValue: 'A reason not listed above',
+    }),
   },
 ];
 
@@ -96,15 +112,16 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
   visible,
   onClose,
   targetId,
-  targetType = "post",
+  targetType = 'post',
 }) => {
   const { t } = useTranslation();
-  const { height: SCREEN_HEIGHT } = useWindowDimensions();
+  const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const reportReasons = React.useMemo(() => getReportReasons(t), [t]);
 
-  const [step, setStep] = useState<"reason" | "detail">("reason");
+  const [step, setStep] = useState<'reason' | 'detail'>('reason');
   const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const slideAnim = React.useRef(new Animated.Value(0)).current;
@@ -112,7 +129,7 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
   React.useEffect(() => {
     if (visible) {
-      slideAnim.setValue(SCREEN_HEIGHT);
+      slideAnim.setValue(screenHeight);
       overlayOpacity.setValue(0);
       Animated.parallel([
         Animated.spring(slideAnim, {
@@ -128,12 +145,12 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
         }),
       ]).start();
     }
-  }, [visible, slideAnim, overlayOpacity, SCREEN_HEIGHT]);
+  }, [visible, slideAnim, overlayOpacity, screenHeight]);
 
   const animateClose = useCallback(() => {
     Animated.parallel([
       Animated.timing(slideAnim, {
-        toValue: SCREEN_HEIGHT,
+        toValue: screenHeight,
         duration: 250,
         useNativeDriver: true,
       }),
@@ -143,16 +160,16 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setStep("reason");
+      setStep('reason');
       setSelectedReason(null);
-      setDescription("");
+      setDescription('');
       onClose();
     });
-  }, [slideAnim, overlayOpacity, SCREEN_HEIGHT, onClose]);
+  }, [slideAnim, overlayOpacity, screenHeight, onClose]);
 
   const handleSelectReason = (reason: ReportReason) => {
     setSelectedReason(reason);
-    setStep("detail");
+    setStep('detail');
   };
 
   const handleSubmit = async () => {
@@ -160,7 +177,7 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
     setSubmitting(true);
     try {
-      const res = await reportApi.createReport({
+      const res = await createReport({
         target_type: targetType,
         target_id: targetId,
         reason: selectedReason,
@@ -169,32 +186,34 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
       if (res.success || res.data) {
         Toast.show({
-          type: "success",
-          text1: t("report.successTitle", { defaultValue: "Đã gửi báo cáo" }),
-          text2: t("report.successMessage", {
-            defaultValue: "Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét nội dung này.",
+          type: 'success',
+          text1: t('report.successTitle', { defaultValue: 'Report submitted' }),
+          text2: t('report.successMessage', {
+            defaultValue: 'Thank you. We will review this content soon.',
           }),
         });
         animateClose();
       } else {
         Toast.show({
-          type: "error",
-          text1: t("common.error", { defaultValue: "Lỗi" }),
-          text2: res.message || t("report.errorMessage", {
-            defaultValue: "Không thể gửi báo cáo. Vui lòng thử lại.",
-          }),
+          type: 'error',
+          text1: t('common.error', { defaultValue: 'Error' }),
+          text2:
+            res.message ||
+            t('report.errorMessage', {
+              defaultValue: 'Unable to submit report. Please try again.',
+            }),
         });
       }
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
         error?.message ||
-        t("report.errorMessage", {
-          defaultValue: "Không thể gửi báo cáo. Vui lòng thử lại.",
+        t('report.errorMessage', {
+          defaultValue: 'Unable to submit report. Please try again.',
         });
       Toast.show({
-        type: "error",
-        text1: t("common.error", { defaultValue: "Lỗi" }),
+        type: 'error',
+        text1: t('common.error', { defaultValue: 'Error' }),
         text2: message,
       });
     } finally {
@@ -203,6 +222,8 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
   };
 
   if (!visible) return null;
+
+  const selectedReasonLabel = reportReasons.find((reason) => reason.value === selectedReason)?.label;
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
@@ -215,32 +236,30 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
           style={[
             styles.sheet,
             {
-              maxHeight: SCREEN_HEIGHT * 0.85,
-              minHeight: SCREEN_HEIGHT * 0.6,
+              maxHeight: screenHeight * 0.85,
+              minHeight: screenHeight * 0.6,
               paddingBottom: insets.bottom,
               transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          {/* Handle bar */}
           <View style={styles.handleBar}>
             <View style={styles.handle} />
           </View>
 
-          {/* Header */}
           <View style={styles.header}>
-            {step === "detail" && (
+            {step === 'detail' && (
               <TouchableOpacity
-                onPress={() => setStep("reason")}
+                onPress={() => setStep('reason')}
                 style={styles.headerBackBtn}
               >
                 <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
               </TouchableOpacity>
             )}
             <Text style={styles.headerTitle}>
-              {step === "reason"
-                ? t("report.title", { defaultValue: "Báo cáo" })
-                : t("report.detailTitle", { defaultValue: "Chi tiết báo cáo" })}
+              {step === 'reason'
+                ? t('report.title', { defaultValue: 'Report' })
+                : t('report.detailTitle', { defaultValue: 'Report details' })}
             </Text>
             <TouchableOpacity onPress={animateClose} style={styles.headerCloseBtn}>
               <Ionicons name="close" size={24} color={COLORS.textSecondary} />
@@ -249,24 +268,22 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
           <View style={styles.divider} />
 
-          {step === "reason" ? (
+          {step === 'reason' ? (
             <>
-              {/* Subtitle */}
               <View style={styles.subtitleContainer}>
                 <MaterialIcons name="flag" size={20} color={COLORS.danger} />
                 <Text style={styles.subtitle}>
-                  {t("report.selectReason", {
-                    defaultValue: "Vui lòng chọn lý do báo cáo",
+                  {t('report.selectReason', {
+                    defaultValue: 'Please choose a reason for this report',
                   })}
                 </Text>
               </View>
 
-              {/* Reason list */}
               <ScrollView
                 style={styles.reasonList}
                 showsVerticalScrollIndicator={false}
               >
-                {REPORT_REASONS.map((reason) => (
+                {reportReasons.map((reason) => (
                   <TouchableOpacity
                     key={reason.value}
                     style={styles.reasonItem}
@@ -282,9 +299,7 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
                     </View>
                     <View style={styles.reasonTextContainer}>
                       <Text style={styles.reasonLabel}>{reason.label}</Text>
-                      <Text style={styles.reasonDescription}>
-                        {reason.description}
-                      </Text>
+                      <Text style={styles.reasonDescription}>{reason.description}</Text>
                     </View>
                     <Ionicons
                       name="chevron-forward"
@@ -298,43 +313,35 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
             </>
           ) : (
             <>
-              {/* Selected reason badge */}
               <View style={styles.selectedReasonContainer}>
                 <View style={styles.selectedReasonBadge}>
                   <MaterialIcons name="flag" size={16} color={COLORS.danger} />
-                  <Text style={styles.selectedReasonText}>
-                    {REPORT_REASONS.find((r) => r.value === selectedReason)?.label}
-                  </Text>
+                  <Text style={styles.selectedReasonText}>{selectedReasonLabel}</Text>
                 </View>
               </View>
 
-              {/* Description input */}
               <View style={styles.detailContainer}>
                 <Text style={styles.detailLabel}>
-                  {t("report.descriptionLabel", {
-                    defaultValue: "Mô tả thêm (không bắt buộc)",
+                  {t('report.descriptionLabel', {
+                    defaultValue: 'Additional details (optional)',
                   })}
                 </Text>
                 <TextInput
                   style={styles.detailInput}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder={t("report.descriptionPlaceholder", {
-                    defaultValue:
-                      "Cung cấp thêm thông tin để giúp chúng tôi hiểu vấn đề...",
+                  placeholder={t('report.descriptionPlaceholder', {
+                    defaultValue: 'Add more information to help us understand the issue...',
                   })}
                   placeholderTextColor={COLORS.textTertiary}
                   multiline
                   maxLength={500}
                   textAlignVertical="top"
                 />
-                <Text style={styles.charCount}>
-                  {description.length}/500
-                </Text>
+                <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
 
-              {/* Submit button */}
-              <View style={[styles.submitContainer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}>
+              <View style={[styles.submitContainer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}> 
                 <TouchableOpacity
                   style={[
                     styles.submitButton,
@@ -350,7 +357,7 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
                     <>
                       <MaterialIcons name="send" size={18} color="#fff" />
                       <Text style={styles.submitButtonText}>
-                        {t("report.submit", { defaultValue: "Gửi báo cáo" })}
+                        {t('report.submit', { defaultValue: 'Send report' })}
                       </Text>
                     </>
                   )}
@@ -369,11 +376,11 @@ export default ReportPostModal;
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: 'flex-end',
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
     backgroundColor: COLORS.white,
@@ -382,7 +389,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.large,
   },
   handleBar: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingTop: SPACING.sm,
     paddingBottom: SPACING.xs,
   },
@@ -392,18 +399,16 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.borderMedium,
     borderRadius: 2,
   },
-
-  // Header
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.sm,
-    position: "relative",
+    position: 'relative',
   },
   headerBackBtn: {
-    position: "absolute",
+    position: 'absolute',
     left: SPACING.md,
     padding: 4,
   },
@@ -413,24 +418,22 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   headerCloseBtn: {
-    position: "absolute",
+    position: 'absolute',
     right: SPACING.md,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: COLORS.backgroundSoft,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   divider: {
     height: 1,
     backgroundColor: COLORS.border,
   },
-
-  // Subtitle
   subtitleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: SPACING.sm,
@@ -441,14 +444,12 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.medium,
     color: COLORS.textPrimary,
   },
-
-  // Reason list
   reasonList: {
     flex: 1,
   },
   reasonItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -459,8 +460,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.backgroundSoft,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: SPACING.md,
   },
   reasonTextContainer: {
@@ -478,17 +479,15 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
-
-  // Step 2: Detail
   selectedReasonContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
     paddingBottom: SPACING.sm,
   },
   selectedReasonBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
     gap: 6,
     backgroundColor: COLORS.dangerLight,
     paddingHorizontal: SPACING.md,
@@ -500,7 +499,6 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.danger,
   },
-
   detailContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.sm,
@@ -528,19 +526,17 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textTertiary,
-    textAlign: "right",
+    textAlign: 'right',
     marginTop: 4,
   },
-
-  // Submit
   submitContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
   },
   submitButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: SPACING.sm,
     backgroundColor: COLORS.danger,
     paddingVertical: 14,
@@ -553,6 +549,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: "#fff",
+    color: '#fff',
   },
 });

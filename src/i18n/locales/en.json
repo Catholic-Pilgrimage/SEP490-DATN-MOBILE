@@ -1096,5 +1096,98 @@
     "selectedLocation": "Selected location",
     "searchingLocation": "Searching location...",
     "tapToViewDetail": "Tap to view detail"
+  },
+  "community": {
+    "greeting": "Catholic\nCommunity",
+    "createPostPlaceholder": "Share blessings or a prayer...",
+    "prayersCount": "{{count}} Prayers",
+    "commentsCount": "{{count}} Comments",
+    "share": "Share",
+    "locatedAt": "At",
+    "defaultLocation": "Notre Dame Cathedral of Saigon",
+    "anonymousUser": "Anonymous user",
+    "feedLoadError": "Something went wrong while loading the feed. Please try again.",
+    "emptyFeed": "No posts yet. Be the first to share!",
+    "timeAgo": {
+      "justNow": "Just now",
+      "secondsAgo": "{{count}} seconds ago",
+      "minutesAgo": "{{count}} minutes ago",
+      "hoursAgo": "{{count}} hours ago",
+      "daysAgo": "{{count}} days ago"
+    }
+  },
+  "report": {
+    "title": "Report",
+    "detailTitle": "Report details",
+    "selectReason": "Please choose a reason for this report",
+    "descriptionLabel": "Additional details (optional)",
+    "descriptionPlaceholder": "Add more information to help us understand the issue...",
+    "submit": "Send report",
+    "successTitle": "Report submitted",
+    "successMessage": "Thank you. We will review this content soon.",
+    "errorMessage": "Unable to submit report. Please try again.",
+    "reasons": {
+      "spam": {
+        "label": "Spam",
+        "description": "Advertising, repeated, or irrelevant content"
+      },
+      "harassment": {
+        "label": "Harassment",
+        "description": "Bullying, threats, or harassment toward others"
+      },
+      "hateSpeech": {
+        "label": "Hate speech",
+        "description": "Discrimination or attacks based on religion or ethnicity"
+      },
+      "falseInformation": {
+        "label": "False information",
+        "description": "Fake or misleading information"
+      },
+      "violence": {
+        "label": "Violence",
+        "description": "Violent content or incitement to violence"
+      },
+      "nudity": {
+        "label": "Inappropriate content",
+        "description": "Sexual, explicit, or sensitive imagery/content"
+      },
+      "scam": {
+        "label": "Scam",
+        "description": "Financial scams or impersonation"
+      },
+      "other": {
+        "label": "Other reason",
+        "description": "A reason not listed above"
+      }
+    }
+  },
+  "postDetail": {
+    "title": "Post details",
+    "prayersCount": "{{count}} Prayers",
+    "commentsCount": "{{count}} Comments",
+    "commentsTitle": "Comments ({{count}})",
+    "share": "Share",
+    "reply": "Reply",
+    "replyPlaceholder": "Reply to {{name}}...",
+    "commentAsGuidePlaceholder": "Comment as Local Guide...",
+    "commentPlaceholder": "Add a prayer or comment...",
+    "viewOneReply": "View 1 reply",
+    "viewAllReplies": "View all {{count}} replies",
+    "collapseReplies": "Hide replies",
+    "emptyTitle": "No comments yet",
+    "emptyText": "Be the first to share your thoughts!",
+    "postNotFound": "Post not found",
+    "anonymousUser": "Anonymous user",
+    "user": "User",
+    "defaultLocation": "Notre Dame Cathedral of Saigon",
+    "locatedAt": "At",
+    "addCommentError": "Unable to add comment.",
+    "timeAgo": {
+      "justNow": "Just now",
+      "secondsAgo": "{{count}} seconds ago",
+      "minutesAgo": "{{count}} minutes ago",
+      "hoursAgo": "{{count}} hours ago",
+      "daysAgo": "{{count}} days ago"
+    }
   }
 }

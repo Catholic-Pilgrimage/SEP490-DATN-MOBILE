@@ -1,7 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useState } from 'react';
+import type { TFunction } from 'i18next';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -20,19 +21,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
 import ReportPostModal from '../components/ReportPostModal';
 
-// --- Constants & Types ---
-// Using app-wide theme COLORS instead of custom SACRED_COLORS
-// Colors are now synchronized with Profile and Planner screens (Light Theme)
-
 const STAINED_GLASS_PATTERN = {
     uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAxrhiVQWx2be6uJ1xrGN4hrOCUzxkfSHMR9cY-0Rhvsmxq3dUZv72rXkE6aALqYJ_SyYq2b7EXCmgdin9z1u5YfXrQ4VOyNsBL1wjMkzIj0u2uvABqykyPMwnM2GF7VxfEaMbOhZPO_wESJVkyuN5tziBRX-eik_dKiqMIs5XmPvzq79GKdmgklm_GlWjY9erNgg8PcfbBz-ougrXWAVrtGGPdjXZtKHCHWgj7Hbm6Y4a0LzDmRA_ZwuKYbEpTo7ux9fZX7Q9pCYE',
 };
-
-// --- Components ---
 
 const FeedCard = ({ children, style }: { children: React.ReactNode; style?: any }) => {
     return (
@@ -43,23 +39,65 @@ const FeedCard = ({ children, style }: { children: React.ReactNode; style?: any 
     );
 };
 
-const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+const getDateLocale = (language: string) =>
+    language.startsWith('en') ? 'en-US' : 'vi-VN';
 
-    if (diffInSeconds < 60) return `${diffInSeconds} giây trước`;
+const formatLocalizedTime = (
+    dateString: string,
+    t: TFunction,
+    language: string,
+) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
+
+    const locale = getDateLocale(language);
+    const now = new Date();
+    const rawDiffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (rawDiffInSeconds < 0) {
+        if (Math.abs(rawDiffInSeconds) < 60) {
+            return t('community.timeAgo.justNow', { defaultValue: 'Just now' });
+        }
+        return date.toLocaleDateString(locale);
+    }
+
+    const diffInSeconds = rawDiffInSeconds;
+    if (diffInSeconds < 5) {
+        return t('community.timeAgo.justNow', { defaultValue: 'Just now' });
+    }
+
+    if (diffInSeconds < 60) {
+        return t('community.timeAgo.secondsAgo', {
+            count: diffInSeconds,
+            defaultValue: '{{count}} seconds ago',
+        });
+    }
 
     const diffInMinutes = Math.floor(diffInSeconds / 60);
-    if (diffInMinutes < 60) return `${diffInMinutes} phút trước`;
+    if (diffInMinutes < 60) {
+        return t('community.timeAgo.minutesAgo', {
+            count: diffInMinutes,
+            defaultValue: '{{count}} minutes ago',
+        });
+    }
 
     const diffInHours = Math.floor(diffInMinutes / 60);
-    if (diffInHours < 24) return `${diffInHours} giờ trước`;
+    if (diffInHours < 24) {
+        return t('community.timeAgo.hoursAgo', {
+            count: diffInHours,
+            defaultValue: '{{count}} hours ago',
+        });
+    }
 
     const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays < 7) return `${diffInDays} ngày trước`;
+    if (diffInDays < 7) {
+        return t('community.timeAgo.daysAgo', {
+            count: diffInDays,
+            defaultValue: '{{count}} days ago',
+        });
+    }
 
-    return date.toLocaleDateString('vi-VN');
+    return date.toLocaleDateString(locale);
 };
 
 const FeedItemHeader = ({
@@ -74,44 +112,53 @@ const FeedItemHeader = ({
     location?: string;
     isHighlightedGuide?: boolean;
     onMorePress?: () => void;
-}) => (
-    <View style={styles.headerRow}>
-        <View style={styles.userInfo}>
-            {user.avatar ? (
-                <Image source={{ uri: user.avatar }} style={[styles.avatar, isHighlightedGuide && styles.avatarGuide]} />
-            ) : (
-                <View style={[styles.avatar, { backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' }, isHighlightedGuide && styles.avatarGuide]}>
-                    <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.white }}>
-                        {user.name.charAt(0).toUpperCase()}
-                    </Text>
-                </View>
-            )}
-            <View>
-                <View style={styles.userNameRow}>
-                    <Text style={[styles.userName, isHighlightedGuide && styles.userNameGuide]}>{user.name}</Text>
-                    {isHighlightedGuide ? (
-                        <View style={styles.guideBadge}>
-                            <MaterialIcons name="verified" size={12} color={COLORS.white} />
-                            <Text style={styles.guideBadgeText}>Local Guide</Text>
-                        </View>
-                    ) : null}
-                </View>
-                <View style={{ flexDirection: 'column' }}>
-                    <Text style={styles.timeText}>{formatTime(time)}</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                        <Text style={{ fontSize: 12, marginRight: 4 }}>📍</Text>
-                        <Text style={{ color: COLORS.textSecondary, fontSize: 13, fontWeight: '500' }}>
-                            Đang ở <Text style={{ fontWeight: '700', color: COLORS.primary }}>{location || 'Nhà thờ Đức Bà Sài Gòn'}</Text>
-                        </Text>
+}) => {
+    const { t, i18n } = useTranslation();
+
+    return (
+        <View style={styles.headerRow}>
+            <View style={styles.userInfo}>
+                {user.avatar ? (
+                    <Image source={{ uri: user.avatar }} style={[styles.avatar, isHighlightedGuide && styles.avatarGuide]} />
+                ) : (
+                    <View style={[styles.avatar, styles.initialAvatar, isHighlightedGuide && styles.avatarGuide]}>
+                        <Text style={styles.initialAvatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+                    </View>
+                )}
+                <View>
+                    <View style={styles.userNameRow}>
+                        <Text style={[styles.userName, isHighlightedGuide && styles.userNameGuide]}>{user.name}</Text>
+                        {isHighlightedGuide ? (
+                            <View style={styles.guideBadge}>
+                                <MaterialIcons name="verified" size={12} color={COLORS.white} />
+                                <Text style={styles.guideBadgeText}>
+                                    {t('profile.localGuide', { defaultValue: 'Local Guide' })}
+                                </Text>
+                            </View>
+                        ) : null}
+                    </View>
+                    <View style={{ flexDirection: 'column' }}>
+                        <Text style={styles.timeText}>{formatLocalizedTime(time, t, i18n.language)}</Text>
+                        {location ? (
+                            <View style={styles.locationRow}>
+                                <MaterialIcons name="location-on" size={14} color={COLORS.danger} />
+                                <Text style={styles.locationText}>
+                                    {t('community.locatedAt', { defaultValue: 'At' })}{' '}
+                                    <Text style={styles.locationName}>
+                                        {location}
+                                    </Text>
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
             </View>
+            <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
+                <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
+            </TouchableOpacity>
         </View>
-        <TouchableOpacity style={{ padding: 4 }} onPress={onMorePress}>
-            <MaterialIcons name="more-horiz" size={24} color={COLORS.textTertiary} />
-        </TouchableOpacity>
-    </View>
-);
+    );
+};
 
 const FeedItemActions = ({
     stats,
@@ -124,64 +171,85 @@ const FeedItemActions = ({
     isLiked: boolean;
     onCommentPress?: () => void;
 }) => {
+    const { t } = useTranslation();
     const likePostMutation = useLikePost();
-
-    const handleLike = () => {
-        likePostMutation.mutate({ postId, isLiked });
-    };
 
     return (
         <View style={styles.actionsRow}>
             <TouchableOpacity
                 style={styles.actionButton}
-                onPress={handleLike}
+                onPress={() => likePostMutation.mutate({ postId, isLiked })}
                 disabled={likePostMutation.isPending}
             >
                 <MaterialIcons
-                    name={isLiked ? "favorite" : "favorite-border"}
+                    name={isLiked ? 'favorite' : 'favorite-border'}
                     size={22}
                     color={isLiked ? COLORS.danger : COLORS.textSecondary}
                 />
-                <Text style={{ color: isLiked ? COLORS.danger : COLORS.textSecondary, fontWeight: '500', fontSize: 14, marginLeft: 6 }}>
-                    {stats.prayers} Prayers
+                <Text style={[styles.actionText, isLiked && styles.actionTextDanger]}>
+                    {t('community.prayersCount', {
+                        count: stats.prayers,
+                        defaultValue: '{{count}} Prayers',
+                    })}
                 </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionButton} onPress={onCommentPress}>
                 <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
-                <Text style={{ color: COLORS.textSecondary, fontWeight: '500', fontSize: 14, marginLeft: 6 }}>
-                    {stats.comments} Bình luận
+                <Text style={styles.actionText}>
+                    {t('community.commentsCount', {
+                        count: stats.comments,
+                        defaultValue: '{{count}} Comments',
+                    })}
                 </Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.actionButton}>
                 <MaterialIcons name="share" size={20} color={COLORS.textSecondary} />
-                <Text style={{ color: COLORS.textSecondary, fontWeight: '500', fontSize: 14, marginLeft: 6 }}>
-                    Chia sẻ
+                <Text style={styles.actionText}>
+                    {t('community.share', { defaultValue: 'Share' })}
                 </Text>
             </TouchableOpacity>
         </View>
     );
 };
 
-const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { item: FeedPost; onPress: () => void; onCommentPress?: () => void; onMorePress?: () => void }) => {
-    const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
+const FeedItemComponent = ({
+    item,
+    onPress,
+    onCommentPress,
+    onMorePress,
+    siteName,
+}: {
+    item: FeedPost;
+    onPress: () => void;
+    onCommentPress?: () => void;
+    onMorePress?: () => void;
+    siteName?: string;
+}) => {
+    const { t } = useTranslation();
     const { user: currentUser } = useAuth();
+    const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
     const isHighlightedGuide = currentUser?.role === 'local_guide' && item.user_id === currentUser.id;
 
-    const user = {
-        name: item.author.full_name,
+    const postAuthor = {
+        name: item.author.full_name || t('community.anonymousUser', { defaultValue: 'Anonymous user' }),
         avatar: item.author.avatar_url,
     };
+    const postLocation = item.site?.name || siteName;
 
-    // Check if it's an image post
     if (item.image_urls && item.image_urls.length > 0) {
         return (
             <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
                 <FeedCard>
-
-                    <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}>
-                        <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
+                    <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}> 
+                        <FeedItemHeader
+                            user={postAuthor}
+                            time={item.created_at}
+                            location={postLocation}
+                            isHighlightedGuide={isHighlightedGuide}
+                            onMorePress={onMorePress}
+                        />
                     </View>
 
                     {item.content ? (
@@ -194,7 +262,7 @@ const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { ite
                         <Image source={{ uri: item.image_urls[0] }} style={styles.feedImage} />
                     </View>
 
-                    <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}>
+                    <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}> 
                         <FeedItemActions
                             stats={{ prayers: item.likes_count, comments: displayCommentsCount }}
                             postId={item.id}
@@ -207,12 +275,17 @@ const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { ite
         );
     }
 
-    // Text Post
     return (
         <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
             <FeedCard>
                 <View style={styles.paddingContent}>
-                    <FeedItemHeader user={user} time={item.created_at} location={item.status === 'check_in' ? 'Nhà thờ Đức Bà Sài Gòn' : undefined} isHighlightedGuide={isHighlightedGuide} onMorePress={onMorePress} />
+                    <FeedItemHeader
+                        user={postAuthor}
+                        time={item.created_at}
+                        location={postLocation}
+                        isHighlightedGuide={isHighlightedGuide}
+                        onMorePress={onMorePress}
+                    />
                     <View style={styles.textBody}>
                         <Text style={styles.bodyText}>{item.content}</Text>
                     </View>
@@ -228,24 +301,23 @@ const FeedItemComponent = ({ item, onPress, onCommentPress, onMorePress }: { ite
     );
 };
 
-// --- Main Screen ---
-
 export default function CommunityScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { user } = useAuth();
     const isGuideViewer = user?.role === 'local_guide';
     const [reportPostId, setReportPostId] = useState<string | null>(null);
+    const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
+    const requestedSiteIdsRef = useRef<Set<string>>(new Set());
 
-    // Format current date
-    const today = new Date();
-    const dateString = today.toLocaleDateString('vi-VN', {
+    const dateString = new Date().toLocaleDateString(getDateLocale(i18n.language), {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
     }).toUpperCase();
+
     const {
         data,
         isLoading,
@@ -258,57 +330,140 @@ export default function CommunityScreen() {
 
     const posts = React.useMemo(() => {
         if (!data) return [];
-        return data.pages.flatMap((page: any) => page.data?.items || page.items || page.posts || []);
+        return data.pages.flatMap((page: any) => {
+            if (Array.isArray(page?.data?.items) && page.data.items.length > 0) {
+                return page.data.items;
+            }
+            if (Array.isArray(page?.items) && page.items.length > 0) {
+                return page.items;
+            }
+            if (Array.isArray(page?.posts) && page.posts.length > 0) {
+                return page.posts;
+            }
+            if (Array.isArray(page?.data?.items)) {
+                return page.data.items;
+            }
+            if (Array.isArray(page?.items)) {
+                return page.items;
+            }
+            if (Array.isArray(page?.posts)) {
+                return page.posts;
+            }
+            return [];
+        });
     }, [data]);
 
-    const renderItem = ({ item }: { item: FeedPost }) => {
-        return (
-            <FeedItemComponent
-                item={item}
-                onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-                onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
-                onMorePress={() => setReportPostId(item.id)}
-            />
+    useEffect(() => {
+        const missingSiteIds = Array.from(
+            new Set(
+                posts
+                    .map((post) => post.site?.name ? null : post.site_id)
+                    .filter((siteId): siteId is string =>
+                        Boolean(
+                            siteId &&
+                            !siteNamesById[siteId] &&
+                            !requestedSiteIdsRef.current.has(siteId),
+                        ),
+                    ),
+            ),
         );
-    };
+
+        if (!missingSiteIds.length) {
+            return;
+        }
+
+        missingSiteIds.forEach((siteId) => requestedSiteIdsRef.current.add(siteId));
+
+        let cancelled = false;
+
+        (async () => {
+            const resolvedSites = await Promise.all(
+                missingSiteIds.map(async (siteId) => {
+                    try {
+                        const response = await pilgrimSiteApi.getSiteDetail(siteId);
+                        return {
+                            siteId,
+                            siteName: response.data?.name || null,
+                        };
+                    } catch {
+                        return {
+                            siteId,
+                            siteName: null,
+                        };
+                    }
+                }),
+            );
+
+            if (cancelled) {
+                return;
+            }
+
+            const nextSiteNames: Record<string, string> = {};
+
+            resolvedSites.forEach(({ siteId, siteName }) => {
+                if (siteName) {
+                    nextSiteNames[siteId] = siteName;
+                    return;
+                }
+
+                requestedSiteIdsRef.current.delete(siteId);
+            });
+
+            if (Object.keys(nextSiteNames).length > 0) {
+                setSiteNamesById((prev) => ({
+                    ...prev,
+                    ...nextSiteNames,
+                }));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [posts, siteNamesById]);
+
+    const renderItem = ({ item }: { item: FeedPost }) => (
+        <FeedItemComponent
+            item={item}
+            onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+            onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
+            onMorePress={() => setReportPostId(item.id)}
+            siteName={item.site_id ? siteNamesById[item.site_id] : undefined}
+        />
+    );
 
     return (
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-
             <ImageBackground
                 source={STAINED_GLASS_PATTERN}
                 style={StyleSheet.absoluteFillObject}
                 resizeMode="cover"
-                imageStyle={{ opacity: 0.03 }} // Very subtle on light bg
+                imageStyle={{ opacity: 0.03 }}
             >
-
                 <LinearGradient
                     colors={[COLORS.backgroundSoft, 'rgba(255,255,255,0.95)', COLORS.backgroundSoft]}
                     style={StyleSheet.absoluteFillObject}
                 />
             </ImageBackground>
 
-            <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
+            <View style={[styles.headerContainer, { paddingTop: insets.top }]}> 
                 <View style={styles.headerContent}>
                     <View>
                         <Text style={styles.headerDate}>{dateString}</Text>
                         <Text style={styles.headerTitle}>
-                            {t('community.greeting', { defaultValue: 'Cộng đồng\nCông giáo' })}
+                            {t('community.greeting', { defaultValue: 'Catholic\nCommunity' })}
                         </Text>
                     </View>
                     <View style={styles.profileContainer}>
                         {user?.avatar ? (
-                            <Image
-                                source={{ uri: user.avatar }}
-                                style={styles.profileImage}
-                            />
+                            <Image source={{ uri: user.avatar }} style={styles.profileImage} />
                         ) : (
-                            <View style={[styles.profileImage, { backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' }]}>
-                                <Text style={{ fontSize: 16, fontWeight: 'bold', color: COLORS.white }}>
+                            <View style={[styles.profileImage, styles.initialAvatar]}>
+                                <Text style={styles.initialAvatarText}>
                                     {(() => {
-                                        const name = user?.fullName || 'Pilgrim';
+                                        const name = user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Pilgrim' });
                                         const parts = name.trim().split(' ');
                                         if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
                                         return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
@@ -321,19 +476,23 @@ export default function CommunityScreen() {
             </View>
 
             {isLoading && !posts.length ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <View style={styles.centerContent}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
                 </View>
             ) : isError ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg }}>
-                    <Text style={{ textAlign: 'center', color: COLORS.textSecondary, marginBottom: SPACING.md }}>
-                        Đã có lỗi xảy ra khi tải bảng tin. Vui lòng thử lại.
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>
+                        {t('community.feedLoadError', {
+                            defaultValue: 'Something went wrong while loading the feed. Please try again.',
+                        })}
                     </Text>
                     <TouchableOpacity
                         onPress={() => refetch()}
-                        style={{ padding: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: 8 }}
+                        style={styles.retryButton}
                     >
-                        <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>Thử lại</Text>
+                        <Text style={styles.retryText}>
+                            {t('common.retry', { defaultValue: 'Retry' })}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -347,7 +506,7 @@ export default function CommunityScreen() {
                             <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
                                 <CreatePostBar
                                     avatar={user?.avatar}
-                                    name={user?.fullName || 'Pilgrim'}
+                                    name={user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Pilgrim' })}
                                     onPress={() => {
                                         navigation.navigate('CreatePost');
                                     }}
@@ -378,8 +537,10 @@ export default function CommunityScreen() {
                     ListEmptyComponent={
                         !isLoading ? (
                             <View style={{ padding: SPACING.xl, alignItems: 'center' }}>
-                                <Text style={{ color: COLORS.textSecondary, textAlign: 'center' }}>
-                                    Chưa có bài đăng nào. Hãy là người đầu tiên chia sẻ!
+                                <Text style={styles.emptyText}>
+                                    {t('community.emptyFeed', {
+                                        defaultValue: 'No posts yet. Be the first to share!',
+                                    })}
                                 </Text>
                             </View>
                         ) : null
@@ -402,7 +563,6 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.backgroundSoft,
     },
-    // Header
     headerContainer: {
         backgroundColor: 'rgba(255,255,255,0.9)',
         borderBottomWidth: 1,
@@ -418,8 +578,8 @@ const styles = StyleSheet.create({
     },
     headerDate: {
         color: COLORS.accent,
-        fontSize: TYPOGRAPHY.fontSize.sm, // Slightly larger
-        fontWeight: '800', // Bolder
+        fontSize: TYPOGRAPHY.fontSize.sm,
+        fontWeight: '800',
         letterSpacing: 0.5,
         textTransform: 'uppercase',
         fontFamily: Platform.OS === 'ios' ? 'System' : 'serif',
@@ -447,13 +607,34 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: COLORS.surface0,
     },
-
-    // List
+    centerContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: SPACING.lg,
+    },
+    errorText: {
+        textAlign: 'center',
+        color: COLORS.textSecondary,
+        marginBottom: SPACING.md,
+    },
+    retryButton: {
+        padding: SPACING.sm,
+        backgroundColor: COLORS.primary,
+        borderRadius: 8,
+    },
+    retryText: {
+        color: COLORS.white,
+        fontWeight: 'bold',
+    },
     listContent: {
         paddingBottom: 100,
     },
-
-    // Posts
     cardContainer: {
         backgroundColor: COLORS.backgroundCard,
     },
@@ -465,8 +646,6 @@ const styles = StyleSheet.create({
         height: 8,
         backgroundColor: COLORS.backgroundSoft,
     },
-
-    // Feed Item Header
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -490,6 +669,16 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         borderWidth: 1,
         borderColor: COLORS.border,
+    },
+    initialAvatar: {
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    initialAvatarText: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: COLORS.white,
     },
     avatarGuide: {
         borderWidth: 2,
@@ -523,8 +712,21 @@ const styles = StyleSheet.create({
         color: COLORS.textTertiary,
         fontSize: TYPOGRAPHY.fontSize.xs,
     },
-
-    // Text Body
+    locationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    locationText: {
+        color: COLORS.textSecondary,
+        fontSize: 13,
+        fontWeight: '500',
+        marginLeft: 4,
+    },
+    locationName: {
+        fontWeight: '700',
+        color: COLORS.primary,
+    },
     textBody: {
         marginBottom: SPACING.md,
     },
@@ -534,8 +736,6 @@ const styles = StyleSheet.create({
         lineHeight: 24,
         fontFamily: 'serif',
     },
-
-    // Actions
     actionsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -549,9 +749,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 6,
     },
-
-
-    // Image - Full width
+    actionText: {
+        color: COLORS.textSecondary,
+        fontWeight: '500',
+        fontSize: 14,
+        marginLeft: 6,
+    },
+    actionTextDanger: {
+        color: COLORS.danger,
+    },
+    emptyText: {
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
     imageContainer: {
         height: 280,
         width: '100%',
@@ -561,6 +771,4 @@ const styles = StyleSheet.create({
         height: '100%',
         resizeMode: 'cover',
     },
-
-    // FAB - Removed
 });

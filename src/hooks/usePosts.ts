@@ -2,6 +2,23 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { postApi } from "../services/api/shared";
 import { CreateFeedCommentRequest, CreateFeedPostRequest } from "../types/post.types";
 
+const readPostCollection = (container: any): any[] => {
+    const nestedItems = container?.data?.items;
+    if (Array.isArray(nestedItems) && nestedItems.length > 0) return nestedItems;
+
+    const directItems = container?.items;
+    if (Array.isArray(directItems) && directItems.length > 0) return directItems;
+
+    const directPosts = container?.posts;
+    if (Array.isArray(directPosts) && directPosts.length > 0) return directPosts;
+
+    if (Array.isArray(nestedItems)) return nestedItems;
+    if (Array.isArray(directItems)) return directItems;
+    if (Array.isArray(directPosts)) return directPosts;
+
+    return [];
+};
+
 export const postKeys = {
     all: ["posts"] as const,
     lists: () => [...postKeys.all, "list"] as const,
@@ -18,7 +35,7 @@ export const usePosts = (limit: number = 20) => {
         queryFn: async ({ pageParam = 1 }: { pageParam: number }) => {
             const response = await postApi.getPosts({ page: pageParam, limit });
             if (__DEV__ && pageParam === 1) {
-                const items = response.data?.items || [];
+                const items = readPostCollection(response.data);
                 if (items.length > 0) {
                     console.log('[DEBUG] Post API item keys:', Object.keys(items[0]));
                     console.log('[DEBUG] Post API first item:', JSON.stringify(items[0], null, 2));
@@ -74,7 +91,7 @@ export const useLikePost = () => {
                 return {
                     ...old,
                     pages: old.pages.map((page: any) => {
-                        const items = page.data?.items || page.items || page.posts || [];
+                        const items = readPostCollection(page);
                         const updatedItems = items.map((post: any) => {
                             if (post.id === postId) {
                                 return {
@@ -167,7 +184,7 @@ export const useAddComment = (postId: string) => {
                 return {
                     ...old,
                     pages: old.pages.map((page: any) => {
-                        const items = page.data?.items || page.items || page.posts || [];
+                        const items = readPostCollection(page);
                         const updatedItems = items.map((post: any) => {
                             if (post.id === postId) {
                                 const currentCount = post.comment_count || post.comments_count || 0;
