@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 
@@ -17,14 +18,13 @@ const getInitials = (name?: string) => {
 };
 
 export const CreatePostBar: React.FC<CreatePostBarProps> = ({ avatar, name, onPress }) => {
+    const { t } = useTranslation();
+
     return (
         <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.container}>
             <View style={styles.row}>
                 {avatar ? (
-                    <Image
-                        source={{ uri: avatar }}
-                        style={styles.avatar}
-                    />
+                    <Image source={{ uri: avatar }} style={styles.avatar} />
                 ) : (
                     <View style={[styles.avatar, styles.initialsContainer]}>
                         <Text style={styles.initialsText}>{getInitials(name)}</Text>
@@ -32,7 +32,11 @@ export const CreatePostBar: React.FC<CreatePostBarProps> = ({ avatar, name, onPr
                 )}
 
                 <View style={styles.inputContainer}>
-                    <Text style={styles.placeholderText}>Chia sẻ ơn phước hoặc lời cầu nguyện...</Text>
+                    <Text style={styles.placeholderText}>
+                        {t('community.createPostPlaceholder', {
+                            defaultValue: 'Share blessings or a prayer...',
+                        })}
+                    </Text>
                 </View>
                 <View style={styles.iconButton}>
                     <Ionicons name="images-outline" size={24} color={COLORS.accent} />
@@ -63,7 +67,7 @@ const styles = StyleSheet.create({
         borderColor: COLORS.surface0,
     },
     initialsContainer: {
-        backgroundColor: COLORS.primary, // Or any brand color
+        backgroundColor: COLORS.primary,
         justifyContent: 'center',
         alignItems: 'center',
         borderColor: COLORS.borderLight,
