@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { TFunction } from 'i18next';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
 import ReportPostModal from '../components/ReportPostModal';
@@ -138,15 +139,17 @@ const FeedItemHeader = ({
                     </View>
                     <View style={{ flexDirection: 'column' }}>
                         <Text style={styles.timeText}>{formatLocalizedTime(time, t, i18n.language)}</Text>
-                        <View style={styles.locationRow}>
-                            <MaterialIcons name="location-on" size={14} color={COLORS.danger} />
-                            <Text style={styles.locationText}>
-                                {t('community.locatedAt', { defaultValue: 'At' })}{' '}
-                                <Text style={styles.locationName}>
-                                    {location || t('community.defaultLocation', { defaultValue: 'Notre Dame Cathedral of Saigon' })}
+                        {location ? (
+                            <View style={styles.locationRow}>
+                                <MaterialIcons name="location-on" size={14} color={COLORS.danger} />
+                                <Text style={styles.locationText}>
+                                    {t('community.locatedAt', { defaultValue: 'At' })}{' '}
+                                    <Text style={styles.locationName}>
+                                        {location}
+                                    </Text>
                                 </Text>
-                            </Text>
-                        </View>
+                            </View>
+                        ) : null}
                     </View>
                 </View>
             </View>
@@ -216,11 +219,13 @@ const FeedItemComponent = ({
     onPress,
     onCommentPress,
     onMorePress,
+    siteName,
 }: {
     item: FeedPost;
     onPress: () => void;
     onCommentPress?: () => void;
     onMorePress?: () => void;
+    siteName?: string;
 }) => {
     const { t } = useTranslation();
     const { user: currentUser } = useAuth();
@@ -231,9 +236,7 @@ const FeedItemComponent = ({
         name: item.author.full_name || t('community.anonymousUser', { defaultValue: 'Anonymous user' }),
         avatar: item.author.avatar_url,
     };
-    const postLocation = item.status === 'check_in'
-        ? t('community.defaultLocation', { defaultValue: 'Notre Dame Cathedral of Saigon' })
-        : undefined;
+    const postLocation = item.site?.name || siteName;
 
     if (item.image_urls && item.image_urls.length > 0) {
         return (
@@ -305,6 +308,8 @@ export default function CommunityScreen() {
     const { user } = useAuth();
     const isGuideViewer = user?.role === 'local_guide';
     const [reportPostId, setReportPostId] = useState<string | null>(null);
+    const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
+    const requestedSiteIdsRef = useRef<Set<string>>(new Set());
 
     const dateString = new Date().toLocaleDateString(getDateLocale(i18n.language), {
         weekday: 'long',
@@ -325,8 +330,97 @@ export default function CommunityScreen() {
 
     const posts = React.useMemo(() => {
         if (!data) return [];
-        return data.pages.flatMap((page: any) => page.data?.items || page.items || page.posts || []);
+        return data.pages.flatMap((page: any) => {
+            if (Array.isArray(page?.data?.items) && page.data.items.length > 0) {
+                return page.data.items;
+            }
+            if (Array.isArray(page?.items) && page.items.length > 0) {
+                return page.items;
+            }
+            if (Array.isArray(page?.posts) && page.posts.length > 0) {
+                return page.posts;
+            }
+            if (Array.isArray(page?.data?.items)) {
+                return page.data.items;
+            }
+            if (Array.isArray(page?.items)) {
+                return page.items;
+            }
+            if (Array.isArray(page?.posts)) {
+                return page.posts;
+            }
+            return [];
+        });
     }, [data]);
+
+    useEffect(() => {
+        const missingSiteIds = Array.from(
+            new Set(
+                posts
+                    .map((post) => post.site?.name ? null : post.site_id)
+                    .filter((siteId): siteId is string =>
+                        Boolean(
+                            siteId &&
+                            !siteNamesById[siteId] &&
+                            !requestedSiteIdsRef.current.has(siteId),
+                        ),
+                    ),
+            ),
+        );
+
+        if (!missingSiteIds.length) {
+            return;
+        }
+
+        missingSiteIds.forEach((siteId) => requestedSiteIdsRef.current.add(siteId));
+
+        let cancelled = false;
+
+        (async () => {
+            const resolvedSites = await Promise.all(
+                missingSiteIds.map(async (siteId) => {
+                    try {
+                        const response = await pilgrimSiteApi.getSiteDetail(siteId);
+                        return {
+                            siteId,
+                            siteName: response.data?.name || null,
+                        };
+                    } catch {
+                        return {
+                            siteId,
+                            siteName: null,
+                        };
+                    }
+                }),
+            );
+
+            if (cancelled) {
+                return;
+            }
+
+            const nextSiteNames: Record<string, string> = {};
+
+            resolvedSites.forEach(({ siteId, siteName }) => {
+                if (siteName) {
+                    nextSiteNames[siteId] = siteName;
+                    return;
+                }
+
+                requestedSiteIdsRef.current.delete(siteId);
+            });
+
+            if (Object.keys(nextSiteNames).length > 0) {
+                setSiteNamesById((prev) => ({
+                    ...prev,
+                    ...nextSiteNames,
+                }));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [posts, siteNamesById]);
 
     const renderItem = ({ item }: { item: FeedPost }) => (
         <FeedItemComponent
@@ -334,6 +428,7 @@ export default function CommunityScreen() {
             onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
             onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
             onMorePress={() => setReportPostId(item.id)}
+            siteName={item.site_id ? siteNamesById[item.site_id] : undefined}
         />
     );
 

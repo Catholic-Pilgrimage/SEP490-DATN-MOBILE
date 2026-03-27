@@ -1,14 +1,18 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { Audio } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import type { TFunction } from "i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -24,6 +28,7 @@ import {
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
 import {
   useAddComment,
   useLikePost,
@@ -31,10 +36,14 @@ import {
   usePostDetail,
 } from "../../../../hooks/usePosts";
 import i18n from "../../../../i18n";
+import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import type { FeedPostComment } from "../../../../types/post.types";
 import ReportPostModal from "../components/ReportPostModal";
 
 // Utilities
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const POST_MEDIA_WIDTH = SCREEN_WIDTH - SPACING.lg * 2;
 
 const getDateLocale = (language: string) =>
   language.startsWith("en") ? "en-US" : "vi-VN";
@@ -96,6 +105,20 @@ const formatLocalizedTime = (
 
   return date.toLocaleDateString(locale);
 };
+
+const formatAudioDuration = (millis: number) => {
+  if (!Number.isFinite(millis) || millis <= 0) {
+    return "0:00";
+  }
+
+  const totalSeconds = Math.floor(millis / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const isLikelyAudioFileUrl = (url?: string | null) =>
+  Boolean(url && /\.(aac|flac|m4a|mp3|ogg|wav)(?:[?#].*)?$/i.test(url));
 
 const translate = i18n.t.bind(i18n) as TFunction;
 
@@ -335,6 +358,231 @@ const FeedItemActions = ({
           {t("postDetail.share", { defaultValue: "Share" })}
         </Text>
       </TouchableOpacity>
+    </View>
+  );
+};
+const PostAudioAttachment = ({
+  url,
+  label,
+  iconName,
+}: {
+  url: string;
+  label: string;
+  iconName: React.ComponentProps<typeof MaterialIcons>["name"];
+}) => {
+  const { t } = useTranslation();
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [positionMillis, setPositionMillis] = useState(0);
+  const [durationMillis, setDurationMillis] = useState(0);
+
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync().catch(() => null);
+      }
+    };
+  }, [sound]);
+
+  const handleTogglePlayback = async () => {
+    try {
+      if (sound) {
+        if (isPlaying) {
+          await sound.pauseAsync();
+          setIsPlaying(false);
+          return;
+        }
+
+        if (durationMillis > 0 && positionMillis >= durationMillis) {
+          await sound.replayAsync();
+          setIsPlaying(true);
+          return;
+        }
+
+        await sound.playAsync();
+        setIsPlaying(true);
+        return;
+      }
+
+      setIsLoading(true);
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      const { sound: nextSound, status } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true },
+        (playbackStatus) => {
+          if (!playbackStatus.isLoaded) return;
+
+          setPositionMillis(playbackStatus.positionMillis || 0);
+          setDurationMillis(playbackStatus.durationMillis || 0);
+
+          if (playbackStatus.didJustFinish) {
+            setIsPlaying(false);
+            setPositionMillis(0);
+          }
+        },
+      );
+
+      if (status.isLoaded) {
+        setDurationMillis(status.durationMillis || 0);
+        setPositionMillis(status.positionMillis || 0);
+      }
+
+      setSound(nextSound);
+      setIsPlaying(true);
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: t("common.error", { defaultValue: "Error" }),
+        text2: t("postDetail.playMediaError", {
+          defaultValue: "Unable to play {{label}}.",
+          label: label.toLowerCase(),
+        }),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const progress =
+    durationMillis > 0 ? Math.min(positionMillis / durationMillis, 1) : 0;
+
+  return (
+    <View style={styles.mediaSection}>
+      <View style={styles.audioCard}>
+        <View style={styles.audioCardHeader}>
+          <View style={styles.audioIconBadge}>
+            <MaterialIcons name={iconName} size={22} color={COLORS.primary} />
+          </View>
+          <View style={styles.audioTextColumn}>
+            <Text style={styles.mediaSectionTitle}>{label}</Text>
+            <Text style={styles.mediaSectionSubtitle}>
+              {isPlaying
+                ? t("postDetail.nowPlaying", { defaultValue: "Now playing" })
+                : t("postDetail.tapToPlay", { defaultValue: "Tap to play" })}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.audioActionButton,
+              (isPlaying || isLoading) && styles.audioActionButtonActive,
+            ]}
+            onPress={handleTogglePlayback}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <MaterialIcons
+                name={isPlaying ? "pause" : "play-arrow"}
+                size={24}
+                color={COLORS.white}
+              />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.audioProgressTrack}>
+          <View
+            style={[styles.audioProgressFill, { width: `${progress * 100}%` }]}
+          />
+        </View>
+
+        <View style={styles.audioTimeRow}>
+          <Text style={styles.audioTimeText}>
+            {formatAudioDuration(positionMillis)}
+          </Text>
+          <Text style={styles.audioTimeText}>
+            {formatAudioDuration(durationMillis)}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+const PostVideoAttachment = ({
+  url,
+  onOpenFullscreen,
+}: {
+  url: string;
+  onOpenFullscreen: () => void;
+}) => {
+  const { t } = useTranslation();
+  const [hasError, setHasError] = useState(false);
+  const player = useVideoPlayer(url, (videoPlayer) => {
+    videoPlayer.loop = false;
+  });
+
+  useEffect(() => {
+    const sub = player.addListener(
+      "statusChange",
+      ({ status }: { status: string }) => {
+        if (status === "error") {
+          setHasError(true);
+        }
+      },
+    );
+
+    return () => sub.remove();
+  }, [player]);
+
+  return (
+    <View style={styles.mediaSection}>
+      <Text style={styles.mediaSectionTitle}>
+        {t("postDetail.videoAttachment", {
+          defaultValue: "Video attachment",
+        })}
+      </Text>
+
+      {hasError ? (
+        <View style={styles.videoFallback}>
+          <MaterialIcons
+            name="videocam-off"
+            size={32}
+            color={COLORS.textTertiary}
+          />
+          <Text style={styles.videoFallbackText}>
+            {t("postDetail.videoUnavailable", {
+              defaultValue: "Video is unavailable.",
+            })}
+          </Text>
+        </View>
+      ) : (
+        <>
+          <View style={styles.videoCard}>
+            <VideoView
+              style={styles.videoPlayer}
+              player={player}
+              allowsFullscreen
+              allowsPictureInPicture
+              contentFit="contain"
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.mediaInlineAction}
+            onPress={onOpenFullscreen}
+          >
+            <MaterialIcons
+              name="open-in-full"
+              size={18}
+              color={COLORS.primary}
+            />
+            <Text style={styles.mediaInlineActionText}>
+              {t("postDetail.openFullscreen", {
+                defaultValue: "Open fullscreen",
+              })}
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 };
@@ -594,6 +842,11 @@ export default function PostDetailScreen() {
     name: string;
   } | null>(null);
   const [showReport, setShowReport] = useState(false);
+  const [resolvedSiteName, setResolvedSiteName] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<{
+    type: "image" | "video";
+    url: string;
+  } | null>(null);
   const commentInputRef = useRef<TextInput>(null);
   const flatListRef = useRef<any>(null);
 
@@ -617,6 +870,37 @@ export default function PostDetailScreen() {
   } = usePostComments(postId, 20);
 
   const addCommentMutation = useAddComment(postId);
+
+  useEffect(() => {
+    if (post?.site?.name) {
+      setResolvedSiteName(post.site.name);
+      return;
+    }
+
+    if (!post?.site_id) {
+      setResolvedSiteName(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    pilgrimSiteApi
+      .getSiteDetail(post.site_id)
+      .then((response) => {
+        if (!cancelled) {
+          setResolvedSiteName(response.data?.name || null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setResolvedSiteName(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post?.site?.name, post?.site_id]);
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
@@ -705,6 +989,11 @@ export default function PostDetailScreen() {
       (actualPost as any).comment_count ||
       (actualPost as any).comments_count ||
       comments.length;
+    const imageUrls = actualPost.image_urls || [];
+    const videoUrl = actualPost.video_url || actualPost.sourceJournal?.video_url;
+    const audioUrl = actualPost.audio_url || actualPost.sourceJournal?.audio_url;
+    const videoShouldUseAudioPlayer = isLikelyAudioFileUrl(videoUrl);
+    const location = actualPost.site?.name || resolvedSiteName || undefined;
 
     return (
       <View style={styles.postContainer}>
@@ -712,13 +1001,7 @@ export default function PostDetailScreen() {
           <FeedItemHeader
             user={author}
             time={actualPost.created_at}
-            location={
-              actualPost.status === "check_in"
-                ? t("postDetail.defaultLocation", {
-                    defaultValue: "Notre Dame Cathedral of Saigon",
-                  })
-                : undefined
-            }
+            location={location}
             isHighlightedGuide={isPostAuthorGuide}
             onMorePress={() => setShowReport(true)}
           />
@@ -735,13 +1018,86 @@ export default function PostDetailScreen() {
           </View>
         ) : null}
 
-        {actualPost.image_urls && actualPost.image_urls.length > 0 ? (
-          <View style={styles.imageContainer}>
-            <Image
-              source={{ uri: actualPost.image_urls[0] }}
-              style={styles.feedImage}
-            />
+        {imageUrls.length === 1 ? (
+          <View style={styles.mediaSection}>
+            <TouchableOpacity
+              activeOpacity={0.92}
+              onPress={() =>
+                setLightbox({ type: "image", url: imageUrls[0] })
+              }
+            >
+              <View
+                style={[styles.imageContainer, styles.singleImageContainer]}
+              >
+                <Image source={{ uri: imageUrls[0] }} style={styles.feedImage} />
+              </View>
+            </TouchableOpacity>
           </View>
+        ) : null}
+
+        {imageUrls.length > 1 ? (
+          <View style={styles.mediaSection}>
+            <Text style={styles.mediaSectionTitle}>
+              {t("postDetail.photosCount", {
+                count: imageUrls.length,
+                defaultValue: "{{count}} photos",
+              })}
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.galleryScrollContent}
+            >
+              {imageUrls.map((imageUrl, index) => (
+                <TouchableOpacity
+                  key={`${imageUrl}-${index}`}
+                  activeOpacity={0.92}
+                  onPress={() =>
+                    setLightbox({ type: "image", url: imageUrl })
+                  }
+                >
+                  <View
+                    style={[
+                      styles.galleryImageCard,
+                      index === imageUrls.length - 1 &&
+                        styles.galleryImageCardLast,
+                    ]}
+                  >
+                    <Image source={{ uri: imageUrl }} style={styles.feedImage} />
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {videoUrl ? (
+          videoShouldUseAudioPlayer ? (
+            <PostAudioAttachment
+              url={videoUrl}
+              label={t("postDetail.videoAttachment", {
+                defaultValue: "Video attachment",
+              })}
+              iconName="videocam"
+            />
+          ) : (
+            <PostVideoAttachment
+              url={videoUrl}
+              onOpenFullscreen={() =>
+                setLightbox({ type: "video", url: videoUrl })
+              }
+            />
+          )
+        ) : null}
+
+        {audioUrl ? (
+          <PostAudioAttachment
+            url={audioUrl}
+            label={t("postDetail.audioAttachment", {
+              defaultValue: "Audio attachment",
+            })}
+            iconName="graphic-eq"
+          />
         ) : null}
 
         <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}>
@@ -921,6 +1277,13 @@ export default function PostDetailScreen() {
         targetId={postId}
         targetType="post"
       />
+
+      <MediaLightbox
+        visible={Boolean(lightbox)}
+        onClose={() => setLightbox(null)}
+        imageUri={lightbox?.type === "image" ? lightbox.url : undefined}
+        videoUrl={lightbox?.type === "video" ? lightbox.url : undefined}
+      />
     </View>
   );
 }
@@ -1020,6 +1383,20 @@ const styles = StyleSheet.create({
     color: COLORS.textTertiary,
     fontSize: TYPOGRAPHY.fontSize.xs,
   },
+  mediaSection: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  mediaSectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  mediaSectionSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+  },
   imageContainer: {
     width: "auto",
     height: 300,
@@ -1027,6 +1404,25 @@ const styles = StyleSheet.create({
     marginHorizontal: SPACING.lg,
     borderRadius: 12,
     overflow: "hidden",
+    backgroundColor: COLORS.backgroundSoft,
+  },
+  singleImageContainer: {
+    marginHorizontal: 0,
+    marginBottom: 0,
+  },
+  galleryScrollContent: {
+    paddingRight: SPACING.md,
+  },
+  galleryImageCard: {
+    width: POST_MEDIA_WIDTH,
+    height: 300,
+    borderRadius: 12,
+    overflow: "hidden",
+    marginRight: SPACING.sm,
+    backgroundColor: COLORS.backgroundSoft,
+  },
+  galleryImageCardLast: {
+    marginRight: 0,
   },
   feedImage: {
     width: "100%",
@@ -1037,6 +1433,98 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     color: COLORS.textPrimary,
     lineHeight: 24,
+  },
+  audioCard: {
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: 16,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  audioCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  audioIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(24, 119, 242, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  audioTextColumn: {
+    flex: 1,
+  },
+  audioActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.textSecondary,
+  },
+  audioActionButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  audioProgressTrack: {
+    marginTop: SPACING.md,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.borderLight,
+    overflow: "hidden",
+  },
+  audioProgressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: COLORS.primary,
+  },
+  audioTimeRow: {
+    marginTop: SPACING.xs,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  audioTimeText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+  },
+  videoCard: {
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#000",
+  },
+  videoPlayer: {
+    width: "100%",
+    height: 220,
+  },
+  videoFallback: {
+    height: 120,
+    borderRadius: 16,
+    backgroundColor: COLORS.backgroundSoft,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.lg,
+  },
+  videoFallbackText: {
+    marginTop: SPACING.sm,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  mediaInlineAction: {
+    marginTop: SPACING.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+  },
+  mediaInlineActionText: {
+    marginLeft: 6,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: "600",
+    color: COLORS.primary,
   },
   dividerHuge: {
     height: 8,

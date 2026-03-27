@@ -10,18 +10,43 @@ export interface PostAuthor {
     role?: string;
 }
 
+export interface FeedPostSourceJournal {
+    id: string;
+    title?: string;
+    content?: string;
+    image_url?: string[];
+    audio_url?: string | null;
+    video_url?: string | null;
+}
+
+export interface FeedPostSite {
+    id: string;
+    name: string;
+    province?: string;
+}
+
 export interface FeedPost {
     id: string;
     user_id: string;
     content: string;
+    title?: string;
     image_urls: string[];
+    audio_url?: string | null;
+    video_url?: string | null;
     likes_count: number;
     comment_count: number;
+    comments_count?: number;
     status: string;
     created_at: string;
     updated_at: string;
     is_liked: boolean;
     author: PostAuthor;
+    journal_id?: string | null;
+    site_id?: string | null;
+    planner_id?: string | null;
+    is_active?: boolean;
+    sourceJournal?: FeedPostSourceJournal | null;
+    site?: FeedPostSite | null;
 }
 
 export interface FeedPostComment {

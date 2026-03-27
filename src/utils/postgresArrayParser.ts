@@ -3,10 +3,15 @@
  * PostgreSQL returns array as: {"item1","item2","item3"}
  * This function converts it to: ["item1", "item2", "item3"]
  */
+const sanitizeStringArray = (items: unknown[]): string[] =>
+  items
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+
 export function parsePostgresArray(value: any): string[] {
   // If already an array, return it
   if (Array.isArray(value)) {
-    return value;
+    return sanitizeStringArray(value);
   }
 
   // If null or undefined, return empty array
@@ -18,6 +23,22 @@ export function parsePostgresArray(value: any): string[] {
   if (typeof value === 'string') {
     // Remove leading/trailing braces
     const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    // Support JSON arrays as well: ["item1","item2"]
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return sanitizeStringArray(parsed);
+        }
+      } catch {
+        // Fall through to the PostgreSQL parser below
+      }
+    }
     
     // Check if it's a PostgreSQL array format
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -29,23 +50,28 @@ export function parsePostgresArray(value: any): string[] {
         return [];
       }
       
-      // Split by comma and clean up quotes
+      // Split by comma outside quoted values and clean up quotes
       return content
-        .split(',')
+        .split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/)
         .map(item => item.trim())
         .map(item => {
           // Remove quotes if present
           if ((item.startsWith('"') && item.endsWith('"')) || 
               (item.startsWith("'") && item.endsWith("'"))) {
-            return item.slice(1, -1);
+            return item.slice(1, -1).replace(/\\"/g, '"');
           }
           return item;
         })
         .filter(item => item.length > 0);
     }
     
-    // If it's a single string, wrap it in array
-    return [value];
+    // If it's a single string, normalize quotes and wrap it in array
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+        (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+      return [trimmed.slice(1, -1)];
+    }
+
+    return [trimmed];
   }
 
   // Fallback: return empty array

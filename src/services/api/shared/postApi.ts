@@ -15,8 +15,46 @@ import {
     UpdateFeedCommentRequest,
     UpdateFeedPostRequest,
 } from "../../../types/post.types";
+import { normalizeImageUrls } from "../../../utils/postgresArrayParser";
 import apiClient from "../apiClient";
 import ENDPOINTS from "../endpoints";
+
+const mergeUrlLists = (...lists: (string[] | undefined)[]): string[] =>
+    Array.from(
+        new Set(
+            lists
+                .flatMap((list) => list || [])
+                .map((item) => item.trim())
+                .filter((item) => item.length > 0),
+        ),
+    );
+
+const normalizeFeedPost = (post: any): FeedPost => {
+    const sourceJournal = post?.sourceJournal
+        ? {
+              ...post.sourceJournal,
+              image_url: normalizeImageUrls(post.sourceJournal.image_url),
+              audio_url: post.sourceJournal.audio_url ?? null,
+              video_url: post.sourceJournal.video_url ?? null,
+          }
+        : null;
+
+    const imageUrls = mergeUrlLists(
+        normalizeImageUrls(post?.image_urls),
+        sourceJournal?.image_url,
+    );
+
+    return {
+        ...post,
+        image_urls: imageUrls,
+        audio_url: post?.audio_url ?? sourceJournal?.audio_url ?? null,
+        video_url: post?.video_url ?? sourceJournal?.video_url ?? null,
+        comment_count: Number(post?.comment_count ?? post?.comments_count ?? 0),
+        comments_count: Number(post?.comments_count ?? post?.comment_count ?? 0),
+        is_liked: Boolean(post?.is_liked),
+        sourceJournal,
+    };
+};
 
 // ============================================
 // POSTS
@@ -32,7 +70,20 @@ export const getPosts = async (
         ENDPOINTS.SHARED.POSTS.BASE,
         { params },
     );
-    return response.data;
+    const rawData = response.data.data;
+    const rawPosts = rawData?.items || (rawData as any)?.posts || [];
+    const normalizedPosts = rawPosts.map(normalizeFeedPost);
+
+    return {
+        ...response.data,
+        data: rawData
+            ? {
+                  ...rawData,
+                  items: normalizedPosts,
+                  posts: normalizedPosts,
+              }
+            : rawData,
+    };
 };
 
 /**
@@ -44,7 +95,10 @@ export const getPostDetail = async (
     const response = await apiClient.get<ApiResponse<FeedPost>>(
         ENDPOINTS.SHARED.POSTS.DETAIL(id),
     );
-    return response.data;
+    return {
+        ...response.data,
+        data: response.data.data ? normalizeFeedPost(response.data.data) : response.data.data,
+    };
 };
 
 /**
