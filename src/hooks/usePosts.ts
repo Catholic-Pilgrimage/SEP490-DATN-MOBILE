@@ -75,6 +75,31 @@ export const useCreatePost = () => {
     });
 };
 
+export const useUpdatePost = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ postId, data }: { postId: string; data: CreateFeedPostRequest }) =>
+            postApi.updatePost(postId, data),
+        onSuccess: (_response, { postId }) => {
+            queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: postKeys.detail(postId), exact: true });
+        },
+    });
+};
+
+export const useDeletePost = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (postId: string) => postApi.deletePost(postId),
+        onSuccess: (_response, postId) => {
+            queryClient.invalidateQueries({ queryKey: postKeys.lists() });
+            queryClient.removeQueries({ queryKey: postKeys.detail(postId), exact: true });
+        },
+    });
+};
+
 export const useLikePost = () => {
     const queryClient = useQueryClient();
 
@@ -282,6 +307,32 @@ export const useAddComment = (postId: string) => {
             if (context?.previousDetail) {
                 queryClient.setQueryData(postKeys.detail(postId), context.previousDetail);
             }
+        },
+    });
+};
+
+export const useUpdateComment = (postId: string) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ commentId, content }: { commentId: string; content: string }) =>
+            postApi.updateComment(postId, commentId, { content }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: postKeys.comments(postId) });
+            queryClient.invalidateQueries({ queryKey: postKeys.detail(postId), exact: true });
+        },
+    });
+};
+
+export const useDeleteComment = (postId: string) => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (commentId: string) => postApi.deleteComment(postId, commentId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: postKeys.comments(postId) });
+            queryClient.invalidateQueries({ queryKey: postKeys.detail(postId), exact: true });
+            queryClient.invalidateQueries({ queryKey: postKeys.lists() });
         },
     });
 };

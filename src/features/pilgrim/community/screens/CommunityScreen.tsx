@@ -6,6 +6,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Image,
     ImageBackground,
@@ -18,12 +19,14 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { useDeletePost, useLikePost, usePosts } from '../../../../hooks/usePosts';
 import { pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
 import { CreatePostBar } from '../components/CreatePostBar';
+import PostActionSheet from '../components/PostActionSheet';
 import ReportPostModal from '../components/ReportPostModal';
 
 const STAINED_GLASS_PATTERN = {
@@ -224,7 +227,7 @@ const FeedItemComponent = ({
     item: FeedPost;
     onPress: () => void;
     onCommentPress?: () => void;
-    onMorePress?: () => void;
+    onMorePress?: (post: FeedPost) => void;
     siteName?: string;
 }) => {
     const { t } = useTranslation();
@@ -248,7 +251,7 @@ const FeedItemComponent = ({
                             time={item.created_at}
                             location={postLocation}
                             isHighlightedGuide={isHighlightedGuide}
-                            onMorePress={onMorePress}
+                            onMorePress={onMorePress ? () => onMorePress(item) : undefined}
                         />
                     </View>
 
@@ -284,7 +287,7 @@ const FeedItemComponent = ({
                         time={item.created_at}
                         location={postLocation}
                         isHighlightedGuide={isHighlightedGuide}
-                        onMorePress={onMorePress}
+                        onMorePress={onMorePress ? () => onMorePress(item) : undefined}
                     />
                     <View style={styles.textBody}>
                         <Text style={styles.bodyText}>{item.content}</Text>
@@ -307,6 +310,7 @@ export default function CommunityScreen() {
     const { t, i18n } = useTranslation();
     const { user } = useAuth();
     const isGuideViewer = user?.role === 'local_guide';
+    const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
     const [reportPostId, setReportPostId] = useState<string | null>(null);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
     const requestedSiteIdsRef = useRef<Set<string>>(new Set());
@@ -327,6 +331,7 @@ export default function CommunityScreen() {
         isFetchingNextPage,
         refetch,
     } = usePosts(10);
+    const deletePostMutation = useDeletePost();
 
     const posts = React.useMemo(() => {
         if (!data) return [];
@@ -422,12 +427,76 @@ export default function CommunityScreen() {
         };
     }, [posts, siteNamesById]);
 
+    const handleEditPost = React.useCallback(() => {
+        if (!activePostAction) return;
+
+        const targetPost = activePostAction;
+        setActivePostAction(null);
+        navigation.navigate('CreatePost', {
+            postId: targetPost.id,
+            initialPost: targetPost,
+        });
+    }, [activePostAction, navigation]);
+
+    const handleDeletePost = React.useCallback(() => {
+        if (!activePostAction) return;
+
+        const targetPost = activePostAction;
+        setActivePostAction(null);
+
+        Alert.alert(
+            t('postDetail.deletePost', { defaultValue: 'Delete post' }),
+            t('postDetail.deletePostMessage', {
+                defaultValue: 'Are you sure you want to delete this post?',
+            }),
+            [
+                {
+                    text: t('common.cancel', { defaultValue: 'Cancel' }),
+                    style: 'cancel',
+                },
+                {
+                    text: t('common.delete', { defaultValue: 'Delete' }),
+                    style: 'destructive',
+                    onPress: () => {
+                        deletePostMutation.mutate(targetPost.id, {
+                            onSuccess: () => {
+                                Toast.show({
+                                    type: 'success',
+                                    text1: t('common.success', { defaultValue: 'Success' }),
+                                    text2: t('postDetail.deletePostSuccess', {
+                                        defaultValue: 'Post deleted.',
+                                    }),
+                                });
+                            },
+                            onError: (error: any) => {
+                                Toast.show({
+                                    type: 'error',
+                                    text1: t('common.error', { defaultValue: 'Error' }),
+                                    text2:
+                                        t('postDetail.deletePostError', {
+                                            defaultValue: 'Unable to delete post.',
+                                        }) + (error?.message ? ` ${error.message}` : ''),
+                                });
+                            },
+                        });
+                    },
+                },
+            ],
+        );
+    }, [activePostAction, deletePostMutation, t]);
+
+    const handleReportPost = React.useCallback(() => {
+        if (!activePostAction) return;
+        setReportPostId(activePostAction.id);
+        setActivePostAction(null);
+    }, [activePostAction]);
+
     const renderItem = ({ item }: { item: FeedPost }) => (
         <FeedItemComponent
             item={item}
             onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
             onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
-            onMorePress={() => setReportPostId(item.id)}
+            onMorePress={setActivePostAction}
             siteName={item.site_id ? siteNamesById[item.site_id] : undefined}
         />
     );
@@ -547,6 +616,16 @@ export default function CommunityScreen() {
                     }
                 />
             )}
+
+            <PostActionSheet
+                visible={Boolean(activePostAction)}
+                postContent={activePostAction?.content}
+                busy={deletePostMutation.isPending}
+                onClose={() => setActivePostAction(null)}
+                onEdit={handleEditPost}
+                onDelete={handleDeletePost}
+                onReport={handleReportPost}
+            />
 
             <ReportPostModal
                 visible={!!reportPostId}

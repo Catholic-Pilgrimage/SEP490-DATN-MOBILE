@@ -7,10 +7,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -31,13 +33,17 @@ import { useAuth } from "../../../../contexts/AuthContext";
 import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
 import {
   useAddComment,
+  useDeleteComment,
+  useDeletePost,
   useLikePost,
   usePostComments,
   usePostDetail,
+  useUpdateComment,
 } from "../../../../hooks/usePosts";
 import i18n from "../../../../i18n";
 import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
-import type { FeedPostComment } from "../../../../types/post.types";
+import type { FeedPost, FeedPostComment } from "../../../../types/post.types";
+import PostActionSheet from "../components/PostActionSheet";
 import ReportPostModal from "../components/ReportPostModal";
 
 // Utilities
@@ -586,14 +592,141 @@ const PostVideoAttachment = ({
     </View>
   );
 };
+const CommentOverflowButton = ({
+  onPress,
+}: {
+  onPress: () => void;
+}) => (
+  <TouchableOpacity
+    style={styles.commentMoreButton}
+    onPress={onPress}
+    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+  >
+    <MaterialIcons
+      name="more-horiz"
+      size={18}
+      color={COLORS.textSecondary}
+    />
+  </TouchableOpacity>
+);
+const CommentActionSheet = ({
+  visible,
+  comment,
+  busy = false,
+  onClose,
+  onEdit,
+  onDelete,
+  onReport,
+}: {
+  visible: boolean;
+  comment: FeedPostComment | null;
+  busy?: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}) => {
+  const { t } = useTranslation();
+
+  if (!visible || !comment) return null;
+
+  const actionItems = [
+    {
+      key: "edit",
+      icon: "edit",
+      label: t("postDetail.editComment", { defaultValue: "Edit comment" }),
+      onPress: onEdit,
+      danger: false,
+    },
+    {
+      key: "delete",
+      icon: "delete-outline",
+      label: t("postDetail.deleteComment", { defaultValue: "Delete comment" }),
+      onPress: onDelete,
+      danger: true,
+    },
+    {
+      key: "report",
+      icon: "flag",
+      label: t("postDetail.reportComment", { defaultValue: "Report comment" }),
+      onPress: onReport,
+      danger: false,
+    },
+  ];
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={styles.commentSheetRoot}>
+        <TouchableOpacity
+          style={styles.commentSheetOverlay}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+
+        <View style={styles.commentSheet}>
+          <View style={styles.commentSheetHandle} />
+          <Text style={styles.commentSheetTitle}>
+            {t("postDetail.commentActions", {
+              defaultValue: "Comment actions",
+            })}
+          </Text>
+          <Text style={styles.commentSheetPreview} numberOfLines={2}>
+            {comment.content}
+          </Text>
+
+          {actionItems.map((item) => (
+            <TouchableOpacity
+              key={item.key}
+              style={styles.commentSheetAction}
+              onPress={item.onPress}
+              disabled={busy}
+            >
+              <MaterialIcons
+                name={item.icon as any}
+                size={20}
+                color={item.danger ? COLORS.danger : COLORS.textPrimary}
+              />
+              <Text
+                style={[
+                  styles.commentSheetActionText,
+                  item.danger && styles.commentSheetActionTextDanger,
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            style={styles.commentSheetCancel}
+            onPress={onClose}
+            disabled={busy}
+          >
+            <Text style={styles.commentSheetCancelText}>
+              {t("common.cancel", { defaultValue: "Cancel" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 const ReplyBubble = ({
   comment,
   isGuide,
   onReply,
+  onMorePress,
 }: {
   comment: FeedPostComment;
   isGuide: boolean;
   onReply: (c: FeedPostComment) => void;
+  onMorePress: (c: FeedPostComment) => void;
 }) => (
   <View style={styles.replyRow}>
     {comment.author?.avatar_url ? (
@@ -626,34 +759,37 @@ const ReplyBubble = ({
     )}
 
     <View style={styles.commentContent}>
-      <View
-        style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
-      >
-        <View style={styles.commentAuthorRow}>
-          <Text
-            style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
-          >
-            {comment.author?.full_name ||
-              translate("postDetail.user", { defaultValue: "User" })}
-          </Text>
-          {isGuide ? (
-            <View style={styles.commentGuideBadge}>
-              <MaterialIcons name="verified" size={10} color="#fff" />
-              <Text style={styles.commentGuideBadgeText}>
-                {translate("profile.localGuide", { defaultValue: "Local Guide" })}
-              </Text>
-            </View>
-          ) : (
-            <View
-              style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
+      <View style={styles.commentBubbleRow}>
+        <View
+          style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+        >
+          <View style={styles.commentAuthorRow}>
+            <Text
+              style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
             >
-              <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
-                {translate("profile.pilgrimRole", { defaultValue: "Pilgrim" })}
-              </Text>
-            </View>
-          )}
+              {comment.author?.full_name ||
+                translate("postDetail.user", { defaultValue: "User" })}
+            </Text>
+            {isGuide ? (
+              <View style={styles.commentGuideBadge}>
+                <MaterialIcons name="verified" size={10} color="#fff" />
+                <Text style={styles.commentGuideBadgeText}>
+                  {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
+              >
+                <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
+                  {translate("profile.pilgrimRole", { defaultValue: "Pilgrim" })}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.commentText}>{comment.content}</Text>
         </View>
-        <Text style={styles.commentText}>{comment.content}</Text>
+        <CommentOverflowButton onPress={() => onMorePress(comment)} />
       </View>
       <View style={styles.commentMetaRow}>
         <Text style={styles.commentTime}>
@@ -675,10 +811,12 @@ const CommentItem = ({
   node,
   isGuide,
   onReply,
+  onMorePress,
 }: {
   node: CommentNode;
   isGuide: boolean;
   onReply: (c: FeedPostComment) => void;
+  onMorePress: (c: FeedPostComment) => void;
 }) => {
   const { comment, replies } = node;
   const [expanded, setExpanded] = useState(false);
@@ -726,44 +864,47 @@ const CommentItem = ({
           </View>
         )}
         <View style={styles.commentContent}>
-          <View
-            style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
-          >
-            <View style={styles.commentAuthorRow}>
-              <Text
-                style={[
-                  styles.commentAuthor,
-                  isGuide && styles.commentAuthorGuide,
-                ]}
-              >
-                {comment.author?.full_name ||
-                  translate("postDetail.user", { defaultValue: "User" })}
-              </Text>
-              {isGuide ? (
-                <View style={styles.commentGuideBadge}>
-                  <MaterialIcons name="verified" size={10} color="#fff" />
-                  <Text style={styles.commentGuideBadgeText}>
-                    {translate("profile.localGuide", { defaultValue: "Local Guide" })}
-                  </Text>
-                </View>
-              ) : (
-                <View
+          <View style={styles.commentBubbleRow}>
+            <View
+              style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+            >
+              <View style={styles.commentAuthorRow}>
+                <Text
                   style={[
-                    styles.commentGuideBadge,
-                    { backgroundColor: "#E0E0E0" },
+                    styles.commentAuthor,
+                    isGuide && styles.commentAuthorGuide,
                   ]}
                 >
-                  <Text
-                    style={[styles.commentGuideBadgeText, { color: "#666" }]}
+                  {comment.author?.full_name ||
+                    translate("postDetail.user", { defaultValue: "User" })}
+                </Text>
+                {isGuide ? (
+                  <View style={styles.commentGuideBadge}>
+                    <MaterialIcons name="verified" size={10} color="#fff" />
+                    <Text style={styles.commentGuideBadgeText}>
+                      {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.commentGuideBadge,
+                      { backgroundColor: "#E0E0E0" },
+                    ]}
                   >
-                    {translate("profile.pilgrimRole", {
-                      defaultValue: "Pilgrim",
-                    })}
-                  </Text>
-                </View>
-              )}
+                    <Text
+                      style={[styles.commentGuideBadgeText, { color: "#666" }]}
+                    >
+                      {translate("profile.pilgrimRole", {
+                        defaultValue: "Pilgrim",
+                      })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={styles.commentText}>{comment.content}</Text>
             </View>
-            <Text style={styles.commentText}>{comment.content}</Text>
+            <CommentOverflowButton onPress={() => onMorePress(comment)} />
           </View>
           <View style={styles.commentMetaRow}>
             <Text style={styles.commentTime}>
@@ -806,6 +947,7 @@ const CommentItem = ({
                     comment={reply}
                     isGuide={isReplyGuide}
                     onReply={onReply}
+                    onMorePress={onMorePress}
                   />
                 );
               })}
@@ -830,7 +972,7 @@ const CommentItem = ({
   );
 };
 export default function PostDetailScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const postId = route.params?.postId;
   const autoFocusComment = route.params?.autoFocusComment;
@@ -841,7 +983,14 @@ export default function PostDetailScreen() {
     id: string;
     name: string;
   } | null>(null);
-  const [showReport, setShowReport] = useState(false);
+  const [editingComment, setEditingComment] = useState<FeedPostComment | null>(
+    null,
+  );
+  const [activeCommentAction, setActiveCommentAction] =
+    useState<FeedPostComment | null>(null);
+  const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
+  const [reportPostId, setReportPostId] = useState<string | null>(null);
+  const [reportCommentId, setReportCommentId] = useState<string | null>(null);
   const [resolvedSiteName, setResolvedSiteName] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     type: "image" | "video";
@@ -870,6 +1019,9 @@ export default function PostDetailScreen() {
   } = usePostComments(postId, 20);
 
   const addCommentMutation = useAddComment(postId);
+  const updateCommentMutation = useUpdateComment(postId);
+  const deleteCommentMutation = useDeleteComment(postId);
+  const deletePostMutation = useDeletePost();
 
   useEffect(() => {
     if (post?.site?.name) {
@@ -904,6 +1056,39 @@ export default function PostDetailScreen() {
 
   const handleAddComment = () => {
     if (!commentText.trim()) return;
+
+    if (editingComment) {
+      updateCommentMutation.mutate(
+        {
+          commentId: editingComment.id,
+          content: commentText.trim(),
+        },
+        {
+          onSuccess: () => {
+            Toast.show({
+              type: "success",
+              text1: t("common.success", { defaultValue: "Success" }),
+              text2: t("postDetail.editCommentSuccess", {
+                defaultValue: "Comment updated.",
+              }),
+            });
+            setCommentText("");
+            setEditingComment(null);
+          },
+          onError: (err: any) => {
+            Toast.show({
+              type: "error",
+              text1: t("common.error", { defaultValue: "Error" }),
+              text2:
+                t("postDetail.editCommentError", {
+                  defaultValue: "Unable to edit comment.",
+                }) + (err?.message ? ` ${err.message}` : ""),
+            });
+          },
+        },
+      );
+      return;
+    }
 
     addCommentMutation.mutate(
       {
@@ -949,6 +1134,7 @@ export default function PostDetailScreen() {
 
   const handleReplyPress = React.useCallback(
     (c: FeedPostComment) => {
+      setEditingComment(null);
       setReplyingTo({
         id: c.id,
         name:
@@ -959,6 +1145,150 @@ export default function PostDetailScreen() {
     },
     [t],
   );
+
+  const handleCommentMorePress = React.useCallback((c: FeedPostComment) => {
+    setActiveCommentAction(c);
+  }, []);
+
+  const handleEditComment = React.useCallback(() => {
+    if (!activeCommentAction) return;
+
+    setEditingComment(activeCommentAction);
+    setReplyingTo(null);
+    setCommentText(activeCommentAction.content);
+    setActiveCommentAction(null);
+
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 150);
+  }, [activeCommentAction]);
+
+  const handleDeleteComment = React.useCallback(() => {
+    if (!activeCommentAction) return;
+
+    const targetComment = activeCommentAction;
+    setActiveCommentAction(null);
+
+    Alert.alert(
+      t("postDetail.deleteCommentTitle", {
+        defaultValue: "Delete comment",
+      }),
+      t("postDetail.deleteCommentMessage", {
+        defaultValue: "Are you sure you want to delete this comment?",
+      }),
+      [
+        {
+          text: t("common.cancel", { defaultValue: "Cancel" }),
+          style: "cancel",
+        },
+        {
+          text: t("common.delete", { defaultValue: "Delete" }),
+          style: "destructive",
+          onPress: () => {
+            deleteCommentMutation.mutate(targetComment.id, {
+              onSuccess: () => {
+                if (editingComment?.id === targetComment.id) {
+                  setEditingComment(null);
+                  setCommentText("");
+                }
+
+                Toast.show({
+                  type: "success",
+                  text1: t("common.success", { defaultValue: "Success" }),
+                  text2: t("postDetail.deleteCommentSuccess", {
+                    defaultValue: "Comment deleted.",
+                  }),
+                });
+              },
+              onError: (err: any) => {
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error", { defaultValue: "Error" }),
+                  text2:
+                    t("postDetail.deleteCommentError", {
+                      defaultValue: "Unable to delete comment.",
+                    }) + (err?.message ? ` ${err.message}` : ""),
+                });
+              },
+            });
+          },
+        },
+      ],
+    );
+  }, [activeCommentAction, deleteCommentMutation, editingComment?.id, t]);
+
+  const handleReportComment = React.useCallback(() => {
+    if (!activeCommentAction) return;
+    setReportCommentId(activeCommentAction.id);
+    setActiveCommentAction(null);
+  }, [activeCommentAction]);
+
+  const handleEditPost = React.useCallback(() => {
+    if (!activePostAction) return;
+
+    const targetPost = activePostAction;
+    setActivePostAction(null);
+    navigation.navigate("CreatePost", {
+      postId: targetPost.id,
+      initialPost: targetPost,
+    });
+  }, [activePostAction, navigation]);
+
+  const handleDeletePost = React.useCallback(() => {
+    if (!activePostAction) return;
+
+    const targetPost = activePostAction;
+    setActivePostAction(null);
+
+    Alert.alert(
+      t("postDetail.deletePost", {
+        defaultValue: "Delete post",
+      }),
+      t("postDetail.deletePostMessage", {
+        defaultValue: "Are you sure you want to delete this post?",
+      }),
+      [
+        {
+          text: t("common.cancel", { defaultValue: "Cancel" }),
+          style: "cancel",
+        },
+        {
+          text: t("common.delete", { defaultValue: "Delete" }),
+          style: "destructive",
+          onPress: () => {
+            deletePostMutation.mutate(targetPost.id, {
+              onSuccess: () => {
+                Toast.show({
+                  type: "success",
+                  text1: t("common.success", { defaultValue: "Success" }),
+                  text2: t("postDetail.deletePostSuccess", {
+                    defaultValue: "Post deleted.",
+                  }),
+                });
+                navigation.goBack();
+              },
+              onError: (error: any) => {
+                Toast.show({
+                  type: "error",
+                  text1: t("common.error", { defaultValue: "Error" }),
+                  text2:
+                    t("postDetail.deletePostError", {
+                      defaultValue: "Unable to delete post.",
+                    }) + (error?.message ? ` ${error.message}` : ""),
+                });
+              },
+            });
+          },
+        },
+      ],
+    );
+  }, [activePostAction, deletePostMutation, navigation, t]);
+
+  const handleReportPost = React.useCallback(() => {
+    if (!activePostAction) return;
+    setReportPostId(activePostAction.id);
+    setActivePostAction(null);
+  }, [activePostAction]);
 
   const renderPostHeader = () => {
     if (isLoadingPost) {
@@ -1003,7 +1333,7 @@ export default function PostDetailScreen() {
             time={actualPost.created_at}
             location={location}
             isHighlightedGuide={isPostAuthorGuide}
-            onMorePress={() => setShowReport(true)}
+            onMorePress={() => setActivePostAction(actualPost)}
           />
         </View>
 
@@ -1163,6 +1493,7 @@ export default function PostDetailScreen() {
                 node={node}
                 isGuide={isCommentByGuide}
                 onReply={handleReplyPress}
+                onMorePress={handleCommentMorePress}
               />
             );
           }}
@@ -1189,7 +1520,28 @@ export default function PostDetailScreen() {
           }
         />
 
-        {replyingTo ? (
+        {editingComment ? (
+          <View style={styles.replyBanner}>
+            <Text style={styles.replyBannerText} numberOfLines={1}>
+              {t("postDetail.editingComment", {
+                defaultValue: "Editing comment",
+              })}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setEditingComment(null);
+                setCommentText("");
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.replyBannerCancel}>
+                {t("common.cancel", { defaultValue: "Cancel" })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        {!editingComment && replyingTo ? (
           <View style={styles.replyBanner}>
             <Text style={styles.replyBannerText} numberOfLines={1}>
               {t("postDetail.reply", { defaultValue: "Reply" })}{" "}
@@ -1225,7 +1577,11 @@ export default function PostDetailScreen() {
               isCurrentUserGuide && styles.commentInputGuide,
             ]}
             placeholder={
-              replyingTo
+              editingComment
+                ? t("postDetail.editCommentPlaceholder", {
+                    defaultValue: "Edit your comment...",
+                  })
+                : replyingTo
                 ? t("postDetail.replyPlaceholder", {
                     name: replyingTo.name,
                     defaultValue: "Reply to {{name}}...",
@@ -1256,13 +1612,17 @@ export default function PostDetailScreen() {
               commentText.trim() ? styles.sendButtonActive : null,
             ]}
             onPress={handleAddComment}
-            disabled={!commentText.trim() || addCommentMutation.isPending}
+            disabled={
+              !commentText.trim() ||
+              addCommentMutation.isPending ||
+              updateCommentMutation.isPending
+            }
           >
-            {addCommentMutation.isPending ? (
+            {addCommentMutation.isPending || updateCommentMutation.isPending ? (
               <ActivityIndicator size="small" color={COLORS.accent} />
             ) : (
               <Ionicons
-                name="send"
+                name={editingComment ? "checkmark" : "send"}
                 size={18}
                 color={commentText.trim() ? "#fff" : COLORS.textTertiary}
               />
@@ -1271,11 +1631,38 @@ export default function PostDetailScreen() {
         </View>
       </KeyboardAvoidingView>
 
+      <PostActionSheet
+        visible={Boolean(activePostAction)}
+        postContent={activePostAction?.content}
+        busy={deletePostMutation.isPending}
+        onClose={() => setActivePostAction(null)}
+        onEdit={handleEditPost}
+        onDelete={handleDeletePost}
+        onReport={handleReportPost}
+      />
+
       <ReportPostModal
-        visible={showReport}
-        onClose={() => setShowReport(false)}
-        targetId={postId}
+        visible={Boolean(reportPostId)}
+        onClose={() => setReportPostId(null)}
+        targetId={reportPostId || ""}
         targetType="post"
+      />
+
+      <CommentActionSheet
+        visible={Boolean(activeCommentAction)}
+        comment={activeCommentAction}
+        busy={deleteCommentMutation.isPending}
+        onClose={() => setActiveCommentAction(null)}
+        onEdit={handleEditComment}
+        onDelete={handleDeleteComment}
+        onReport={handleReportComment}
+      />
+
+      <ReportPostModal
+        visible={Boolean(reportCommentId)}
+        onClose={() => setReportCommentId(null)}
+        targetId={reportCommentId || ""}
+        targetType="comment"
       />
 
       <MediaLightbox
@@ -1578,13 +1965,20 @@ const styles = StyleSheet.create({
   commentContent: {
     flex: 1,
   },
+  commentBubbleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.xs,
+  },
   commentAuthorRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    flexWrap: "wrap",
     marginBottom: 1,
   },
   commentBubble: {
+    flex: 1,
     backgroundColor: "#F0F2F5",
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -1622,6 +2016,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textPrimary,
     lineHeight: 18,
+  },
+  commentMoreButton: {
+    width: 24,
+    alignItems: "center",
+    paddingTop: 6,
   },
   commentMetaRow: {
     flexDirection: "row",
@@ -1703,6 +2102,70 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: COLORS.primary,
+  },
+  commentSheetRoot: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  commentSheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  commentSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.lg,
+    ...SHADOWS.large,
+  },
+  commentSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: COLORS.borderMedium,
+    alignSelf: "center",
+    marginBottom: SPACING.md,
+  },
+  commentSheetTitle: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  commentSheetPreview: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  commentSheetAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    paddingVertical: SPACING.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: COLORS.borderLight,
+  },
+  commentSheetActionText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textPrimary,
+    fontWeight: "500",
+  },
+  commentSheetActionTextDanger: {
+    color: COLORS.danger,
+  },
+  commentSheetCancel: {
+    marginTop: SPACING.sm,
+    alignItems: "center",
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: 14,
+  },
+  commentSheetCancelText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
   },
 
   // Empty state
