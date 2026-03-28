@@ -775,6 +775,7 @@ const VerificationRequestScreen = () => {
               pins={addressSelectionPins}
               showUserLocation
               showInfoCards={false}
+              tapRelocatesPin
               onMapPress={handleAddressMapPress}
             />
             {isReverseGeocoding && (

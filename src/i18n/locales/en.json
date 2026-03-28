@@ -1044,6 +1044,10 @@
     "title": "Nearby Places",
     "viewFullMap": "View Map",
     "fullMapTitle": "Location Map",
+    "map": {
+      "pendingPickTitle": "Selected location",
+      "pendingPickSubtitle": "Tap the map to move the pin"
+    },
     "addPlace": "Add Place",
     "categories": {
       "all": "All",
@@ -1114,6 +1118,8 @@
       "selectOnMap": "Or select location on map",
       "selectOnMapTitle": "Select location on map",
       "selectOnMapMessage": "Tap on the map to select place location",
+      "selectOnMapHint": "Tap again to move the pin, then tap Done.",
+      "doneSelectLocation": "Done",
       "currentCoords": "Current coordinates: {{lat}}, {{lng}}",
       "phoneLabel": "Phone Number",
       "phonePlaceholder": "Enter phone number...",
@@ -1126,6 +1132,19 @@
       "errorAddressRequired": "Please enter address",
       "deleted": "Deleted",
       "restored": "Restored"
+    },
+    "validation": {
+      "nameRequired": "Please enter a place name.",
+      "nameTooShort": "Name must be at least 2 characters.",
+      "nameTooLong": "Name must not exceed 200 characters.",
+      "addressRequired": "Please enter an address.",
+      "addressTooShort": "Address must be at least 5 characters.",
+      "addressTooLong": "Address must not exceed 500 characters.",
+      "phoneRequired": "Please enter a phone number.",
+      "phoneInvalid": "Invalid mobile number (10 digits, VN format: 0[3,5,7,8,9]…).",
+      "descriptionTooLong": "Notes must not exceed 2000 characters.",
+      "categoryInvalid": "Please select a place category.",
+      "coordinatesInvalid": "Invalid coordinates. Please pick again on the map."
     }
   },
   "map": {

@@ -1045,6 +1045,10 @@
     "title": "Địa điểm lân cận",
     "viewFullMap": "Xem bản đồ",
     "fullMapTitle": "Bản đồ địa điểm",
+    "map": {
+      "pendingPickTitle": "Vị trí đang chọn",
+      "pendingPickSubtitle": "Chạm bản đồ để đổi vị trí"
+    },
     "addPlace": "Thêm địa điểm",
     "categories": {
       "all": "Tất cả",
@@ -1115,6 +1119,8 @@
       "selectOnMap": "Hoặc chọn vị trí trên bản đồ",
       "selectOnMapTitle": "Chọn vị trí trên bản đồ",
       "selectOnMapMessage": "Chạm vào bản đồ để chọn vị trí địa điểm",
+      "selectOnMapHint": "Chạm nhiều lần để dời ghim, sau đó bấm Xong.",
+      "doneSelectLocation": "Xong",
       "currentCoords": "Tọa độ hiện tại: {{lat}}, {{lng}}",
       "phoneLabel": "Số điện thoại",
       "phonePlaceholder": "Nhập số điện thoại...",
@@ -1127,6 +1133,19 @@
       "errorAddressRequired": "Vui lòng nhập địa chỉ",
       "deleted": "Đã xóa",
       "restored": "Đã khôi phục"
+    },
+    "validation": {
+      "nameRequired": "Vui lòng nhập tên địa điểm.",
+      "nameTooShort": "Tên phải có ít nhất 2 ký tự.",
+      "nameTooLong": "Tên không được vượt quá 200 ký tự.",
+      "addressRequired": "Vui lòng nhập địa chỉ.",
+      "addressTooShort": "Địa chỉ cần ít nhất 5 ký tự.",
+      "addressTooLong": "Địa chỉ không được vượt quá 500 ký tự.",
+      "phoneRequired": "Vui lòng nhập số điện thoại.",
+      "phoneInvalid": "Số điện thoại không hợp lệ (10 số di động VN: 0[3,5,7,8,9]…).",
+      "descriptionTooLong": "Ghi chú không được vượt quá 2000 ký tự.",
+      "categoryInvalid": "Vui lòng chọn loại địa điểm.",
+      "coordinatesInvalid": "Tọa độ không hợp lệ. Hãy chọn lại trên bản đồ."
     }
   },
   "map": {

@@ -40,8 +40,10 @@ interface FullMapModalProps {
   onAddPlace?: (coords: { latitude: number; longitude: number }) => void;
   /** When true, the next map tap will call onLocationSelected instead of normal behavior. */
   isSelectingLocation?: boolean;
-  /** Called when user taps map while isSelectingLocation is true. */
   onLocationSelected?: (coords: { latitude: number; longitude: number }) => void;
+  onConfirmLocationSelection?: () => void;
+  
+  tapRelocatesPin?: boolean;
 }
 
 export const FullMapModal: React.FC<FullMapModalProps> = ({
@@ -55,7 +57,10 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   onAddPlace,
   isSelectingLocation = false,
   onLocationSelected,
+  onConfirmLocationSelection,
+  tapRelocatesPin: tapRelocatesPinProp,
 }) => {
+  const tapRelocatesPin = tapRelocatesPinProp ?? isSelectingLocation;
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<VietmapViewRef>(null);
@@ -107,6 +112,9 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
     },
     [onAddPlace, isSelectingLocation, onLocationSelected],
   );
+
+  const mapPressEnabled =
+    (isSelectingLocation && onLocationSelected) || onAddPlace;
 
   const handleAddPress = useCallback(() => {
     if (!onAddPlace) return;
@@ -191,12 +199,13 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
             }
             pins={pins}
             showUserLocation={showUserLocation}
-            onMapPress={onAddPlace ? handleMapPress : undefined}
+            onMapPress={mapPressEnabled ? handleMapPress : undefined}
             tileUrlTemplate={tileUrlTemplate}
             style={styles.map}
+            tapRelocatesPin={tapRelocatesPin}
           />
 
-          {onAddPlace && (
+          {onAddPlace && !isSelectingLocation && (
             <TouchableOpacity
               style={[styles.addButton, { bottom: SPACING.lg + insets.bottom }]}
               onPress={handleAddPress}
@@ -209,6 +218,29 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
                 <MaterialIcons name="add-location" size={24} color={COLORS.white} />
               </LinearGradient>
             </TouchableOpacity>
+          )}
+
+          {isSelectingLocation && onConfirmLocationSelection && (
+            <View
+              style={[
+                styles.selectionFooter,
+                { paddingBottom: SPACING.md + insets.bottom },
+              ]}
+            >
+              <Text style={styles.selectionHint}>
+                {t("locationsTab.modal.selectOnMapHint")}
+              </Text>
+              <TouchableOpacity
+                style={styles.selectionConfirmBtn}
+                onPress={onConfirmLocationSelection}
+                activeOpacity={0.85}
+              >
+                <MaterialIcons name="check" size={22} color={COLORS.white} />
+                <Text style={styles.selectionConfirmText}>
+                  {t("locationsTab.modal.doneSelectLocation")}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
         <Toast config={toastConfig} />
@@ -349,6 +381,48 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: "center",
     alignItems: "center",
+  },
+  selectionFooter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    backgroundColor: "rgba(253, 248, 240, 0.97)",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.accent,
+    gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  selectionHint: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  selectionConfirmBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    backgroundColor: COLORS.accent,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  selectionConfirmText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.white,
   },
 });
 

@@ -713,11 +713,6 @@ export const MediaTab: React.FC<MediaTabProps> = ({
       <GuideFabButton
         onPress={onUploadPress}
         accessibilityLabel={t("mySiteScreen.fabAddMedia")}
-        label={
-          !loading && mediaList.length === 0
-            ? t("mediaTab.uploadMedia")
-            : undefined
-        }
         hideOnKeyboard
         style={[
           isSelectMode && {

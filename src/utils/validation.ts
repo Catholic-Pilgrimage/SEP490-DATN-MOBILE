@@ -49,6 +49,14 @@ export const VALIDATION_RULES = {
     TRANSITION_REASON_MIN: 10,
     TRANSITION_REASON_MAX: 2000,
   },
+  /** Form thêm/sửa địa điểm lân cận (guide) */
+  NEARBY_PLACE: {
+    NAME_MIN: 2,
+    NAME_MAX: 200,
+    ADDRESS_MIN: 5,
+    ADDRESS_MAX: 500,
+    DESCRIPTION_MAX: 2000,
+  },
 } as const;
 
 /** Giá trị dropdown "Khác" — khi chọn cần nhập `siteTypeOther` */
@@ -99,7 +107,8 @@ export const VALIDATION_MESSAGES = {
 // ============================================
 const PATTERNS = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  PHONE_VN: /^(0|84|\+84)?([3|5|7|8|9])[0-9]{8}$/,
+  /** Di động VN: 0[35789] + 8 chữ số (sau khi chuẩn hoá +84 → 0). */
+  PHONE_VN_MOBILE: /^0[35789][0-9]{8}$/,
   UPPERCASE: /[A-Z]/,
   LOWERCASE: /[a-z]/,
   NUMBER: /[0-9]/,
@@ -179,20 +188,34 @@ export function validateConfirmPassword(password: string, confirmPassword: strin
 }
 
 /**
- * Validate Vietnamese phone number
+ * Chuẩn hoá SĐT VN để kiểm tra: bỏ khoảng trắng/dấu, +84 / 84 → dạng 0xxxxxxxxx.
+ */
+function normalizeVietnamPhoneInput(phone: string): string {
+  let c = phone.replace(/[\s\-().]/g, "");
+  if (!c) return "";
+  if (c.startsWith("+84")) {
+    return `0${c.slice(3)}`;
+  }
+  if (c.startsWith("84") && c.length >= 10) {
+    return `0${c.slice(2)}`;
+  }
+  return c;
+}
+
+/**
+ * Validate Vietnamese mobile number (di động 10 số: 0[35789] + 8 chữ số).
  */
 export function validatePhone(phone: string): ValidationResult {
-  // Remove spaces and special characters
-  const cleaned = phone.replace(/[\s\-().]/g, '');
-  
+  const cleaned = normalizeVietnamPhoneInput(phone);
+
   if (!cleaned) {
     return { isValid: false, message: VALIDATION_MESSAGES.PHONE_REQUIRED };
   }
-  
-  if (!PATTERNS.PHONE_VN.test(cleaned)) {
+
+  if (!PATTERNS.PHONE_VN_MOBILE.test(cleaned)) {
     return { isValid: false, message: VALIDATION_MESSAGES.PHONE_INVALID };
   }
-  
+
   return { isValid: true };
 }
 
@@ -729,4 +752,103 @@ export function resolveVerificationSiteTypeForApi(
     return `${VERIFICATION_SITE_TYPE_OTHER}:${siteTypeOther.trim()}`;
   }
   return siteType;
+}
+
+// ============================================
+// NEARBY PLACE (GUIDE — ĐỊA ĐIỂM LÂN CẬN)
+// ============================================
+
+const NEARBY_PLACE_CATEGORIES = ["food", "lodging", "medical"] as const;
+
+export interface NearbyPlaceFormInput {
+  name: string;
+  address: string;
+  phone: string;
+  description: string;
+  category: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface NearbyPlaceFormErrors {
+  [key: string]: string | undefined;
+  name?: string;
+  address?: string;
+  phone?: string;
+  description?: string;
+  category?: string;
+  coordinates?: string;
+}
+
+/** Giá trị lỗi là khóa i18n locationsTab.validation.* */
+export function validateNearbyPlaceForm(
+  data: NearbyPlaceFormInput,
+): NearbyPlaceFormErrors {
+  const R = VALIDATION_RULES.NEARBY_PLACE;
+  const errors: NearbyPlaceFormErrors = {};
+
+  const nameTrim = data.name.trim();
+  if (!nameTrim) {
+    errors.name = "locationsTab.validation.nameRequired";
+  } else if (nameTrim.length < R.NAME_MIN) {
+    errors.name = "locationsTab.validation.nameTooShort";
+  } else if (nameTrim.length > R.NAME_MAX) {
+    errors.name = "locationsTab.validation.nameTooLong";
+  }
+
+  const addrTrim = data.address.trim();
+  if (!addrTrim) {
+    errors.address = "locationsTab.validation.addressRequired";
+  } else if (addrTrim.length < R.ADDRESS_MIN) {
+    errors.address = "locationsTab.validation.addressTooShort";
+  } else if (addrTrim.length > R.ADDRESS_MAX) {
+    errors.address = "locationsTab.validation.addressTooLong";
+  }
+
+  if (data.phone.trim()) {
+    const phoneRes = validatePhone(data.phone);
+    if (!phoneRes.isValid) {
+      errors.phone = "locationsTab.validation.phoneInvalid";
+    }
+  }
+
+  if (data.description.trim().length > R.DESCRIPTION_MAX) {
+    errors.description = "locationsTab.validation.descriptionTooLong";
+  }
+
+  if (
+    !NEARBY_PLACE_CATEGORIES.includes(
+      data.category as (typeof NEARBY_PLACE_CATEGORIES)[number],
+    )
+  ) {
+    errors.category = "locationsTab.validation.categoryInvalid";
+  }
+
+  const lat = Number(data.latitude);
+  const lng = Number(data.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    errors.coordinates = "locationsTab.validation.coordinatesInvalid";
+  } else if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    errors.coordinates = "locationsTab.validation.coordinatesInvalid";
+  }
+
+  return errors;
+}
+
+export function getFirstNearbyPlaceErrorKey(
+  errors: NearbyPlaceFormErrors,
+): string | undefined {
+  const order: (keyof NearbyPlaceFormErrors)[] = [
+    "name",
+    "address",
+    "phone",
+    "coordinates",
+    "category",
+    "description",
+  ];
+  for (const k of order) {
+    const v = errors[k];
+    if (v) return v;
+  }
+  return undefined;
 }

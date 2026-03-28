@@ -82,6 +82,8 @@ export interface VietmapViewProps {
   cardBottomOffset?: number;
   /** Whether to show info cards (selected pin + reverse-geocode) on the map (default: true) */
   showInfoCards?: boolean;
+  
+  tapRelocatesPin?: boolean;
 }
 
 export interface VietmapViewRef {
@@ -117,6 +119,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       tileUrlTemplate,
       cardBottomOffset = 0,
       showInfoCards = true,
+      tapRelocatesPin = false,
     },
     ref,
   ) => {
@@ -226,14 +229,16 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
         const lng = coords[0];
         const lat = coords[1];
 
-        const nearbyPin = localPins.find(
-          (p) =>
-            Math.abs(p.latitude - lat) < SNAP_THRESHOLD &&
-            Math.abs(p.longitude - lng) < SNAP_THRESHOLD,
-        );
-        if (nearbyPin) {
-          handleMarkerPress(nearbyPin);
-          return;
+        if (!tapRelocatesPin) {
+          const nearbyPin = localPins.find(
+            (p) =>
+              Math.abs(p.latitude - lat) < SNAP_THRESHOLD &&
+              Math.abs(p.longitude - lng) < SNAP_THRESHOLD,
+          );
+          if (nearbyPin) {
+            handleMarkerPress(nearbyPin);
+            return;
+          }
         }
 
         setSelectedPin(null);
@@ -242,7 +247,14 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           reverseGeocode(lat, lng);
         }
       },
-      [localPins, onMapPress, reverseGeocode, handleMarkerPress, showInfoCards],
+      [
+        tapRelocatesPin,
+        localPins,
+        onMapPress,
+        reverseGeocode,
+        handleMarkerPress,
+        showInfoCards,
+      ],
     );
 
     const dismissTapInfo = useCallback(() => {
@@ -353,7 +365,16 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
               id={pin.id}
               coordinate={[pin.longitude, pin.latitude]}
               anchor={{ x: 0.5, y: 0.5 }}
-              onSelected={() => handleMarkerPress(pin)}
+              onSelected={() => {
+                if (tapRelocatesPin) {
+                  onMapPress?.({
+                    latitude: pin.latitude,
+                    longitude: pin.longitude,
+                  });
+                  return;
+                }
+                handleMarkerPress(pin);
+              }}
             >
               <View
                 style={[

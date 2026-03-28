@@ -6,6 +6,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { getFontSize, getSpacing } from "../../../../utils/responsive";
 import { PREMIUM_COLORS } from "../constants";
+import { GUIDE_FAB_SIZE } from "./GuideFabButton";
 
 export const styles = StyleSheet.create({
   container: {
@@ -31,52 +32,52 @@ export const styles = StyleSheet.create({
     flex: 1,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
   },
-  /** Cùng tinh thần GuideFab: sát góc phải-đáy trong khung map (không dùng GuideFabButton ở tab này). */
+ 
   addButton: {
     position: "absolute",
     bottom: getSpacing(GUIDE_SPACING.sm),
     right: getSpacing(GUIDE_SPACING.sm),
-    borderRadius: 28,
+    width: GUIDE_FAB_SIZE,
+    height: GUIDE_FAB_SIZE,
+    borderRadius: GUIDE_FAB_SIZE / 2,
+    backgroundColor: PREMIUM_COLORS.gold,
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 10,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
       },
       android: {
         elevation: 8,
       },
     }),
   },
-  addButtonGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   fullMapButton: {
     position: "absolute",
-    bottom: getSpacing(GUIDE_SPACING.md),
-    left: getSpacing(GUIDE_SPACING.md),
-    width: 44,
-    height: 44,
-    borderRadius: GUIDE_BORDER_RADIUS.md,
-    backgroundColor: "#FFF",
+    bottom: getSpacing(GUIDE_SPACING.sm),
+    left: getSpacing(GUIDE_SPACING.sm),
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 10,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.15,
-        shadowRadius: 8,
+        shadowRadius: 20,
       },
       android: {
-        elevation: 4,
+        elevation: 8,
       },
     }),
   },
@@ -226,18 +227,36 @@ export const styles = StyleSheet.create({
     color: "#E74C3C",
   },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
+  },
+  modalSheetSafe: {
+    width: "100%",
+    height: "92%",
+    maxHeight: "92%",
+    alignSelf: "flex-end",
+  },
+  modalContainerColumn: {
+    flex: 1,
+    flexDirection: "column",
+    minHeight: 0,
   },
   modalContainer: {
     backgroundColor: PREMIUM_COLORS.cream,
     borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
     borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
     padding: getSpacing(GUIDE_SPACING.lg),
-    maxHeight: "85%",
+    maxHeight: "100%",
+  },
+  modalKeyboardScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  modalScrollContent: {
+    paddingBottom: getSpacing(GUIDE_SPACING.sm),
+    flexGrow: 1,
   },
   modalHeader: {
     flexDirection: "row",
@@ -307,6 +326,40 @@ export const styles = StyleSheet.create({
     fontSize: getFontSize(14),
     color: GUIDE_COLORS.textPrimary,
   },
+  inputBoxError: {
+    borderColor: "#DC2626",
+    backgroundColor: "#FEF2F2",
+  },
+  errorText: {
+    fontSize: getFontSize(12),
+    color: "#DC2626",
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  modalApiErrorBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: getSpacing(GUIDE_SPACING.sm),
+    marginBottom: getSpacing(GUIDE_SPACING.md),
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  modalApiErrorText: {
+    flex: 1,
+    fontSize: getFontSize(13),
+    color: "#B91C1C",
+    fontWeight: "500",
+    lineHeight: getFontSize(18),
+  },
+  coordsHintSuccess: {
+    fontSize: getFontSize(12),
+    color: "#15803D",
+    fontWeight: "600",
+    marginTop: 6,
+  },
   inputText: {
     fontSize: getFontSize(14),
     color: GUIDE_COLORS.textPrimary,
@@ -320,7 +373,7 @@ export const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: getSpacing(GUIDE_SPACING.md),
-    marginTop: getSpacing(GUIDE_SPACING.lg),
+    marginTop: getSpacing(GUIDE_SPACING.sm),
   },
   cancelBtn: {
     flex: 1,
