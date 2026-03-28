@@ -100,11 +100,14 @@ const DEFAULT_CENTER = {
 
 const SNAP_THRESHOLD = 0.0003; // ~30m
 
+/** Stable empty default — `pins = []` in params creates a new array every render and breaks `useEffect([pins])`. */
+const EMPTY_PINS: MapPin[] = [];
+
 export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
   (
     {
       initialRegion,
-      pins = [],
+      pins = EMPTY_PINS,
       showUserLocation = false,
       scrollEnabled = true,
       onMapReady,

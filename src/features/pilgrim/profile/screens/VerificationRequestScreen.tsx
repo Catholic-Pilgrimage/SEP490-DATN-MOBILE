@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -18,14 +18,26 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useAuth } from "../../../../contexts/AuthContext";
 import useI18n from "../../../../hooks/useI18n";
 import { useSites } from "../../../../hooks/useSites";
 import { useVerification } from "../../../../hooks/useVerification";
+import { MapPin, VietmapView } from "../../../../components/map/VietmapView";
+import { VIETMAP_CONFIG } from "../../../../config/map.config";
 import { ReactNativeFile } from "../../../../types/pilgrim/verification.types";
+import {
+  getFirstVerificationErrorI18nKey,
+  resolveVerificationSiteTypeForApi,
+  validateVerificationRequestForm,
+} from "../../../../utils/validation";
 
 type FormType = "new" | "transition";
+
+const EMPTY_VERIFICATION_MAP_PINS: MapPin[] = [];
 
 const VerificationRequestScreen = () => {
   const navigation = useNavigation();
@@ -56,6 +68,7 @@ const VerificationRequestScreen = () => {
   const [siteAddress, setSiteAddress] = useState("");
   const [siteProvince, setSiteProvince] = useState("");
   const [siteType, setSiteType] = useState("");
+  const [siteTypeOther, setSiteTypeOther] = useState("");
   const [siteRegion, setSiteRegion] = useState("");
   const [introduction, setIntroduction] = useState("");
   const [existingSiteId, setExistingSiteId] = useState("");
@@ -72,19 +85,78 @@ const VerificationRequestScreen = () => {
     isLoading: isSitesLoading,
   } = useSites({ autoFetch: true });
 
-  // Dropdown state
-  const SITE_TYPE_OPTIONS: { label: string; value: string }[] = [
-    { label: t("verification.siteTypes.church"), value: "church" },
-    { label: t("verification.siteTypes.shrine"), value: "shrine" },
-    { label: t("verification.siteTypes.monastery"), value: "monastery" },
-    { label: t("verification.siteTypes.center"), value: "center" },
-    { label: t("verification.siteTypes.other"), value: "other" },
-  ];
-  const SITE_REGION_OPTIONS: { label: string; value: string }[] = [
-    { label: t("verification.regions.north"), value: "Bac" },
-    { label: t("verification.regions.central"), value: "Trung" },
-    { label: t("verification.regions.south"), value: "Nam" },
-  ];
+  // Dropdown state — memoized so option arrays are stable across keystrokes
+  const SITE_TYPE_OPTIONS: { label: string; value: string }[] = useMemo(
+    () => [
+      { label: t("verification.siteTypes.church"), value: "church" },
+      { label: t("verification.siteTypes.shrine"), value: "shrine" },
+      { label: t("verification.siteTypes.monastery"), value: "monastery" },
+      { label: t("verification.siteTypes.center"), value: "center" },
+      { label: t("verification.siteTypes.other"), value: "other" },
+    ],
+    [t],
+  );
+  const SITE_REGION_OPTIONS: { label: string; value: string }[] = useMemo(
+    () => [
+      { label: t("verification.regions.north"), value: "Bac" },
+      { label: t("verification.regions.central"), value: "Trung" },
+      { label: t("verification.regions.south"), value: "Nam" },
+    ],
+    [t],
+  );
+
+  const [isAddressMapVisible, setIsAddressMapVisible] = useState(false);
+  const [addressPickCoords, setAddressPickCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [pendingMapAddress, setPendingMapAddress] = useState<string | null>(
+    null,
+  );
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+
+  const addressSelectionPins = useMemo<MapPin[]>(() => {
+    if (!addressPickCoords) return EMPTY_VERIFICATION_MAP_PINS;
+    return [
+      {
+        id: "verification-address-pick",
+        latitude: addressPickCoords.latitude,
+        longitude: addressPickCoords.longitude,
+        title: t("verification.addressMap.pickedPoint"),
+        subtitle: pendingMapAddress ?? undefined,
+        icon: "📍",
+        color: "#D4AF37",
+      },
+    ];
+  }, [addressPickCoords, pendingMapAddress, t]);
+
+  const handleAddressMapPress = useCallback(
+    async (e: { latitude: number; longitude: number }) => {
+      setAddressPickCoords({
+        latitude: e.latitude,
+        longitude: e.longitude,
+      });
+      setIsReverseGeocoding(true);
+      try {
+        const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${e.latitude}&lng=${e.longitude}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const first = Array.isArray(data) ? data[0] : data?.value?.[0];
+        const addr =
+          first?.display ||
+          first?.address ||
+          `${e.latitude.toFixed(5)}, ${e.longitude.toFixed(5)}`;
+        setPendingMapAddress(addr);
+      } catch {
+        setPendingMapAddress(
+          `${e.latitude.toFixed(5)}, ${e.longitude.toFixed(5)}`,
+        );
+      } finally {
+        setIsReverseGeocoding(false);
+      }
+    },
+    [],
+  );
   const [isTypeDropdownVisible, setIsTypeDropdownVisible] = useState(false);
   const [isRegionDropdownVisible, setIsRegionDropdownVisible] = useState(false);
 
@@ -195,31 +267,26 @@ const VerificationRequestScreen = () => {
   };
 
   const validateForm = () => {
-    if (isGuest) {
-      if (!applicantName || !applicantEmail) {
-        Alert.alert(
-          t("verification.errors.title"),
-          t("verification.errors.guestRequired"),
-        );
-        return false;
-      }
-    }
-    if (formType === "new") {
-      if (!siteName || !siteProvince) {
-        Alert.alert(
-          t("verification.errors.title"),
-          t("verification.errors.newSiteRequired"),
-        );
-        return false;
-      }
-    } else {
-      if (!existingSiteId || !transitionReason) {
-        Alert.alert(
-          t("verification.errors.title"),
-          t("verification.errors.transitionRequired"),
-        );
-        return false;
-      }
+    const errors = validateVerificationRequestForm({
+      formType,
+      isGuest,
+      applicantName,
+      applicantEmail,
+      applicantPhone,
+      siteName,
+      siteProvince,
+      siteAddress,
+      siteType,
+      siteTypeOther,
+      siteRegion,
+      existingSiteId,
+      transitionReason,
+      introduction,
+    });
+    const firstKey = getFirstVerificationErrorI18nKey(errors);
+    if (firstKey) {
+      Alert.alert(t("verification.errors.title"), t(firstKey));
+      return false;
     }
     return true;
   };
@@ -237,7 +304,10 @@ const VerificationRequestScreen = () => {
             site_name: siteName,
             site_address: siteAddress,
             site_province: siteProvince,
-            site_type: siteType,
+            site_type: resolveVerificationSiteTypeForApi(
+              siteType,
+              siteTypeOther,
+            ),
             site_region: siteRegion,
             introduction,
             certificate: certificate || undefined,
@@ -247,7 +317,10 @@ const VerificationRequestScreen = () => {
             site_name: siteName,
             site_address: siteAddress,
             site_province: siteProvince,
-            site_type: siteType,
+            site_type: resolveVerificationSiteTypeForApi(
+              siteType,
+              siteTypeOther,
+            ),
             site_region: siteRegion,
             introduction,
             certificate: certificate || undefined,
@@ -321,6 +394,7 @@ const VerificationRequestScreen = () => {
     setVisible: (v: boolean) => void,
     placeholder: string,
     required = false,
+    onSelect?: (selectedValue: string) => void,
   ) => {
     const selectedLabel = options.find((o) => o.value === value)?.label;
     return (
@@ -362,6 +436,7 @@ const VerificationRequestScreen = () => {
                   ]}
                   onPress={() => {
                     setValue(option.value);
+                    onSelect?.(option.value);
                     setVisible(false);
                   }}
                 >
@@ -385,7 +460,7 @@ const VerificationRequestScreen = () => {
     );
   };
 
-  const FormContent = () => (
+  const renderFormContent = () => (
     <View style={styles.formContainer}>
       {/* Tabs for Form Type */}
       <View style={styles.tabsContainer}>
@@ -470,12 +545,35 @@ const VerificationRequestScreen = () => {
               t("verification.fields.provincePlaceholder"),
               true,
             )}
-            {renderInput(
-              t("verification.fields.address"),
-              siteAddress,
-              setSiteAddress,
-              t("verification.fields.addressPlaceholder"),
-            )}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>
+                {t("verification.fields.address")}{" "}
+                <Text style={{ color: "#DC4C4C" }}>*</Text>
+              </Text>
+              <View style={styles.addressRow}>
+                <TextInput
+                  style={[styles.input, styles.addressInput]}
+                  value={siteAddress}
+                  onChangeText={setSiteAddress}
+                  placeholder={t("verification.fields.addressPlaceholder")}
+                  placeholderTextColor="#A0ABC0"
+                  multiline
+                  textAlignVertical="top"
+                />
+                <TouchableOpacity
+                  style={styles.mapPickButton}
+                  onPress={() => {
+                    setPendingMapAddress(null);
+                    setAddressPickCoords(null);
+                    setIsAddressMapVisible(true);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("verification.addressMap.pickOnMap")}
+                >
+                  <Ionicons name="map-outline" size={22} color="#2E5F8A" />
+                </TouchableOpacity>
+              </View>
+            </View>
             {renderDropdown(
               t("verification.fields.siteType"),
               siteType,
@@ -484,7 +582,19 @@ const VerificationRequestScreen = () => {
               isTypeDropdownVisible,
               setIsTypeDropdownVisible,
               t("verification.fields.siteTypePlaceholder"),
+              true,
+              (v) => {
+                if (v !== "other") setSiteTypeOther("");
+              },
             )}
+            {siteType === "other" &&
+              renderInput(
+                t("verification.fields.siteTypeOther"),
+                siteTypeOther,
+                setSiteTypeOther,
+                t("verification.fields.siteTypeOtherPlaceholder"),
+                true,
+              )}
             {renderDropdown(
               t("verification.fields.region"),
               siteRegion,
@@ -493,6 +603,7 @@ const VerificationRequestScreen = () => {
               isRegionDropdownVisible,
               setIsRegionDropdownVisible,
               t("verification.fields.regionPlaceholder"),
+              true,
             )}
           </>
         ) : (
@@ -626,6 +737,75 @@ const VerificationRequestScreen = () => {
         </TouchableOpacity>
       </View>
 
+      <Modal
+        visible={isAddressMapVisible}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent
+        onRequestClose={() => {
+          setIsAddressMapVisible(false);
+          setAddressPickCoords(null);
+          setPendingMapAddress(null);
+        }}
+      >
+        <SafeAreaView style={styles.addressMapModal} edges={["top", "bottom"]}>
+          <View style={styles.addressMapHeader}>
+            <TouchableOpacity
+              onPress={() => {
+                setIsAddressMapVisible(false);
+                setAddressPickCoords(null);
+                setPendingMapAddress(null);
+              }}
+              style={styles.addressMapClose}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close" size={26} color="#1A1A1A" />
+            </TouchableOpacity>
+            <Text style={styles.addressMapTitle}>
+              {t("verification.addressMap.title")}
+            </Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <Text style={styles.addressMapHint}>
+            {t("verification.addressMap.hint")}
+          </Text>
+          <View style={styles.addressMapContainer}>
+            <VietmapView
+              style={StyleSheet.absoluteFill}
+              pins={addressSelectionPins}
+              showUserLocation
+              showInfoCards={false}
+              onMapPress={handleAddressMapPress}
+            />
+            {isReverseGeocoding && (
+              <View style={styles.addressMapLoading}>
+                <ActivityIndicator size="small" color="#D4AF37" />
+              </View>
+            )}
+          </View>
+          {pendingMapAddress ? (
+            <View style={styles.addressMapFooter}>
+              <Text style={styles.addressMapPreview} numberOfLines={4}>
+                {pendingMapAddress}
+              </Text>
+              <TouchableOpacity
+                style={styles.addressMapApplyBtn}
+                onPress={() => {
+                  setSiteAddress(pendingMapAddress);
+                  setIsAddressMapVisible(false);
+                  setPendingMapAddress(null);
+                  setAddressPickCoords(null);
+                }}
+              >
+                <Text style={styles.addressMapApplyText}>
+                  {t("verification.addressMap.apply")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </SafeAreaView>
+      </Modal>
+
       {/* Site Selection Modal */}
       <Modal
         visible={isSiteModalVisible}
@@ -651,7 +831,7 @@ const VerificationRequestScreen = () => {
               <Ionicons
                 name="search"
                 size={20}
-                color="#A0ABC0"
+                color="#D4AF37"
                 style={styles.searchIcon}
               />
               <TextInput
@@ -727,6 +907,7 @@ const VerificationRequestScreen = () => {
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {myRequest && !isEditing ? (
             <View style={styles.card}>
@@ -848,7 +1029,7 @@ const VerificationRequestScreen = () => {
               )}
             </View>
           ) : isEditing || !myRequest ? (
-            <FormContent />
+            renderFormContent()
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1052,6 +1233,91 @@ const styles = StyleSheet.create({
     height: 100,
     paddingTop: 12,
   },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 8,
+  },
+  addressInput: {
+    flex: 1,
+    minHeight: 88,
+    paddingTop: 12,
+  },
+  mapPickButton: {
+    width: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(46, 95, 138, 0.35)",
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addressMapModal: {
+    flex: 1,
+    backgroundColor: "#F8F6F0",
+  },
+  addressMapHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  addressMapClose: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addressMapTitle: {
+    fontSize: 17,
+    fontWeight: "bold",
+    color: "#1A1A1A",
+    flex: 1,
+    textAlign: "center",
+  },
+  addressMapHint: {
+    fontSize: 13,
+    color: "#6C8CA3",
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  addressMapContainer: {
+    flex: 1,
+    marginHorizontal: 12,
+    marginBottom: 8,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#E5E0D8",
+  },
+  addressMapLoading: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  addressMapFooter: {
+    padding: 16,
+    backgroundColor: "rgba(253, 248, 240, 0.98)",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(212, 175, 55, 0.3)",
+  },
+  addressMapPreview: {
+    fontSize: 14,
+    color: "#1A1A1A",
+    marginBottom: 12,
+  },
+  addressMapApplyBtn: {
+    backgroundColor: "#D4AF37",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  addressMapApplyText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
   imagePickerBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1124,21 +1390,32 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(26, 22, 18, 0.52)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#ffffff",
+    backgroundColor: "rgba(253, 248, 240, 0.98)",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: "80%",
     padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.35)",
+    borderBottomWidth: 0,
+    shadowColor: "#B8860B",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 12,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(212, 175, 55, 0.22)",
   },
   modalTitle: {
     fontSize: 18,
@@ -1151,9 +1428,9 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "rgba(255, 251, 240, 0.9)",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "rgba(212, 175, 55, 0.35)",
     borderRadius: 10,
     paddingHorizontal: 12,
     marginBottom: 16,
@@ -1174,8 +1451,9 @@ const styles = StyleSheet.create({
   },
   siteItem: {
     paddingVertical: 12,
+    paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: "rgba(212, 175, 55, 0.18)",
   },
   siteItemName: {
     fontSize: 16,

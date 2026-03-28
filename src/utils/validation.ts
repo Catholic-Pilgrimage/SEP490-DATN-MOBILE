@@ -35,7 +35,24 @@ export const VALIDATION_RULES = {
   AGE: {
     MIN_AGE: 13,
   },
+  /** Đăng ký quản lý điểm (verification request) */
+  VERIFICATION_SITE: {
+    SITE_NAME_MIN: 2,
+    SITE_NAME_MAX: 200,
+    PROVINCE_MIN: 2,
+    PROVINCE_MAX: 120,
+    ADDRESS_MIN_IF_PRESENT: 5,
+    ADDRESS_MAX: 500,
+    SITE_TYPE_OTHER_MIN: 2,
+    SITE_TYPE_OTHER_MAX: 100,
+    INTRODUCTION_MAX: 2000,
+    TRANSITION_REASON_MIN: 10,
+    TRANSITION_REASON_MAX: 2000,
+  },
 } as const;
+
+/** Giá trị dropdown "Khác" — khi chọn cần nhập `siteTypeOther` */
+export const VERIFICATION_SITE_TYPE_OTHER = "other" as const;
 
 // ============================================
 // VALIDATION MESSAGES - Vietnamese
@@ -524,4 +541,192 @@ export function parseTime(timeStr: string): Date {
   const date = new Date();
   date.setHours(hours, minutes, 0, 0);
   return date;
+}
+
+// ============================================
+// SITE MANAGER / VERIFICATION REQUEST FORM
+// ============================================
+
+export interface VerificationRequestFormInput {
+  formType: "new" | "transition";
+  isGuest: boolean;
+  applicantName: string;
+  applicantEmail: string;
+  applicantPhone: string;
+  siteName: string;
+  siteProvince: string;
+  siteAddress: string;
+  siteType: string;
+  /** Bắt buộc khi siteType === VERIFICATION_SITE_TYPE_OTHER */
+  siteTypeOther: string;
+  siteRegion: string;
+  existingSiteId: string;
+  transitionReason: string;
+  introduction: string;
+}
+
+export interface VerificationRequestFormErrors {
+  [key: string]: string | undefined;
+  applicantName?: string;
+  applicantEmail?: string;
+  applicantPhone?: string;
+  siteName?: string;
+  siteProvince?: string;
+  siteAddress?: string;
+  siteType?: string;
+  siteTypeOther?: string;
+  siteRegion?: string;
+  existingSiteId?: string;
+  transitionReason?: string;
+  introduction?: string;
+}
+
+/** Values are i18n keys under verification.errors.* */
+export function validateVerificationRequestForm(
+  data: VerificationRequestFormInput,
+): VerificationRequestFormErrors {
+  const R = VALIDATION_RULES.VERIFICATION_SITE;
+  const errors: VerificationRequestFormErrors = {};
+
+  if (data.isGuest) {
+    const nameRes = validateFullName(data.applicantName);
+    if (!nameRes.isValid) {
+      if (nameRes.message === VALIDATION_MESSAGES.NAME_REQUIRED) {
+        errors.applicantName = "verification.errors.nameRequired";
+      } else if (nameRes.message === VALIDATION_MESSAGES.NAME_MIN_LENGTH) {
+        errors.applicantName = "verification.errors.nameTooShort";
+      } else if (nameRes.message === VALIDATION_MESSAGES.NAME_MAX_LENGTH) {
+        errors.applicantName = "verification.errors.nameTooLong";
+      } else {
+        errors.applicantName = "verification.errors.generic";
+      }
+    }
+
+    const emailRes = validateEmail(data.applicantEmail);
+    if (!emailRes.isValid) {
+      if (emailRes.message === VALIDATION_MESSAGES.EMAIL_REQUIRED) {
+        errors.applicantEmail = "verification.errors.emailRequired";
+      } else if (emailRes.message === VALIDATION_MESSAGES.EMAIL_INVALID) {
+        errors.applicantEmail = "verification.errors.emailInvalid";
+      } else if (emailRes.message === VALIDATION_MESSAGES.EMAIL_TOO_LONG) {
+        errors.applicantEmail = "verification.errors.emailTooLong";
+      } else {
+        errors.applicantEmail = "verification.errors.generic";
+      }
+    }
+
+    if (data.applicantPhone.trim()) {
+      const phoneRes = validatePhone(data.applicantPhone);
+      if (!phoneRes.isValid) {
+        if (phoneRes.message === VALIDATION_MESSAGES.PHONE_REQUIRED) {
+          errors.applicantPhone = "verification.errors.phoneRequired";
+        } else {
+          errors.applicantPhone = "verification.errors.phoneInvalid";
+        }
+      }
+    }
+  }
+
+  if (data.formType === "new") {
+    const nameTrim = data.siteName.trim();
+    if (!nameTrim) {
+      errors.siteName = "verification.errors.siteNameRequired";
+    } else if (nameTrim.length < R.SITE_NAME_MIN) {
+      errors.siteName = "verification.errors.siteNameTooShort";
+    } else if (nameTrim.length > R.SITE_NAME_MAX) {
+      errors.siteName = "verification.errors.siteNameTooLong";
+    }
+
+    const provTrim = data.siteProvince.trim();
+    if (!provTrim) {
+      errors.siteProvince = "verification.errors.provinceRequired";
+    } else if (provTrim.length < R.PROVINCE_MIN) {
+      errors.siteProvince = "verification.errors.provinceTooShort";
+    } else if (provTrim.length > R.PROVINCE_MAX) {
+      errors.siteProvince = "verification.errors.provinceTooLong";
+    }
+
+    const addrTrim = data.siteAddress.trim();
+    if (!addrTrim) {
+      errors.siteAddress = "verification.errors.addressRequired";
+    } else if (addrTrim.length < R.ADDRESS_MIN_IF_PRESENT) {
+      errors.siteAddress = "verification.errors.addressTooShort";
+    } else if (addrTrim.length > R.ADDRESS_MAX) {
+      errors.siteAddress = "verification.errors.addressTooLong";
+    }
+
+    if (!data.siteType) {
+      errors.siteType = "verification.errors.siteTypeRequired";
+    } else if (data.siteType === VERIFICATION_SITE_TYPE_OTHER) {
+      const other = data.siteTypeOther.trim();
+      if (!other) {
+        errors.siteTypeOther = "verification.errors.siteTypeOtherRequired";
+      } else if (other.length < R.SITE_TYPE_OTHER_MIN) {
+        errors.siteTypeOther = "verification.errors.siteTypeOtherTooShort";
+      } else if (other.length > R.SITE_TYPE_OTHER_MAX) {
+        errors.siteTypeOther = "verification.errors.siteTypeOtherTooLong";
+      }
+    }
+
+    if (!data.siteRegion) {
+      errors.siteRegion = "verification.errors.regionRequired";
+    }
+  } else {
+    if (!data.existingSiteId) {
+      errors.existingSiteId = "verification.errors.siteNotSelected";
+    }
+
+    const reasonTrim = data.transitionReason.trim();
+    if (!reasonTrim) {
+      errors.transitionReason = "verification.errors.transitionReasonRequired";
+    } else if (reasonTrim.length < R.TRANSITION_REASON_MIN) {
+      errors.transitionReason = "verification.errors.transitionReasonTooShort";
+    } else if (reasonTrim.length > R.TRANSITION_REASON_MAX) {
+      errors.transitionReason = "verification.errors.transitionReasonTooLong";
+    }
+  }
+
+  const introTrim = data.introduction.trim();
+  if (introTrim.length > R.INTRODUCTION_MAX) {
+    errors.introduction = "verification.errors.introductionTooLong";
+  }
+
+  return errors;
+}
+
+export function getFirstVerificationErrorI18nKey(
+  errors: VerificationRequestFormErrors,
+): string | undefined {
+  const order: (keyof VerificationRequestFormErrors)[] = [
+    "applicantName",
+    "applicantEmail",
+    "applicantPhone",
+    "siteName",
+    "siteProvince",
+    "siteAddress",
+    "siteType",
+    "siteTypeOther",
+    "siteRegion",
+    "existingSiteId",
+    "transitionReason",
+    "introduction",
+  ];
+  for (const k of order) {
+    const v = errors[k];
+    if (v) return v;
+  }
+  return undefined;
+}
+
+/**
+ * Giá trị gửi API cho `site_type`: enum có sẵn hoặc `other:<mô tả>` khi chọn Khác.
+ */
+export function resolveVerificationSiteTypeForApi(
+  siteType: string,
+  siteTypeOther: string,
+): string {
+  if (siteType === VERIFICATION_SITE_TYPE_OTHER) {
+    return `${VERIFICATION_SITE_TYPE_OTHER}:${siteTypeOther.trim()}`;
+  }
+  return siteType;
 }
