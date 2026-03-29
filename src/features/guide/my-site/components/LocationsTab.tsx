@@ -4,8 +4,13 @@
  * Implements "Pin key points" functionality using Vietmap
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -21,7 +26,11 @@ import {
     TouchableWithoutFeedback,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
@@ -45,9 +54,71 @@ import {
     updateNearbyPlace,
 } from "../../../../services/api/guide/nearbyPlacesApi";
 import { NearbyPlaceCategory } from "../../../../types/common.types";
+import {
+  type NearbyPlaceFormErrors,
+  validateNearbyPlaceForm,
+} from "../../../../utils/validation";
 import { getSpacing } from "../../../../utils/responsive";
 import { PREMIUM_COLORS } from "../constants";
+import { GUIDE_FAB_SIZE } from "./GuideFabButton";
 import { styles } from "./LocationsTab.styles";
+
+function parseVietmapReverseFirstItem(
+  data: unknown,
+): Record<string, unknown> | null {
+  if (data == null) return null;
+  if (Array.isArray(data) && data.length > 0) {
+    const x = data[0];
+    return x && typeof x === "object" ? (x as Record<string, unknown>) : null;
+  }
+  if (typeof data === "object") {
+    const o = data as Record<string, unknown>;
+    const tryArr = (a: unknown): Record<string, unknown> | null => {
+      if (!Array.isArray(a) || a.length === 0) return null;
+      const first = a[0];
+      return first && typeof first === "object"
+        ? (first as Record<string, unknown>)
+        : null;
+    };
+    return (
+      tryArr(o.value) ||
+      tryArr(o.data) ||
+      tryArr(o.list) ||
+      (typeof o.lat === "number" && typeof o.lng === "number" ? o : null)
+    );
+  }
+  return null;
+}
+
+function addressStringFromReverseItem(
+  first: Record<string, unknown> | null,
+): string {
+  if (!first) return "";
+  const display = first.display;
+  const address = first.address;
+  const name = first.name;
+  const strDisplay = typeof display === "string" ? display.trim() : "";
+  const strAddress = typeof address === "string" ? address.trim() : "";
+  const strName = typeof name === "string" ? name.trim() : "";
+  if (strDisplay) return strDisplay;
+  if (strName && strAddress) return `${strName}, ${strAddress}`;
+  if (strAddress) return strAddress;
+  if (strName) return strName;
+  return "";
+}
+
+async function reverseGeocodeToAddress(
+  lat: number,
+  lng: number,
+): Promise<string> {
+  const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${lat}&lng=${lng}&display_type=1`;
+  const res = await fetch(url);
+  const data = await res.json();
+  const first = parseVietmapReverseFirstItem(data);
+  const addr = addressStringFromReverseItem(first);
+  if (addr) return addr;
+  return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+}
 
 // Category config theo API BE
 const getCategoryConfig = (
@@ -599,6 +670,7 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
 // Main Component
 export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
   const { t } = useI18n();
+  const insets = useSafeAreaInsets();
 
   // Get translated configs
   const CATEGORY_CONFIG = getCategoryConfig(t);
@@ -633,12 +705,35 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     latitude: siteLocation?.latitude || 10.762622,
     longitude: siteLocation?.longitude || 106.660172,
   });
+  const [nearbyPlaceErrors, setNearbyPlaceErrors] =
+    useState<NearbyPlaceFormErrors>({});
+  const [apiSubmitError, setApiSubmitError] = useState<string | null>(null);
+  const [coordsUpdatedHint, setCoordsUpdatedHint] = useState(false);
+  const coordsHintTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const mapRef = useRef<VietmapViewRef>(null);
+  const selectingLocationFromAddRef = useRef(false);
+  const lastMapPickRef = useRef<{ latitude: number; longitude: number } | null>(
+    null,
+  );
   const addressDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const closeAddModal = useCallback(() => {
+    setShowAddModal(false);
+    setNearbyPlaceErrors({});
+    setApiSubmitError(null);
+    setCoordsUpdatedHint(false);
+    if (coordsHintTimeoutRef.current) {
+      clearTimeout(coordsHintTimeoutRef.current);
+      coordsHintTimeoutRef.current = null;
+    }
+  }, []);
 
   // Auto-geocode when address changes using 2-step process
   const handleAddressChange = useCallback((address: string) => {
     setForm((prev) => ({ ...prev, address }));
+    setNearbyPlaceErrors((prev) => ({ ...prev, address: undefined }));
 
     // Clear previous timeout
     if (addressDebounceRef.current) {
@@ -679,13 +774,15 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
               latitude: Number(lat),
               longitude: Number(lng),
             }));
-
-            Toast.show({
-              type: "info",
-              text1: t("locationsTab.toast.coordsUpdated"),
-              text2: `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`,
-              visibilityTime: 2000,
-            });
+            setNearbyPlaceErrors((prev) => ({ ...prev, coordinates: undefined }));
+            if (coordsHintTimeoutRef.current) {
+              clearTimeout(coordsHintTimeoutRef.current);
+            }
+            setCoordsUpdatedHint(true);
+            coordsHintTimeoutRef.current = setTimeout(() => {
+              setCoordsUpdatedHint(false);
+              coordsHintTimeoutRef.current = null;
+            }, 2500);
           }
         } catch (error) {
           // Silent fail - user can select on map
@@ -699,6 +796,9 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     return () => {
       if (addressDebounceRef.current) {
         clearTimeout(addressDebounceRef.current);
+      }
+      if (coordsHintTimeoutRef.current) {
+        clearTimeout(coordsHintTimeoutRef.current);
       }
     };
   }, []);
@@ -739,77 +839,54 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     statusFilter !== "all" ||
     isActiveFilter !== "active";
 
-  // Convert GuideNearbyPlace[] to MapPin[] + add site pin
-  // Only show approved places on map
-  const approvedPlaces = places.filter((p) => p.status === "approved");
+  // Convert GuideNearbyPlace[] to MapPin[] + site pin + ghim vị trí đang chọn (chọn trên map)
+  const mapPins: MapPin[] = useMemo(() => {
+    const approvedPlaces = places.filter((p) => p.status === "approved");
+    const pins: MapPin[] = [
+      ...(siteLocation
+        ? [
+            {
+              id: "site-main",
+              latitude: Number(siteLocation.latitude),
+              longitude: Number(siteLocation.longitude),
+              title: siteLocation.name || "Thánh đường",
+              subtitle: siteLocation.address || "Nhấn để xem chi tiết",
+              color: "#DC2626",
+              icon: "⛪",
+            },
+          ]
+        : []),
+      ...approvedPlaces.map((p) => ({
+        id: p.id,
+        latitude: Number(p.latitude),
+        longitude: Number(p.longitude),
+        title: p.name,
+        subtitle: p.address || CATEGORY_CONFIG[p.category]?.label,
+        color: CATEGORY_CONFIG[p.category]?.color || PREMIUM_COLORS.gold,
+        icon: CATEGORY_CONFIG[p.category]?.emoji || "📍",
+      })),
+    ];
+    if (pendingCoords) {
+      pins.push({
+        id: "pending-map-pick",
+        latitude: pendingCoords.latitude,
+        longitude: pendingCoords.longitude,
+        title: t("locationsTab.map.pendingPickTitle"),
+        subtitle: t("locationsTab.map.pendingPickSubtitle"),
+        color: PREMIUM_COLORS.sapphire,
+        icon: "📌",
+      });
+    }
+    return pins;
+  }, [places, siteLocation, pendingCoords, t]);
 
-  const mapPins: MapPin[] = [
-    // Site pin (if available)
-    ...(siteLocation
-      ? [
-          {
-            id: "site-main",
-            latitude: Number(siteLocation.latitude),
-            longitude: Number(siteLocation.longitude),
-            title: siteLocation.name || "Thánh đường",
-            subtitle: siteLocation.address || "Nhấn để xem chi tiết",
-            color: "#DC2626", // Red color for main site
-            icon: "⛪",
-          },
-        ]
-      : []),
-    // Nearby places pins - Only approved ones
-    ...approvedPlaces.map((p) => ({
-      id: p.id,
-      latitude: Number(p.latitude),
-      longitude: Number(p.longitude),
-      title: p.name,
-      subtitle: p.address || CATEGORY_CONFIG[p.category]?.label,
-      color: CATEGORY_CONFIG[p.category]?.color || PREMIUM_COLORS.gold,
-      icon: CATEGORY_CONFIG[p.category]?.emoji || "📍",
-    })),
-  ];
-
-  // Tap on map → just show info, or save coords if in selection mode
+  // Chọn vị trí chỉ trên full bản đồ — chạm map nhỏ trong list bị bỏ qua khi đang chọn từ form
   const handleMapPress = useCallback(
-    async (event: { latitude: number; longitude: number }) => {
+    (event: { latitude: number; longitude: number }) => {
       if (isSelectingOnMap) {
-        // User is selecting location for new place
-        setPendingCoords(event);
-
-        // Reverse geocode to get address
-        try {
-          const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${event.latitude}&lng=${event.longitude}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          const first = Array.isArray(data) ? data[0] : data?.value?.[0];
-
-          const address =
-            first?.display ||
-            first?.address ||
-            `${event.latitude.toFixed(6)}, ${event.longitude.toFixed(6)}`;
-
-          setForm((prev) => ({
-            ...prev,
-            latitude: event.latitude,
-            longitude: event.longitude,
-            address: address, // Auto-fill address from reverse geocoding
-          }));
-        } catch {
-          // If reverse geocoding fails, just use coordinates
-          setForm((prev) => ({
-            ...prev,
-            latitude: event.latitude,
-            longitude: event.longitude,
-          }));
-        }
-
-        setIsSelectingOnMap(false);
-        setShowAddModal(true);
-      } else {
-        // Normal tap - just store coords for later use
-        setPendingCoords(event);
+        return;
       }
+      setPendingCoords(event);
     },
     [isSelectingOnMap],
   );
@@ -831,19 +908,66 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       longitude: Number(coords.longitude),
     });
     setEditingPlace(null);
+    setNearbyPlaceErrors({});
+    setApiSubmitError(null);
     setShowAddModal(true);
   }, [siteLocation, pendingCoords]);
 
-  // Open "Select on Map" mode
+  const handleFullMapClose = useCallback(() => {
+    setShowFullMap(false);
+    setIsSelectingOnMap(false);
+    if (selectingLocationFromAddRef.current) {
+      selectingLocationFromAddRef.current = false;
+      setNearbyPlaceErrors({});
+      setApiSubmitError(null);
+      setShowAddModal(true);
+    }
+  }, []);
+
+  const handleConfirmLocationFromMap = useCallback(async () => {
+    selectingLocationFromAddRef.current = false;
+    setShowFullMap(false);
+    setIsSelectingOnMap(false);
+    setNearbyPlaceErrors({});
+    setApiSubmitError(null);
+
+    const c = lastMapPickRef.current ?? {
+      latitude: form.latitude,
+      longitude: form.longitude,
+    };
+    try {
+      const address = await reverseGeocodeToAddress(c.latitude, c.longitude);
+      setForm((prev) => ({
+        ...prev,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        address,
+      }));
+    } catch {
+      setForm((prev) => ({
+        ...prev,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        address:
+          prev.address?.trim() ||
+          `${c.latitude.toFixed(6)}, ${c.longitude.toFixed(6)}`,
+      }));
+    }
+    setShowAddModal(true);
+  }, [form.latitude, form.longitude]);
+
+  /** Mở full bản đồ ngay; chạm nhiều lần để dời ghim, bấm Xong để quay lại form */
   const handleSelectOnMap = useCallback(() => {
-    setShowAddModal(false);
+    selectingLocationFromAddRef.current = true;
+    lastMapPickRef.current = {
+      latitude: form.latitude,
+      longitude: form.longitude,
+    };
+    setPendingCoords(null);
     setIsSelectingOnMap(true);
-    Alert.alert(
-      t("locationsTab.modal.selectOnMapTitle"),
-      t("locationsTab.modal.selectOnMapMessage"),
-      [{ text: t("common.ok") }],
-    );
-  }, [t]);
+    setShowFullMap(true);
+    closeAddModal();
+  }, [closeAddModal, form.latitude, form.longitude]);
 
   // Open modal prefilled with rejected place data
   const handleEdit = useCallback((place: GuideNearbyPlace) => {
@@ -858,24 +982,24 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
     });
     setPendingCoords(null);
     setEditingPlace(place);
+    setNearbyPlaceErrors({});
+    setApiSubmitError(null);
     setShowAddModal(true);
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!form.name.trim()) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("locationsTab.toast.errorNameRequired"),
-      });
-      return;
-    }
-    if (!form.address.trim()) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("locationsTab.toast.errorAddressRequired"),
-      });
+    const vErrors = validateNearbyPlaceForm({
+      name: form.name,
+      address: form.address,
+      phone: form.phone,
+      description: form.description,
+      category: form.category,
+      latitude: form.latitude,
+      longitude: form.longitude,
+    });
+    setNearbyPlaceErrors(vErrors);
+    setApiSubmitError(null);
+    if (Object.keys(vErrors).length > 0) {
       return;
     }
     setIsSubmitting(true);
@@ -898,6 +1022,11 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       }
 
       // Show success message from BE
+      setShowAddModal(false);
+      setNearbyPlaceErrors({});
+      setApiSubmitError(null);
+      setEditingPlace(null);
+
       Toast.show({
         type: "success",
         text1: t("common.success"),
@@ -906,24 +1035,17 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           (editingPlace ? "Đã cập nhật địa điểm" : "Đã thêm địa điểm mới"),
       });
 
-      setShowAddModal(false);
-      setEditingPlace(null);
       await fetchPlaces();
     } catch (error: any) {
-      // Show error message from BE
       const errorMsg =
         error?.response?.data?.message ||
         error?.message ||
         "Không thể lưu địa điểm. Vui lòng thử lại.";
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: errorMsg,
-      });
+      setApiSubmitError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
-  }, [form, editingPlace, fetchPlaces]);
+  }, [form, editingPlace, fetchPlaces, t]);
 
   const handleDelete = useCallback(
     (place: GuideNearbyPlace) => {
@@ -1029,22 +1151,28 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           style={styles.map}
           showInfoCards
         />
-        <TouchableOpacity style={styles.addButton} onPress={handleAddPress}>
-          <LinearGradient
-            colors={[PREMIUM_COLORS.gold, "#B8860B"]}
-            style={styles.addButtonGradient}
-          >
-            <MaterialIcons name="add-location" size={24} color="#FFF" />
-          </LinearGradient>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleAddPress}
+          accessibilityRole="button"
+          accessibilityLabel={t("locationsTab.addPlace")}
+        >
+          <MaterialIcons
+            name="add-location"
+            size={Math.round(GUIDE_FAB_SIZE * 0.45)}
+            color="#FFFFFF"
+          />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.fullMapButton}
           onPress={() => setShowFullMap(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t("locationsTab.viewFullMap")}
         >
           <MaterialIcons
             name="fullscreen"
-            size={24}
+            size={22}
             color={PREMIUM_COLORS.gold}
           />
         </TouchableOpacity>
@@ -1167,21 +1295,32 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
         visible={showAddModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowAddModal(false)}
+        statusBarTranslucent
+        onRequestClose={closeAddModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 4 : 0}
         >
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
+            <SafeAreaView
+              edges={["bottom", "left", "right"]}
+              style={[
+                styles.modalSheetSafe,
+                { paddingTop: Math.max(insets.top, GUIDE_SPACING.sm) },
+              ]}
+            >
+              <View
+                style={[styles.modalContainer, styles.modalContainerColumn]}
+              >
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>
                   {editingPlace
                     ? t("locationsTab.modal.editTitle")
                     : t("locationsTab.modal.addTitle")}
                 </Text>
-                <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <TouchableOpacity onPress={closeAddModal}>
                   <MaterialIcons
                     name="close"
                     size={24}
@@ -1190,7 +1329,31 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                 </TouchableOpacity>
               </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScrollView
+                style={styles.modalKeyboardScroll}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                keyboardDismissMode="on-drag"
+                enableOnAndroid
+                enableAutomaticScroll
+                enableResetScrollToCoords={false}
+                extraScrollHeight={Platform.select({ ios: 28, android: 64 })}
+                extraHeight={Platform.select({ ios: 96, android: 140 })}
+                contentContainerStyle={styles.modalScrollContent}
+              >
+                {apiSubmitError ? (
+                  <View style={styles.modalApiErrorBanner}>
+                    <MaterialIcons
+                      name="error-outline"
+                      size={20}
+                      color="#B91C1C"
+                    />
+                    <Text style={styles.modalApiErrorText}>
+                      {apiSubmitError}
+                    </Text>
+                  </View>
+                ) : null}
+
                 {/* Category picker */}
                 <Text style={styles.fieldLabel}>
                   {t("locationsTab.modal.categoryLabel")}
@@ -1208,9 +1371,13 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                             borderColor: cfg.color,
                           },
                         ]}
-                        onPress={() =>
-                          setForm((f) => ({ ...f, category: cat }))
-                        }
+                        onPress={() => {
+                          setForm((f) => ({ ...f, category: cat }));
+                          setNearbyPlaceErrors((prev) => ({
+                            ...prev,
+                            category: undefined,
+                          }));
+                        }}
                       >
                         <Text>{cfg.emoji}</Text>
                         <Text
@@ -1225,32 +1392,64 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                     );
                   })}
                 </View>
+                {nearbyPlaceErrors.category ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.category)}
+                  </Text>
+                ) : null}
 
                 {/* Name */}
                 <Text style={styles.fieldLabel}>
                   {t("locationsTab.modal.nameLabel")}
                 </Text>
                 <TextInput
-                  style={styles.inputBox}
+                  style={[
+                    styles.inputBox,
+                    nearbyPlaceErrors.name && styles.inputBoxError,
+                  ]}
                   placeholder={t("locationsTab.modal.namePlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.name}
-                  onChangeText={(val) => setForm((f) => ({ ...f, name: val }))}
+                  onChangeText={(val) => {
+                    setForm((f) => ({ ...f, name: val }));
+                    setNearbyPlaceErrors((prev) => ({
+                      ...prev,
+                      name: undefined,
+                    }));
+                  }}
                   returnKeyType="next"
                 />
+                {nearbyPlaceErrors.name ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.name)}
+                  </Text>
+                ) : null}
 
                 {/* Address */}
                 <Text style={styles.fieldLabel}>
                   {t("locationsTab.modal.addressLabel")}
                 </Text>
                 <TextInput
-                  style={styles.inputBox}
+                  style={[
+                    styles.inputBox,
+                    nearbyPlaceErrors.address && styles.inputBoxError,
+                  ]}
                   placeholder={t("locationsTab.modal.addressPlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.address}
                   onChangeText={handleAddressChange}
                   returnKeyType="next"
                 />
+                {nearbyPlaceErrors.address ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.address)}
+                  </Text>
+                ) : null}
+                {coordsUpdatedHint ? (
+                  <Text style={styles.coordsHintSuccess}>
+                    {t("locationsTab.toast.coordsUpdated")}
+                  </Text>
+                ) : null}
 
                 {/* Select on Map button */}
                 <TouchableOpacity
@@ -1276,20 +1475,39 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                     })}
                   </Text>
                 )}
+                {nearbyPlaceErrors.coordinates ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.coordinates)}
+                  </Text>
+                ) : null}
 
                 {/* Phone */}
                 <Text style={styles.fieldLabel}>
                   {t("locationsTab.modal.phoneLabel")}
                 </Text>
                 <TextInput
-                  style={styles.inputBox}
+                  style={[
+                    styles.inputBox,
+                    nearbyPlaceErrors.phone && styles.inputBoxError,
+                  ]}
                   placeholder={t("locationsTab.modal.phonePlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.phone}
-                  onChangeText={(val) => setForm((f) => ({ ...f, phone: val }))}
+                  onChangeText={(val) => {
+                    setForm((f) => ({ ...f, phone: val }));
+                    setNearbyPlaceErrors((prev) => ({
+                      ...prev,
+                      phone: undefined,
+                    }));
+                  }}
                   keyboardType="phone-pad"
                   returnKeyType="next"
                 />
+                {nearbyPlaceErrors.phone ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.phone)}
+                  </Text>
+                ) : null}
 
                 {/* Description */}
                 <Text style={styles.fieldLabel}>
@@ -1299,22 +1517,32 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   style={[
                     styles.inputBox,
                     { minHeight: 60, textAlignVertical: "top" },
+                    nearbyPlaceErrors.description && styles.inputBoxError,
                   ]}
                   placeholder={t("locationsTab.modal.descriptionPlaceholder")}
                   placeholderTextColor={GUIDE_COLORS.textMuted}
                   value={form.description}
-                  onChangeText={(val) =>
-                    setForm((f) => ({ ...f, description: val }))
-                  }
+                  onChangeText={(val) => {
+                    setForm((f) => ({ ...f, description: val }));
+                    setNearbyPlaceErrors((prev) => ({
+                      ...prev,
+                      description: undefined,
+                    }));
+                  }}
                   multiline
                   returnKeyType="done"
                 />
-              </ScrollView>
+                {nearbyPlaceErrors.description ? (
+                  <Text style={styles.errorText}>
+                    {t(nearbyPlaceErrors.description)}
+                  </Text>
+                ) : null}
+              </KeyboardAwareScrollView>
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={styles.cancelBtn}
-                  onPress={() => setShowAddModal(false)}
+                  onPress={closeAddModal}
                 >
                   <Text style={styles.cancelBtnText}>
                     {t("locationsTab.modal.cancel")}
@@ -1336,7 +1564,8 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
+              </View>
+            </SafeAreaView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1344,7 +1573,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       {/* Full Map Modal */}
       <FullMapModal
         visible={showFullMap}
-        onClose={() => setShowFullMap(false)}
+        onClose={handleFullMapClose}
         pins={mapPins}
         initialRegion={{
           latitude: siteLocation?.latitude || 10.762622,
@@ -1365,20 +1594,23 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
             longitude: coords.longitude,
           });
           setEditingPlace(null);
+          setNearbyPlaceErrors({});
+          setApiSubmitError(null);
           setShowAddModal(true);
         }}
         isSelectingLocation={isSelectingOnMap}
         onLocationSelected={async (coords) => {
+          lastMapPickRef.current = {
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          };
           setPendingCoords(coords);
+          setNearbyPlaceErrors((prev) => ({ ...prev, coordinates: undefined }));
           try {
-            const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${coords.latitude}&lng=${coords.longitude}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            const first = Array.isArray(data) ? data[0] : data?.value?.[0];
-            const address =
-              first?.display ||
-              first?.address ||
-              `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+            const address = await reverseGeocodeToAddress(
+              coords.latitude,
+              coords.longitude,
+            );
             setForm((prev) => ({
               ...prev,
               latitude: coords.latitude,
@@ -1390,17 +1622,15 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
               ...prev,
               latitude: coords.latitude,
               longitude: coords.longitude,
+              address:
+                prev.address?.trim() ||
+                `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`,
             }));
           }
-          Toast.show({
-            type: "info",
-            text1: t("locationsTab.toast.coordsUpdated"),
-            text2: `${Number(coords.latitude).toFixed(5)}, ${Number(coords.longitude).toFixed(5)}`,
-            visibilityTime: 2000,
-          });
-          setIsSelectingOnMap(false);
-          setShowAddModal(true);
         }}
+        onConfirmLocationSelection={
+          isSelectingOnMap ? handleConfirmLocationFromMap : undefined
+        }
       />
     </View>
   );

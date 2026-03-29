@@ -583,9 +583,11 @@
       "province": "Province / City",
       "provincePlaceholder": "E.g.: Hanoi, Ho Chi Minh City...",
       "address": "Detailed address",
-      "addressPlaceholder": "Enter specific address...",
+      "addressPlaceholder": "Enter the full address (required for on-site verification)...",
       "siteType": "Site type",
       "siteTypePlaceholder": "Select site type...",
+      "siteTypeOther": "Describe site type (Other)",
+      "siteTypeOtherPlaceholder": "Enter the specific type (e.g. oratory, pilgrimage spot...)",
       "region": "Region",
       "regionPlaceholder": "Select region...",
       "selectSite": "Select Pilgrimage Site",
@@ -643,6 +645,13 @@
       "searchPlaceholder": "Search pilgrimage sites...",
       "empty": "No pilgrimage sites found."
     },
+    "addressMap": {
+      "title": "Pick location on map",
+      "hint": "Tap the map to drop a pin and resolve the address (Vietmap).",
+      "apply": "Use this address",
+      "pickOnMap": "Open map to pick address",
+      "pickedPoint": "Selected location"
+    },
     "errors": {
       "cannotPickDocument": "Cannot pick document. Please try again.",
       "cannotPickImage": "Cannot pick image. Please try again.",
@@ -653,7 +662,35 @@
       "guestRequired": "Please fill in applicant Name and Email.",
       "newSiteRequired": "Please fill in site name and province.",
       "transitionRequired": "Please fill in site ID and transition reason.",
-      "title": "Error"
+      "title": "Error",
+      "generic": "Invalid information. Please check again.",
+      "nameRequired": "Please enter the applicant's full name.",
+      "nameTooShort": "Full name must be at least 2 characters.",
+      "nameTooLong": "Full name must not exceed 100 characters.",
+      "emailRequired": "Please enter a contact email.",
+      "emailInvalid": "Email format is not valid.",
+      "emailTooLong": "Email must not exceed 255 characters.",
+      "phoneInvalid": "Phone number is invalid (e.g. 09xxxxxxxx, +84...).",
+      "phoneRequired": "Please enter a phone number.",
+      "siteNameRequired": "Please enter the pilgrimage site name.",
+      "siteNameTooShort": "Site name must be at least 2 characters.",
+      "siteNameTooLong": "Site name must not exceed 200 characters.",
+      "provinceRequired": "Please enter province / city.",
+      "provinceTooShort": "Province / city is too short.",
+      "provinceTooLong": "Province / city must not exceed 120 characters.",
+      "addressRequired": "Please enter a detailed address so an administrator can verify the site on location.",
+      "addressTooShort": "Detailed address must be at least 5 characters.",
+      "addressTooLong": "Detailed address must not exceed 500 characters.",
+      "siteTypeRequired": "Please select a site type.",
+      "siteTypeOtherRequired": "Please describe the site type when you select Other.",
+      "siteTypeOtherTooShort": "Description for Other must be at least 2 characters.",
+      "siteTypeOtherTooLong": "Description for Other must not exceed 100 characters.",
+      "regionRequired": "Please select a region.",
+      "siteNotSelected": "Please select the pilgrimage site for manager replacement.",
+      "transitionReasonRequired": "Please enter the reason for replacement.",
+      "transitionReasonTooShort": "Reason must be at least 10 characters.",
+      "transitionReasonTooLong": "Reason must not exceed 2000 characters.",
+      "introductionTooLong": "Introduction must not exceed 2000 characters."
     }
   },
   "register": {
@@ -1007,6 +1044,10 @@
     "title": "Nearby Places",
     "viewFullMap": "View Map",
     "fullMapTitle": "Location Map",
+    "map": {
+      "pendingPickTitle": "Selected location",
+      "pendingPickSubtitle": "Tap the map to move the pin"
+    },
     "addPlace": "Add Place",
     "categories": {
       "all": "All",
@@ -1077,6 +1118,8 @@
       "selectOnMap": "Or select location on map",
       "selectOnMapTitle": "Select location on map",
       "selectOnMapMessage": "Tap on the map to select place location",
+      "selectOnMapHint": "Tap again to move the pin, then tap Done.",
+      "doneSelectLocation": "Done",
       "currentCoords": "Current coordinates: {{lat}}, {{lng}}",
       "phoneLabel": "Phone Number",
       "phonePlaceholder": "Enter phone number...",
@@ -1089,6 +1132,19 @@
       "errorAddressRequired": "Please enter address",
       "deleted": "Deleted",
       "restored": "Restored"
+    },
+    "validation": {
+      "nameRequired": "Please enter a place name.",
+      "nameTooShort": "Name must be at least 2 characters.",
+      "nameTooLong": "Name must not exceed 200 characters.",
+      "addressRequired": "Please enter an address.",
+      "addressTooShort": "Address must be at least 5 characters.",
+      "addressTooLong": "Address must not exceed 500 characters.",
+      "phoneRequired": "Please enter a phone number.",
+      "phoneInvalid": "Invalid mobile number (10 digits, VN format: 0[3,5,7,8,9]…).",
+      "descriptionTooLong": "Notes must not exceed 2000 characters.",
+      "categoryInvalid": "Please select a place category.",
+      "coordinatesInvalid": "Invalid coordinates. Please pick again on the map."
     }
   },
   "map": {
