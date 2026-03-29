@@ -12,7 +12,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     RefreshControl,
@@ -27,6 +26,7 @@ import {
     GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { deleteEvent, getEvents } from "../../../../services/api/guide";
 import { EventItem, EventStatus } from "../../../../types/guide";
 import { PREMIUM_COLORS } from "../constants";
@@ -144,6 +144,7 @@ interface EventCardProps {
 const EventCard: React.FC<EventCardProps> = React.memo(
   ({ event, onPress, onDelete }) => {
     const { t } = useTranslation();
+    const { confirm, ConfirmModal } = useConfirm();
     const canEdit = event.status === "pending" || event.status === "rejected";
 
     const formatDate = (dateStr: string) => {
@@ -188,19 +189,25 @@ const EventCard: React.FC<EventCardProps> = React.memo(
 
     const categoryLabel = getEventCategoryLabel(event);
 
-    const handleMenuPress = () => {
-      const buttons: any[] = [{ text: t("eventsTab.cancel"), style: "cancel" }];
-
-      if (canEdit) {
-        buttons.unshift({
-          text: t("eventsTab.edit"),
-          onPress: () => onPress(),
-        });
-      } else {
+    const handleMenuPress = async () => {
+      const confirmed = await confirm({
+        type: "info",
+        iconName: canEdit ? "create-outline" : "eye-outline",
+        title: event.name,
+        message: t("eventsTab.chooseAction"),
+        confirmText: canEdit
+          ? t("eventsTab.edit")
+          : t("common.viewDetails", { defaultValue: "Xem chi tiết" }),
+        cancelText: t("eventsTab.cancel"),
+      });
+      if (confirmed) {
+        onPress();
+        return;
+        /*
         buttons.unshift({ text: "Xem chi tiết", onPress: () => onPress() });
+        */
       }
 
-      Alert.alert(event.name, t("eventsTab.chooseAction"), buttons);
     };
 
     const renderRightActions = () => {
@@ -218,16 +225,17 @@ const EventCard: React.FC<EventCardProps> = React.memo(
     };
 
     return (
-      <Swipeable
-        renderRightActions={renderRightActions}
-        containerStyle={styles.swipeableContainer}
-        overshootRight={false}
-      >
-        <TouchableOpacity
-          style={styles.eventCard}
-          onPress={onPress}
-          activeOpacity={0.7}
+      <>
+        <Swipeable
+          renderRightActions={renderRightActions}
+          containerStyle={styles.swipeableContainer}
+          overshootRight={false}
         >
+          <TouchableOpacity
+            style={styles.eventCard}
+            onPress={onPress}
+            activeOpacity={0.7}
+          >
           {/* Date Column */}
           <View style={styles.dateColumn}>
             <Text style={styles.dateDay}>{dateInfo.day}</Text>
@@ -344,11 +352,15 @@ const EventCard: React.FC<EventCardProps> = React.memo(
               )}
             </View>
           </View>
-        </TouchableOpacity>
-      </Swipeable>
+          </TouchableOpacity>
+        </Swipeable>
+        <ConfirmModal />
+      </>
     );
   },
 );
+
+EventCard.displayName = "EventCard";
 
 // ============================================
 // EMPTY STATE COMPONENT - Premium Design
@@ -428,6 +440,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
   onCreatePress,
 }) => {
   const { t } = useTranslation();
+  const { confirm, ConfirmModal } = useConfirm();
   const insets = useSafeAreaInsets();
   const listContentStyle = useMemo(
     () => [
@@ -447,6 +460,23 @@ export const EventsTab: React.FC<EventsTabProps> = ({
   const queryClient = useQueryClient();
   const statusFilters = useMemo(() => getStatusFilters(t), [t]);
   const categoryFilters = useMemo(() => getCategoryFilterItems(t), [t]);
+
+  const showInfoDialog = useCallback(
+    async (
+      title: string,
+      message: string,
+      type: "danger" | "warning" | "info" = "info",
+    ) => {
+      await confirm({
+        type,
+        title,
+        message,
+        confirmText: t("common.ok", { defaultValue: "OK" }),
+        showCancel: false,
+      });
+    },
+    [confirm, t],
+  );
 
   const {
     data: events = [],
@@ -491,12 +521,13 @@ export const EventsTab: React.FC<EventsTabProps> = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.all });
-      Alert.alert(t("common.success"), t("eventsTab.deleteSuccess"));
+      void showInfoDialog(t("common.success"), t("eventsTab.deleteSuccess"));
     },
     onError: (error: any) => {
-      Alert.alert(
+      void showInfoDialog(
         t("common.error"),
         error.message || t("eventsTab.deleteError"),
+        "warning",
       );
     },
   });
@@ -506,26 +537,29 @@ export const EventsTab: React.FC<EventsTabProps> = ({
   }, [refetch]);
 
   const handleDelete = useCallback(
-    (event: EventItem) => {
+    async (event: EventItem) => {
       if (event.status === "approved") {
-        Alert.alert(t("common.error"), t("eventsTab.deleteApprovedError"));
+        await showInfoDialog(
+          t("common.error"),
+          t("eventsTab.deleteApprovedError"),
+          "warning",
+        );
         return;
       }
 
-      Alert.alert(
-        t("eventsTab.deleteTitle"),
-        t("eventsTab.deleteMessage", { name: event.name }),
-        [
-          { text: t("eventsTab.cancel"), style: "cancel" },
-          {
-            text: t("eventsTab.delete"),
-            style: "destructive",
-            onPress: () => deleteMutation.mutate(event.id),
-          },
-        ],
-      );
+      const confirmed = await confirm({
+        type: "danger",
+        title: t("eventsTab.deleteTitle"),
+        message: t("eventsTab.deleteMessage", { name: event.name }),
+        confirmText: t("eventsTab.delete"),
+        cancelText: t("eventsTab.cancel"),
+      });
+
+      if (confirmed) {
+        deleteMutation.mutate(event.id);
+      }
     },
-    [deleteMutation, t],
+    [confirm, deleteMutation, showInfoDialog, t],
   );
 
   const renderEventItem = useCallback(
@@ -618,6 +652,7 @@ export const EventsTab: React.FC<EventsTabProps> = ({
         accessibilityLabel={t("mySiteScreen.fabAddEvent")}
         hideOnKeyboard
       />
+      <ConfirmModal />
     </View>
   );
 };

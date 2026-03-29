@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -25,6 +24,7 @@ import {
   GUIDE_TYPOGRAPHY,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import {
   createShiftSubmission,
   getShiftSubmissions,
@@ -97,6 +97,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   weekStartDate: initialWeekStart,
 }) => {
   const insets = useSafeAreaInsets();
+  const { confirm, ConfirmModal } = useConfirm();
   const queryClient = useQueryClient();
   const [weekStart, setWeekStart] = useState(new Date(initialWeekStart));
   const [shifts, setShifts] = useState<CreateShiftRequest[]>([]);
@@ -273,7 +274,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     setEditingTimeType(null);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (isBlockedByPending) return;
     if (!shifts.length) {
       Toast.show({ type: "info", text1: "Chua co ca lam", text2: "Hay them it nhat 1 ca truoc khi gui." });
@@ -296,14 +297,17 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       payload.change_reason = changeReason.trim();
     }
 
-    Alert.alert(
-      "Xac nhan gui lich",
-      `Ban se gui ${shifts.length} ca (${totalHours.toFixed(1)} gio) cho ${weekRangeText.toLowerCase()}.`,
-      [
-        { text: "Huy", style: "cancel" },
-        { text: isUpdateMode ? "Gui thay doi" : "Gui yeu cau", onPress: () => submitMutation.mutate(payload) },
-      ],
-    );
+    const confirmed = await confirm({
+      type: "warning",
+      title: "Xac nhan gui lich",
+      message: `Ban se gui ${shifts.length} ca (${totalHours.toFixed(1)} gio) cho ${weekRangeText.toLowerCase()}.`,
+      confirmText: isUpdateMode ? "Gui thay doi" : "Gui yeu cau",
+      cancelText: "Huy",
+    });
+
+    if (confirmed) {
+      submitMutation.mutate(payload);
+    }
   };
 
   return (
@@ -624,6 +628,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             </TouchableOpacity>
           </View>
         ) : null}
+        <ConfirmModal />
       </KeyboardAvoidingView>
     </Modal>
   );

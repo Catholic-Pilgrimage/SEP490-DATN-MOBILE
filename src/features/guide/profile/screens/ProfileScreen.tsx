@@ -9,7 +9,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ImageBackground,
   Platform,
@@ -30,7 +29,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import useI18n from "../../../../hooks/useI18n";
+import { useI18n } from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { NotificationModal } from "../../../pilgrim/explore/components/NotificationModal";
 import { useGuideProfile } from "../hooks/useGuideProfile";
@@ -164,7 +163,7 @@ const ProfileScreen: React.FC = () => {
   const { unreadCount } = useNotifications();
 
   // Use API hook for profile, site and stats data
-  const { profile, site, stats, loading, refetch, isVerified } =
+  const { profile, site, stats, refetch, isVerified } =
     useGuideProfile();
 
   const onRefresh = useCallback(async () => {
@@ -230,8 +229,13 @@ const ProfileScreen: React.FC = () => {
       );
     } catch (error) {
       console.error("Logout error:", error);
-      Alert.alert(t("common.error"), t("profile.logoutError"));
       setIsLoggingOut(false);
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        }),
+      );
     }
   }, [confirm, logout, navigation, t]);
 

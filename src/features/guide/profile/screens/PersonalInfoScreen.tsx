@@ -10,7 +10,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   ImageBackground,
   KeyboardAvoidingView,
@@ -26,12 +25,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
   GUIDE_SHADOWS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
 import { useGuideProfile } from "../hooks/useGuideProfile";
 
@@ -121,6 +122,7 @@ const PersonalInfoScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
   const { profile, site, loading, refetch, updateProfile, isVerified } =
     useGuideProfile();
 
@@ -129,6 +131,7 @@ const PersonalInfoScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -154,43 +157,8 @@ const PersonalInfoScreen: React.FC = () => {
     setRefreshing(false);
   }, [refetch]);
 
-  const handleBack = useCallback(() => {
-    if (isEditing) {
-      Alert.alert(
-        t("editProfile.discardTitle"),
-        t("editProfile.discardMessage"),
-        [
-          { text: t("editProfile.continueEditing"), style: "cancel" },
-          {
-            text: t("editProfile.discard"),
-            style: "destructive",
-            onPress: () => {
-              setIsEditing(false);
-              // Reset form
-              if (profile) {
-                setFormData({
-                  full_name: profile.full_name || "",
-                  phone: profile.phone || "",
-                  date_of_birth: profile.date_of_birth || "",
-                });
-              }
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    } else {
-      navigation.goBack();
-    }
-  }, [isEditing, navigation, profile, t]);
-
-  const handleEdit = useCallback(() => {
-    setIsEditing(true);
-  }, []);
-
-  const handleCancel = useCallback(() => {
-    setIsEditing(false);
-    // Reset form
+  const resetForm = useCallback(() => {
+    setAvatarUri(null);
     if (profile) {
       setFormData({
         full_name: profile.full_name || "",
@@ -199,6 +167,49 @@ const PersonalInfoScreen: React.FC = () => {
       });
     }
   }, [profile]);
+
+  const confirmDiscardChanges = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "close-circle-outline",
+      title: t("editProfile.discardTitle"),
+      message: t("editProfile.discardMessage"),
+      confirmText: t("editProfile.discard"),
+      cancelText: t("editProfile.continueEditing"),
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setIsEditing(false);
+    resetForm();
+    return true;
+  }, [confirm, resetForm, t]);
+
+  const handleBack = useCallback(async () => {
+    if (!isEditing) {
+      navigation.goBack();
+      return;
+    }
+
+    const discarded = await confirmDiscardChanges();
+    if (discarded) {
+      navigation.goBack();
+    }
+  }, [confirmDiscardChanges, isEditing, navigation]);
+
+  const handleEdit = useCallback(() => {
+    setIsEditing(true);
+  }, []);
+
+  const handleCancel = useCallback(async () => {
+    if (!isEditing) {
+      return;
+    }
+
+    await confirmDiscardChanges();
+  }, [confirmDiscardChanges, isEditing]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -229,7 +240,7 @@ const PersonalInfoScreen: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [formData, avatarUri, updateProfile, refetch]);
+  }, [formData, avatarUri, updateProfile, refetch, t]);
 
   const updateFormField = useCallback(
     (field: keyof typeof formData) => (value: string) => {
@@ -238,61 +249,18 @@ const PersonalInfoScreen: React.FC = () => {
     [],
   );
 
-  const pickAvatar = () => {
-    Alert.alert(
-      t("editProfile.changeAvatarTitle"),
-      t("editProfile.chooseSource"),
-      [
-        {
-          text: t("editProfile.takePhoto"),
-          onPress: async () => {
-            const permission =
-              await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) {
-              Toast.show({
-                type: "error",
-                text1: t("editProfile.permissionDenied"),
-                text2: t("editProfile.cameraPermission"),
-              });
-              return;
-            }
-            const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: "images",
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.8,
-            });
-            if (!result.canceled && result.assets.length > 0)
-              setAvatarUri(result.assets[0].uri);
-          },
-        },
-        {
-          text: t("editProfile.photoLibrary"),
-          onPress: async () => {
-            const permission =
-              await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!permission.granted) {
-              Toast.show({
-                type: "error",
-                text1: t("editProfile.permissionDenied"),
-                text2: t("editProfile.libraryPermission"),
-              });
-              return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: "images",
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.8,
-            });
-            if (!result.canceled && result.assets.length > 0)
-              setAvatarUri(result.assets[0].uri);
-          },
-        },
-        { text: t("editProfile.discard"), style: "cancel" },
-      ],
-    );
-  };
+  const pickAvatar = useCallback(() => {
+    setMediaPickerVisible(true);
+  }, []);
+
+  const handleAvatarPicked = useCallback(
+    (result: ImagePicker.ImagePickerResult) => {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    },
+    [],
+  );
 
   const handleDateChange = (_: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -656,6 +624,17 @@ const PersonalInfoScreen: React.FC = () => {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <MediaPickerModal
+        visible={isMediaPickerVisible}
+        onClose={() => setMediaPickerVisible(false)}
+        onMediaPicked={handleAvatarPicked}
+        mediaTypes="images"
+        allowsEditing
+        quality={0.8}
+        aspect={[1, 1]}
+        title={t("editProfile.changeAvatarTitle")}
+      />
+      <ConfirmModal />
     </ImageBackground>
   );
 };

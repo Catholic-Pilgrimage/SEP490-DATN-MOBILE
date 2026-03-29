@@ -9,7 +9,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Alert,
     Dimensions,
     Image,
     LayoutChangeEvent,
@@ -26,6 +25,7 @@ import {
     GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { deleteMedia, getMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus, MediaType } from "../../../../types/guide";
 import {
@@ -307,6 +307,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({
   onOpenSiteModels3d,
 }) => {
   const { t } = useTranslation();
+  const { confirm, ConfirmModal } = useConfirm();
   const insets = useSafeAreaInsets();
   /** Chiều rộng thực của vùng lưới (sau padding parent) — tránh lệch Dimensions vs layout bị clip cột phải */
   const [gridLayoutWidth, setGridLayoutWidth] = useState(() => {
@@ -419,8 +420,66 @@ export const MediaTab: React.FC<MediaTabProps> = ({
     [isSelectMode],
   );
 
-  const handleDeleteBatch = useCallback(() => {
-    Alert.alert(
+  const handleDeleteBatch = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      title: "Xóa ảnh",
+      message: `Bạn có chắc chắn muốn xóa ${selectedIds.size} ảnh đã chọn?`,
+      confirmText: "Xóa",
+      cancelText: "Hủy",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingBatch(true);
+    try {
+      const results = await Promise.allSettled(
+        Array.from(selectedIds).map((id) => deleteMedia(id)),
+      );
+      const failed = results.filter(
+        (r) =>
+          r.status === "rejected" ||
+          (r.status === "fulfilled" && !r.value?.success),
+      ).length;
+      const succeeded = selectedIds.size - failed;
+
+      if (failed === 0) {
+        Toast.show({
+          type: "success",
+          text1: "Thành công",
+          text2: `Đã xóa ${succeeded} ảnh được chọn`,
+        });
+      } else if (succeeded === 0) {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: "Không thể xóa ảnh nào. Vui lòng thử lại sau.",
+        });
+      } else {
+        Toast.show({
+          type: "info",
+          text1: "Hoàn tất một phần",
+          text2: `Đã xóa ${succeeded} ảnh, ${failed} ảnh thất bại`,
+          visibilityTime: 4000,
+        });
+      }
+
+      setSelectedIds(new Set());
+      setIsSelectMode(false);
+      refetch();
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Lỗi",
+        text2: "Hệ thống xảy ra lỗi không xác định",
+      });
+    } finally {
+      setDeletingBatch(false);
+    }
+
+    /*
       "Xóa ảnh",
       `Bạn có chắc chắn muốn xóa ${selectedIds.size} ảnh đã chọn?`,
       [
@@ -478,7 +537,8 @@ export const MediaTab: React.FC<MediaTabProps> = ({
         },
       ],
     );
-  }, [selectedIds, refetch]);
+    */
+  }, [confirm, refetch, selectedIds]);
 
   // Group media by date (like Photos app)
   const groupMediaByDate = useCallback(
@@ -721,6 +781,7 @@ export const MediaTab: React.FC<MediaTabProps> = ({
           },
         ]}
       />
+      <ConfirmModal />
     </View>
   );
 };

@@ -17,7 +17,6 @@ import { useTranslation } from "react-i18next";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Modal,
   Platform,
@@ -34,6 +33,7 @@ import {
   GUIDE_COLORS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import {
   DayOfWeek,
   MassSchedule,
@@ -236,7 +236,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({
   daysMap,
 }) => {
   const { t } = useTranslation();
-  const [showMenu, setShowMenu] = useState(false);
+  const { confirm, ConfirmModal } = useConfirm();
   /** Chỉ pending/rejected được sửa — không dùng negation implicit (approved-only lock) */
   const canEdit =
     schedule.status === "pending" || schedule.status === "rejected";
@@ -260,42 +260,34 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({
     });
   };
 
-  const handleMenuPress = () => {
-    if (canEdit) {
-      setShowMenu(true);
-    }
-  };
-
   const handleEdit = () => {
-    setShowMenu(false);
     onEdit();
   };
 
-  const handleDelete = () => {
-    setShowMenu(false);
-    Alert.alert(
-      t("schedulesTab.deleteTitle"),
-      t("schedulesTab.deleteMessage"),
-      [
-        { text: t("schedulesTab.cancel"), style: "cancel" },
-        {
-          text: t("schedulesTab.delete"),
-          style: "destructive",
-          onPress: onDelete,
-        },
-      ],
-    );
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      title: t("schedulesTab.deleteTitle"),
+      message: t("schedulesTab.deleteMessage"),
+      confirmText: t("schedulesTab.delete"),
+      cancelText: t("schedulesTab.cancel"),
+    });
+
+    if (confirmed) {
+      onDelete();
+    }
   };
 
   return (
-    <View style={styles.scheduleCard}>
-      {/* Decorative left border */}
-      <View
-        style={[
-          styles.cardLeftBorder,
-          { backgroundColor: STATUS_COLORS[schedule.status].color },
-        ]}
-      />
+    <>
+      <View style={styles.scheduleCard}>
+        {/* Decorative left border */}
+        <View
+          style={[
+            styles.cardLeftBorder,
+            { backgroundColor: STATUS_COLORS[schedule.status].color },
+          ]}
+        />
 
       <View style={styles.cardContent}>
         {/* Header: Time + Status */}
@@ -368,7 +360,7 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({
           </View>
 
           {/* Actions (only for pending/rejected) */}
-          {canEdit && (
+        {canEdit && (
             <View style={styles.actionsRow}>
               <TouchableOpacity
                 style={styles.actionButton}
@@ -394,7 +386,9 @@ const ScheduleCard: React.FC<ScheduleCardProps> = ({
           )}
         </View>
       </View>
-    </View>
+      </View>
+      <ConfirmModal />
+    </>
   );
 };
 
@@ -818,6 +812,7 @@ interface SchedulesTabProps {
 
 const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const { t } = useTranslation();
+  const { confirm, ConfirmModal } = useConfirm();
   const insets = useSafeAreaInsets();
   const listContentStyle = useMemo(
     () => [
@@ -857,6 +852,19 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const [dayFilter, setDayFilter] = useState<DayOfWeek | null>(null);
   const [weekOverviewExpanded, setWeekOverviewExpanded] = useState(true);
 
+  const showInfoDialog = useCallback(
+    async (title: string, message: string) => {
+      await confirm({
+        type: "info",
+        title,
+        message,
+        confirmText: t("common.ok", { defaultValue: "OK" }),
+        showCancel: false,
+      });
+    },
+    [confirm, t],
+  );
+
   // Refetch on focus
   useFocusEffect(
     useCallback(() => {
@@ -877,7 +885,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const handleDeletePress = async (schedule: MassSchedule) => {
     const success = await remove(schedule.id);
     if (success) {
-      Alert.alert(t("common.success"), t("schedulesTab.deleteSuccess"));
+      await showInfoDialog(t("common.success"), t("schedulesTab.deleteSuccess"));
     }
   };
 
@@ -1030,7 +1038,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        Alert.alert(t("common.success"), t("schedulesTab.updateSuccess"));
+        await showInfoDialog(t("common.success"), t("schedulesTab.updateSuccess"));
       }
     } else {
       const result = await create({
@@ -1040,7 +1048,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        Alert.alert(t("common.success"), t("schedulesTab.createSuccess"));
+        await showInfoDialog(t("common.success"), t("schedulesTab.createSuccess"));
       }
     }
   };
@@ -1132,6 +1140,7 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
         loading={creating || updating}
         daysMap={daysMap}
       />
+      <ConfirmModal />
     </View>
   );
 };

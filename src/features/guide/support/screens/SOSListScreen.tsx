@@ -5,7 +5,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import React, { useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Image,
     Linking,
@@ -19,6 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { SACRED_COLORS } from "../../../../constants/sacred-theme.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { SOSEntity, SOSStatus } from "../../../../types/guide/sos.types";
 import { getFontSize } from "../../../../utils/responsive";
 import { useGuideSOSList } from "../hooks/useGuideSOS";
@@ -60,7 +60,15 @@ const FilterTab = ({
 );
 
 // SOS Item Component
-const SOSItem = ({ item, onPress }: { item: SOSEntity; onPress: () => void }) => {
+const SOSItem = ({
+    item,
+    onPress,
+    onMissingPhone,
+}: {
+    item: SOSEntity;
+    onPress: () => void;
+    onMissingPhone: () => void;
+}) => {
     const getStatusColor = (status: SOSStatus) => {
         switch (status) {
             case "pending": return "#E74C3C"; // Alarming Red
@@ -86,7 +94,7 @@ const SOSItem = ({ item, onPress }: { item: SOSEntity; onPress: () => void }) =>
         if (phone) {
             Linking.openURL(`tel:${phone}`);
         } else {
-            Alert.alert("Thông báo", "Không có số điện thoại liên hệ");
+            onMissingPhone();
         }
     };
 
@@ -150,6 +158,7 @@ const SOSItem = ({ item, onPress }: { item: SOSEntity; onPress: () => void }) =>
 export const SOSListScreen = () => {
     const navigation = useNavigation<SOSListScreenNavigationProp>();
     const insets = useSafeAreaInsets();
+    const { confirm, ConfirmModal } = useConfirm();
 
     const [activeTab, setActiveTab] = useState<SOSStatus | 'all'>('pending');
 
@@ -162,6 +171,17 @@ export const SOSListScreen = () => {
 
     const onRefresh = () => {
         refetch();
+    };
+
+    const showMissingPhoneDialog = async () => {
+        await confirm({
+            type: "info",
+            iconName: "call-outline",
+            title: "Thông báo",
+            message: "Không có số điện thoại liên hệ",
+            confirmText: "OK",
+            showCancel: false,
+        });
     };
 
     const handlePressItem = (id: string) => {
@@ -213,7 +233,11 @@ export const SOSListScreen = () => {
                     data={data}
                     keyExtractor={(item) => item.id}
                     renderItem={({ item }) => (
-                        <SOSItem item={item} onPress={() => handlePressItem(item.id)} />
+                        <SOSItem
+                            item={item}
+                            onPress={() => handlePressItem(item.id)}
+                            onMissingPhone={() => void showMissingPhoneDialog()}
+                        />
                     )}
                     contentContainerStyle={styles.listContent}
                     refreshControl={
@@ -231,6 +255,7 @@ export const SOSListScreen = () => {
                     }
                 />
             )}
+            <ConfirmModal />
         </View>
     );
 };

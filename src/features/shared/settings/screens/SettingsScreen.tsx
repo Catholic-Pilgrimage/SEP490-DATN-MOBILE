@@ -2,7 +2,6 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import React, { useState } from "react";
 import {
-    Alert,
     ImageBackground,
     Modal,
     Pressable,
@@ -20,7 +19,7 @@ import Toast from "react-native-toast-message";
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import useI18n from "../../../../hooks/useI18n";
+import { useI18n } from "../../../../hooks/useI18n";
 import { authApi } from "../../../../services/api";
 
 // Theme Colors
@@ -43,14 +42,21 @@ const SettingToggle = ({
   value,
   onValueChange,
   description,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: boolean;
   onValueChange: (val: boolean) => void;
   description?: string;
+  onPress?: () => void;
 }) => (
-  <View style={styles.settingItem}>
+  <TouchableOpacity
+    style={styles.settingItem}
+    onPress={onPress}
+    activeOpacity={onPress ? 0.7 : 1}
+    disabled={!onPress}
+  >
     <View style={styles.settingLeft}>
       <View style={styles.iconContainer}>
         <Ionicons name={icon} size={20} color={SETTINGS_COLORS.primary} />
@@ -69,7 +75,7 @@ const SettingToggle = ({
       onValueChange={onValueChange}
       value={value}
     />
-  </View>
+  </TouchableOpacity>
 );
 
 // Menu Item Component
@@ -125,18 +131,53 @@ const SectionHeader = ({ title }: { title: string }) => (
 const SettingsScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { logout, user, isGuest } = useAuth();
+  const { logout, isGuest } = useAuth();
   const { currentLanguageName, changeLanguage, languages, t } = useI18n();
   const { confirm, ConfirmModal } = useConfirm();
 
   // State for toggles
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
+  const notificationsEnabled = false;
+  const biometricsEnabled = false;
+
+  const showInfoDialog = async ({
+    title,
+    message,
+    type = "info",
+    iconName,
+  }: {
+    title: string;
+    message: string;
+    type?: "danger" | "warning" | "info";
+    iconName?: keyof typeof Ionicons.glyphMap;
+  }) => {
+    await confirm({
+      type,
+      iconName,
+      title,
+      message,
+      confirmText: t("common.ok"),
+      showCancel: false,
+    });
+  };
 
   const handleChangeLanguage = () => {
     setLanguageModalVisible(true);
+  };
+
+  const handleUnavailableToggle = async ({
+    title,
+    iconName,
+  }: {
+    title: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+  }) => {
+    await showInfoDialog({
+      type: "warning",
+      iconName,
+      title,
+      message: t("settings.featureComingSoon"),
+    });
   };
 
   const selectLanguage = async (lang: "vi" | "en") => {
@@ -164,12 +205,38 @@ const SettingsScreen = () => {
         message: t("settings.shareMessage"),
       });
     } catch (error: any) {
-      Alert.alert(error.message);
+      await showInfoDialog({
+        type: "danger",
+        iconName: "alert-circle-outline",
+        title: t("common.error"),
+        message: error?.message || t("common.error"),
+      });
     }
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
+  // Reserved for the future delete-account entry once the settings item is exposed.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleDeleteAccount = async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: "Xóa tài khoản?",
+      message:
+        "Hành động này không thể hoàn tác. Mọi dữ liệu của bạn sẽ bị xóa vĩnh viễn.",
+      confirmText: "Xóa vĩnh viễn",
+      cancelText: "Hủy",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    await showInfoDialog({
+      title: "Yêu cầu đã gửi",
+      message: "Chúng tôi sẽ xử lý yêu cầu của bạn trong vòng 30 ngày.",
+      iconName: "mail-open-outline",
+    });
+    /*
       "Xoá tài khoản?",
       "Hành động này không thể hoàn tác. Mọi dữ liệu của bạn sẽ bị xoá vĩnh viễn.",
       [
@@ -178,13 +245,14 @@ const SettingsScreen = () => {
           text: "Xoá vĩnh viễn",
           style: "destructive",
           onPress: () =>
-            Alert.alert(
+            legacyAlert(
               "Yêu cầu đã gửi",
               "Chúng tôi sẽ xử lý yêu cầu của bạn trong vòng 30 ngày.",
             ),
         },
       ],
     );
+    */
   };
 
   const handleLogout = async () => {
@@ -209,7 +277,12 @@ const SettingsScreen = () => {
       });
     } catch (error) {
       console.error("Logout error:", error);
-      Alert.alert(t("common.error"), t("profile.logoutError"));
+      await showInfoDialog({
+        type: "danger",
+        iconName: "alert-circle-outline",
+        title: t("common.error"),
+        message: t("profile.logoutError"),
+      });
     }
   };
 
@@ -249,14 +322,36 @@ const SettingsScreen = () => {
             label={t("settings.notifications")}
             description={t("settings.notificationsDesc")}
             value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
+            onValueChange={() =>
+              void handleUnavailableToggle({
+                title: t("settings.notifications"),
+                iconName: "notifications-outline",
+              })
+            }
+            onPress={() =>
+              void handleUnavailableToggle({
+                title: t("settings.notifications"),
+                iconName: "notifications-outline",
+              })
+            }
           />
           <View style={styles.divider} />
           <SettingToggle
             icon="finger-print-outline"
             label={t("settings.biometrics")}
             value={biometricsEnabled}
-            onValueChange={setBiometricsEnabled}
+            onValueChange={() =>
+              void handleUnavailableToggle({
+                title: t("settings.biometrics"),
+                iconName: "finger-print-outline",
+              })
+            }
+            onPress={() =>
+              void handleUnavailableToggle({
+                title: t("settings.biometrics"),
+                iconName: "finger-print-outline",
+              })
+            }
           />
           <View style={styles.divider} />
           <SettingItem
@@ -275,7 +370,11 @@ const SettingsScreen = () => {
             icon="help-circle-outline"
             label={t("settings.helpCenter")}
             onPress={() =>
-              Alert.alert(t("common.ok"), t("settings.featureComingSoon"))
+              void showInfoDialog({
+                title: t("settings.helpCenter"),
+                message: t("settings.featureComingSoon"),
+                iconName: "help-circle-outline",
+              })
             }
           />
           <SettingItem
@@ -287,19 +386,33 @@ const SettingsScreen = () => {
             icon="star-outline"
             label={t("settings.rateApp")}
             onPress={() =>
-              Alert.alert(t("settings.thankYou"), t("settings.thankYouMessage"))
+              void showInfoDialog({
+                title: t("settings.thankYou"),
+                message: t("settings.thankYouMessage"),
+                iconName: "star-outline",
+              })
             }
           />
           <SettingItem
             icon="document-text-outline"
             label={t("settings.terms")}
-            onPress={() => Alert.alert(t("common.ok"), t("settings.showTerms"))}
+            onPress={() =>
+              void showInfoDialog({
+                title: t("settings.terms"),
+                message: t("settings.showTerms"),
+                iconName: "document-text-outline",
+              })
+            }
           />
           <SettingItem
             icon="shield-checkmark-outline"
             label={t("settings.privacy")}
             onPress={() =>
-              Alert.alert(t("common.ok"), t("settings.showPrivacy"))
+              void showInfoDialog({
+                title: t("settings.privacy"),
+                message: t("settings.showPrivacy"),
+                iconName: "shield-checkmark-outline",
+              })
             }
             isLast
           />

@@ -17,6 +17,7 @@ interface ConfirmOptions {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  showCancel?: boolean;
 }
 
 export const useConfirm = () => {
@@ -57,7 +58,10 @@ export const useConfirm = () => {
           opts.confirmText ??
           t("common.confirm", { defaultValue: "Confirm" }),
         cancelText:
-          opts.cancelText ?? t("common.cancel", { defaultValue: "Cancel" }),
+          opts.showCancel === false
+            ? undefined
+            : (opts.cancelText ??
+              t("common.cancel", { defaultValue: "Cancel" })),
       });
       setVisible(true);
     });
@@ -78,8 +82,9 @@ export const useConfirm = () => {
         iconName={options.iconName}
         title={options.title}
         message={options.message}
-      confirmText={options.confirmText}
-      cancelText={options.cancelText}
+        confirmText={options.confirmText}
+        cancelText={options.cancelText}
+        showCancel={options.showCancel}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
     />

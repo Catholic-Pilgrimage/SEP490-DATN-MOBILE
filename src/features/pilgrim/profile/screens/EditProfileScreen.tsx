@@ -6,27 +6,28 @@ import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
+import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import { SHADOWS } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
-import useI18n from "../../../../hooks/useI18n";
+import { useConfirm } from "../../../../hooks/useConfirm";
+import { useI18n } from "../../../../hooks/useI18n";
 import { UserProfile } from "../../../../types/user.types";
 
 // Premium color palette (Consistent with ProfileScreen)
@@ -124,7 +125,9 @@ const EditProfileScreen = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
 
   // Cast user to UserProfile to access optional fields if they exist in runtime
   const userProfile = user as UserProfile;
@@ -139,7 +142,7 @@ const EditProfileScreen = () => {
   // Refresh profile on mount to ensure we have latest data (and mapped correctly)
   useEffect(() => {
     getProfile();
-  }, []);
+  }, [getProfile]);
 
   // Initialize form with profile data
   useEffect(() => {
@@ -160,42 +163,8 @@ const EditProfileScreen = () => {
     setRefreshing(false);
   }, [getProfile]);
 
-  const handleBack = useCallback(() => {
-    if (isEditing) {
-      Alert.alert(
-        t("editProfile.discardTitle"),
-        t("editProfile.discardMessage"),
-        [
-          { text: t("editProfile.continueEditing"), style: "cancel" },
-          {
-            text: t("editProfile.discard"),
-            style: "destructive",
-            onPress: () => {
-              setIsEditing(false);
-              if (userProfile) {
-                setFormData({
-                  fullName: userProfile.fullName || "",
-                  phone: userProfile.phone || "",
-                  dateOfBirth: userProfile.dateOfBirth || "",
-                });
-              }
-              navigation.goBack();
-            },
-          },
-        ],
-      );
-    } else {
-      navigation.goBack();
-    }
-  }, [isEditing, navigation, userProfile, t]);
-
-  const handleEdit = useCallback(() => {
-    setIsEditing(true);
-  }, []);
-
-  const handleCancel = useCallback(() => {
-    setIsEditing(false);
-    // Reset form
+  const resetForm = useCallback(() => {
+    setAvatarUri(null);
     if (userProfile) {
       setFormData({
         fullName: userProfile.fullName || "",
@@ -204,6 +173,49 @@ const EditProfileScreen = () => {
       });
     }
   }, [userProfile]);
+
+  const confirmDiscardChanges = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "close-circle-outline",
+      title: t("editProfile.discardTitle"),
+      message: t("editProfile.discardMessage"),
+      confirmText: t("editProfile.discard"),
+      cancelText: t("editProfile.continueEditing"),
+    });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setIsEditing(false);
+    resetForm();
+    return true;
+  }, [confirm, resetForm, t]);
+
+  const handleBack = useCallback(async () => {
+    if (!isEditing) {
+      navigation.goBack();
+      return;
+    }
+
+    const discarded = await confirmDiscardChanges();
+    if (discarded) {
+      navigation.goBack();
+    }
+  }, [confirmDiscardChanges, isEditing, navigation]);
+
+  const handleEdit = useCallback(() => {
+    setIsEditing(true);
+  }, []);
+
+  const handleCancel = useCallback(async () => {
+    if (!isEditing) {
+      return;
+    }
+
+    await confirmDiscardChanges();
+  }, [confirmDiscardChanges, isEditing]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -228,7 +240,7 @@ const EditProfileScreen = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [formData, avatarUri, updateProfile, getProfile]);
+  }, [formData, avatarUri, updateProfile, getProfile, t]);
 
   const updateFormField = useCallback(
     (field: keyof typeof formData) => (value: string) => {
@@ -237,61 +249,18 @@ const EditProfileScreen = () => {
     [],
   );
 
-  const pickAvatar = async () => {
-    Alert.alert(
-      t("editProfile.changeAvatarTitle"),
-      t("editProfile.chooseSource"),
-      [
-        {
-          text: t("editProfile.takePhoto"),
-          onPress: async () => {
-            const permission =
-              await ImagePicker.requestCameraPermissionsAsync();
-            if (!permission.granted) {
-              Toast.show({
-                type: "error",
-                text1: t("editProfile.permissionDenied"),
-                text2: t("editProfile.cameraPermission"),
-              });
-              return;
-            }
-            const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: "images",
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.8,
-            });
-            if (!result.canceled && result.assets.length > 0)
-              setAvatarUri(result.assets[0].uri);
-          },
-        },
-        {
-          text: t("editProfile.photoLibrary"),
-          onPress: async () => {
-            const permission =
-              await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (!permission.granted) {
-              Toast.show({
-                type: "error",
-                text1: t("editProfile.permissionDenied"),
-                text2: t("editProfile.libraryPermission"),
-              });
-              return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: "images",
-              allowsEditing: true,
-              aspect: [1, 1],
-              quality: 0.8,
-            });
-            if (!result.canceled && result.assets.length > 0)
-              setAvatarUri(result.assets[0].uri);
-          },
-        },
-        { text: t("editProfile.cancel"), style: "cancel" },
-      ],
-    );
-  };
+  const pickAvatar = useCallback(() => {
+    setMediaPickerVisible(true);
+  }, []);
+
+  const handleAvatarPicked = useCallback(
+    (result: ImagePicker.ImagePickerResult) => {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    },
+    [],
+  );
 
   const handleDateChange = (_: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -627,6 +596,17 @@ const EditProfileScreen = () => {
           <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+      <MediaPickerModal
+        visible={isMediaPickerVisible}
+        onClose={() => setMediaPickerVisible(false)}
+        onMediaPicked={handleAvatarPicked}
+        mediaTypes="images"
+        allowsEditing
+        quality={0.8}
+        aspect={[1, 1]}
+        title={t("editProfile.changeAvatarTitle")}
+      />
+      <ConfirmModal />
     </ImageBackground>
   );
 };

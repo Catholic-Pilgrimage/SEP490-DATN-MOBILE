@@ -5,7 +5,6 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -21,8 +20,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { COLORS, SHADOWS } from "../../../../constants/theme.constants";
 import { useQuery as useApiQuery } from "../../../../hooks/useApi";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useFavorites } from "../../../../hooks/useFavorites";
-import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import { getFavorites } from "../../../../services/api/pilgrim/siteApi";
 import { FavoriteSite } from "../../../../types/pilgrim/site.types";
 
 const { width } = Dimensions.get("window");
@@ -32,25 +32,23 @@ const FavoriteSitesScreen = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { confirm, ConfirmModal } = useConfirm();
   const [favorites, setFavorites] = useState<FavoriteSite[]>([]);
 
   // Centralized favorites hook for toggling
   const { toggleFavorite } = useFavorites();
 
-  const {
-    data: responseData,
-    isLoading,
-    error,
-    execute: fetchFavorites,
-    refetch,
-  } = useApiQuery(() => pilgrimSiteApi.getFavorites({ page: 1, limit: 100 }), {
+  const { isLoading, execute: fetchFavorites, refetch } = useApiQuery(
+    () => getFavorites({ page: 1, limit: 100 }),
+    {
     autoFetch: false,
     onSuccess: (res) => {
       if (res.success && res.data?.sites) {
         setFavorites(res.data.sites);
       }
     },
-  });
+    },
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -59,23 +57,23 @@ const FavoriteSitesScreen = () => {
   );
 
   const handleRemoveFavorite = async (siteId: string, siteName: string) => {
-    Alert.alert(
-      t("favoriteSites.removeTitle"),
-      t("favoriteSites.removeMessage", { name: siteName }),
-      [
-        { text: t("favoriteSites.cancel"), style: "cancel" },
-        {
-          text: t("favoriteSites.remove"),
-          style: "destructive",
-          onPress: async () => {
-            // Optimistic: remove from local list
-            setFavorites((prev) => prev.filter((item) => item.id !== siteId));
-            // Use centralized toggle to update shared cache + call API
-            toggleFavorite(siteId);
-          },
-        },
-      ],
-    );
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "heart-dislike-outline",
+      title: t("favoriteSites.removeTitle"),
+      message: t("favoriteSites.removeMessage", { name: siteName }),
+      confirmText: t("favoriteSites.remove"),
+      cancelText: t("favoriteSites.cancel"),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    // Optimistic: remove from local list
+    setFavorites((prev) => prev.filter((item) => item.id !== siteId));
+    // Use centralized toggle to update shared cache + call API
+    toggleFavorite(siteId);
   };
 
   const renderItem = ({
@@ -221,6 +219,7 @@ const FavoriteSitesScreen = () => {
           }
         />
       )}
+      <ConfirmModal />
     </ImageBackground>
   );
 };

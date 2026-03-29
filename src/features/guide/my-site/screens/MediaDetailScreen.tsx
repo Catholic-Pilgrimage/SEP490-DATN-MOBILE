@@ -17,7 +17,6 @@ import React, {
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -50,6 +49,7 @@ import {
   GUIDE_COLORS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import { deleteMedia, updateMedia } from "../../../../services/api/guide";
 import { MediaItem, MediaStatus } from "../../../../types/guide";
@@ -126,6 +126,7 @@ export const MediaDetailScreen: React.FC = () => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { confirm, ConfirmModal } = useConfirm();
   const route = useRoute<MediaDetailRouteProp>();
   const { media: initialMedia } = route.params;
   const initialNormalized = normalizeMediaItem(initialMedia);
@@ -214,7 +215,7 @@ export const MediaDetailScreen: React.FC = () => {
             });
           }
         }),
-    [goBackDismiss],
+    [goBackDismiss], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const animatedRootStyle = useAnimatedStyle(() => ({
@@ -384,43 +385,46 @@ export const MediaDetailScreen: React.FC = () => {
     [canReplaceImageFile, displayMedia.id, displayMedia.type],
   );
 
-  const handleDelete = useCallback(() => {
-    Alert.alert("Xóa media", "Bạn có chắc chắn muốn xóa media này?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Xóa",
-        style: "destructive",
-        onPress: async () => {
-          setIsDeleting(true);
-          try {
-            const result = await deleteMedia(displayMedia.id);
+  const handleDelete = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: "Xóa media",
+      message: "Bạn có chắc chắn muốn xóa media này?",
+      confirmText: "Xóa",
+      cancelText: "Hủy",
+    });
 
-            if (result?.success) {
-              Toast.show({
-                type: "success",
-                text1: "Đã xóa",
-                text2: "Media đã được gỡ khỏi thư viện.",
-              });
-              setTimeout(() => navigation.goBack(), 400);
-            } else {
-              Toast.show({
-                type: "error",
-                text1: "Lỗi",
-                text2: result?.message || "Không thể xóa media",
-              });
-            }
-          } catch (error: any) {
-            console.error("[MediaDetail] Delete error:", error);
-            // Error has been transformed by apiClient, just use error.message
-            const errorMessage = error?.message || "Đã có lỗi xảy ra";
-            Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
-          } finally {
-            setIsDeleting(false);
-          }
-        },
-      },
-    ]);
-  }, [displayMedia.id, navigation]);
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const result = await deleteMedia(displayMedia.id);
+
+      if (result?.success) {
+        Toast.show({
+          type: "success",
+          text1: "Đã xóa",
+          text2: "Media đã được gỡ khỏi thư viện.",
+        });
+        setTimeout(() => navigation.goBack(), 400);
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: result?.message || "Không thể xóa media",
+        });
+      }
+    } catch (error: any) {
+      console.error("[MediaDetail] Delete error:", error);
+      const errorMessage = error?.message || "Đã có lỗi xảy ra";
+      Toast.show({ type: "error", text1: "Lỗi", text2: errorMessage });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [confirm, displayMedia.id, navigation]);
 
   // Get media type icon
   const getMediaTypeIcon = () => {
@@ -907,6 +911,7 @@ export const MediaDetailScreen: React.FC = () => {
           allowsEditing={displayMedia.type === "image"}
           title="Chọn ảnh thay thế"
         />
+        <ConfirmModal />
       </Animated.View>
     </GestureDetector>
   );

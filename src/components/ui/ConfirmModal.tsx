@@ -24,6 +24,7 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  showCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -36,6 +37,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
   confirmText,
   cancelText,
+  showCancel = true,
   onConfirm,
   onCancel,
 }) => {
@@ -240,18 +242,24 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 <Text style={styles.message}>{message}</Text>
 
                 <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[styles.button, styles.cancelButton]}
-                    onPress={handleClose}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.cancelButtonText}>
-                      {resolvedCancelText}
-                    </Text>
-                  </TouchableOpacity>
+                  {showCancel && (
+                    <TouchableOpacity
+                      style={[styles.button, styles.cancelButton]}
+                      onPress={handleClose}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.cancelButtonText}>
+                        {resolvedCancelText}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
-                    style={[styles.button, { backgroundColor: buttonColor }]}
+                    style={[
+                      styles.button,
+                      !showCancel && styles.singleButton,
+                      { backgroundColor: buttonColor },
+                    ]}
                     onPress={handleConfirm}
                     activeOpacity={0.8}
                   >
@@ -324,6 +332,10 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: "#F3F4F6",
+  },
+  singleButton: {
+    flex: 0,
+    width: "100%",
   },
   cancelButtonText: {
     color: "#6B7280",

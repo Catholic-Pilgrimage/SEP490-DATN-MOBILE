@@ -13,7 +13,6 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -40,9 +39,10 @@ import {
 } from "../../../../components/map/VietmapView";
 import { VIETMAP_CONFIG } from "../../../../config/map.config";
 import {
-    GUIDE_COLORS,
-    GUIDE_SPACING,
+  GUIDE_COLORS,
+  GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import useI18n from "../../../../hooks/useI18n";
 import {
     createNearbyPlace,
@@ -670,6 +670,7 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
 // Main Component
 export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
   const insets = useSafeAreaInsets();
 
   // Get translated configs
@@ -1048,18 +1049,40 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
   }, [form, editingPlace, fetchPlaces, t]);
 
   const handleDelete = useCallback(
-    (place: GuideNearbyPlace) => {
-      Alert.alert(
-        t("locationsTab.deleteConfirm"),
-        t("locationsTab.deleteMessage", { name: place.name }),
-        [
-          { text: t("common.cancel"), style: "cancel" },
-          {
-            text: t("locationsTab.delete"),
-            style: "destructive",
-            onPress: async () => {
-              try {
-                const response = await deleteNearbyPlace(place.id);
+    async (place: GuideNearbyPlace) => {
+      const confirmed = await confirm({
+        type: "danger",
+        title: t("locationsTab.deleteConfirm"),
+        message: t("locationsTab.deleteMessage", { name: place.name }),
+        confirmText: t("locationsTab.delete"),
+        cancelText: t("common.cancel"),
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        const response = await deleteNearbyPlace(place.id);
+        Toast.show({
+          type: "success",
+          text1: t("locationsTab.toast.deleted"),
+          text2: response.message || "Đã xóa địa điểm thành công",
+        });
+        setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+        mapRef.current?.removePin(place.id);
+      } catch (error: any) {
+        const errorMsg =
+          error?.response?.data?.message || "Không thể xóa địa điểm.";
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: errorMsg,
+        });
+      }
+      return;
+      /*
+        const response = await deleteNearbyPlace(place.id);
                 Toast.show({
                   type: "success",
                   text1: t("locationsTab.toast.deleted"),
@@ -1076,26 +1099,45 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   text2: errorMsg,
                 });
               }
-            },
-          },
-        ],
-      );
+      */
     },
-    [t],
+    [confirm, t],
   );
 
   const handleRestore = useCallback(
-    (place: GuideNearbyPlace) => {
-      Alert.alert(
-        t("locationsTab.restoreConfirm"),
-        t("locationsTab.restoreMessage", { name: place.name }),
-        [
-          { text: t("common.cancel"), style: "cancel" },
-          {
-            text: t("locationsTab.restore"),
-            onPress: async () => {
-              try {
-                const response = await restoreNearbyPlace(place.id);
+    async (place: GuideNearbyPlace) => {
+      const confirmed = await confirm({
+        type: "warning",
+        title: t("locationsTab.restoreConfirm"),
+        message: t("locationsTab.restoreMessage", { name: place.name }),
+        confirmText: t("locationsTab.restore"),
+        cancelText: t("common.cancel"),
+      });
+
+      if (!confirmed) {
+        return;
+      }
+
+      try {
+        const response = await restoreNearbyPlace(place.id);
+        Toast.show({
+          type: "success",
+          text1: t("locationsTab.toast.restored"),
+          text2: response.message || "Đã khôi phục địa điểm thành công",
+        });
+        setPlaces((prev) => prev.filter((p) => p.id !== place.id));
+      } catch (error: any) {
+        const errorMsg =
+          error?.response?.data?.message || "Không thể khôi phục địa điểm.";
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: errorMsg,
+        });
+      }
+      return;
+      /*
+        const response = await restoreNearbyPlace(place.id);
                 Toast.show({
                   type: "success",
                   text1: t("locationsTab.toast.restored"),
@@ -1112,12 +1154,9 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                   text2: errorMsg,
                 });
               }
-            },
-          },
-        ],
-      );
+      */
     },
-    [t],
+    [confirm, t],
   );
 
   // Handle card press - fly to location on map
@@ -1632,6 +1671,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
           isSelectingOnMap ? handleConfirmLocationFromMap : undefined
         }
       />
+      <ConfirmModal />
     </View>
   );
 };

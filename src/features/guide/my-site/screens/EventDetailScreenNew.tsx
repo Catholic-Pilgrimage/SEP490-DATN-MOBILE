@@ -23,7 +23,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -37,6 +36,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import { GUIDE_COLORS } from "../../../../constants/guide.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
 import {
   createEvent,
@@ -505,6 +505,7 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
 export const EventDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { confirm, ConfirmModal } = useConfirm();
   const route = useRoute<EventDetailRouteProp>();
   const { event: passedEvent } = route.params || {};
 
@@ -729,6 +730,29 @@ export const EventDetailScreen: React.FC = () => {
   // SAVE & DELETE
   // ============================================
 
+  const showInfoDialog = useCallback(
+    async (
+      title: string,
+      message: string,
+      type: "danger" | "warning" | "info" = "info",
+    ) => {
+      await confirm({
+        type,
+        iconName:
+          type === "danger"
+            ? "alert-circle-outline"
+            : type === "warning"
+              ? "warning-outline"
+              : "information-circle-outline",
+        title,
+        message,
+        confirmText: "OK",
+        showCancel: false,
+      });
+    },
+    [confirm],
+  );
+
   const handleSave = useCallback(async () => {
     console.log("[EventSave] handleSave called, isCreateMode:", isCreateMode);
 
@@ -790,18 +814,26 @@ export const EventDetailScreen: React.FC = () => {
       console.log("[EventSave] API result:", JSON.stringify(result));
 
       if (result?.success) {
-        Alert.alert(
+        await showInfoDialog(
           "Thành công",
           !isCreateMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
-          [{ text: "OK", onPress: () => navigation.goBack() }],
         );
+        navigation.goBack();
       } else {
         console.log("[EventSave] result.success is false:", result?.message);
-        Alert.alert("Lỗi", result?.message || "Không thể lưu sự kiện");
+        await showInfoDialog(
+          "Lỗi",
+          result?.message || "Không thể lưu sự kiện",
+          "danger",
+        );
       }
     } catch (error: any) {
       console.log("[EventSave] CATCH error:", error?.message, error?.response?.data);
-      Alert.alert("Lỗi", error?.response?.data?.message || error.message || "Không thể lưu sự kiện");
+      await showInfoDialog(
+        "Lỗi",
+        error?.response?.data?.message || error.message || "Không thể lưu sự kiện",
+        "danger",
+      );
     } finally {
       setSaving(false);
     }
@@ -818,36 +850,48 @@ export const EventDetailScreen: React.FC = () => {
     isCreateMode,
     passedEvent,
     navigation,
+    showInfoDialog,
   ]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (!passedEvent) return;
 
-    Alert.alert("Xóa sự kiện", `Bạn có chắc muốn xóa "${passedEvent.name}"?`, [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Xóa",
-        style: "destructive",
-        onPress: async () => {
-          setDeleting(true);
-          try {
-            const result = await deleteEvent(passedEvent.id);
-            if (result?.success) {
-              Alert.alert("Thành công", "Đã xóa sự kiện", [
-                { text: "OK", onPress: () => navigation.goBack() },
-              ]);
-            } else {
-              Alert.alert("Lỗi", result?.message || "Không thể xóa");
-            }
-          } catch (error: any) {
-            Alert.alert("Lỗi", error.message || "Không thể xóa");
-          } finally {
-            setDeleting(false);
-          }
-        },
-      },
-    ]);
-  }, [passedEvent, navigation]);
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: "Xóa sự kiện",
+      message: `Bạn có chắc muốn xóa "${passedEvent.name}"?`,
+      confirmText: "Xóa",
+      cancelText: "Hủy",
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const result = await deleteEvent(passedEvent.id);
+      if (result?.success) {
+        await showInfoDialog("Thành công", "Đã xóa sự kiện");
+        navigation.goBack();
+      } else {
+        await showInfoDialog(
+          "Lỗi",
+          result?.message || "Không thể xóa",
+          "danger",
+        );
+      }
+    } catch (error: any) {
+      await showInfoDialog(
+        "Lỗi",
+        error.message || "Không thể xóa",
+        "danger",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirm, passedEvent, navigation, showInfoDialog]);
 
   // ============================================
   // RENDER STEP CONTENT (CREATE MODE)
@@ -1489,6 +1533,7 @@ export const EventDetailScreen: React.FC = () => {
         quality={1}
         title="Thêm ảnh bìa sự kiện"
       />
+      <ConfirmModal />
     </View>
   );
 };

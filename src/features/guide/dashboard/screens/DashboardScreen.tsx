@@ -4,7 +4,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   ImageBackground,
   RefreshControl,
@@ -20,6 +19,7 @@ import {
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import {
@@ -49,6 +49,7 @@ const DashboardScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { user } = useAuth();
   const { t } = useI18n();
+  const { confirm, ConfirmModal } = useConfirm();
   const { unreadCount } = useNotifications();
   const [refreshing, setRefreshing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -148,6 +149,20 @@ const DashboardScreen: React.FC = () => {
     setRefreshing(false);
   }, [refresh]);
 
+  const showInfoDialog = useCallback(
+    async (title: string, message: string) => {
+      await confirm({
+        type: "info",
+        iconName: "information-circle-outline",
+        title,
+        message,
+        confirmText: t("common.ok"),
+        showCancel: false,
+      });
+    },
+    [confirm, t],
+  );
+
   const navigateToMySite = useCallback(
     (screen: string, params?: Record<string, unknown>) => {
       navigation.navigate("MySite", { screen, params });
@@ -158,7 +173,7 @@ const DashboardScreen: React.FC = () => {
   const handleQuickAction = useCallback(
     (actionId: string) => {
       if (!siteInfo?.id) {
-        Alert.alert(
+        void showInfoDialog(
           t("common.notice", { defaultValue: "Thông báo" }),
           t("dashboard.notAssignedSite", {
             defaultValue: "Bạn chưa được phân công địa điểm.",
@@ -187,7 +202,7 @@ const DashboardScreen: React.FC = () => {
           console.warn(`Unhandled quick action: ${actionId}`);
       }
     },
-    [navigateToMySite, navigation, siteInfo?.id, t],
+    [navigateToMySite, navigation, showInfoDialog, siteInfo?.id, t],
   );
 
   // ── Render ─────────────────────────────────────────────────
@@ -753,6 +768,7 @@ const DashboardScreen: React.FC = () => {
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
       />
+      <ConfirmModal />
     </View>
   );
 };

@@ -2,8 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AIWriterInput } from '../../../../components/ui/AIWriterInput';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -24,8 +23,6 @@ import {
   GUIDE_SPACING,
   GUIDE_TYPOGRAPHY,
 } from '../../../../constants/guide.constants';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Types
 interface EventFormData {
@@ -129,6 +126,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({ title }) => (
 const EventDetailScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { confirm, ConfirmModal } = useConfirm();
 
   const [formData, setFormData] = useState<EventFormData>({
     name: 'Morning Prayer at the Basilica',
@@ -164,11 +162,14 @@ const EventDetailScreen: React.FC = () => {
 
   const handleTranslate = async (): Promise<void> => {
     // TODO: Call translation API
-    Alert.alert(
-      'Dịch thuật',
-      'Đang dịch sang ngôn ngữ khác...',
-      [{ text: 'OK' }]
-    );
+    await confirm({
+      type: 'info',
+      iconName: 'language',
+      title: 'Dịch thuật',
+      message: 'Đang dịch sang ngôn ngữ khác...',
+      confirmText: 'OK',
+      showCancel: false,
+    });
   };
 
   const handleSave = () => {
@@ -307,6 +308,7 @@ const EventDetailScreen: React.FC = () => {
           <MaterialIcons name="check" size={20} color={GUIDE_COLORS.backgroundDark} />
         </TouchableOpacity>
       </View>
+      <ConfirmModal />
     </View>
   );
 };

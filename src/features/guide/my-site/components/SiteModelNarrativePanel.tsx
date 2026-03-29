@@ -12,7 +12,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -28,6 +27,7 @@ import {
 import Toast from "react-native-toast-message";
 import { GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import {
   deleteModelNarrative,
   getTtsVoices,
@@ -87,6 +87,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
   onRefreshModels,
 }) => {
   const { t } = useTranslation();
+  const { confirm, ConfirmModal } = useConfirm();
   const { height: windowH } = useWindowDimensions();
   const queryClient = useQueryClient();
 
@@ -289,20 +290,19 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     }
   }, [isPlaying, media.audio_url, showApiToast, t]);
 
-  const confirmDelete = useCallback(() => {
-    Alert.alert(
-      t("siteModels3d.narrativeDeleteTitle"),
-      t("siteModels3d.narrativeDeleteMessage"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("siteModels3d.narrativeDeleteConfirm"),
-          style: "destructive",
-          onPress: () => deleteMutation.mutate(),
-        },
-      ],
-    );
-  }, [deleteMutation, t]);
+  const confirmDelete = useCallback(async () => {
+    const confirmed = await confirm({
+      type: "danger",
+      title: t("siteModels3d.narrativeDeleteTitle"),
+      message: t("siteModels3d.narrativeDeleteMessage"),
+      confirmText: t("siteModels3d.narrativeDeleteConfirm"),
+      cancelText: t("common.cancel"),
+    });
+
+    if (confirmed) {
+      deleteMutation.mutate();
+    }
+  }, [confirm, deleteMutation, t]);
 
   const renderVoiceRow = useCallback(
     ({ item }: { item: TtsVoiceOption }) => (
@@ -627,6 +627,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
           </Pressable>
         </Pressable>
       </Modal>
+      <ConfirmModal />
     </KeyboardAvoidingView>
   );
 };
