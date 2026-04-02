@@ -19,9 +19,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StatusBar,
   Text,
   TextInput,
@@ -29,6 +27,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import {
@@ -467,10 +466,7 @@ export const MediaUploadScreen: React.FC = () => {
             : null;
 
         return (
-          <KeyboardAvoidingView
-            style={styles.stepContent}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-          >
+          <View style={styles.stepContent}>
             <Text style={styles.stepTitle}>{t("mediaUpload.stepPreviewTitle")}</Text>
 
             {/* Preview */}
@@ -594,7 +590,7 @@ export const MediaUploadScreen: React.FC = () => {
                 </>
               )}
             </TouchableOpacity>
-          </KeyboardAvoidingView>
+          </View>
         );
       }
     }
@@ -664,14 +660,23 @@ export const MediaUploadScreen: React.FC = () => {
       </View>
 
       {/* Content */}
-      <ScrollView
+      <KeyboardAwareScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + GUIDE_SPACING.xxxl },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        enableOnAndroid
+        enableAutomaticScroll
+        enableResetScrollToCoords={false}
+        extraScrollHeight={Platform.select({ ios: 24, android: 72 })}
+        extraHeight={Platform.select({ ios: 80, android: 140 })}
       >
         {renderStepContent()}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       <MediaPickerModal
         visible={isMediaPickerVisible}

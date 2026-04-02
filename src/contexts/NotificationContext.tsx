@@ -5,6 +5,7 @@
  */
 
 import React, {
+  useCallback,
   createContext,
   useContext,
   useEffect,
@@ -56,7 +57,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
   const openModal = () => setShowModal(true);
   const closeModal = () => setShowModal(false);
 
-  const fetchNotifications = async (refresh = false) => {
+  const fetchNotifications = useCallback(async (refresh = false) => {
     try {
       if (refresh) {
         setLoading(true);
@@ -100,15 +101,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [hasMore, loadingMore, page]);
 
-  const loadMoreNotifications = () => fetchNotifications(false);
+  const loadMoreNotifications = useCallback(
+    () => fetchNotifications(false),
+    [fetchNotifications],
+  );
 
   // Ref to avoid stale closure in listeners
   const fetchRef = useRef(() => fetchNotifications(true));
   useEffect(() => {
     fetchRef.current = () => fetchNotifications(true);
-  });
+  }, [fetchNotifications]);
 
   const markAsRead = async (id: string) => {
     // Optimistic update first
@@ -200,7 +204,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       setNotifications([]);
       setUnreadCount(0);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchNotifications]);
 
   // Push notification listeners
   useEffect(() => {

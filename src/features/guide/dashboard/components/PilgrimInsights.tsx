@@ -24,14 +24,32 @@ import { useI18n } from "../../../../hooks/useI18n";
 import { getFontSize, getSpacing } from "../../../../utils/responsive";
 
 interface PilgrimInsightsProps {
-  liveCheckInCount: number;
-  todayVisitors: number;
+  primaryCount: number;
+  secondaryCount: number;
+  sectionLabel?: string;
+  title?: string;
+  primaryLabel?: string;
+  secondaryLabel?: string;
+  primaryIcon?: keyof typeof Ionicons.glyphMap;
+  secondaryIcon?: keyof typeof Ionicons.glyphMap;
+  primaryBackgroundIcon?: keyof typeof Ionicons.glyphMap;
+  secondaryBackgroundIcon?: keyof typeof Ionicons.glyphMap;
+  showPrimaryDot?: boolean;
   onViewAll?: () => void;
 }
 
 export const PilgrimInsights: React.FC<PilgrimInsightsProps> = ({
-  liveCheckInCount,
-  todayVisitors,
+  primaryCount,
+  secondaryCount,
+  sectionLabel,
+  title,
+  primaryLabel,
+  secondaryLabel,
+  primaryIcon = "walk-outline",
+  secondaryIcon = "calendar-outline",
+  primaryBackgroundIcon = "people-outline",
+  secondaryBackgroundIcon = "footsteps-outline",
+  showPrimaryDot = false,
   onViewAll,
 }) => {
   const { t } = useI18n();
@@ -41,8 +59,12 @@ export const PilgrimInsights: React.FC<PilgrimInsightsProps> = ({
       {/* Section Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.sectionLabel}>{t("pilgrimInsights.sectionLabel")}</Text>
-          <Text style={styles.sectionTitle}>{t("pilgrimInsights.title")}</Text>
+          <Text style={styles.sectionLabel}>
+            {sectionLabel || t("pilgrimInsights.sectionLabel")}
+          </Text>
+          <Text style={styles.sectionTitle}>
+            {title || t("pilgrimInsights.title")}
+          </Text>
         </View>
         {onViewAll && (
           <TouchableOpacity style={styles.viewAllButton} onPress={onViewAll}>
@@ -65,18 +87,24 @@ export const PilgrimInsights: React.FC<PilgrimInsightsProps> = ({
           {/* Icon with indicator dot */}
           <View style={styles.cardIconRow}>
             <View style={styles.cardIconContainer}>
-              <Ionicons name="walk-outline" size={18} color={SACRED_COLORS.gold} />
+              <Ionicons name={primaryIcon} size={18} color={SACRED_COLORS.gold} />
             </View>
-            {liveCheckInCount > 0 && <View style={styles.activeDot} />}
+            {showPrimaryDot && <View style={styles.activeDot} />}
           </View>
 
           {/* Count */}
-          <Text style={styles.bigNumber}>{liveCheckInCount}</Text>
-          <Text style={styles.cardLabel}>{t("pilgrimInsights.currentPilgrims")}</Text>
+          <Text style={styles.bigNumber}>{primaryCount}</Text>
+          <Text style={styles.cardLabel}>
+            {primaryLabel || t("pilgrimInsights.currentPilgrims")}
+          </Text>
 
           {/* Background Icon (pilgrim silhouette) */}
           <View style={styles.bgIcon}>
-            <Ionicons name="people-outline" size={50} color={SACRED_COLORS.goldLight} />
+            <Ionicons
+              name={primaryBackgroundIcon}
+              size={50}
+              color={SACRED_COLORS.goldLight}
+            />
           </View>
         </GlassCard>
 
@@ -91,17 +119,27 @@ export const PilgrimInsights: React.FC<PilgrimInsightsProps> = ({
           {/* Icon */}
           <View style={styles.cardIconRow}>
             <View style={styles.cardIconContainer}>
-              <Ionicons name="calendar-outline" size={18} color={SACRED_COLORS.gold} />
+              <Ionicons
+                name={secondaryIcon}
+                size={18}
+                color={SACRED_COLORS.gold}
+              />
             </View>
           </View>
 
           {/* Count */}
-          <Text style={styles.bigNumber}>{todayVisitors}</Text>
-          <Text style={styles.cardLabel}>{t("pilgrimInsights.todayVisitors")}</Text>
+          <Text style={styles.bigNumber}>{secondaryCount}</Text>
+          <Text style={styles.cardLabel}>
+            {secondaryLabel || t("pilgrimInsights.todayVisitors")}
+          </Text>
 
           {/* Background Icon */}
           <View style={styles.bgIcon}>
-            <Ionicons name="footsteps-outline" size={50} color={SACRED_COLORS.goldLight} />
+            <Ionicons
+              name={secondaryBackgroundIcon}
+              size={50}
+              color={SACRED_COLORS.goldLight}
+            />
           </View>
         </GlassCard>
       </View>

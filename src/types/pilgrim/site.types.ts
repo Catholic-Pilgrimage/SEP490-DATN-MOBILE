@@ -236,22 +236,82 @@ export interface SiteNearbyPlaceResponse {
 }
 
 // Reviews
+export interface ReviewUserSummary {
+  id: string;
+  fullName: string;
+  avatarUrl?: string;
+  role?: string;
+}
+
+export interface SiteReviewReply {
+  id: string;
+  content: string;
+  createdAt: string;
+  replier?: ReviewUserSummary;
+}
+
 export interface SiteReview {
   id: string;
+  siteId?: string;
+  nearbyPlaceId?: string;
   userId: string;
   userName: string;
   userAvatar?: string;
   rating: number;
   content: string;
+  feedback?: string;
   images?: string[];
+  imageUrls?: string[];
+  verifiedVisit?: boolean;
+  reply?: SiteReviewReply;
   createdAt: string;
   updatedAt: string;
 }
 
+export type ReviewSort = "newest" | "oldest" | "highest" | "lowest";
+
+export interface ReviewImageInput {
+  uri: string;
+  name?: string;
+  type?: string;
+}
+
 export interface CreateReviewRequest {
   rating: number;
-  content: string;
-  images?: string[];
+  feedback?: string;
+  content?: string;
+  images?: (string | ReviewImageInput)[];
+}
+
+export type UpdateReviewRequest = CreateReviewRequest;
+
+export type NearbyPlaceReview = SiteReview;
+
+export interface SiteReviewSummary {
+  avgRating: number;
+  totalReviews: number;
+  ratingDistribution?: Record<string, number>;
+}
+
+export interface SiteReviewPagination {
+  page: number;
+  limit: number;
+  totalItems: number;
+  totalPages: number;
+  total?: number;
+  total_pages?: number;
+}
+
+export interface SiteReviewListData<TReview = SiteReview> {
+  summary?: SiteReviewSummary;
+  reviews: TReview[];
+  pagination: SiteReviewPagination;
+}
+
+export interface GetSiteReviewsParams {
+  page?: number;
+  limit?: number;
+  sort?: ReviewSort;
 }
 
 // Search

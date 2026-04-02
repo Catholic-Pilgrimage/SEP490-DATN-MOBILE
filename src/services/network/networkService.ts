@@ -1,10 +1,19 @@
 /**
- * Network Service - online/offline detection and offline queue lifecycle
+ * Network Service - online/offline detection and user-scoped offline queue lifecycle
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 
-const OFFLINE_QUEUE_KEY = "@offline_queue";
+import { ensureLegacyOfflineStorageCleanup } from "../offline/offlineLegacyCleanup";
+import {
+  getOfflineStorageScopeUserId,
+  setOfflineStorageScopeUserId,
+} from "../offline/offlineStorageScope";
+
+const OFFLINE_QUEUE_KEY_PREFIX = "@offline_queue";
+
+const getQueueStorageKey = (userId: string) =>
+  `${OFFLINE_QUEUE_KEY_PREFIX}:${userId}`;
 
 export interface OfflineAction {
   id: string;
@@ -26,6 +35,7 @@ class NetworkService {
   private readonly initPromise: Promise<void>;
   private syncHandler?: OfflineSyncHandler;
   private isSyncingQueue = false;
+  private storageScopeUserId: string | null = null;
 
   constructor() {
     this.initPromise = this.init();
@@ -33,13 +43,19 @@ class NetworkService {
 
   async ready() {
     await this.initPromise;
+    await this.ensureCurrentScopeLoaded();
+  }
+
+  async setStorageScope(userId: string | null) {
+    setOfflineStorageScopeUserId(userId);
+    await this.applyStorageScope(userId);
   }
 
   /**
    * Initialize network monitoring
    */
   private async init() {
-    await this.loadOfflineQueue();
+    await this.ensureCurrentScopeLoaded();
 
     const currentState = await NetInfo.fetch();
     this.updateOnlineState(currentState.isConnected ?? false);
@@ -50,6 +66,35 @@ class NetworkService {
     NetInfo.addEventListener((state: NetInfoState) => {
       this.updateOnlineState(state.isConnected ?? false);
     });
+  }
+
+  private async ensureCurrentScopeLoaded() {
+    await ensureLegacyOfflineStorageCleanup();
+    const currentUserId = await getOfflineStorageScopeUserId();
+    await this.applyStorageScope(currentUserId);
+  }
+
+  private async applyStorageScope(userId: string | null) {
+    const normalizedUserId = userId?.trim() || null;
+
+    if (this.storageScopeUserId === normalizedUserId) {
+      return;
+    }
+
+    this.storageScopeUserId = normalizedUserId;
+    await this.loadOfflineQueue();
+
+    if (this.isOnline && this.offlineQueue.length > 0) {
+      void this.processOfflineQueue();
+    }
+  }
+
+  private getActiveQueueStorageKey() {
+    if (!this.storageScopeUserId) {
+      return null;
+    }
+
+    return getQueueStorageKey(this.storageScopeUserId);
   }
 
   /**
@@ -118,6 +163,10 @@ class NetworkService {
   ): Promise<OfflineAction> {
     await this.ready();
 
+    if (!this.storageScopeUserId) {
+      throw new Error("Cannot queue offline action without an authenticated user.");
+    }
+
     const offlineAction: OfflineAction = {
       ...action,
       id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
@@ -171,10 +220,14 @@ class NetworkService {
    */
   private async loadOfflineQueue() {
     try {
-      const stored = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
-      if (stored) {
-        this.offlineQueue = JSON.parse(stored);
+      const storageKey = this.getActiveQueueStorageKey();
+      if (!storageKey) {
+        this.offlineQueue = [];
+        return;
       }
+
+      const stored = await AsyncStorage.getItem(storageKey);
+      this.offlineQueue = stored ? (JSON.parse(stored) as OfflineAction[]) : [];
     } catch (error) {
       console.error("Failed to load offline queue:", error);
       this.offlineQueue = [];
@@ -188,10 +241,13 @@ class NetworkService {
    */
   private async saveOfflineQueue() {
     try {
-      await AsyncStorage.setItem(
-        OFFLINE_QUEUE_KEY,
-        JSON.stringify(this.offlineQueue),
-      );
+      const storageKey = this.getActiveQueueStorageKey();
+      if (!storageKey) {
+        this.offlineQueue = [];
+        return;
+      }
+
+      await AsyncStorage.setItem(storageKey, JSON.stringify(this.offlineQueue));
     } catch (error) {
       console.error("Failed to save offline queue:", error);
     } finally {
@@ -205,7 +261,12 @@ class NetworkService {
   async clearOfflineQueue() {
     await this.ready();
     this.offlineQueue = [];
-    await AsyncStorage.removeItem(OFFLINE_QUEUE_KEY);
+
+    const storageKey = this.getActiveQueueStorageKey();
+    if (storageKey) {
+      await AsyncStorage.removeItem(storageKey);
+    }
+
     this.notifyQueueListeners();
   }
 

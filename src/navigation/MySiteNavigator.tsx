@@ -7,11 +7,17 @@ import {
   MediaDetailScreen,
   SiteModels3dScreen,
 } from '../features/guide/my-site/screens';
-import EventDetailScreen from '../features/guide/my-site/screens/EventDetailScreenNew';
+import { EventDetailScreen } from '../features/guide/my-site/screens/EventDetailScreenNew';
 import { EventItem, MediaItem } from '../types/guide';
 
 export type MySiteStackParamList = {
-  MySiteHome: { initialTab?: string } | undefined;
+  MySiteHome:
+    | {
+        initialTab?: "events" | "media" | "schedules" | "locations" | "reviews";
+        reviewId?: string;
+        autoOpenReply?: boolean;
+      }
+    | undefined;
   EventDetail: { event?: EventItem };
   MediaUpload: undefined;
   MediaDetail: { media: MediaItem };

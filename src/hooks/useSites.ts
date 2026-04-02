@@ -9,12 +9,16 @@ import {
     GetSiteMassSchedulesParams,
     GetSiteMediaParams,
     GetSiteNearbyPlacesParams,
+    GetSiteReviewsParams,
     SearchSitesParams,
     Site,
     SiteEvent,
     SiteMassSchedule,
     SiteMedia,
     SiteNearbyPlace,
+    SiteReview,
+    SiteReviewPagination,
+    SiteReviewSummary,
     SiteSummary,
 } from "../types/pilgrim";
 
@@ -573,6 +577,97 @@ export function useSiteEvents(
   return { events, isLoading, error, fetchEvents, refetch, reset };
 }
 
+// ===== useSiteReviews =====
+
+interface UseSiteReviewsOptions {
+  params?: GetSiteReviewsParams;
+  autoFetch?: boolean;
+  onSuccess?: (reviews: SiteReview[], summary?: SiteReviewSummary) => void;
+  onError?: (error: string) => void;
+}
+
+export function useSiteReviews(
+  siteId?: string,
+  options: UseSiteReviewsOptions = {},
+) {
+  const { params, autoFetch = false, onSuccess, onError } = options;
+
+  const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [summary, setSummary] = useState<SiteReviewSummary | null>(null);
+  const [pagination, setPagination] = useState<SiteReviewPagination | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const currentSiteId = useRef(siteId);
+  const currentParams = useRef(params);
+  const isMounted = useRef(true);
+
+  const fetchReviews = useCallback(
+    async (id: string, fetchParams?: GetSiteReviewsParams) => {
+      setIsLoading(true);
+      setError(null);
+      currentSiteId.current = id;
+      currentParams.current = fetchParams;
+
+      try {
+        const response = await pilgrimSiteApi.getSiteReviews(id, fetchParams);
+
+        if (isMounted.current && response.success && response.data) {
+          const reviewItems = response.data.reviews || [];
+          setReviews(reviewItems);
+          setSummary(response.data.summary || null);
+          setPagination(response.data.pagination || null);
+          onSuccess?.(reviewItems, response.data.summary);
+        }
+      } catch (err: any) {
+        if (isMounted.current) {
+          const msg = err.message || "Lỗi tải đánh giá";
+          setError(msg);
+          onError?.(msg);
+        }
+      } finally {
+        if (isMounted.current) setIsLoading(false);
+      }
+    },
+    [onSuccess, onError],
+  );
+
+  const refetch = useCallback(() => {
+    if (currentSiteId.current) {
+      fetchReviews(currentSiteId.current, currentParams.current);
+    }
+  }, [fetchReviews]);
+
+  const reset = useCallback(() => {
+    setReviews([]);
+    setSummary(null);
+    setPagination(null);
+    setError(null);
+  }, []);
+
+  useEffect(() => {
+    if (autoFetch && siteId) fetchReviews(siteId, params);
+  }, [autoFetch, siteId]); // eslint-disable-line
+
+  useEffect(
+    () => () => {
+      isMounted.current = false;
+    },
+    [],
+  );
+
+  return {
+    reviews,
+    summary,
+    pagination,
+    isLoading,
+    error,
+    fetchReviews,
+    refetch,
+    reset,
+  };
+}
+
 // ===== useSiteNearbyPlaces =====
 
 interface UseSiteNearbyPlacesOptions {
@@ -668,5 +763,6 @@ export default {
   useSiteMedia,
   useSiteMassSchedules,
   useSiteEvents,
+  useSiteReviews,
   useSiteNearbyPlaces,
 };

@@ -18,6 +18,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
@@ -503,7 +504,10 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
           <TouchableWithoutFeedback>
             <View style={styles.modalContent}>
               {/* Header */}
@@ -738,7 +742,7 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </View>
             </View>
           </TouchableWithoutFeedback>
-        </View>
+        </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </Modal>
   );

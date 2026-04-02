@@ -1464,7 +1464,7 @@ export const EventDetailScreen: React.FC = () => {
 
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <ScrollView
           style={styles.scrollView}

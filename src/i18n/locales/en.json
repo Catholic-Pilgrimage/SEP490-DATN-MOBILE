@@ -58,9 +58,11 @@
   "navigation": {
     "home": "Home",
     "mySite": "My Site",
+    "manage": "Manage",
     "profile": "Profile",
     "explore": "Explore",
     "schedule": "Schedule",
+    "shifts": "Shifts",
     "community": "Community",
     "notifications": "Notifications"
   },
@@ -1035,7 +1037,8 @@
       "events": "Events",
       "media": "Media",
       "schedules": "Schedules",
-      "locations": "Locations"
+      "locations": "Locations",
+      "reviews": "Reviews"
     },
     "loading": "Loading...",
     "noAddress": "No address",
@@ -1173,6 +1176,21 @@
       "hoursAgo": "{{count}} hours ago",
       "daysAgo": "{{count}} days ago"
     }
+  },
+  "createPost": {
+    "createPost": "Create Post",
+    "editPost": "Edit Post",
+    "post": "Post",
+    "placeholder": "What's on your mind?",
+    "contentRequired": "Content Required",
+    "contentRequiredMessage": "Please enter post content or add an image.",
+    "imageVideo": "Photo/Video",
+    "addImages": "Add images to post",
+    "existingImages": "Existing images",
+    "createSuccess": "Post created and shared with everyone.",
+    "createError": "Unable to create post.",
+    "updateSuccess": "Post updated successfully.",
+    "updateError": "Unable to update post."
   },
   "report": {
     "title": "Report",

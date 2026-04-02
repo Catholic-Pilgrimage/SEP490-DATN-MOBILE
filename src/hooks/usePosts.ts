@@ -28,7 +28,10 @@ export const postKeys = {
     comments: (postId: string) => [...postKeys.detail(postId), "comments"] as const,
 };
 
-export const usePosts = (limit: number = 20) => {
+export const usePosts = (
+    limit: number = 20,
+    options?: { enabled?: boolean },
+) => {
     return useInfiniteQuery({
         initialPageParam: 1,
         queryKey: postKeys.lists(),
@@ -50,6 +53,7 @@ export const usePosts = (limit: number = 20) => {
             }
             return undefined;
         },
+        enabled: options?.enabled ?? true,
     });
 };
 

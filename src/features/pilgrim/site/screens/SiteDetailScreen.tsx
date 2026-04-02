@@ -1,26 +1,48 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+    KeyboardAvoidingView,
+    Keyboard,
+    Modal,
     ActivityIndicator,
     Dimensions,
     Image,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import FullMapModal from "../../../../components/map/FullMapModal";
+import Toast from "react-native-toast-message";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
     MapPin,
     VietmapView,
     VietmapViewRef,
 } from "../../../../components/map/VietmapView";
+import { useAuth } from "../../../../contexts/AuthContext";
+import { useFavorites } from "../../../../hooks/useFavorites";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
+import { useConfirm } from "../../../../hooks/useConfirm";
+import {
+    useSiteDetail,
+    useSiteEvents,
+    useSiteMassSchedules,
+    useSiteMedia,
+    useSiteNearbyPlaces,
+    useSiteReviews,
+} from "../../../../hooks/useSites";
+import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
+import { DayOfWeek } from "../../../../types";
+import { SiteReview } from "../../../../types/pilgrim";
+import { getApiErrorMessage } from "../../../../utils/apiError";
 import {
     BORDER_RADIUS,
     COLORS,
@@ -28,6 +50,12 @@ import {
     SPACING,
     TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+import {
+    AddToPlanModal,
+    NearbyPlaceCard,
+    QuickActionButton,
+    SOSModal,
+} from "../components";
 
 // ============================================
 // GRADIENT THEME FOR EVENT CARDS (Pilgrim side)
@@ -62,36 +90,59 @@ const getEventGradient = (description?: string): GradientTheme => {
   if (match) return CATEGORY_GRADIENTS[match[1]] || DEFAULT_EVENT_GRADIENT;
   return DEFAULT_EVENT_GRADIENT;
 };
-import { useAuth } from "../../../../contexts/AuthContext";
-import { useFavorites } from "../../../../hooks/useFavorites";
-import {
-    useSiteDetail,
-    useSiteEvents,
-    useSiteMassSchedules,
-    useSiteMedia,
-    useSiteNearbyPlaces,
-} from "../../../../hooks/useSites";
-import { DayOfWeek } from "../../../../types";
-import {
-    AddToPlanModal,
-    NearbyPlaceCard,
-    QuickActionButton,
-    SOSModal
-} from "../components";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = Dimensions.get("window").height * 0.45;
+const REVIEW_PREVIEW_LIMIT = 3;
+
+const formatReviewDate = (value?: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return date.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const getInitials = (name?: string) => {
+  if (!name?.trim()) return "KG";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+};
+
+const normalizeReviewErrorMessage = (error: unknown) => {
+  const message = getApiErrorMessage(
+    error,
+    "Không thể lưu đánh giá lúc này.",
+  );
+
+  if (/check in at this site before you can leave a review/i.test(message)) {
+    return "Bạn cần check-in tại địa điểm này trước khi để lại đánh giá.";
+  }
+
+  return message;
+};
 
 export const SiteDetailScreen = ({ navigation, route }: any) => {
   const { siteId } = route.params || {};
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, isGuest } = useAuth();
+  const { user, isAuthenticated, isGuest } = useAuth();
+  const { confirm, ConfirmModal } = useConfirm();
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isSOSModalVisible, setSOSModalVisible] = useState(false);
   const [showFullMap, setShowFullMap] = useState(false);
   const [showGuestLogin, setShowGuestLogin] = useState(false);
   const [showAddToPlan, setShowAddToPlan] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [isSavingReview, setIsSavingReview] = useState(false);
+  const [isDeletingReview, setIsDeletingReview] = useState(false);
+  const [reviewKeyboardHeight, setReviewKeyboardHeight] = useState(0);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -133,13 +184,23 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     isLoading: isLoadingPlaces,
     refetch: refetchPlaces,
   } = useSiteNearbyPlaces(siteId, { autoFetch: true, params: { limit: 3 } });
+  const {
+    reviews,
+    summary: reviewSummary,
+    isLoading: isLoadingReviews,
+    refetch: refetchReviews,
+  } = useSiteReviews(siteId, {
+    autoFetch: true,
+    params: { limit: 50, sort: "newest" },
+  });
 
   const isLoading =
     isLoadingDetail ||
     isLoadingMedia ||
     isLoadingSchedules ||
     isLoadingEvents ||
-    isLoadingPlaces;
+    isLoadingPlaces ||
+    isLoadingReviews;
 
   const handleRefresh = () => {
     refetchDetail();
@@ -147,6 +208,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     refetchSchedules();
     refetchEvents();
     refetchPlaces();
+    refetchReviews();
   };
 
   const handleBack = () => navigation.goBack();
@@ -238,6 +300,388 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       : [
           "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
         ];
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, (event) => {
+      const height = event.endCoordinates?.height || 0;
+      setReviewKeyboardHeight(Math.max(height - insets.bottom, 0));
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setReviewKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [insets.bottom]);
+
+  const myReview = useMemo(
+    () => reviews.find((review) => review.userId === user?.id),
+    [reviews, user?.id],
+  );
+  const displayedReviews = useMemo(
+    () => reviews.slice(0, REVIEW_PREVIEW_LIMIT),
+    [reviews],
+  );
+  const averageRating =
+    reviewSummary?.avgRating || site?.rating || 0;
+  const totalReviews =
+    reviewSummary?.totalReviews || site?.reviewCount || reviews.length;
+
+  const openReviewModal = (review?: SiteReview) => {
+    if (!isAuthenticated || isGuest) {
+      setShowGuestLogin(true);
+      return;
+    }
+
+    setReviewRating(review?.rating || myReview?.rating || 5);
+    setReviewText(review?.feedback || review?.content || myReview?.feedback || myReview?.content || "");
+    setShowReviewModal(true);
+  };
+
+  const closeReviewModal = () => {
+    if (isSavingReview || isDeletingReview) return;
+    Keyboard.dismiss();
+    setReviewKeyboardHeight(0);
+    setShowReviewModal(false);
+    setReviewRating(myReview?.rating || 5);
+    setReviewText(myReview?.feedback || myReview?.content || "");
+  };
+
+  const showReviewToast = (
+    type: "success" | "error" | "info",
+    title: string,
+    message: string,
+    closeSheetFirst = false,
+  ) => {
+    if (closeSheetFirst) {
+      Keyboard.dismiss();
+      setReviewKeyboardHeight(0);
+      setShowReviewModal(false);
+    }
+
+    const show = () =>
+      Toast.show({
+        type,
+        text1: title,
+        text2: message,
+        topOffset: insets.top + 12,
+        visibilityTime: 4200,
+      });
+
+    if (closeSheetFirst) {
+      setTimeout(show, 150);
+      return;
+    }
+
+    show();
+  };
+
+  const handleSubmitReview = async () => {
+    const trimmed = reviewText.trim();
+    if (!trimmed) {
+      showReviewToast("info", "Thông báo", "Vui lòng nhập nội dung đánh giá.");
+      return;
+    }
+
+    if (!siteId) return;
+
+    try {
+      setIsSavingReview(true);
+      const payload = {
+        rating: reviewRating,
+        feedback: trimmed,
+      };
+
+      const response = myReview
+        ? await pilgrimSiteApi.updateSiteReview(siteId, myReview.id, payload)
+        : await pilgrimSiteApi.addReview(siteId, payload);
+
+      setShowReviewModal(false);
+      Keyboard.dismiss();
+      setReviewKeyboardHeight(0);
+
+      showReviewToast(
+        "success",
+        "Thành công",
+        response.message ||
+          (myReview ? "Đã cập nhật đánh giá của bạn." : "Đã gửi đánh giá của bạn."),
+        false,
+      );
+
+      await Promise.all([
+        Promise.resolve(refetchReviews()),
+        Promise.resolve(refetchDetail()),
+      ]);
+    } catch (error: any) {
+      showReviewToast(
+        "error",
+        "Có lỗi xảy ra",
+        normalizeReviewErrorMessage(error),
+        true,
+      );
+    } finally {
+      setIsSavingReview(false);
+    }
+  };
+
+  const handleDeleteReview = async () => {
+    if (!myReview || !siteId) return;
+
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: "Xóa đánh giá",
+      message: "Bạn có chắc muốn xóa đánh giá này không?",
+      confirmText: "Xóa",
+      cancelText: "Hủy",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      setIsDeletingReview(true);
+      const response = await pilgrimSiteApi.deleteSiteReview(siteId, myReview.id);
+
+      setShowReviewModal(false);
+      Keyboard.dismiss();
+      setReviewKeyboardHeight(0);
+      setReviewText("");
+      setReviewRating(5);
+
+      showReviewToast(
+        "success",
+        "Thành công",
+        response.message || "Đã xóa đánh giá của bạn.",
+        false,
+      );
+
+      await Promise.all([
+        Promise.resolve(refetchReviews()),
+        Promise.resolve(refetchDetail()),
+      ]);
+    } catch (error: any) {
+      showReviewToast(
+        "error",
+        "Có lỗi xảy ra",
+        getApiErrorMessage(error, "Không thể xóa đánh giá lúc này."),
+        true,
+      );
+    } finally {
+      setIsDeletingReview(false);
+    }
+  };
+
+  const renderStars = (rating: number, size = 16) => (
+    <View style={styles.reviewStarsRow}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Ionicons
+          key={star}
+          name={star <= rating ? "star" : "star-outline"}
+          size={size}
+          color={COLORS.accent}
+        />
+      ))}
+    </View>
+  );
+
+  const reviewSection = (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.reviewHeaderBlock}>
+          <Text style={styles.sectionTitle}>Đánh giá</Text>
+          <Text style={styles.reviewSectionSubtitle}>
+            Cảm nhận thực tế từ khách hành hương
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.writeReviewButton,
+            myReview && styles.writeReviewButtonSecondary,
+          ]}
+          onPress={() => openReviewModal(myReview)}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name={myReview ? "create-outline" : "chatbubble-ellipses-outline"}
+            size={16}
+            color={myReview ? COLORS.primary : "#fff"}
+          />
+          <Text
+            style={[
+              styles.writeReviewText,
+              myReview
+                ? styles.writeReviewTextSecondary
+                : styles.writeReviewTextPrimary,
+            ]}
+          >
+            {myReview ? "Chỉnh sửa" : "Viết đánh giá"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.reviewSummaryCard}>
+        <View style={styles.reviewSummaryMain}>
+          <Text style={styles.reviewAverageText}>
+            {averageRating ? averageRating.toFixed(1) : "0.0"}
+          </Text>
+          {renderStars(Math.round(averageRating), 18)}
+          <Text style={styles.reviewCountText}>{totalReviews} đánh giá</Text>
+        </View>
+
+        <View style={styles.reviewDistribution}>
+          {[5, 4, 3, 2, 1].map((star) => {
+            const count =
+              reviewSummary?.ratingDistribution?.[String(star)] || 0;
+            const ratio = totalReviews > 0 ? count / totalReviews : 0;
+
+            return (
+              <View key={star} style={styles.reviewDistributionRow}>
+                <Text style={styles.reviewDistributionLabel}>{star}</Text>
+                <Ionicons name="star" size={12} color={COLORS.accent} />
+                <View style={styles.reviewDistributionTrack}>
+                  <View
+                    style={[
+                      styles.reviewDistributionFill,
+                      {
+                        width: `${Math.max(ratio * 100, count > 0 ? 6 : 0)}%`,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.reviewDistributionCount}>{count}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {isLoadingReviews ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Đang tải đánh giá...</Text>
+        </View>
+      ) : displayedReviews.length > 0 ? (
+        <View style={styles.reviewList}>
+          {displayedReviews.map((review) => {
+            const isOwnReview = review.userId === user?.id;
+
+            return (
+              <View key={review.id} style={styles.reviewCard}>
+                <View style={styles.reviewCardHeader}>
+                  <View style={styles.reviewUserRow}>
+                    {review.userAvatar ? (
+                      <Image
+                        source={{ uri: review.userAvatar }}
+                        style={styles.reviewAvatar}
+                      />
+                    ) : (
+                      <View style={styles.reviewAvatarFallback}>
+                        <Text style={styles.reviewAvatarFallbackText}>
+                          {getInitials(review.userName)}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.reviewUserMeta}>
+                      <View style={styles.reviewNameRow}>
+                        <Text style={styles.reviewUserName}>
+                          {review.userName}
+                        </Text>
+                        {isOwnReview ? (
+                          <View style={styles.myReviewChip}>
+                            <Text style={styles.myReviewChipText}>Của bạn</Text>
+                          </View>
+                        ) : null}
+                        {review.verifiedVisit ? (
+                          <View style={styles.verifiedVisitChip}>
+                            <Text style={styles.verifiedVisitChipText}>
+                              Đã ghé thăm
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      {renderStars(review.rating, 15)}
+                      <Text style={styles.reviewDateText}>
+                        {formatReviewDate(review.createdAt)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {isOwnReview ? (
+                    <TouchableOpacity
+                      style={styles.editOwnReviewButton}
+                      onPress={() => openReviewModal(review)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={16}
+                        color={COLORS.primary}
+                      />
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                <Text style={styles.reviewContentText}>{review.content}</Text>
+
+                {review.reply?.content ? (
+                  <View style={styles.reviewReplyCard}>
+                    <View style={styles.reviewReplyHeader}>
+                      <Ionicons
+                        name="chatbubble-ellipses-outline"
+                        size={14}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.reviewReplyTitle}>
+                        Phản hồi từ hướng dẫn viên
+                      </Text>
+                    </View>
+                    <Text style={styles.reviewReplyContent}>
+                      {review.reply.content}
+                    </Text>
+                    <Text style={styles.reviewReplyMeta}>
+                      {(review.reply.replier?.fullName || "Local Guide") +
+                        (review.reply.createdAt
+                          ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                          : "")}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
+
+          {totalReviews > displayedReviews.length ? (
+            <Text style={styles.moreReviewsText}>
+              +{totalReviews - displayedReviews.length} đánh giá khác sẽ hiển thị ở bước tiếp theo
+            </Text>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            Chưa có đánh giá nào cho địa điểm này.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyReviewCta}
+            onPress={() => openReviewModal()}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.emptyReviewCtaText}>
+              Viết đánh giá đầu tiên
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
 
   if (isLoading && !site) {
     return (
@@ -675,6 +1119,204 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             )}
           </View>
 
+          {false && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.reviewHeaderBlock}>
+                <Text style={styles.sectionTitle}>Đánh giá</Text>
+                <Text style={styles.reviewSectionSubtitle}>
+                  Cảm nhận thực tế từ khách hành hương
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.writeReviewButton,
+                  myReview && styles.writeReviewButtonSecondary,
+                ]}
+                onPress={() => openReviewModal(myReview)}
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name={myReview ? "create-outline" : "chatbubble-ellipses-outline"}
+                  size={16}
+                  color={myReview ? COLORS.primary : "#fff"}
+                />
+                <Text
+                  style={[
+                    styles.writeReviewText,
+                    myReview
+                      ? styles.writeReviewTextSecondary
+                      : styles.writeReviewTextPrimary,
+                  ]}
+                >
+                  {myReview ? "Chỉnh sửa" : "Viết đánh giá"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.reviewSummaryCard}>
+              <View style={styles.reviewSummaryMain}>
+                <Text style={styles.reviewAverageText}>
+                  {averageRating ? averageRating.toFixed(1) : "0.0"}
+                </Text>
+                {renderStars(Math.round(averageRating), 18)}
+                <Text style={styles.reviewCountText}>
+                  {totalReviews} đánh giá
+                </Text>
+              </View>
+
+              <View style={styles.reviewDistribution}>
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count =
+                    reviewSummary?.ratingDistribution?.[String(star)] || 0;
+                  const ratio = totalReviews > 0 ? count / totalReviews : 0;
+
+                  return (
+                    <View key={star} style={styles.reviewDistributionRow}>
+                      <Text style={styles.reviewDistributionLabel}>{star}</Text>
+                      <Ionicons name="star" size={12} color={COLORS.accent} />
+                      <View style={styles.reviewDistributionTrack}>
+                        <View
+                          style={[
+                            styles.reviewDistributionFill,
+                            {
+                              width: `${Math.max(
+                                ratio * 100,
+                                count > 0 ? 6 : 0,
+                              )}%`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.reviewDistributionCount}>{count}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            {isLoadingReviews ? (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Đang tải đánh giá...</Text>
+              </View>
+            ) : displayedReviews.length > 0 ? (
+              <View style={styles.reviewList}>
+                {displayedReviews.map((review) => {
+                  const isOwnReview = review.userId === user?.id;
+
+                  return (
+                    <View key={review.id} style={styles.reviewCard}>
+                      <View style={styles.reviewCardHeader}>
+                        <View style={styles.reviewUserRow}>
+                          {review.userAvatar ? (
+                            <Image
+                              source={{ uri: review.userAvatar }}
+                              style={styles.reviewAvatar}
+                            />
+                          ) : (
+                            <View style={styles.reviewAvatarFallback}>
+                              <Text style={styles.reviewAvatarFallbackText}>
+                                {getInitials(review.userName)}
+                              </Text>
+                            </View>
+                          )}
+
+                          <View style={styles.reviewUserMeta}>
+                            <View style={styles.reviewNameRow}>
+                              <Text style={styles.reviewUserName}>
+                                {review.userName}
+                              </Text>
+                              {isOwnReview ? (
+                                <View style={styles.myReviewChip}>
+                                  <Text style={styles.myReviewChipText}>
+                                    Của bạn
+                                  </Text>
+                                </View>
+                              ) : null}
+                              {review.verifiedVisit ? (
+                                <View style={styles.verifiedVisitChip}>
+                                  <Text style={styles.verifiedVisitChipText}>
+                                    Đã ghé thăm
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            {renderStars(review.rating, 15)}
+                            <Text style={styles.reviewDateText}>
+                              {formatReviewDate(review.createdAt)}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {isOwnReview ? (
+                          <TouchableOpacity
+                            style={styles.editOwnReviewButton}
+                            onPress={() => openReviewModal(review)}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons
+                              name="create-outline"
+                              size={16}
+                              color={COLORS.primary}
+                            />
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+
+                      <Text style={styles.reviewContentText}>{review.content}</Text>
+
+                      {review.reply?.content ? (
+                        <View style={styles.reviewReplyCard}>
+                          <View style={styles.reviewReplyHeader}>
+                            <Ionicons
+                              name="chatbubble-ellipses-outline"
+                              size={14}
+                              color={COLORS.primary}
+                            />
+                            <Text style={styles.reviewReplyTitle}>
+                              Phản hồi từ hướng dẫn viên
+                            </Text>
+                          </View>
+                          <Text style={styles.reviewReplyContent}>
+                            {review.reply.content}
+                          </Text>
+                          <Text style={styles.reviewReplyMeta}>
+                            {(review.reply.replier?.fullName || "Local Guide") +
+                              (review.reply.createdAt
+                                ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                                : "")}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+
+                {totalReviews > displayedReviews.length ? (
+                  <Text style={styles.moreReviewsText}>
+                    +{totalReviews - displayedReviews.length} đánh giá khác sẽ hiển thị ở bước tiếp theo
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>
+                  Chưa có đánh giá nào cho địa điểm này.
+                </Text>
+                <TouchableOpacity
+                  style={styles.emptyReviewCta}
+                  onPress={() => openReviewModal()}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyReviewCtaText}>
+                    Viết đánh giá đầu tiên
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+          )}
+
           {/* Around the Sanctuary */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Xung quanh nhà thờ</Text>
@@ -784,8 +1426,10 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
           </View>
 
+          {reviewSection}
+
           {/* Bottom Spacing for floating bar */}
-          <View style={{ height: 90 }} />
+          <View style={{ height: 132 + insets.bottom }} />
         </View>
       </ScrollView>
 
@@ -872,6 +1516,138 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
         />
       )}
 
+      <Modal
+        visible={showReviewModal}
+        animationType="slide"
+        transparent
+        onRequestClose={closeReviewModal}
+      >
+        <View style={styles.reviewModalBackdrop}>
+          <TouchableOpacity
+            style={styles.reviewModalDismissArea}
+            activeOpacity={1}
+            onPress={closeReviewModal}
+          />
+
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 12 : 0}
+            style={[
+              styles.reviewModalKeyboardWrap,
+              Platform.OS === "android" && reviewKeyboardHeight > 0
+                ? { marginBottom: reviewKeyboardHeight }
+                : null,
+            ]}
+          >
+            <SafeAreaView edges={["bottom"]} style={styles.reviewModalSafeArea}>
+            <View style={styles.reviewModalSheet}>
+              <KeyboardAwareScrollView
+                enableOnAndroid
+                extraScrollHeight={24}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.reviewModalScrollContent}
+              >
+              <View style={styles.reviewModalHandle} />
+              <View style={styles.reviewModalHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.reviewModalTitle}>
+                    {myReview ? "Chỉnh sửa đánh giá" : "Viết đánh giá"}
+                  </Text>
+                  <Text style={styles.reviewModalSubtitle}>{site.name}</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.reviewModalCloseButton}
+                  onPress={closeReviewModal}
+                >
+                  <Ionicons name="close" size={20} color={COLORS.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.reviewInputLabel}>Đánh giá của bạn</Text>
+              <View style={styles.reviewInputStarsRow}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <TouchableOpacity
+                    key={star}
+                    onPress={() => setReviewRating(star)}
+                    style={styles.reviewStarButton}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={star <= reviewRating ? "star" : "star-outline"}
+                      size={30}
+                      color={COLORS.accent}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.reviewInputLabel}>Nội dung đánh giá</Text>
+              <TextInput
+                value={reviewText}
+                onChangeText={setReviewText}
+                placeholder="Chia sẻ cảm nhận của bạn về địa điểm này..."
+                placeholderTextColor={COLORS.textTertiary}
+                style={styles.reviewInput}
+                multiline
+                textAlignVertical="top"
+                maxLength={1000}
+              />
+              <Text style={styles.reviewInputCounter}>{reviewText.length}/1000</Text>
+
+              <View style={styles.reviewModalActions}>
+                {myReview ? (
+                  <TouchableOpacity
+                    style={styles.reviewDeleteButton}
+                    onPress={() => void handleDeleteReview()}
+                    disabled={isDeletingReview || isSavingReview}
+                    activeOpacity={0.85}
+                  >
+                    {isDeletingReview ? (
+                      <ActivityIndicator size="small" color={COLORS.danger} />
+                    ) : (
+                      <>
+                        <Ionicons
+                          name="trash-outline"
+                          size={16}
+                          color={COLORS.danger}
+                        />
+                        <Text style={styles.reviewDeleteButtonText}>Xóa</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
+
+                <TouchableOpacity
+                  style={styles.reviewSubmitButton}
+                  onPress={() => void handleSubmitReview()}
+                  disabled={isSavingReview || isDeletingReview}
+                  activeOpacity={0.85}
+                >
+                  {isSavingReview ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name="paper-plane-outline"
+                        size={16}
+                        color="#fff"
+                      />
+                      <Text style={styles.reviewSubmitButtonText}>
+                        {myReview ? "Cập nhật đánh giá" : "Gửi đánh giá"}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+              </KeyboardAwareScrollView>
+            </View>
+            </SafeAreaView>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
       <GuestLoginModal
         visible={showGuestLogin}
         onClose={() => setShowGuestLogin(false)}
@@ -887,6 +1663,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           navigation={navigation}
         />
       )}
+
+      <ConfirmModal />
     </View>
   );
 };
@@ -1141,6 +1919,374 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: COLORS.accent,
+  },
+
+  // Reviews
+  reviewHeaderBlock: {
+    flex: 1,
+    paddingRight: SPACING.md,
+  },
+  reviewSectionSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  writeReviewButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.accentDark,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  writeReviewButtonSecondary: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  writeReviewText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  writeReviewTextPrimary: {
+    color: "#fff",
+  },
+  writeReviewTextSecondary: {
+    color: COLORS.primary,
+  },
+  reviewSummaryCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    ...SHADOWS.small,
+  },
+  reviewSummaryMain: {
+    alignItems: "center",
+    marginBottom: SPACING.md,
+  },
+  reviewAverageText: {
+    fontSize: 40,
+    lineHeight: 44,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  reviewStarsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  reviewCountText: {
+    marginTop: 6,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+  },
+  reviewDistribution: {
+    gap: 8,
+  },
+  reviewDistributionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewDistributionLabel: {
+    width: 12,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+  },
+  reviewDistributionTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: COLORS.surface1,
+    overflow: "hidden",
+  },
+  reviewDistributionFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: COLORS.accent,
+  },
+  reviewDistributionCount: {
+    width: 24,
+    textAlign: "right",
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+  },
+  reviewList: {
+    marginTop: SPACING.md,
+    gap: SPACING.md,
+  },
+  reviewCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    padding: SPACING.md,
+    ...SHADOWS.small,
+  },
+  reviewCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: SPACING.sm,
+  },
+  reviewUserRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: SPACING.sm,
+    flex: 1,
+  },
+  reviewAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+  },
+  reviewAvatarFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(201, 165, 114, 0.16)",
+  },
+  reviewAvatarFallbackText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.accentDark,
+  },
+  reviewUserMeta: {
+    flex: 1,
+  },
+  reviewNameRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  reviewUserName: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  myReviewChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: "rgba(25, 55, 109, 0.08)",
+  },
+  myReviewChipText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.primary,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  verifiedVisitChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+  },
+  verifiedVisitChipText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: "#15803D",
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  reviewDateText: {
+    marginTop: 4,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textTertiary,
+  },
+  editOwnReviewButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(25, 55, 109, 0.06)",
+  },
+  reviewContentText: {
+    marginTop: SPACING.sm,
+    fontSize: TYPOGRAPHY.fontSize.md,
+    lineHeight: 22,
+    color: COLORS.textSecondary,
+  },
+  reviewReplyCard: {
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.surface0,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: "rgba(201, 165, 114, 0.2)",
+  },
+  reviewReplyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  reviewReplyTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+  },
+  reviewReplyContent: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    lineHeight: 21,
+    color: COLORS.textPrimary,
+  },
+  reviewReplyMeta: {
+    marginTop: 6,
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textTertiary,
+  },
+  moreReviewsText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginTop: SPACING.xs,
+  },
+  emptyReviewCta: {
+    marginTop: SPACING.md,
+    alignSelf: "center",
+    backgroundColor: COLORS.accentDark,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.full,
+  },
+  emptyReviewCtaText: {
+    color: "#fff",
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+  },
+  reviewModalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.28)",
+  },
+  reviewModalDismissArea: {
+    flex: 1,
+  },
+  reviewModalKeyboardWrap: {
+    justifyContent: "flex-end",
+  },
+  reviewModalSafeArea: {
+    backgroundColor: COLORS.background,
+  },
+  reviewModalSheet: {
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+  },
+  reviewModalScrollContent: {
+    paddingBottom: SPACING.md,
+  },
+  reviewModalHandle: {
+    alignSelf: "center",
+    width: 52,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: COLORS.borderLight,
+    marginBottom: SPACING.md,
+  },
+  reviewModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  reviewModalTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  reviewModalSubtitle: {
+    marginTop: 2,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+  },
+  reviewModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.white,
+  },
+  reviewInputLabel: {
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  reviewInputStarsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+  },
+  reviewStarButton: {
+    paddingVertical: 4,
+  },
+  reviewInput: {
+    minHeight: 140,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    backgroundColor: COLORS.white,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textPrimary,
+  },
+  reviewInputCounter: {
+    marginTop: SPACING.xs,
+    alignSelf: "flex-end",
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textTertiary,
+  },
+  reviewModalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.md,
+    marginTop: SPACING.lg,
+  },
+  reviewDeleteButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: BORDER_RADIUS.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(220, 38, 38, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(220, 38, 38, 0.14)",
+    flexDirection: "row",
+    gap: 6,
+  },
+  reviewDeleteButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.danger,
+  },
+  reviewSubmitButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: BORDER_RADIUS.full,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.accentDark,
+    flexDirection: "row",
+    gap: 8,
+  },
+  reviewSubmitButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: "#fff",
   },
 
   // Gallery

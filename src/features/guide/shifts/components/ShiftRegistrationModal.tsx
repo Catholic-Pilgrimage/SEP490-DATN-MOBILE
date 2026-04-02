@@ -14,7 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
   GUIDE_BORDER_RADIUS,
@@ -28,11 +31,13 @@ import { useConfirm } from "../../../../hooks/useConfirm";
 import {
   createShiftSubmission,
   getShiftSubmissions,
+  updateShiftSubmission,
 } from "../../../../services/api/guide";
 import {
   CreateShiftRequest,
   ShiftSubmission,
 } from "../../../../types/guide/shiftSubmission.types";
+import { getApiErrorMessage } from "../../../../utils/apiError";
 
 interface ShiftRegistrationModalProps {
   visible: boolean;
@@ -48,28 +53,48 @@ type TimePreset = {
 };
 
 const DAYS = [
-  { value: 1, label: "Thu 2" },
-  { value: 2, label: "Thu 3" },
-  { value: 3, label: "Thu 4" },
-  { value: 4, label: "Thu 5" },
-  { value: 5, label: "Thu 6" },
-  { value: 6, label: "Thu 7" },
-  { value: 0, label: "Chu nhat" },
+  { value: 1, label: "Thứ 2" },
+  { value: 2, label: "Thứ 3" },
+  { value: 3, label: "Thứ 4" },
+  { value: 4, label: "Thứ 5" },
+  { value: 5, label: "Thứ 6" },
+  { value: 6, label: "Thứ 7" },
+  { value: 0, label: "Chủ nhật" },
 ];
 
 const PRESETS: TimePreset[] = [
-  { key: "morning", label: "Sang", start: "08:00:00", end: "12:00:00" },
-  { key: "afternoon", label: "Chieu", start: "13:00:00", end: "17:00:00" },
-  { key: "full", label: "Ca dai", start: "08:00:00", end: "17:00:00" },
+  { key: "morning", label: "Sáng", start: "08:00:00", end: "12:00:00" },
+  { key: "afternoon", label: "Chiều", start: "13:00:00", end: "17:00:00" },
+  { key: "full", label: "Ca dài", start: "08:00:00", end: "17:00:00" },
 ];
 
 const formatTime = (time: string) => time.slice(0, 5);
-const getDayLabel = (day: number) => DAYS.find((item) => item.value === day)?.label ?? `Ngay ${day}`;
+const getDayLabel = (day: number) => DAYS.find((item) => item.value === day)?.label ?? `Ngày ${day}`;
 const hoursOf = (shift: { start_time: string; end_time: string }) => {
   const start = new Date(`2000-01-01T${shift.start_time}`);
   const end = new Date(`2000-01-01T${shift.end_time}`);
   return (end.getTime() - start.getTime()) / (1000 * 60 * 60);
 };
+const normalizeDateOnly = (date: Date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+const getShiftDateForWeek = (weekStartDate: Date, dayOfWeek: number) => {
+  const target = normalizeDateOnly(weekStartDate);
+  const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  target.setDate(target.getDate() + offset);
+  return target;
+};
+const toCreateShiftRequest = (shift: {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+}): CreateShiftRequest => ({
+  day_of_week: shift.day_of_week,
+  start_time: shift.start_time,
+  end_time: shift.end_time,
+});
 
 const groupByDay = <T extends { day_of_week: number }>(items: T[]) =>
   items.reduce<Record<number, T[]>>((acc, item) => {
@@ -81,13 +106,13 @@ const groupByDay = <T extends { day_of_week: number }>(items: T[]) =>
 const statusUi = (status?: ShiftSubmission["status"]) => {
   switch (status) {
     case "pending":
-      return { title: "Da gui cho duyet", color: "#B45309", bg: "#FFF7E8", border: "#F5C97B", icon: "schedule" as const };
+      return { title: "Đã gửi chờ duyệt", color: "#B45309", bg: "#FFF7E8", border: "#F5C97B", icon: "schedule" as const };
     case "approved":
-      return { title: "Da duoc duyet", color: "#166534", bg: "#ECFDF3", border: "#A7F3D0", icon: "check-circle" as const };
+      return { title: "Đã được duyệt", color: "#166534", bg: "#ECFDF3", border: "#A7F3D0", icon: "check-circle" as const };
     case "rejected":
-      return { title: "Bi tu choi", color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA", icon: "cancel" as const };
+      return { title: "Bị từ chối", color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA", icon: "cancel" as const };
     default:
-      return { title: "Chua co dang ky", color: GUIDE_COLORS.textSecondary, bg: "#F8F7F4", border: GUIDE_COLORS.borderLight, icon: "info-outline" as const };
+      return { title: "Chưa có đăng ký", color: GUIDE_COLORS.textSecondary, bg: "#F8F7F4", border: GUIDE_COLORS.borderLight, icon: "info-outline" as const };
   }
 };
 
@@ -122,38 +147,65 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   const pendingSubmission = existingSubmissions.find((item) => item.status === "pending");
   const approvedSubmission = existingSubmissions.find((item) => item.status === "approved");
   const rejectedSubmission = existingSubmissions.find((item) => item.status === "rejected");
-  const referenceSubmission = pendingSubmission ?? approvedSubmission ?? rejectedSubmission;
-  const isBlockedByPending = !!pendingSubmission;
-  const isUpdateMode = !!approvedSubmission;
+  const editableSubmission = pendingSubmission ?? rejectedSubmission ?? null;
+  const referenceSubmission = editableSubmission ?? approvedSubmission ?? null;
+  const isEditingExistingSubmission = !!editableSubmission;
+  const isChangeRequestMode = !editableSubmission && !!approvedSubmission;
+  const todayStart = useMemo(() => normalizeDateOnly(new Date()), []);
 
   useEffect(() => {
     if (!visible) return;
-    if (isBlockedByPending) {
-      setShifts([]);
-      setChangeReason("");
-      return;
-    }
-    const seed = approvedSubmission?.shifts ?? rejectedSubmission?.shifts ?? [];
-    setShifts(seed.map((shift) => ({
+    const seed = editableSubmission?.shifts ?? approvedSubmission?.shifts ?? [];
+    const editableSeed = seed.filter(
+      (shift) =>
+        getShiftDateForWeek(weekStart, shift.day_of_week).getTime() >=
+        todayStart.getTime(),
+    );
+    setShifts(editableSeed.map((shift) => ({
       day_of_week: shift.day_of_week,
       start_time: shift.start_time,
       end_time: shift.end_time,
     })));
     setChangeReason("");
-  }, [approvedSubmission, rejectedSubmission, isBlockedByPending, visible, weekStartStr]);
+  }, [
+    editableSubmission,
+    approvedSubmission,
+    visible,
+    weekStart,
+    weekStartStr,
+    todayStart,
+  ]);
 
   const submitMutation = useMutation({
-    mutationFn: (payload: {
+    mutationFn: async (payload: {
       week_start_date: string;
       shifts: CreateShiftRequest[];
+      editable_submission_id?: string;
       previous_submission_id?: string;
       change_reason?: string;
-    }) => createShiftSubmission(payload),
+    }) => {
+      if (payload.editable_submission_id) {
+        return updateShiftSubmission(payload.editable_submission_id, {
+          shifts: payload.shifts,
+        });
+      }
+
+      return createShiftSubmission({
+        week_start_date: payload.week_start_date,
+        shifts: payload.shifts,
+        previous_submission_id: payload.previous_submission_id,
+        change_reason: payload.change_reason,
+      });
+    },
     onSuccess: () => {
       Toast.show({
         type: "success",
-        text1: "Thanh cong",
-        text2: isUpdateMode ? "Da gui yeu cau thay doi lich." : "Da gui dang ky lich lam viec.",
+        text1: "Thành công",
+        text2: isEditingExistingSubmission
+          ? "Đã cập nhật đăng ký lịch làm việc."
+          : isChangeRequestMode
+            ? "Đã gửi yêu cầu thay đổi lịch."
+            : "Đã gửi đăng ký lịch làm việc.",
       });
       onClose();
       setShifts([]);
@@ -162,10 +214,19 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.activeShift(weekStartStr) });
     },
     onError: (error: any) => {
+      const submitErrorMessage = getApiErrorMessage(error, "Vui lòng thử lại.");
+      if (submitErrorMessage) {
+        Toast.show({
+          type: "error",
+          text1: "Không gửi được",
+          text2: submitErrorMessage,
+        });
+        return;
+      }
       Toast.show({
         type: "error",
-        text1: "Khong gui duoc",
-        text2: error?.message || "Vui long thu lai.",
+        text1: "Không gửi được",
+        text2: error?.message || "Vui lòng thử lại.",
       });
     },
   });
@@ -174,7 +235,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     const start = new Date(weekStart);
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
-    return `Tuan ${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
+    return `Tuần ${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
   }, [weekStart]);
 
   const shiftsByDay = useMemo(() => groupByDay(shifts), [shifts]);
@@ -183,22 +244,56 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   const statusConfig = statusUi(referenceSubmission?.status);
 
   const getFormattedDate = (dayOfWeek: number) => {
-    const start = new Date(weekStart);
-    const offset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    const target = new Date(start);
-    target.setDate(start.getDate() + offset);
+    const target = getShiftDateForWeek(weekStart, dayOfWeek);
     return `${target.getDate().toString().padStart(2, "0")}/${(target.getMonth() + 1).toString().padStart(2, "0")}`;
   };
+  const sortShifts = (items: CreateShiftRequest[]) =>
+    [...items].sort((a, b) =>
+      a.day_of_week === b.day_of_week
+        ? a.start_time.localeCompare(b.start_time)
+        : a.day_of_week - b.day_of_week,
+    );
+
+  const isPastDay = (dayOfWeek: number) =>
+    getShiftDateForWeek(weekStart, dayOfWeek).getTime() < todayStart.getTime();
+  const lockedPastShifts = useMemo(
+    () =>
+      (referenceSubmission?.shifts ?? [])
+        .filter(
+          (shift) =>
+            getShiftDateForWeek(weekStart, shift.day_of_week).getTime() <
+            todayStart.getTime(),
+        )
+        .map(toCreateShiftRequest),
+    [referenceSubmission, todayStart, weekStart],
+  );
+  const submissionShifts = useMemo(
+    () => sortShifts([...lockedPastShifts, ...shifts]),
+    [lockedPastShifts, shifts],
+  );
+  const submittedTotalHours = useMemo(
+    () => submissionShifts.reduce((sum, shift) => sum + hoursOf(shift), 0),
+    [submissionShifts],
+  );
 
   const validateShift = (candidate: CreateShiftRequest, ignoreIndex?: number) => {
+    if (isPastDay(candidate.day_of_week)) {
+      Toast.show({
+        type: "info",
+        text1: "Ngày đã qua",
+        text2: "Chỉ có thể đăng ký ca từ hôm nay trở đi.",
+      });
+      return false;
+    }
+
     const start = new Date(`2000-01-01T${candidate.start_time}`);
     const end = new Date(`2000-01-01T${candidate.end_time}`);
     if (end <= start) {
-      Toast.show({ type: "error", text1: "Gio chua hop le", text2: "Gio ket thuc phai sau gio bat dau." });
+      Toast.show({ type: "error", text1: "Giờ chưa hợp lệ", text2: "Giờ kết thúc phải sau giờ bắt đầu." });
       return false;
     }
     if (hoursOf(candidate) > 12) {
-      Toast.show({ type: "error", text1: "Ca lam qua dai", text2: "Moi ca toi da 12 gio." });
+      Toast.show({ type: "error", text1: "Ca làm quá dài", text2: "Mỗi ca tối đa 12 giờ." });
       return false;
     }
     const overlap = shifts.some((shift, index) => {
@@ -207,24 +302,25 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       return candidate.start_time < shift.end_time && candidate.end_time > shift.start_time;
     });
     if (overlap) {
-      Toast.show({ type: "error", text1: "Bi trung gio", text2: "Ca nay dang bi chong len voi ca khac trong cung ngay." });
+      Toast.show({ type: "error", text1: "Bị trùng giờ", text2: "Ca này đang bị chồng lên với ca khác trong cùng ngày." });
       return false;
     }
     return true;
   };
 
-  const sortShifts = (items: CreateShiftRequest[]) =>
-    [...items].sort((a, b) =>
-      a.day_of_week === b.day_of_week
-        ? a.start_time.localeCompare(b.start_time)
-        : a.day_of_week - b.day_of_week,
-    );
-
   const addShift = (dayOfWeek: number, preset: TimePreset = PRESETS[0]) => {
     const candidate = { day_of_week: dayOfWeek, start_time: preset.start, end_time: preset.end };
     if (!validateShift(candidate)) return;
     setShifts((prev) => sortShifts([...prev, candidate]));
-    setShowDayPicker(false);
+  };
+
+  const toggleDaySelection = (dayOfWeek: number, isSelected: boolean) => {
+    if (isSelected) {
+      setShifts((prev) => prev.filter((shift) => shift.day_of_week !== dayOfWeek));
+      return;
+    }
+
+    addShift(dayOfWeek);
   };
 
   const removeShift = (index: number) => {
@@ -275,34 +371,56 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (isBlockedByPending) return;
     if (!shifts.length) {
-      Toast.show({ type: "info", text1: "Chua co ca lam", text2: "Hay them it nhat 1 ca truoc khi gui." });
+      Toast.show({ type: "info", text1: "Chưa có ca làm", text2: "Hãy thêm ít nhất 1 ca trước khi gửi." });
       return;
     }
-    if (isUpdateMode && !changeReason.trim()) {
-      Toast.show({ type: "info", text1: "Can ly do thay doi", text2: "Hay ghi ly do de manager de duyet." });
+    if (submissionShifts.length < 3 || submissionShifts.length > 21) {
+      Toast.show({
+        type: "info",
+        text1: "Số ca chưa hợp lệ",
+        text2: "Mỗi tuần cần đăng ký từ 3 đến 21 ca làm việc.",
+      });
+      return;
+    }
+    if (shifts.some((shift) => isPastDay(shift.day_of_week))) {
+      Toast.show({
+        type: "info",
+        text1: "Ngày đã qua",
+        text2: "Vui lòng xóa các ca thuộc ngày đã qua trước khi gửi.",
+      });
+      return;
+    }
+    if (isChangeRequestMode && !changeReason.trim()) {
+      Toast.show({ type: "info", text1: "Cần lý do thay đổi", text2: "Hãy ghi lý do để quản lý dễ duyệt." });
       return;
     }
 
     const payload: {
       week_start_date: string;
       shifts: CreateShiftRequest[];
+      editable_submission_id?: string;
       previous_submission_id?: string;
       change_reason?: string;
-    } = { week_start_date: weekStartStr, shifts };
+    } = { week_start_date: weekStartStr, shifts: submissionShifts };
 
-    if (approvedSubmission) {
+    if (editableSubmission) {
+      payload.editable_submission_id = editableSubmission.id;
+    } else if (approvedSubmission) {
       payload.previous_submission_id = approvedSubmission.id;
       payload.change_reason = changeReason.trim();
     }
 
     const confirmed = await confirm({
       type: "warning",
-      title: "Xac nhan gui lich",
-      message: `Ban se gui ${shifts.length} ca (${totalHours.toFixed(1)} gio) cho ${weekRangeText.toLowerCase()}.`,
-      confirmText: isUpdateMode ? "Gui thay doi" : "Gui yeu cau",
-      cancelText: "Huy",
+      title: "Xác nhận gửi lịch",
+      message: `Bạn sẽ gửi ${submissionShifts.length} ca (${submittedTotalHours.toFixed(1)} giờ) cho ${weekRangeText.toLowerCase()}.`, 
+      confirmText: isEditingExistingSubmission
+        ? "Cập nhật"
+        : isChangeRequestMode
+          ? "Gửi thay đổi"
+          : "Gửi yêu cầu",
+      cancelText: "Hủy",
     });
 
     if (confirmed) {
@@ -317,16 +435,21 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       onRequestClose={onClose}
       presentationStyle="pageSheet"
     >
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.iconButton}>
             <MaterialIcons name="close" size={24} color={GUIDE_COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.title}>
-            {isUpdateMode ? "Dieu chinh lich lam viec" : "Dang ky lich lam viec"}
+            {isEditingExistingSubmission
+              ? "Cập nhật đăng ký lịch làm việc"
+              : isChangeRequestMode
+                ? "Điều chỉnh lịch làm việc"
+                : "Đăng ký lịch làm việc"}
           </Text>
           <View style={styles.iconButton} />
         </View>
@@ -336,7 +459,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             <MaterialIcons name="chevron-left" size={24} color={GUIDE_COLORS.textSecondary} />
           </TouchableOpacity>
           <View style={styles.weekInfo}>
-            <Text style={styles.weekEyebrow}>Dang chon</Text>
+            <Text style={styles.weekEyebrow}>Đang chọn</Text>
             <Text style={styles.weekText}>{weekRangeText}</Text>
           </View>
           <TouchableOpacity onPress={() => changeWeek(1)} style={styles.weekNavButton}>
@@ -352,24 +475,24 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
           <View style={styles.summaryCard}>
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{Object.keys(shiftsByDay).length}</Text>
-              <Text style={styles.summaryLabel}>Ngay da chon</Text>
+              <Text style={styles.summaryLabel}>Ngày đã chọn</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{shifts.length}</Text>
-              <Text style={styles.summaryLabel}>Ca dang sua</Text>
+              <Text style={styles.summaryLabel}>Ca đang sửa</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{totalHours.toFixed(1)}</Text>
-              <Text style={styles.summaryLabel}>Tong gio</Text>
+              <Text style={styles.summaryLabel}>Tổng giờ</Text>
             </View>
           </View>
 
           {isExistingLoading ? (
             <View style={styles.noticeCard}>
               <ActivityIndicator color={GUIDE_COLORS.primary} />
-              <Text style={styles.noticeText}>Dang tai dang ky cua tuan nay...</Text>
+              <Text style={styles.noticeText}>Đang tải đăng ký của tuần này...</Text>
             </View>
           ) : referenceSubmission ? (
             <View
@@ -392,7 +515,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
               {referenceSubmission.rejection_reason ? (
                 <Text style={[styles.referenceReason, { color: statusConfig.color }]}>
-                  Ly do: {referenceSubmission.rejection_reason}
+                  Lý do: {referenceSubmission.rejection_reason}
                 </Text>
               ) : null}
 
@@ -405,9 +528,13 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                 </View>
               ))}
 
-              {isBlockedByPending ? (
+              {editableSubmission?.status === "pending" ? (
                 <Text style={styles.referenceHint}>
-                  Tuan nay da co yeu cau dang cho duyet. Ban chua the gui them cho den khi yeu cau hien tai duoc xu ly.
+                  Yêu cầu của tuần này đang chờ duyệt. Bạn vẫn có thể cập nhật lại chính đăng ký này trước khi quản lý xử lý.
+                </Text>
+              ) : editableSubmission?.status === "rejected" ? (
+                <Text style={styles.referenceHint}>
+                  Đăng ký trước đó đã bị từ chối. Hãy chỉnh lại các ca làm và cập nhật để gửi xét duyệt lại.
                 </Text>
               ) : null}
             </View>
@@ -415,7 +542,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             <View style={styles.noticeCard}>
               <MaterialIcons name="info-outline" size={18} color={GUIDE_COLORS.textSecondary} />
               <Text style={styles.noticeText}>
-                Tuan nay chua co dang ky cu. Ban co the them ngay va ca lam ngay ben duoi.
+                Tuần này chưa có đăng ký cũ. Bạn có thể thêm ngày và ca làm ngay bên dưới.
               </Text>
             </View>
           )}
@@ -425,9 +552,9 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
               <View style={styles.emptyIcon}>
                 <MaterialIcons name="event-note" size={34} color={GUIDE_COLORS.primary} />
               </View>
-              <Text style={styles.emptyTitle}>Chua co ca nao trong ban nhap</Text>
+              <Text style={styles.emptyTitle}>Chưa có ca nào trong bản nháp</Text>
               <Text style={styles.emptyDescription}>
-                Chon ngay truoc, sau do them nhanh ca sang, chieu hoac ca dai.
+                Chọn ngày trước, sau đó thêm nhanh ca sáng, chiều hoặc ca dài.
               </Text>
             </View>
           ) : null}
@@ -445,8 +572,8 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                       {getDayLabel(day)} ({getFormattedDate(day)})
                     </Text>
                     <Text style={styles.daySubtitle}>
-                      {dayShifts.length} ca trong ban nhap
-                      {referenceShifts.length ? ` • da co ${referenceShifts.length} ca` : ""}
+                      {dayShifts.length} ca trong bản nháp
+                      {referenceShifts.length ? ` • đã có ${referenceShifts.length} ca` : ""}
                     </Text>
                   </View>
 
@@ -480,7 +607,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                         <View style={styles.shiftCardHeader}>
                           <Text style={styles.shiftCardLabel}>Ca {localIndex + 1}</Text>
                           <Text style={styles.shiftCardHours}>
-                            {hoursOf(shift).toFixed(1)} gio
+                            {hoursOf(shift).toFixed(1)} giờ
                           </Text>
                         </View>
 
@@ -532,15 +659,15 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
           <TouchableOpacity style={styles.addDayButton} onPress={() => setShowDayPicker(true)}>
             <MaterialIcons name="add-circle-outline" size={22} color={GUIDE_COLORS.primary} />
-            <Text style={styles.addDayText}>Them ngay de dang ky</Text>
+            <Text style={styles.addDayText}>Thêm ngày để đăng ký</Text>
           </TouchableOpacity>
 
-          {isUpdateMode ? (
+          {isChangeRequestMode ? (
             <View style={styles.reasonCard}>
-              <Text style={styles.reasonTitle}>Ly do thay doi lich</Text>
+              <Text style={styles.reasonTitle}>Lý do thay đổi lịch</Text>
               <TextInput
                 style={styles.reasonInput}
-                placeholder="Vi du: Doi sang ca sang de phu hop lich site..."
+                placeholder="Ví dụ: Đổi sang ca sáng để phù hợp lịch site..."
                 placeholderTextColor={GUIDE_COLORS.textMuted}
                 multiline
                 value={changeReason}
@@ -552,27 +679,25 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) + 8 }]}>
           <Text style={styles.footerText}>
-            {isBlockedByPending
-              ? "Tuan nay dang cho duyet"
-              : `${shifts.length} ca • ${totalHours.toFixed(1)} gio`}
+            {`${shifts.length} ca • ${totalHours.toFixed(1)} giờ`}
           </Text>
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (isBlockedByPending || shifts.length === 0) && styles.submitButtonDisabled,
+              shifts.length === 0 && styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
-            disabled={isBlockedByPending || shifts.length === 0 || submitMutation.isPending}
+            disabled={shifts.length === 0 || submitMutation.isPending}
           >
             {submitMutation.isPending ? (
               <ActivityIndicator color="#FFF" />
             ) : (
               <Text style={styles.submitButtonText}>
-                {isBlockedByPending
-                  ? "Da co yeu cau cho tuan nay"
-                  : isUpdateMode
-                  ? "Gui yeu cau thay doi"
-                  : "Gui yeu cau dang ky"}
+                {isEditingExistingSubmission
+                  ? "Cập nhật đăng ký"
+                  : isChangeRequestMode
+                    ? "Gửi yêu cầu thay đổi"
+                    : "Gửi yêu cầu đăng ký"}
               </Text>
             )}
           </TouchableOpacity>
@@ -586,26 +711,67 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
         >
           <View style={styles.overlay}>
             <View style={styles.dayPickerCard}>
-              <Text style={styles.dayPickerTitle}>Chon ngay can dang ky</Text>
+              <Text style={styles.dayPickerTitle}>Chọn ngày cần đăng ký</Text>
               <Text style={styles.dayPickerSubtitle}>
-                Moi ngay se duoc tao san 1 ca sang, ban co the doi gio sau.
+                Mỗi ngày sẽ được tạo sẵn 1 ca sáng, bạn có thể đổi giờ sau.
               </Text>
               <View style={styles.dayGrid}>
-                {DAYS.map((day) => (
-                  <TouchableOpacity
-                    key={day.value}
-                    style={styles.dayGridItem}
-                    onPress={() => addShift(day.value)}
-                  >
-                    <Text style={styles.dayGridTitle}>{day.label}</Text>
-                    <Text style={styles.dayGridDate}>{getFormattedDate(day.value)}</Text>
-                    <Text style={styles.dayGridMeta}>Nhap: {shiftsByDay[day.value]?.length ?? 0}</Text>
-                    <Text style={styles.dayGridMeta}>Da co: {existingByDay[day.value]?.length ?? 0}</Text>
-                  </TouchableOpacity>
-                ))}
+                {DAYS.map((day) => {
+                  const isDisabled = isPastDay(day.value);
+                  const isSelected = !isDisabled && (shiftsByDay[day.value]?.length ?? 0) > 0;
+                  return (
+                    <TouchableOpacity
+                      key={day.value}
+                      style={[
+                        styles.dayGridItem,
+                        isSelected && styles.dayGridItemSelected,
+                        isDisabled && styles.dayGridItemDisabled,
+                      ]}
+                      onPress={() => toggleDaySelection(day.value, isSelected)}
+                      disabled={isDisabled}
+                    >
+                      <Text
+                        style={[
+                          styles.dayGridTitle,
+                          isSelected && styles.dayGridTextSelected,
+                          isDisabled && styles.dayGridTextDisabled,
+                        ]}
+                      >
+                        {day.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dayGridDate,
+                          isSelected && styles.dayGridTextSelected,
+                          isDisabled && styles.dayGridTextDisabled,
+                        ]}
+                      >
+                        {getFormattedDate(day.value)}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dayGridMeta,
+                          isSelected && styles.dayGridMetaSelected,
+                          isDisabled && styles.dayGridTextDisabled,
+                        ]}
+                      >
+                        {isDisabled ? "Đã qua" : `Nháp: ${shiftsByDay[day.value]?.length ?? 0}`}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dayGridMeta,
+                          isSelected && styles.dayGridMetaSelected,
+                          isDisabled && styles.dayGridTextDisabled,
+                        ]}
+                      >
+                        Đã có: {existingByDay[day.value]?.length ?? 0}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               <TouchableOpacity style={styles.dayPickerClose} onPress={() => setShowDayPicker(false)}>
-                <Text style={styles.dayPickerCloseText}>Dong</Text>
+                <Text style={styles.dayPickerCloseText}>Đóng</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -628,23 +794,25 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             </TouchableOpacity>
           </View>
         ) : null}
-        <ConfirmModal />
-      </KeyboardAvoidingView>
+          <ConfirmModal />
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: GUIDE_COLORS.background },
+  safeArea: { flex: 1, backgroundColor: GUIDE_COLORS.creamBg },
+  container: { flex: 1, backgroundColor: GUIDE_COLORS.creamBg },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingVertical: GUIDE_SPACING.lg,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
     borderBottomWidth: 1,
-    borderBottomColor: GUIDE_COLORS.borderLight,
+    borderBottomColor: GUIDE_COLORS.creamBorder,
   },
   iconButton: { width: 32, alignItems: "center", justifyContent: "center" },
   title: {
@@ -652,7 +820,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
     fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
   },
   weekSelector: {
     flexDirection: "row",
@@ -663,7 +831,9 @@ const styles = StyleSheet.create({
     marginBottom: GUIDE_SPACING.sm,
     paddingHorizontal: GUIDE_SPACING.md,
     paddingVertical: GUIDE_SPACING.md,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     ...GUIDE_SHADOWS.sm,
   },
@@ -673,43 +843,49 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: GUIDE_COLORS.gray100,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
   },
   weekInfo: { flex: 1, alignItems: "center" },
   weekEyebrow: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.textMuted,
+    color: GUIDE_COLORS.creamLabel,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   weekText: {
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
     fontWeight: "700",
-    color: GUIDE_COLORS.textPrimary,
+    color: GUIDE_COLORS.creamInk,
     marginTop: 2,
   },
   content: { flex: 1 },
   contentContainer: { paddingHorizontal: GUIDE_SPACING.lg, paddingBottom: GUIDE_SPACING.lg, gap: GUIDE_SPACING.md },
   summaryCard: {
     flexDirection: "row",
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     paddingVertical: GUIDE_SPACING.md,
     ...GUIDE_SHADOWS.sm,
   },
   summaryBlock: { flex: 1, alignItems: "center" },
-  summaryValue: { fontSize: 22, fontWeight: "800", color: GUIDE_COLORS.textPrimary },
-  summaryLabel: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textMuted },
-  summaryDivider: { width: 1, backgroundColor: GUIDE_COLORS.borderLight },
+  summaryValue: { fontSize: 22, fontWeight: "800", color: GUIDE_COLORS.creamInk },
+  summaryLabel: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel },
+  summaryDivider: { width: 1, backgroundColor: GUIDE_COLORS.creamBorder },
   noticeCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: GUIDE_SPACING.sm,
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     padding: GUIDE_SPACING.md,
   },
-  noticeText: { flex: 1, fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.textSecondary, lineHeight: 20 },
+  noticeText: { flex: 1, fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.creamLabel, lineHeight: 20 },
   referenceCard: { borderWidth: 1, borderRadius: GUIDE_BORDER_RADIUS.lg, padding: GUIDE_SPACING.md, gap: GUIDE_SPACING.sm },
   referenceHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: GUIDE_SPACING.sm },
   referenceTitleRow: { flexDirection: "row", alignItems: "center", gap: GUIDE_SPACING.xs, flex: 1 },
@@ -720,17 +896,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(255,255,255,0.55)",
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
     borderRadius: GUIDE_BORDER_RADIUS.md,
     paddingHorizontal: GUIDE_SPACING.sm,
     paddingVertical: GUIDE_SPACING.sm,
   },
-  referenceRowDay: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
-  referenceRowTime: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.textSecondary },
-  referenceHint: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textSecondary, lineHeight: 18 },
+  referenceRowDay: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, fontWeight: "700", color: GUIDE_COLORS.creamInk },
+  referenceRowTime: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.creamLabel },
+  referenceHint: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel, lineHeight: 18 },
   emptyState: {
     alignItems: "center",
-    backgroundColor: GUIDE_COLORS.surface,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
     borderRadius: GUIDE_BORDER_RADIUS.lg,
     paddingVertical: GUIDE_SPACING.xl,
     paddingHorizontal: GUIDE_SPACING.lg,
@@ -745,48 +925,139 @@ const styles = StyleSheet.create({
     backgroundColor: GUIDE_COLORS.primaryMuted,
     marginBottom: GUIDE_SPACING.md,
   },
-  emptyTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeLG, fontWeight: "700", color: GUIDE_COLORS.textPrimary, marginBottom: GUIDE_SPACING.xs },
-  emptyDescription: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.textSecondary, lineHeight: 20, textAlign: "center" },
-  dayCard: { backgroundColor: GUIDE_COLORS.surface, borderRadius: GUIDE_BORDER_RADIUS.lg, padding: GUIDE_SPACING.md, gap: GUIDE_SPACING.sm, ...GUIDE_SHADOWS.sm },
+  emptyTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeLG, fontWeight: "700", color: GUIDE_COLORS.creamInk, marginBottom: GUIDE_SPACING.xs },
+  emptyDescription: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.creamLabel, lineHeight: 20, textAlign: "center" },
+  dayCard: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.sm,
+    ...GUIDE_SHADOWS.sm,
+  },
   dayHeader: { gap: 4 },
-  dayTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
-  daySubtitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textSecondary },
+  dayTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.creamInk },
+  daySubtitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel },
   inlineReferenceWrap: { flexDirection: "row", flexWrap: "wrap", gap: GUIDE_SPACING.xs },
-  inlineReferenceChip: { paddingHorizontal: GUIDE_SPACING.sm, paddingVertical: 6, borderRadius: GUIDE_BORDER_RADIUS.full, backgroundColor: "#F4F1EA" },
-  inlineReferenceText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textSecondary, fontWeight: "600" },
-  shiftCard: { position: "relative", borderWidth: 1, borderColor: GUIDE_COLORS.borderLight, borderRadius: GUIDE_BORDER_RADIUS.md, padding: GUIDE_SPACING.sm, backgroundColor: GUIDE_COLORS.background, gap: GUIDE_SPACING.sm },
+  inlineReferenceChip: {
+    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: 6,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+  },
+  inlineReferenceText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel, fontWeight: "600" },
+  shiftCard: {
+    position: "relative",
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    padding: GUIDE_SPACING.sm,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    gap: GUIDE_SPACING.sm,
+  },
   shiftCardHeader: { flexDirection: "row", justifyContent: "space-between", paddingRight: 28 },
-  shiftCardLabel: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
-  shiftCardHours: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textMuted },
+  shiftCardLabel: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, fontWeight: "700", color: GUIDE_COLORS.creamInk },
+  shiftCardHours: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel },
   timeRow: { flexDirection: "row", alignItems: "center", gap: GUIDE_SPACING.sm },
-  timeButton: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: GUIDE_SPACING.xs, backgroundColor: GUIDE_COLORS.gray100, borderRadius: GUIDE_BORDER_RADIUS.md, paddingVertical: 10 },
-  timeValue: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
+  timeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    paddingVertical: 10,
+  },
+  timeValue: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.creamInk },
   deleteButton: { position: "absolute", top: GUIDE_SPACING.sm, right: GUIDE_SPACING.sm, padding: 2 },
   presetRow: { flexDirection: "row", flexWrap: "wrap", gap: GUIDE_SPACING.xs },
   presetChip: { minWidth: "31%", flexGrow: 1, borderWidth: 1, borderColor: GUIDE_COLORS.primaryLight, borderRadius: GUIDE_BORDER_RADIUS.md, backgroundColor: GUIDE_COLORS.primaryMuted, paddingHorizontal: GUIDE_SPACING.sm, paddingVertical: GUIDE_SPACING.sm },
-  presetTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
-  presetTime: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textSecondary, marginTop: 2 },
-  addDayButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: GUIDE_SPACING.sm, borderWidth: 1.5, borderColor: GUIDE_COLORS.primary, borderStyle: "dashed", borderRadius: GUIDE_BORDER_RADIUS.lg, paddingVertical: GUIDE_SPACING.md, backgroundColor: GUIDE_COLORS.surface },
+  presetTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, fontWeight: "700", color: GUIDE_COLORS.creamInk },
+  presetTime: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel, marginTop: 2 },
+  addDayButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.sm,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.primary,
+    borderStyle: "dashed",
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    paddingVertical: GUIDE_SPACING.md,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+  },
   addDayText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.primary },
-  reasonCard: { backgroundColor: GUIDE_COLORS.surface, borderRadius: GUIDE_BORDER_RADIUS.lg, padding: GUIDE_SPACING.md, ...GUIDE_SHADOWS.sm },
-  reasonTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, fontWeight: "700", color: GUIDE_COLORS.textPrimary, marginBottom: GUIDE_SPACING.xs },
-  reasonInput: { minHeight: 96, borderWidth: 1, borderColor: GUIDE_COLORS.borderLight, borderRadius: GUIDE_BORDER_RADIUS.md, backgroundColor: GUIDE_COLORS.background, padding: GUIDE_SPACING.md, textAlignVertical: "top", fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.textPrimary },
-  footer: { paddingHorizontal: GUIDE_SPACING.lg, paddingTop: GUIDE_SPACING.md, backgroundColor: GUIDE_COLORS.surface, borderTopWidth: 1, borderTopColor: GUIDE_COLORS.borderLight, ...GUIDE_SHADOWS.md },
-  footerText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.textPrimary, marginBottom: GUIDE_SPACING.md },
+  reasonCard: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: GUIDE_SPACING.md,
+    ...GUIDE_SHADOWS.sm,
+  },
+  reasonTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, fontWeight: "700", color: GUIDE_COLORS.creamInk, marginBottom: GUIDE_SPACING.xs },
+  reasonInput: {
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    padding: GUIDE_SPACING.md,
+    textAlignVertical: "top",
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamInk,
+  },
+  footer: {
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.md,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderTopWidth: 1,
+    borderTopColor: GUIDE_COLORS.creamBorder,
+    ...GUIDE_SHADOWS.md,
+  },
+  footerText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.creamInk, marginBottom: GUIDE_SPACING.md },
   submitButton: { backgroundColor: GUIDE_COLORS.primary, paddingVertical: 16, borderRadius: GUIDE_BORDER_RADIUS.lg, alignItems: "center" },
   submitButtonDisabled: { backgroundColor: GUIDE_COLORS.gray300 },
   submitButtonText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: "#FFF" },
   overlay: { flex: 1, justifyContent: "center", backgroundColor: "rgba(0,0,0,0.48)", padding: GUIDE_SPACING.lg },
-  dayPickerCard: { backgroundColor: GUIDE_COLORS.surface, borderRadius: GUIDE_BORDER_RADIUS.xl, padding: GUIDE_SPACING.lg },
-  dayPickerTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeLG, fontWeight: "700", color: GUIDE_COLORS.textPrimary, textAlign: "center" },
-  dayPickerSubtitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.textSecondary, lineHeight: 20, textAlign: "center", marginTop: GUIDE_SPACING.xs, marginBottom: GUIDE_SPACING.md },
+  dayPickerCard: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    padding: GUIDE_SPACING.lg,
+  },
+  dayPickerTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeLG, fontWeight: "700", color: GUIDE_COLORS.creamInk, textAlign: "center" },
+  dayPickerSubtitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeSM, color: GUIDE_COLORS.creamLabel, lineHeight: 20, textAlign: "center", marginTop: GUIDE_SPACING.xs, marginBottom: GUIDE_SPACING.md },
   dayGrid: { flexDirection: "row", flexWrap: "wrap", gap: GUIDE_SPACING.sm },
-  dayGridItem: { width: "48%", borderWidth: 1, borderColor: GUIDE_COLORS.borderLight, borderRadius: GUIDE_BORDER_RADIUS.lg, backgroundColor: GUIDE_COLORS.background, padding: GUIDE_SPACING.md },
-  dayGridTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.textPrimary },
-  dayGridDate: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textMuted, marginTop: 2 },
-  dayGridMeta: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.textSecondary, marginTop: 4 },
+  dayGridItem: {
+    width: "48%",
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    padding: GUIDE_SPACING.md,
+  },
+  dayGridItemSelected: {
+    backgroundColor: "#FFF9E8",
+    borderColor: GUIDE_COLORS.primary,
+    borderWidth: 1.5,
+  },
+  dayGridItemDisabled: { backgroundColor: GUIDE_COLORS.gray100, borderColor: GUIDE_COLORS.gray300, opacity: 0.7 },
+  dayGridTitle: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.creamInk },
+  dayGridDate: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel, marginTop: 2 },
+  dayGridMeta: { fontSize: GUIDE_TYPOGRAPHY.fontSizeXS, color: GUIDE_COLORS.creamLabel, marginTop: 4 },
+  dayGridTextSelected: { color: GUIDE_COLORS.creamInk },
+  dayGridMetaSelected: { color: GUIDE_COLORS.creamInk, fontWeight: "600" },
+  dayGridTextDisabled: { color: GUIDE_COLORS.creamMuted },
   dayPickerClose: { alignItems: "center", paddingTop: GUIDE_SPACING.md },
-  dayPickerCloseText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "600", color: GUIDE_COLORS.textSecondary },
+  dayPickerCloseText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "600", color: GUIDE_COLORS.creamLabel },
   iosToolbar: { position: "absolute", bottom: 0, left: 0, right: 0, alignItems: "flex-end", backgroundColor: GUIDE_COLORS.surface, borderTopWidth: 1, borderTopColor: GUIDE_COLORS.borderLight, padding: GUIDE_SPACING.sm },
   iosToolbarText: { fontSize: GUIDE_TYPOGRAPHY.fontSizeMD, fontWeight: "700", color: GUIDE_COLORS.primary },
 });

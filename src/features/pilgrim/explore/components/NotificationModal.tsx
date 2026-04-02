@@ -107,13 +107,13 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         }),
       ]).start();
 
-      fetchNotifications();
+      fetchNotifications(true);
     } else {
       // Reset for next open
       slideAnim.setValue(SCREEN_HEIGHT);
       fadeAnim.setValue(0);
     }
-  }, [visible]);
+  }, [visible, fetchNotifications]);
 
   const handleClose = () => {
     // Animate Out

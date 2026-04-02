@@ -28,9 +28,13 @@ export function getApiErrorMessage(
         message?: unknown;
         error?: string | { message?: unknown };
         title?: string;
+        details?: unknown;
+        errors?: unknown;
       };
       const fromMsg = normalizeBodyMessage(d.message);
       if (fromMsg) return fromMsg;
+      const fromDetails = normalizeDetailMessages(d.details ?? d.errors);
+      if (fromDetails) return fromDetails;
       if (typeof d.error === "string" && d.error.trim()) return d.error.trim();
       const fromErr =
         typeof d.error === "object" && d.error !== null
@@ -57,5 +61,31 @@ function normalizeBodyMessage(message: unknown): string | null {
       .filter(Boolean);
     return parts.length ? parts.join(". ") : null;
   }
+  return null;
+}
+
+function normalizeDetailMessages(details: unknown): string | null {
+  if (!details) return null;
+
+  if (Array.isArray(details)) {
+    const parts = details
+      .map((item) =>
+        typeof item === "string"
+          ? item
+          : (item as { message?: string; msg?: string })?.message ||
+            (item as { msg?: string })?.msg ||
+            "",
+      )
+      .filter(Boolean);
+    return parts.length ? parts.join(". ") : null;
+  }
+
+  if (typeof details === "object") {
+    const parts = Object.values(details as Record<string, unknown>)
+      .map((value) => normalizeBodyMessage(value))
+      .filter((value): value is string => Boolean(value));
+    return parts.length ? parts.join(". ") : null;
+  }
+
   return null;
 }

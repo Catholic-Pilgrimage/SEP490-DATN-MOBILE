@@ -19,13 +19,11 @@ import { useCallback, useMemo } from 'react';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
 import { dashboardHomeApi, guideEventApi, guideMediaApi, guideNearbyPlacesApi, guideSiteApi, massScheduleApi } from '../../../../services/api/guide';
 import {
-  ActiveShiftInfo,
   DashboardHomeData,
   DashboardHomeErrorState,
   DashboardHomeLoadingState,
   PendingBadges,
   SiteScheduleShift,
-  SOSInfo
 } from '../../../../types/guide';
 import {
   getOpeningHoursForDay,
@@ -82,57 +80,6 @@ export interface UseDashboardHomeResult {
 // INITIAL STATES
 // ============================================
 
-const initialLoadingState: DashboardHomeLoadingState = {
-  siteInfo: true,
-  activeShift: true,
-  todayOverview: true,
-  sosInfo: true,
-  recentActivity: true,
-  notifications: true,
-};
-
-const initialErrorState: DashboardHomeErrorState = {
-  siteInfo: null,
-  activeShift: null,
-  todayOverview: null,
-  sosInfo: null,
-  recentActivity: null,
-  notifications: null,
-};
-
-const initialActiveShift: ActiveShiftInfo = {
-  isOnDuty: false,
-  shift: null,
-  startTime: '',
-  endTime: '',
-};
-
-const initialSOSInfo: SOSInfo = {
-  pendingCount: 0,
-  hasPending: false,
-  latestRequest: null,
-};
-
-const initialData: DashboardHomeData = {
-  siteInfo: null,
-  activeShift: initialActiveShift,
-  todayOverview: [],
-  sosInfo: initialSOSInfo,
-  recentActivity: [],
-  notifications: {
-    items: [],
-    unreadCount: 0,
-  },
-};
-
-const initialPendingBadges: PendingBadges = {
-  sos: 0,
-  media: 0,
-  events: 0,
-  schedules: 0,
-  messages: 0,
-};
-
 // ============================================
 // HOOK IMPLEMENTATION
 // ============================================
@@ -142,6 +89,17 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   const weekStart = getWeekStartDate();
 
   // Queries
+  const overviewQuery = useQuery({
+    queryKey: GUIDE_KEYS.dashboard.overview(),
+    queryFn: async () => {
+      const response = await dashboardHomeApi.getOverview();
+      if (!response?.success) {
+        throw new Error(response?.message || 'Failed to load dashboard overview');
+      }
+      return response.data;
+    },
+  });
+
   const siteQuery = useQuery({
     queryKey: GUIDE_KEYS.dashboard.siteInfo(),
     queryFn: async () => {
@@ -271,7 +229,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     }
 
     return getActiveShift(allShifts);
-  }, [activeShiftQuery.data, weekStart]);
+  }, [activeShiftQuery.data]);
 
   // Process today's overview
   const processedTodayOverview = useMemo(() => {
@@ -326,6 +284,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   // ============================================
 
   const data: DashboardHomeData = useMemo(() => ({
+    overview: overviewQuery.data || null,
     siteInfo: processedSiteInfo,
     activeShift: processedActiveShift,
     todayOverview: processedTodayOverview,
@@ -333,6 +292,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
     recentActivity: processedRecentActivity,
     notifications: notificationsQuery.data || { items: [], unreadCount: 0 },
   }), [
+    overviewQuery.data,
     processedSiteInfo,
     processedActiveShift,
     processedTodayOverview,
@@ -342,6 +302,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   ]);
 
   const loading: DashboardHomeLoadingState = {
+    overview: overviewQuery.isLoading,
     siteInfo: siteQuery.isLoading,
     activeShift: activeShiftQuery.isLoading,
     todayOverview: todayOverviewQuery.isLoading,
@@ -351,6 +312,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
   };
 
   const errors: DashboardHomeErrorState = {
+    overview: overviewQuery.error ? (overviewQuery.error as Error).message : null,
     siteInfo: siteQuery.error ? (siteQuery.error as Error).message : null,
     activeShift: activeShiftQuery.error ? (activeShiftQuery.error as Error).message : null,
     todayOverview: todayOverviewQuery.error ? (todayOverviewQuery.error as Error).message : null,
@@ -372,6 +334,9 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
 
   const refreshSection = useCallback(async (section: keyof DashboardHomeLoadingState) => {
     switch (section) {
+      case 'overview':
+        await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.overview() });
+        break;
       case 'siteInfo':
         await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.siteInfo() });
         break;
@@ -393,7 +358,7 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
         await queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.notifications() });
         break;
     }
-  }, [queryClient]);
+  }, [queryClient, weekStart]);
 
   return {
     data,

@@ -8,10 +8,9 @@ import { UpdateProfileRequest } from "../../../../types/user.types";
 import { useCallback, useEffect, useState } from "react";
 import { authApi } from "../../../../services/api";
 import {
-  guideEventApi,
-  guideMediaApi,
+  dashboardHomeApi,
+  guideReviewApi,
   guideSiteApi,
-  guideSOSApi,
 } from "../../../../services/api/guide";
 import { LocalGuideSite } from "../../../../types/guide";
 
@@ -90,17 +89,13 @@ export const useGuideProfile = (): UseGuideProfileResult => {
       const [
         profileResponse,
         siteResponse,
-        eventsResponse,
-        mediaResponse,
-        sosResponse,
+        overviewResponse,
+        reviewsResponse,
       ] = await Promise.all([
         authApi.getProfile(),
         guideSiteApi.getAssignedSite().catch(() => null), // Don't fail if site not assigned
-        guideEventApi.getEvents({ limit: 1 }).catch(() => null), // Get total count
-        guideMediaApi.getMedia({ limit: 1 }).catch(() => null), // Get total count
-        guideSOSApi
-          .getGuideSOSList({ status: "pending", limit: 1 })
-          .catch(() => null), // Get pending SOS count
+        dashboardHomeApi.getOverview().catch(() => null),
+        guideReviewApi.getReviews({ limit: 1 }).catch(() => null),
       ]);
 
       if (profileResponse?.success && profileResponse?.data) {
@@ -134,12 +129,18 @@ export const useGuideProfile = (): UseGuideProfileResult => {
         setSite(siteResponse.data);
       }
 
-      // Handle stats from pagination totalItems
-      const eventsTotal = eventsResponse?.data?.pagination?.totalItems || 0;
-      const mediaTotal = mediaResponse?.data?.pagination?.totalItems || 0;
-      const sosPending = sosResponse?.data?.pagination?.totalItems || 0;
-      // Reviews count - placeholder for future API integration
-      const reviewsTotal = 0;
+      const overviewData =
+        overviewResponse?.success && overviewResponse?.data
+          ? overviewResponse.data
+          : null;
+
+      const eventsTotal = overviewData?.my_contributions?.events?.total || 0;
+      const mediaTotal = overviewData?.my_contributions?.media?.total || 0;
+      const sosPending = overviewData?.site_overview?.pending_sos || 0;
+      const reviewsTotal =
+        reviewsResponse?.data?.pagination?.totalItems ||
+        reviewsResponse?.data?.data?.length ||
+        0;
 
       setStats({
         eventsCount: eventsTotal,

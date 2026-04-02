@@ -11,6 +11,7 @@
 
 import type { MassSchedule } from './mass-schedule.types';
 import type { SOSStatus } from './sos.types';
+import type { LocalGuideDashboardOverview } from './dashboard.types';
 
 // ============================================
 // SITE SCHEDULE / ACTIVE SHIFT
@@ -259,12 +260,16 @@ export interface DashboardHomeData {
     items: NotificationItem[];
     unreadCount: number;
   };
+
+  // Overview stats
+  overview: LocalGuideDashboardOverview | null;
 }
 
 /**
  * Dashboard home loading states
  */
 export interface DashboardHomeLoadingState {
+  overview: boolean;
   siteInfo: boolean;
   activeShift: boolean;
   todayOverview: boolean;
@@ -277,6 +282,7 @@ export interface DashboardHomeLoadingState {
  * Dashboard home error states
  */
 export interface DashboardHomeErrorState {
+  overview: string | null;
   siteInfo: string | null;
   activeShift: string | null;
   todayOverview: string | null;

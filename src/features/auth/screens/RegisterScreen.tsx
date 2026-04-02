@@ -607,34 +607,6 @@ const RegisterScreen = () => {
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>
-                {t("register.orRegisterWith")}
-              </Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social Buttons */}
-            <View style={styles.socialContainer}>
-              {["g-translate", "facebook", "apple"].map((icon, index) => (
-                <TouchableOpacity
-                  key={icon}
-                  style={styles.socialButton}
-                  activeOpacity={0.8}
-                  disabled={isDisabled}
-                >
-                  <MaterialIcons
-                    name={icon as any}
-                    size={24}
-                    color={
-                      index === 0 ? "#DB4437" : index === 1 ? "#4267B2" : "#000"
-                    }
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
           </View>
 
           {/* Footer */}
@@ -890,38 +862,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: REGISTER_COLORS.buttonTextDark,
-  },
-  dividerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 24,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: REGISTER_COLORS.borderLight,
-  },
-  dividerText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: REGISTER_COLORS.textMuted,
-    marginHorizontal: 12,
-  },
-  socialContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 16,
-  },
-  socialButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: REGISTER_COLORS.surfaceLight,
-    borderWidth: 1,
-    borderColor: REGISTER_COLORS.borderLight,
-    justifyContent: "center",
-    alignItems: "center",
-    ...SHADOWS.subtle,
   },
   footerContainer: {
     flexDirection: "row",

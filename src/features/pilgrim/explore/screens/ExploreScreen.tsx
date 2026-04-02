@@ -67,11 +67,11 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         const initNotifications = async () => {
             if (isAuthenticated && !isGuest) {
                 await notificationService.registerForPushNotifications();
-                fetchNotifications();
+                fetchNotifications(true);
             }
         };
         initNotifications();
-    }, [isAuthenticated, isGuest]);
+    }, [isAuthenticated, isGuest, fetchNotifications]);
 
     const {
         sites,

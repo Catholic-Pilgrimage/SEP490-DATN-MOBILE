@@ -250,7 +250,7 @@ function transformError(error: AxiosError): Error {
     (typeof data?.title === "string" ? data.title : null);
 
   // Extract validation details if available
-  const details = data?.error?.details || data?.details;
+  const details = data?.error?.details || data?.details || data?.errors;
   let detailMessage = "";
 
   if (

@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,7 +15,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
@@ -23,6 +25,7 @@ import {
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
+import { useI18n } from "../../../../hooks/useI18n";
 import {
   useCreatePost,
   usePostDetail,
@@ -30,10 +33,13 @@ import {
 } from "../../../../hooks/usePosts";
 import type { FeedPost } from "../../../../types/post.types";
 
+const COMMUNITY_BG = require("../../../../../assets/images/bg3.jpg");
+
 export default function CreatePostScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { user } = useAuth();
+  const { t } = useI18n();
   const postId = route.params?.postId as string | undefined;
   const initialPost = route.params?.initialPost as FeedPost | undefined;
   const isEditing = Boolean(postId);
@@ -78,8 +84,10 @@ export default function CreatePostScreen() {
     if (!content.trim() && images.length === 0) {
       Toast.show({
         type: "info",
-        text1: "Noi dung bat buoc",
-        text2: "Vui long nhap noi dung bai viet hoac them anh.",
+        text1: t("createPost.contentRequired", { defaultValue: "Nội dung bắt buộc" }),
+        text2: t("createPost.contentRequiredMessage", { 
+          defaultValue: "Vui lòng nhập nội dung bài viết hoặc thêm ảnh." 
+        }),
       });
       return;
     }
@@ -105,16 +113,20 @@ export default function CreatePostScreen() {
           onSuccess: () => {
             Toast.show({
               type: "success",
-              text1: "Thanh cong",
-              text2: "Da cap nhat bai viet.",
+              text1: t("common.success", { defaultValue: "Thành công" }),
+              text2: t("createPost.updateSuccess", { 
+                defaultValue: "Đã cập nhật bài viết." 
+              }),
             });
             navigation.goBack();
           },
           onError: (error: any) => {
             Toast.show({
               type: "error",
-              text1: "Loi",
-              text2: `Khong the cap nhat bai viet. ${error?.message || ""}`,
+              text1: t("common.error", { defaultValue: "Lỗi" }),
+              text2: t("createPost.updateError", { 
+                defaultValue: "Không thể cập nhật bài viết." 
+              }) + ` ${error?.message || ""}`,
             });
           },
         },
@@ -126,16 +138,20 @@ export default function CreatePostScreen() {
       onSuccess: () => {
         Toast.show({
           type: "success",
-          text1: "Thanh cong",
-          text2: "Da tao bai viet va chia se den moi nguoi.",
+          text1: t("common.success", { defaultValue: "Thành công" }),
+          text2: t("createPost.createSuccess", { 
+            defaultValue: "Đã tạo bài viết và chia sẻ đến mọi người." 
+          }),
         });
         navigation.goBack();
       },
       onError: (error: any) => {
         Toast.show({
           type: "error",
-          text1: "Loi",
-          text2: `Khong the tao bai viet. ${error?.message || ""}`,
+          text1: t("common.error", { defaultValue: "Lỗi" }),
+          text2: t("createPost.createError", { 
+            defaultValue: "Không thể tạo bài viết." 
+          }) + ` ${error?.message || ""}`,
         });
       },
     });
@@ -147,27 +163,56 @@ export default function CreatePostScreen() {
 
   if (isEditing && isLoadingEditingPost && !hydratedRef.current && !initialPost) {
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+      <ImageBackground
+        source={COMMUNITY_BG}
+        style={styles.container}
+        resizeMode="cover"
+      >
+        <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+        <LinearGradient
+          colors={[
+            "rgba(252, 248, 238, 0.62)",
+            "rgba(255,255,255,0.54)",
+            "rgba(250, 244, 230, 0.66)",
+          ]}
+          style={StyleSheet.absoluteFillObject}
+        />
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
-      </View>
+      </ImageBackground>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <ImageBackground
+      source={COMMUNITY_BG}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      <LinearGradient
+        colors={[
+          "rgba(252, 248, 238, 0.62)",
+          "rgba(255,255,255,0.54)",
+          "rgba(250, 244, 230, 0.66)",
+        ]}
+        style={StyleSheet.absoluteFillObject}
+      />
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.headerButton}
         >
-          <Text style={styles.cancelText}>Huy</Text>
+          <Text style={styles.cancelText}>
+            {t("common.cancel", { defaultValue: "Hủy" })}
+          </Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isEditing ? "Chinh sua bai viet" : "Tao bai viet"}
+          {isEditing 
+            ? t("createPost.editPost", { defaultValue: "Chỉnh sửa bài viết" })
+            : t("createPost.createPost", { defaultValue: "Tạo bài viết" })
+          }
         </Text>
         <TouchableOpacity
           onPress={handlePost}
@@ -180,7 +225,12 @@ export default function CreatePostScreen() {
           {isSubmitting ? (
             <ActivityIndicator size="small" color={COLORS.white} />
           ) : (
-            <Text style={styles.postText}>{isEditing ? "Luu" : "Dang"}</Text>
+            <Text style={styles.postText}>
+              {isEditing 
+                ? t("common.save", { defaultValue: "Lưu" })
+                : t("createPost.post", { defaultValue: "Đăng" })
+              }
+            </Text>
           )}
         </TouchableOpacity>
       </View>
@@ -205,12 +255,16 @@ export default function CreatePostScreen() {
                 </Text>
               </View>
             )}
-            <Text style={styles.userName}>{user?.fullName || "Pilgrim"}</Text>
+            <Text style={styles.userName}>
+              {user?.fullName || t("profile.defaultPilgrim", { defaultValue: "Pilgrim" })}
+            </Text>
           </View>
 
           <TextInput
             style={styles.textInput}
-            placeholder="Ban dang nghi gi?"
+            placeholder={t("createPost.placeholder", { 
+              defaultValue: "Bạn đang nghĩ gì?" 
+            })}
             placeholderTextColor={COLORS.textTertiary}
             multiline
             autoFocus
@@ -220,7 +274,9 @@ export default function CreatePostScreen() {
 
           {isEditing && existingImages.length > 0 && images.length === 0 ? (
             <View style={styles.existingMediaSection}>
-              <Text style={styles.existingMediaLabel}>Anh hien co</Text>
+              <Text style={styles.existingMediaLabel}>
+                {t("createPost.existingImages", { defaultValue: "Ảnh hiện có" })}
+              </Text>
               <View style={styles.imagePreviewContainer}>
                 {existingImages.map((uri, index) => (
                   <View key={`${uri}-${index}`} style={styles.imagePreviewWrapper}>
@@ -265,7 +321,7 @@ export default function CreatePostScreen() {
                 images.length >= 4 && { color: COLORS.border },
               ]}
             >
-              Anh/Video
+              {t("createPost.imageVideo", { defaultValue: "Ảnh/Video" })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -278,16 +334,18 @@ export default function CreatePostScreen() {
         mediaTypes={"images"}
         allowsMultipleSelection={true}
         selectionLimit={4}
-        title="Them anh vao bai viet"
+        title={t("createPost.addImages", { 
+          defaultValue: "Thêm ảnh vào bài viết" 
+        })}
       />
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
@@ -301,7 +359,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    backgroundColor: "rgba(255,255,255,0.74)",
   },
   headerButton: {
     minWidth: 60,
@@ -415,7 +473,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.borderLight,
     padding: SPACING.md,
-    backgroundColor: COLORS.white,
+    backgroundColor: "rgba(255,255,255,0.86)",
   },
   toolbarItem: {
     flexDirection: "row",

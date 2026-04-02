@@ -631,7 +631,8 @@ export const MediaDetailScreen: React.FC = () => {
         {/* Content Panel */}
         <KeyboardAvoidingView
           style={styles.contentPanel}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "android" ? 16 : 0}
         >
           {/* Drag Indicator Affordance */}
           <View style={styles.dragHandleContainer}>
@@ -640,6 +641,9 @@ export const MediaDetailScreen: React.FC = () => {
 
           <ReanimatedScrollView
             style={styles.scrollContent}
+            contentContainerStyle={{
+              paddingBottom: insets.bottom + GUIDE_SPACING.xxxl,
+            }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onScroll={scrollHandler}

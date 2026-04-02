@@ -9,12 +9,16 @@ import {
     PlanItem,
     PlanOwner,
 } from "../../types/pilgrim/planner.types";
+import { ensureLegacyOfflineStorageCleanup } from "./offlineLegacyCleanup";
 import type { OfflineMapPack } from "./offlineMapService";
+import { getOfflineStorageScopeUserId } from "./offlineStorageScope";
 
 const STORAGE_KEYS = {
-  PLANNER: (id: string) => `@offline_planner_${id}`,
-  PLANNER_LIST: "@offline_planner_list",
-  LAST_SYNC: (id: string) => `@offline_last_sync_${id}`,
+  PLANNER: (userId: string, plannerId: string) =>
+    `@offline:${userId}:planner:${plannerId}`,
+  PLANNER_LIST: (userId: string) => `@offline:${userId}:planner_list`,
+  LAST_SYNC: (userId: string, plannerId: string) =>
+    `@offline:${userId}:last_sync:${plannerId}`,
 };
 
 export const createOfflinePlannerItemId = () =>
@@ -113,6 +117,7 @@ export interface OfflinePlannerNearbyPlace {
 export interface OfflinePlannerStoredData extends OfflinePlannerData {
   cached_images?: Record<string, string>;
   offline_map?: OfflineMapPack;
+  storage_scope_user_id?: string;
 }
 
 export interface OfflinePlannerSummary {
@@ -315,7 +320,7 @@ const mapOfflineDataToPlanEntity = (
   const collections = buildItemCollections(planItems);
   const highestDay =
     planItems.reduce((currentMax, item) => {
-      return Math.max(currentMax, item.day_number ?? item.leg_number ?? 1);
+      return Math.max(currentMax, item.day_number ?? 1);
     }, 1) || 1;
 
   return {
@@ -370,6 +375,19 @@ class OfflinePlannerService {
     return totalSize;
   }
 
+  private async getStorageScopeUserId() {
+    await ensureLegacyOfflineStorageCleanup();
+    return getOfflineStorageScopeUserId();
+  }
+
+  private getScopedKeys(userId: string) {
+    return {
+      planner: (plannerId: string) => STORAGE_KEYS.PLANNER(userId, plannerId),
+      plannerList: STORAGE_KEYS.PLANNER_LIST(userId),
+      lastSync: (plannerId: string) => STORAGE_KEYS.LAST_SYNC(userId, plannerId),
+    };
+  }
+
   /**
    * Save planner data for offline use
    */
@@ -378,22 +396,33 @@ class OfflinePlannerService {
     data: OfflinePlannerStoredData,
   ): Promise<void> {
     try {
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        throw new Error("Cannot save offline planner data without an authenticated user.");
+      }
+
+      const keys = this.getScopedKeys(userId);
+      const scopedData: OfflinePlannerStoredData = {
+        ...data,
+        storage_scope_user_id: userId,
+      };
+
       await AsyncStorage.setItem(
-        STORAGE_KEYS.PLANNER(plannerId),
-        JSON.stringify(data),
+        keys.planner(plannerId),
+        JSON.stringify(scopedData),
       );
 
       const list = await this.getOfflinePlannerList();
       if (!list.includes(plannerId)) {
         list.push(plannerId);
         await AsyncStorage.setItem(
-          STORAGE_KEYS.PLANNER_LIST,
+          keys.plannerList,
           JSON.stringify(list),
         );
       }
 
       await AsyncStorage.setItem(
-        STORAGE_KEYS.LAST_SYNC(plannerId),
+        keys.lastSync(plannerId),
         new Date().toISOString(),
       );
     } catch (error) {
@@ -409,7 +438,13 @@ class OfflinePlannerService {
     plannerId: string,
   ): Promise<OfflinePlannerStoredData | null> {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER(plannerId));
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return null;
+      }
+
+      const keys = this.getScopedKeys(userId);
+      const data = await AsyncStorage.getItem(keys.planner(plannerId));
       if (!data) {
         return null;
       }
@@ -622,7 +657,13 @@ class OfflinePlannerService {
    */
   async isPlannerAvailableOffline(plannerId: string): Promise<boolean> {
     try {
-      const data = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER(plannerId));
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return false;
+      }
+
+      const keys = this.getScopedKeys(userId);
+      const data = await AsyncStorage.getItem(keys.planner(plannerId));
       return data !== null;
     } catch {
       return false;
@@ -634,7 +675,13 @@ class OfflinePlannerService {
    */
   async getOfflinePlannerList(): Promise<string[]> {
     try {
-      const list = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER_LIST);
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return [];
+      }
+
+      const keys = this.getScopedKeys(userId);
+      const list = await AsyncStorage.getItem(keys.plannerList);
       return list ? (JSON.parse(list) as string[]) : [];
     } catch (error) {
       console.error("Failed to get planner list:", error);
@@ -647,13 +694,19 @@ class OfflinePlannerService {
    */
   async getAllOfflinePlanners(): Promise<OfflinePlannerSummary[]> {
     try {
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return [];
+      }
+
+      const keys = this.getScopedKeys(userId);
       const list = await this.getOfflinePlannerList();
 
       const planners: (OfflinePlannerSummary | null)[] = await Promise.all(
         list.map(async (plannerId) => {
           const [rawData, lastSync] = await Promise.all([
-            AsyncStorage.getItem(STORAGE_KEYS.PLANNER(plannerId)),
-            AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC(plannerId)),
+            AsyncStorage.getItem(keys.planner(plannerId)),
+            AsyncStorage.getItem(keys.lastSync(plannerId)),
           ]);
 
           if (!rawData) {
@@ -716,9 +769,13 @@ class OfflinePlannerService {
    */
   async getLastSyncTime(plannerId: string): Promise<Date | null> {
     try {
-      const time = await AsyncStorage.getItem(
-        STORAGE_KEYS.LAST_SYNC(plannerId),
-      );
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return null;
+      }
+
+      const keys = this.getScopedKeys(userId);
+      const time = await AsyncStorage.getItem(keys.lastSync(plannerId));
       return time ? new Date(time) : null;
     } catch {
       return null;
@@ -730,16 +787,23 @@ class OfflinePlannerService {
    */
   async deletePlannerData(plannerId: string): Promise<void> {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.PLANNER(plannerId));
-      await AsyncStorage.removeItem(STORAGE_KEYS.LAST_SYNC(plannerId));
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return;
+      }
+
+      const keys = this.getScopedKeys(userId);
+
+      await AsyncStorage.removeItem(keys.planner(plannerId));
+      await AsyncStorage.removeItem(keys.lastSync(plannerId));
 
       const list = await this.getOfflinePlannerList();
       const newList = list.filter((id) => id !== plannerId);
       if (newList.length === 0) {
-        await AsyncStorage.removeItem(STORAGE_KEYS.PLANNER_LIST);
+        await AsyncStorage.removeItem(keys.plannerList);
       } else {
         await AsyncStorage.setItem(
-          STORAGE_KEYS.PLANNER_LIST,
+          keys.plannerList,
           JSON.stringify(newList),
         );
       }
@@ -754,14 +818,20 @@ class OfflinePlannerService {
    */
   async clearAllOfflineData(): Promise<void> {
     try {
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return;
+      }
+
+      const keys = this.getScopedKeys(userId);
       const list = await this.getOfflinePlannerList();
 
       await Promise.all([
-        ...list.map((id) => AsyncStorage.removeItem(STORAGE_KEYS.PLANNER(id))),
+        ...list.map((id) => AsyncStorage.removeItem(keys.planner(id))),
         ...list.map((id) =>
-          AsyncStorage.removeItem(STORAGE_KEYS.LAST_SYNC(id)),
+          AsyncStorage.removeItem(keys.lastSync(id)),
         ),
-        AsyncStorage.removeItem(STORAGE_KEYS.PLANNER_LIST),
+        AsyncStorage.removeItem(keys.plannerList),
       ]);
     } catch (error) {
       console.error("Failed to clear offline data:", error);
@@ -774,6 +844,12 @@ class OfflinePlannerService {
    */
   async getOfflineStorageSize(): Promise<number> {
     try {
+      const userId = await this.getStorageScopeUserId();
+      if (!userId) {
+        return 0;
+      }
+
+      const keys = this.getScopedKeys(userId);
       const list = await this.getOfflinePlannerList();
       if (list.length === 0) {
         return 0;
@@ -783,7 +859,7 @@ class OfflinePlannerService {
       const countedUris = new Set<string>();
 
       const plannerListData = await AsyncStorage.getItem(
-        STORAGE_KEYS.PLANNER_LIST,
+        keys.plannerList,
       );
       if (plannerListData) {
         totalSize += getStringSizeInBytes(plannerListData);
@@ -791,8 +867,8 @@ class OfflinePlannerService {
 
       for (const id of list) {
         const [data, lastSync] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.PLANNER(id)),
-          AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC(id)),
+          AsyncStorage.getItem(keys.planner(id)),
+          AsyncStorage.getItem(keys.lastSync(id)),
         ]);
 
         if (data) {

@@ -78,6 +78,9 @@ export const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  contentArea: {
+    flex: 1,
+  },
   scrollContent: {
     padding: GUIDE_SPACING.lg,
     paddingBottom: GUIDE_SPACING.xxxl,

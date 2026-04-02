@@ -59,6 +59,26 @@ export const PILGRIM_ENDPOINTS = {
     REMOVE_FAVORITE: (id: string) => `${API_BASE}/sites/${id}/favorite`,
     REVIEWS: (id: string) => `${API_BASE}/sites/${id}/reviews`,
     ADD_REVIEW: (id: string) => `${API_BASE}/sites/${id}/reviews`,
+    UPDATE_REVIEW: (siteId: string, reviewId: string) =>
+      `${API_BASE}/sites/${siteId}/reviews/${reviewId}`,
+    DELETE_REVIEW: (siteId: string, reviewId: string) =>
+      `${API_BASE}/sites/${siteId}/reviews/${reviewId}`,
+    NEARBY_PLACE_REVIEWS: (siteId: string, nearbyPlaceId: string) =>
+      `${API_BASE}/sites/${siteId}/nearby-places/${nearbyPlaceId}/reviews`,
+    ADD_NEARBY_PLACE_REVIEW: (siteId: string, nearbyPlaceId: string) =>
+      `${API_BASE}/sites/${siteId}/nearby-places/${nearbyPlaceId}/reviews`,
+    UPDATE_NEARBY_PLACE_REVIEW: (
+      siteId: string,
+      nearbyPlaceId: string,
+      reviewId: string,
+    ) =>
+      `${API_BASE}/sites/${siteId}/nearby-places/${nearbyPlaceId}/reviews/${reviewId}`,
+    DELETE_NEARBY_PLACE_REVIEW: (
+      siteId: string,
+      nearbyPlaceId: string,
+      reviewId: string,
+    ) =>
+      `${API_BASE}/sites/${siteId}/nearby-places/${nearbyPlaceId}/reviews/${reviewId}`,
     MEDIA: (id: string) => `${API_BASE}/sites/${id}/media`,
     MASS_SCHEDULES: (id: string) => `${API_BASE}/sites/${id}/mass-schedules`,
     EVENTS: (id: string) => `${API_BASE}/sites/${id}/events`,
@@ -248,6 +268,15 @@ export const GUIDE_ENDPOINTS = {
     DELETE: (id: string) => `${API_BASE}/local-guide/nearby-places/${id}`,
     RESTORE: (id: string) =>
       `${API_BASE}/local-guide/nearby-places/${id}/restore`,
+  },
+
+  // Local Guide Reviews - Danh sách đánh giá của site được gán
+  LOCAL_GUIDE_REVIEWS: {
+    LIST: `${API_BASE}/local-guide/reviews`,
+    SITE_REPLY: (reviewId: string) =>
+      `${API_BASE}/local-guide/site-reviews/${reviewId}/reply`,
+    NEARBY_PLACE_REPLY: (reviewId: string) =>
+      `${API_BASE}/local-guide/nearby-place-reviews/${reviewId}/reply`,
   },
 
   // Local Guide Events - Event management for assigned site

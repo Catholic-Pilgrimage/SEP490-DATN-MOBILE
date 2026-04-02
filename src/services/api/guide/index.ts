@@ -11,6 +11,17 @@
  * import { getTtsVoices, updateModelNarrative } from '@/services/api/guide/narrativeApi';
  */
 
+// Combined Guide API (for backward compatibility)
+import dashboardApi from "./dashboardHomeApi";
+import guideEventApi from "./eventApi";
+import massScheduleApi from "./massScheduleApi";
+import guideMediaApi from "./mediaApi";
+import guideNarrativeApi from "./narrativeApi";
+import guideReviewApi from "./reviewApi";
+import shiftSubmissionApi from "./shiftSubmissionApi";
+import guideSiteApi from "./siteApi";
+import guideSOSApi from "./sosApi";
+
 // Site API
 export * from "./siteApi";
 export { default as guideSiteApi } from "./siteApi";
@@ -52,20 +63,15 @@ export { default as shiftSubmissionApi } from "./shiftSubmissionApi";
 export * from "./nearbyPlacesApi";
 export { default as guideNearbyPlacesApi } from "./nearbyPlacesApi";
 
-// Combined Guide API (for backward compatibility)
-import dashboardApi from "./dashboardHomeApi";
-import guideEventApi from "./eventApi";
-import massScheduleApi from "./massScheduleApi";
-import guideMediaApi from "./mediaApi";
-import guideNarrativeApi from "./narrativeApi";
-import shiftSubmissionApi from "./shiftSubmissionApi";
-import guideSiteApi from "./siteApi";
-import guideSOSApi from "./sosApi";
+// Reviews API
+export * from "./reviewApi";
+export { default as guideReviewApi } from "./reviewApi";
 
 const guideApis = {
   site: guideSiteApi,
   media: guideMediaApi,
   narrative: guideNarrativeApi,
+  review: guideReviewApi,
   event: guideEventApi,
   dashboard: dashboardApi,
   massSchedule: massScheduleApi,

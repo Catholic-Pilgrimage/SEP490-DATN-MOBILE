@@ -8,6 +8,11 @@ export const GUIDE_KEYS = {
     site: (id?: string) => [...GUIDE_KEYS.all, 'site', id ? id : 'current'] as const,
     events: (filters?: Record<string, any>) => [...GUIDE_KEYS.all, 'events', filters] as const,
     media: (filters?: Record<string, any>) => [...GUIDE_KEYS.all, 'media', filters] as const,
+    reviews: {
+        all: () => [...GUIDE_KEYS.all, 'reviews'] as const,
+        list: (params?: Record<string, any>) =>
+            [...GUIDE_KEYS.all, 'reviews', 'list', params] as const,
+    },
     /** Mô hình 3D đã duyệt (site-media) — màn xem full không qua list */
     siteModels3d: () => [...GUIDE_KEYS.all, 'siteModels3d'] as const,
     /** Danh sách giọng TTS (VBee) — GET /local-guide/media/voices */
@@ -17,6 +22,7 @@ export const GUIDE_KEYS = {
     notifications: () => [...GUIDE_KEYS.all, 'notifications'] as const,
     dashboard: {
         all: () => [...GUIDE_KEYS.all, 'dashboard'] as const,
+        overview: () => [...GUIDE_KEYS.all, 'dashboard', 'overview'] as const,
         siteInfo: () => [...GUIDE_KEYS.all, 'dashboard', 'siteInfo'] as const,
         activeShift: (weekStart: string) => [...GUIDE_KEYS.all, 'dashboard', 'activeShift', weekStart] as const,
         todayOverview: () => [...GUIDE_KEYS.all, 'dashboard', 'todayOverview'] as const,

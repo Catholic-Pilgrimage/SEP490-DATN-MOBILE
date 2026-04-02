@@ -14,10 +14,12 @@ import {
   clearGoogleSession,
   signInWithGoogle,
 } from "../services/auth/googleAuthService";
+import { networkService } from "../services/network/networkService";
 import {
   registerForPushNotifications,
   unregisterPushToken,
 } from "../services/notification/notificationService";
+import { setOfflineStorageScopeUserId } from "../services/offline/offlineStorageScope";
 import { secureStorage } from "../services/storage/secureStorage";
 import {
   AUTH_STORAGE_KEYS,
@@ -148,6 +150,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const guestMode = await secureStorage.getItem(AUTH_STORAGE_KEYS.IS_GUEST);
         if (guestMode === "true") {
           setIsGuest(true);
+          setOfflineStorageScopeUserId(null);
+          await networkService.setStorageScope(null);
           dispatch({ type: "AUTH_GUEST_MODE" });
           return;
         }
@@ -160,6 +164,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (accessToken && refreshToken && userJson) {
           const user = JSON.parse(userJson) as User;
+          setOfflineStorageScopeUserId(user.id);
+          await networkService.setStorageScope(user.id);
           dispatch({
             type: "AUTH_RESTORE",
             payload: { user, accessToken, refreshToken },
@@ -168,8 +174,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return;
         }
 
+        setOfflineStorageScopeUserId(null);
+        await networkService.setStorageScope(null);
         dispatch({ type: "AUTH_SET_LOADING", payload: false });
       } catch {
+        setOfflineStorageScopeUserId(null);
+        await networkService.setStorageScope(null);
         dispatch({ type: "AUTH_SET_LOADING", payload: false });
       }
     };
@@ -200,6 +210,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
 
       setIsGuest(false);
+      setOfflineStorageScopeUserId(user.id);
+      await networkService.setStorageScope(user.id);
       dispatch({
         type: "AUTH_SUCCESS",
         payload: { user, accessToken, refreshToken },
@@ -290,6 +302,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         .catch(() => null);
 
       await clearGoogleSession().catch(() => null);
+      setOfflineStorageScopeUserId(null);
+      await networkService.setStorageScope(null);
       setIsGuest(false);
       dispatch({ type: "AUTH_LOGOUT" });
       queryClient.clear();
@@ -398,12 +412,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const continueAsGuest = useCallback(async () => {
     await secureStorage.setItem(AUTH_STORAGE_KEYS.IS_GUEST, "true");
+    setOfflineStorageScopeUserId(null);
+    await networkService.setStorageScope(null);
     setIsGuest(true);
     dispatch({ type: "AUTH_GUEST_MODE" });
   }, []);
 
   const exitGuestMode = useCallback(async () => {
     await secureStorage.removeItem(AUTH_STORAGE_KEYS.IS_GUEST);
+    setOfflineStorageScopeUserId(null);
+    await networkService.setStorageScope(null);
     setIsGuest(false);
     dispatch({ type: "AUTH_SET_LOADING", payload: false });
   }, []);

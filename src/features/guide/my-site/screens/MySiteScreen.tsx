@@ -4,7 +4,13 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ScrollView, StatusBar, Text, TouchableOpacity, View } from "react-native";
+import {
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDE_COLORS } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
@@ -12,26 +18,33 @@ import { useNotificationContext } from "../../../../contexts/NotificationContext
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useResponsive } from "../../../../hooks/useResponsive";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
-import guideSiteApi from "../../../../services/api/guide/siteApi";
+import { getAssignedSite } from "../../../../services/api/guide/siteApi";
 import { EventItem, MediaItem } from "../../../../types/guide";
-import { EventsTab, LocationsTab, SchedulesTab } from "../components";
-import MediaTab from "../components/MediaTab";
+import { EventsTab, LocationsTab, ReviewsTab, SchedulesTab } from "../components";
+import GuideMediaTab from "../components/MediaTab";
 import { PREMIUM_COLORS } from "../constants";
 import { styles } from "./MySiteScreen.styles";
 
 // Navigation — toàn bộ stack (MediaDetail, SiteModels3d, …)
 type MySiteNavigationProp = NativeStackNavigationProp<MySiteStackParamList>;
 
-type TabType = "events" | "media" | "schedules" | "locations";
+type TabType = "events" | "media" | "schedules" | "locations" | "reviews";
 
 const TAB_ICONS: Record<TabType, keyof typeof MaterialIcons.glyphMap> = {
   events: "event",
   media: "photo-library",
   schedules: "church",
   locations: "place",
+  reviews: "rate-review",
 };
 
-const ALL_TABS: TabType[] = ["events", "media", "schedules", "locations"];
+const ALL_TABS: TabType[] = [
+  "events",
+  "media",
+  "schedules",
+  "locations",
+  "reviews",
+];
 
 interface UnderlineTabsProps {
   tabs: TabType[];
@@ -46,7 +59,7 @@ const UnderlineTabs: React.FC<UnderlineTabsProps> = ({
   onTabChange,
   labels,
 }) => {
-  const { fontSize, spacing, iconSize } = useResponsive();
+  const { fontSize, iconSize } = useResponsive();
 
   return (
     <View style={styles.segmentedControl}>
@@ -96,6 +109,7 @@ const TAB_MAP: Record<string, TabType> = {
   media: "media",
   schedules: "schedules",
   locations: "locations",
+  reviews: "reviews",
 };
 
 const MySiteScreen: React.FC = () => {
@@ -103,6 +117,8 @@ const MySiteScreen: React.FC = () => {
   const navigation = useNavigation<MySiteNavigationProp>();
   const route = useRoute<MySiteHomeRouteProp>();
   const initialTab = route.params?.initialTab;
+  const focusReviewId = route.params?.reviewId;
+  const autoOpenReply = route.params?.autoOpenReply;
   const { t } = useTranslation();
   const { openModal } = useNotificationContext();
   const { unreadCount } = useNotifications();
@@ -117,10 +133,10 @@ const MySiteScreen: React.FC = () => {
   }, [initialTab]);
 
   // Fetch assigned site info from API
-  const { data: siteData, isLoading: isSiteLoading } = useQuery({
+  const { data: siteData } = useQuery({
     queryKey: GUIDE_KEYS.dashboard.siteInfo(),
     queryFn: async () => {
-      const response = await guideSiteApi.getAssignedSite();
+      const response = await getAssignedSite();
       if (!response?.success) throw new Error(response?.message || "Failed");
       return response.data;
     },
@@ -132,6 +148,7 @@ const MySiteScreen: React.FC = () => {
       media: t("mySiteScreen.tabs.media"),
       schedules: t("mySiteScreen.tabs.schedules"),
       locations: t("mySiteScreen.tabs.locations"),
+      reviews: t("mySiteScreen.tabs.reviews"),
     }),
     [t],
   );
@@ -234,7 +251,7 @@ const MySiteScreen: React.FC = () => {
       {/* Media Tab - Rendered outside ScrollView to avoid nesting VirtualizedList */}
       {activeTab === "media" && (
         <View style={styles.mediaTabContainer}>
-          <MediaTab
+          <GuideMediaTab
             onMediaPress={handleMediaPress}
             onUploadPress={handleUploadPress}
             onOpenSiteModels3d={handleOpenSiteModels3d}
@@ -274,6 +291,15 @@ const MySiteScreen: React.FC = () => {
       {activeTab === "schedules" && (
         <View style={styles.mediaTabContainer}>
           <SchedulesTab />
+        </View>
+      )}
+
+      {activeTab === "reviews" && (
+        <View style={styles.mediaTabContainer}>
+          <ReviewsTab
+            focusReviewId={focusReviewId}
+            autoOpenReply={autoOpenReply}
+          />
         </View>
       )}
 

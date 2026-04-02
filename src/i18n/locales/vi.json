@@ -59,9 +59,11 @@
   "navigation": {
     "home": "Trang chủ",
     "mySite": "Site của tôi",
+    "manage": "Quản lý",
     "profile": "Hồ sơ",
     "explore": "Khám phá",
     "schedule": "Lịch trình",
+    "shifts": "Lịch",
     "community": "Cộng đồng",
     "notifications": "Thông báo"
   },
@@ -1036,7 +1038,8 @@
       "events": "Sự kiện",
       "media": "Media",
       "schedules": "Lịch lễ",
-      "locations": "Địa điểm"
+      "locations": "Địa điểm",
+      "reviews": "Đánh giá"
     },
     "loading": "Đang tải...",
     "noAddress": "Chưa có địa chỉ",
@@ -1203,6 +1206,21 @@
       "hoursAgo": "{{count}} giờ trước",
       "daysAgo": "{{count}} ngày trước"
     }
+  },
+  "createPost": {
+    "createPost": "Tạo bài viết",
+    "editPost": "Chỉnh sửa bài viết",
+    "post": "Đăng",
+    "placeholder": "Bạn đang nghĩ gì?",
+    "contentRequired": "Nội dung bắt buộc",
+    "contentRequiredMessage": "Vui lòng nhập nội dung bài viết hoặc thêm ảnh.",
+    "imageVideo": "Ảnh/Video",
+    "addImages": "Thêm ảnh vào bài viết",
+    "existingImages": "Ảnh hiện có",
+    "createSuccess": "Đã tạo bài viết và chia sẻ đến mọi người.",
+    "createError": "Không thể tạo bài viết.",
+    "updateSuccess": "Đã cập nhật bài viết.",
+    "updateError": "Không thể cập nhật bài viết."
   },
   "report": {
     "title": "Báo cáo",

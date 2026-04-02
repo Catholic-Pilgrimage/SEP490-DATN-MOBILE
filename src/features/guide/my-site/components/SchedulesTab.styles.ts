@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import {
     GUIDE_BORDER_RADIUS,
     GUIDE_COLORS,

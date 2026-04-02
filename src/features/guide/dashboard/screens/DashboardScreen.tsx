@@ -1,6 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -18,10 +19,13 @@ import {
   GUIDE_COLORS,
   GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
+import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
+import { guideReviewApi } from "../../../../services/api/guide";
+import { RecentActivityItem } from "../../../../types/guide";
 import {
   getFontSize,
   getSpacing,
@@ -63,6 +67,19 @@ const DashboardScreen: React.FC = () => {
     activeShiftDisplay,
   } = useDashboardHome();
 
+  const recentReviewsQuery = useQuery({
+    queryKey: GUIDE_KEYS.reviews.list({ page: 1, limit: 5 }),
+    queryFn: async () => {
+      const response = await guideReviewApi.getReviews({ page: 1, limit: 5 });
+
+      if (!response?.success) {
+        throw new Error(response?.message || "Không thể tải đánh giá gần đây.");
+      }
+
+      return response.data?.data ?? [];
+    },
+  });
+
   // ── Derived state ──────────────────────────────────────────
   const heroHeight = getHeroHeight();
 
@@ -82,8 +99,11 @@ const DashboardScreen: React.FC = () => {
     default: 22,
   });
 
-  const { siteInfo, todayOverview, recentActivity } = data;
+  const { siteInfo, todayOverview, recentActivity, overview } = data;
+  const recentReviews = recentReviewsQuery.data ?? [];
   const siteLoading = loading.siteInfo;
+  const checkinsToday = overview?.site_overview?.checkins_today ?? 0;
+  const pendingSos = overview?.site_overview?.pending_sos ?? 0;
   const openingTime = siteInfo?.openingHours?.open?.slice(0, 5) || null;
   const closingTime = siteInfo?.openingHours?.close?.slice(0, 5) || null;
   const hasOpeningHours = Boolean(openingTime && closingTime);
@@ -203,6 +223,48 @@ const DashboardScreen: React.FC = () => {
       }
     },
     [navigateToMySite, navigation, showInfoDialog, siteInfo?.id, t],
+  );
+
+  const handleRecentActivityPress = useCallback(
+    (activity: RecentActivityItem) => {
+      switch (activity.type) {
+        case "event":
+          navigateToMySite("EventDetail", {
+            event: activity.originalData,
+          });
+          break;
+        case "media":
+          navigateToMySite("MediaDetail", {
+            media: activity.originalData,
+          });
+          break;
+        case "nearby_place":
+          navigateToMySite("MySiteHome", { initialTab: "locations" });
+          break;
+        default:
+          navigateToMySite("MySiteHome");
+      }
+    },
+    [navigateToMySite],
+  );
+
+  const handleViewAllRecentActivity = useCallback(() => {
+    navigateToMySite("MySiteHome");
+  }, [navigateToMySite]);
+
+  const handleViewAllReviews = useCallback(() => {
+    navigateToMySite("MySiteHome", { initialTab: "reviews" });
+  }, [navigateToMySite]);
+
+  const handleReplyReview = useCallback(
+    (reviewId: string) => {
+      navigateToMySite("MySiteHome", {
+        initialTab: "reviews",
+        reviewId,
+        autoOpenReply: true,
+      });
+    },
+    [navigateToMySite],
   );
 
   // ── Render ─────────────────────────────────────────────────
@@ -412,11 +474,26 @@ const DashboardScreen: React.FC = () => {
           ]}
         >
           <PilgrimInsights
-            liveCheckInCount={12} // TODO: Connect to real API
-            todayVisitors={48} // TODO: Connect to real API
-            onViewAll={() => {
-              /* TODO: Navigate to pilgrim stats */
-            }}
+            sectionLabel={t("dashboard.overview.sectionLabel", {
+              defaultValue: "DASHBOARD",
+            })}
+            title={t("dashboard.overview.title", {
+              defaultValue: "Tổng quan site",
+            })}
+            primaryCount={checkinsToday}
+            secondaryCount={pendingSos}
+            primaryLabel={t("dashboard.overview.checkinsToday", {
+              defaultValue: "Check-in hôm nay",
+            })}
+            secondaryLabel={t("dashboard.overview.pendingSos", {
+              defaultValue: "SOS chờ xử lý",
+            })}
+            primaryIcon="footsteps-outline"
+            secondaryIcon="alert-circle-outline"
+            primaryBackgroundIcon="people-outline"
+            secondaryBackgroundIcon="warning-outline"
+            showPrimaryDot={checkinsToday > 0}
+            onViewAll={() => navigateToMySite("MySiteHome")}
           />
         </View>
 
@@ -574,7 +651,11 @@ const DashboardScreen: React.FC = () => {
             >
               {t("recentActivity.title")}
             </Text>
-            <TouchableOpacity style={styles.viewAllButton}>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={handleViewAllRecentActivity}
+              activeOpacity={0.75}
+            >
               <Text style={[styles.viewAllText, { fontSize: getFontSize(13) }]}>
                 {t("common.viewAll")}
               </Text>
@@ -614,6 +695,8 @@ const DashboardScreen: React.FC = () => {
                   <TouchableOpacity
                     key={activity.id}
                     style={styles.activityItem}
+                    onPress={() => handleRecentActivityPress(activity)}
+                    activeOpacity={0.78}
                   >
                     <View style={styles.activityImageContainer}>
                       {activity.thumbnail ? (
@@ -709,7 +792,18 @@ const DashboardScreen: React.FC = () => {
           ]}
         >
           <RecentReviews
-            reviews={[
+            reviews={
+              recentReviews.length >= 0
+                ? recentReviews.map((review) => ({
+                    id: review.id,
+                    pilgrimName: review.pilgrimName,
+                    pilgrimAvatar: review.pilgrimAvatar,
+                    rating: review.rating,
+                    content: review.content,
+                    createdAt: review.createdAt,
+                    isReplied: Boolean(review.response?.trim()),
+                  }))
+                : [/*
               {
                 id: "1",
                 pilgrimName: "Maria Nguyễn",
@@ -747,16 +841,9 @@ const DashboardScreen: React.FC = () => {
                 ).toISOString(),
                 isReplied: false,
               },
-            ]}
-            onReply={(reviewId) => {
-              /* TODO: Navigate to reply screen */
-            }}
-            onViewAll={() => {
-              /* TODO: Navigate to all reviews */
-            }}
-            onAISummary={() => {
-              /* TODO: Generate AI summary */
-            }}
+            */]}
+            onReply={handleReplyReview}
+            onViewAll={handleViewAllReviews}
           />
         </View>
 

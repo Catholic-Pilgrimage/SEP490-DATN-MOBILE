@@ -24,6 +24,12 @@ export interface Shift {
     created_at: string;
 }
 
+export interface ShiftSubmissionApprover {
+    id: string;
+    full_name: string;
+    email?: string | null;
+}
+
 export interface ShiftSubmission {
     id: string;
     guide_id: string;
@@ -40,6 +46,9 @@ export interface ShiftSubmission {
     approved_at: string | null;
     is_active: boolean;
     created_at: string;
+    createdAt?: string;
+    updatedAt?: string;
+    approver?: ShiftSubmissionApprover | null;
     shifts?: Shift[];
 }
 

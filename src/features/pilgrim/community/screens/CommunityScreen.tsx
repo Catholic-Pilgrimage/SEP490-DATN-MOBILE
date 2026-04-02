@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { TFunction } from 'i18next';
 import React, { useEffect, useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Alert,
+    Animated,
     FlatList,
     Image,
     ImageBackground,
@@ -29,15 +30,92 @@ import { CreatePostBar } from '../components/CreatePostBar';
 import PostActionSheet from '../components/PostActionSheet';
 import ReportPostModal from '../components/ReportPostModal';
 
-const STAINED_GLASS_PATTERN = {
-    uri: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAxrhiVQWx2be6uJ1xrGN4hrOCUzxkfSHMR9cY-0Rhvsmxq3dUZv72rXkE6aALqYJ_SyYq2b7EXCmgdin9z1u5YfXrQ4VOyNsBL1wjMkzIj0u2uvABqykyPMwnM2GF7VxfEaMbOhZPO_wESJVkyuN5tziBRX-eik_dKiqMIs5XmPvzq79GKdmgklm_GlWjY9erNgg8PcfbBz-ougrXWAVrtGGPdjXZtKHCHWgj7Hbm6Y4a0LzDmRA_ZwuKYbEpTo7ux9fZX7Q9pCYE',
-};
+const COMMUNITY_BG = require('../../../../../assets/images/bg3.jpg');
 
 const FeedCard = ({ children, style }: { children: React.ReactNode; style?: any }) => {
     return (
         <View style={[styles.cardContainer, style]}>
             {children}
             <View style={styles.postDivider} />
+        </View>
+    );
+};
+
+const GuestCommunityCard = ({
+    handleLogin,
+    t,
+}: {
+    handleLogin: () => void;
+    t: TFunction;
+}) => {
+    const cardFloat = useRef(new Animated.Value(0)).current;
+    const iconPulse = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(cardFloat, {
+                    toValue: -6,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(cardFloat, {
+                    toValue: 6,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ).start();
+
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(iconPulse, {
+                    toValue: 1.15,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(iconPulse, {
+                    toValue: 1,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ).start();
+    }, [cardFloat, iconPulse]);
+
+    return (
+        <View style={styles.guestContainer}>
+            <Animated.View
+                style={[styles.guestCard, { transform: [{ translateY: cardFloat }] }]}
+            >
+                <Animated.View style={{ transform: [{ scale: iconPulse }] }}>
+                    <MaterialIcons name="lock-outline" size={48} color="#D4AF37" />
+                </Animated.View>
+                <Text style={styles.guestTitle}>
+                    {t('profile.loginRequired', {
+                        defaultValue: 'Yêu cầu đăng nhập',
+                    })}
+                </Text>
+                <Text style={styles.guestSubtitle}>
+                    {t('profile.loginRequiredMessage', {
+                        defaultValue: 'Vui lòng đăng nhập để sử dụng tính năng này.',
+                    })}
+                </Text>
+                <TouchableOpacity
+                    style={styles.guestLoginBtn}
+                    onPress={handleLogin}
+                    activeOpacity={0.85}
+                >
+                    <View style={styles.guestLoginInner}>
+                        <MaterialIcons name="login" size={20} color={COLORS.white} />
+                        <Text style={styles.guestLoginText}>
+                            {t('profile.loginRegister', {
+                                defaultValue: 'Đăng nhập / Đăng ký',
+                            })}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
         </View>
     );
 };
@@ -308,8 +386,9 @@ export default function CommunityScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
     const { t, i18n } = useTranslation();
-    const { user } = useAuth();
+    const { user, isAuthenticated, isGuest, exitGuestMode } = useAuth();
     const isGuideViewer = user?.role === 'local_guide';
+    const requiresLogin = !isAuthenticated || isGuest;
     const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
     const [reportPostId, setReportPostId] = useState<string | null>(null);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
@@ -330,8 +409,21 @@ export default function CommunityScreen() {
         hasNextPage,
         isFetchingNextPage,
         refetch,
-    } = usePosts(10);
+    } = usePosts(10, { enabled: !requiresLogin });
     const deletePostMutation = useDeletePost();
+
+    const handleLogin = React.useCallback(async () => {
+        if (isGuest) {
+            await exitGuestMode();
+        }
+
+        navigation.dispatch(
+            CommonActions.reset({
+                index: 0,
+                routes: [{ name: 'Auth' }],
+            }),
+        );
+    }, [exitGuestMode, isGuest, navigation]);
 
     const posts = React.useMemo(() => {
         if (!data) return [];
@@ -502,20 +594,21 @@ export default function CommunityScreen() {
     );
 
     return (
-        <View style={styles.container}>
+        <ImageBackground
+            source={COMMUNITY_BG}
+            style={styles.container}
+            resizeMode="cover"
+        >
             <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-            <ImageBackground
-                source={STAINED_GLASS_PATTERN}
+            <LinearGradient
+                colors={[
+                    'rgba(252, 248, 238, 0.62)',
+                    'rgba(255,255,255,0.54)',
+                    'rgba(250, 244, 230, 0.66)',
+                ]}
                 style={StyleSheet.absoluteFillObject}
-                resizeMode="cover"
-                imageStyle={{ opacity: 0.03 }}
-            >
-                <LinearGradient
-                    colors={[COLORS.backgroundSoft, 'rgba(255,255,255,0.95)', COLORS.backgroundSoft]}
-                    style={StyleSheet.absoluteFillObject}
-                />
-            </ImageBackground>
+            />
 
             <View style={[styles.headerContainer, { paddingTop: insets.top }]}> 
                 <View style={styles.headerContent}>
@@ -544,7 +637,9 @@ export default function CommunityScreen() {
                 </View>
             </View>
 
-            {isLoading && !posts.length ? (
+            {requiresLogin ? (
+                <GuestCommunityCard handleLogin={handleLogin} t={t} />
+            ) : isLoading && !posts.length ? (
                 <View style={styles.centerContent}>
                     <ActivityIndicator size="large" color={COLORS.primary} />
                 </View>
@@ -616,7 +711,6 @@ export default function CommunityScreen() {
                     }
                 />
             )}
-
             <PostActionSheet
                 visible={Boolean(activePostAction)}
                 postContent={activePostAction?.content}
@@ -633,17 +727,17 @@ export default function CommunityScreen() {
                 targetId={reportPostId || ''}
                 targetType="post"
             />
-        </View>
+        </ImageBackground>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.backgroundSoft,
+        backgroundColor: 'transparent',
     },
     headerContainer: {
-        backgroundColor: 'rgba(255,255,255,0.9)',
+        backgroundColor: 'rgba(255,255,255,0.74)',
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
         zIndex: 10,
@@ -691,6 +785,55 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    guestContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.xl,
+    },
+    guestCard: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 28,
+        padding: SPACING.xl,
+        alignItems: 'center',
+        gap: SPACING.md,
+        width: '100%',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        ...SHADOWS.medium,
+    },
+    guestTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+    },
+    guestSubtitle: {
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+    },
+    guestLoginBtn: {
+        borderRadius: 20,
+        overflow: 'hidden',
+        marginTop: SPACING.sm,
+    },
+    guestLoginInner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 28,
+        borderRadius: 20,
+        backgroundColor: '#D4AF37',
+        gap: 8,
+    },
+    guestLoginText: {
+        color: COLORS.white,
+        fontWeight: '700',
+        fontSize: 16,
+    },
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -715,7 +858,7 @@ const styles = StyleSheet.create({
         paddingBottom: 100,
     },
     cardContainer: {
-        backgroundColor: COLORS.backgroundCard,
+        backgroundColor: 'rgba(255, 255, 255, 0.86)',
     },
     paddingContent: {
         paddingHorizontal: SPACING.lg,
@@ -723,7 +866,7 @@ const styles = StyleSheet.create({
     },
     postDivider: {
         height: 8,
-        backgroundColor: COLORS.backgroundSoft,
+        backgroundColor: 'rgba(250, 244, 230, 0.7)',
     },
     headerRow: {
         flexDirection: 'row',

@@ -1,7 +1,13 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 import { useNotificationContext } from '../../../../contexts/NotificationContext';
@@ -42,9 +48,6 @@ export const ShiftsScreen: React.FC = () => {
                                     </View>
                                 )}
                             </TouchableOpacity>
-                            <View style={styles.headerIcon}>
-                                <MaterialIcons name="calendar-today" size={22} color={GUIDE_COLORS.primary} />
-                            </View>
                         </View>
                     </View>
                 </View>
@@ -128,14 +131,6 @@ const styles = StyleSheet.create({
         fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
         color: GUIDE_COLORS.textSecondary,
         marginTop: 2,
-    },
-    headerIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: GUIDE_COLORS.primaryMuted,
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     notificationButton: {
         width: 44,

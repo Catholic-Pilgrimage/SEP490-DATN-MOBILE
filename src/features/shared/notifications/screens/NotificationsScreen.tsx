@@ -59,8 +59,8 @@ const NotificationsScreen = ({ navigation }: any) => {
 
   // Fetch on mount
   React.useEffect(() => {
-    fetchNotifications();
-  }, []);
+    fetchNotifications(true);
+  }, [fetchNotifications]);
 
   // Group notifications
   const sections = useMemo(() => {

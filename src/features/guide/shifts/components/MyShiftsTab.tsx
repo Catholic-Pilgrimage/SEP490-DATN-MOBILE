@@ -25,6 +25,7 @@ import {
 } from "../../../../services/api/guide";
 import { ShiftSubmission } from "../../../../types/guide/shiftSubmission.types";
 import { MyShiftCard } from "./MyShiftCard";
+import { ShiftRegistrationModal } from "./ShiftRegistrationModal";
 import { ShiftSubmissionDetailModal } from "./ShiftSubmissionDetailModal";
 
 export const MyShiftsTab: React.FC = () => {
@@ -35,6 +36,9 @@ export const MyShiftsTab: React.FC = () => {
   >("all");
   const [selectedSubmission, setSelectedSubmission] =
     useState<ShiftSubmission | null>(null);
+  const [editingWeekStartDate, setEditingWeekStartDate] = useState<
+    string | null
+  >(null);
 
   const showInfoDialog = useCallback(
     async (
@@ -207,11 +211,22 @@ export const MyShiftsTab: React.FC = () => {
         visible={!!selectedSubmission}
         submission={selectedSubmission}
         onClose={() => setSelectedSubmission(null)}
+        onEdit={(submission) => {
+          setSelectedSubmission(null);
+          setEditingWeekStartDate(submission.week_start_date);
+        }}
         onCancel={(id) => {
           void handleCancel(id);
           setSelectedSubmission(null);
         }}
       />
+      {editingWeekStartDate ? (
+        <ShiftRegistrationModal
+          visible={!!editingWeekStartDate}
+          weekStartDate={editingWeekStartDate}
+          onClose={() => setEditingWeekStartDate(null)}
+        />
+      ) : null}
       <ConfirmModal />
     </View>
   );
