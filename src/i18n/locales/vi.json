@@ -238,6 +238,8 @@
     "roleMember": "Thành viên",
     "rolePending": "Đang chờ",
     "noCrewYet": "Chưa có thành viên",
+    "waitingOtherMembers": "Đang đợi các thành viên khác tham gia…",
+    "manualLockMicrocopy": "Chốt danh sách và lịch trình. Không thể thêm điểm hoặc người mới sau khi khóa.",
     "pendingInvites": "Lời mời đang chờ",
     "sendInvite": "Gửi lời mời",
     "roleEditor": "Chỉnh sửa",

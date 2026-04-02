@@ -153,6 +153,7 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingTop: GUIDE_SPACING.md,
+    paddingBottom: GUIDE_SPACING.xxl,
   },
 
   // ============================================
@@ -248,6 +249,21 @@ export const styles = StyleSheet.create({
     paddingHorizontal: GUIDE_SPACING.sm,
     minHeight: 48,
   },
+  /** Multiline: cột, full width — cuộn nội bộ khi vượt maxHeight */
+  inputContainerMultiline: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    paddingVertical: GUIDE_SPACING.sm,
+  },
+  /** Mô tả: tối thiểu ~4 dòng, tối đa cố định — dài hơn thì cuộn trong ô */
+  inputMultiline: {
+    flex: 0,
+    alignSelf: "stretch",
+    width: "100%",
+    minHeight: 100,
+    maxHeight: 220,
+    textAlignVertical: "top",
+  },
   inputDisabled: {
     backgroundColor: GUIDE_COLORS.creamPanel,
     opacity: 0.92,
@@ -267,10 +283,6 @@ export const styles = StyleSheet.create({
   },
   inputWithIcon: {
     paddingLeft: 0,
-  },
-  inputMultiline: {
-    minHeight: 100,
-    textAlignVertical: "top",
   },
   placeholder: {
     color: GUIDE_COLORS.gray400,

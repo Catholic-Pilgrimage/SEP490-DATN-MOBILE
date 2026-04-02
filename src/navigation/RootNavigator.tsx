@@ -36,7 +36,7 @@ export type RootStackParamList = {
   VerificationRequest: undefined;
   Notifications: undefined;
   // Planner Invite
-  PlanInvitePreview: { token: string };
+  PlanInvitePreview: { token: string; mode?: "redirect" | "preview" };
 };
 
 const linking = {

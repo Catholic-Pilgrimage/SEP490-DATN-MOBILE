@@ -1,40 +1,40 @@
 import { FontAwesome, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  isErrorWithCode,
-  statusCodes,
+    isErrorWithCode,
+    statusCodes,
 } from "@react-native-google-signin/google-signin";
 import {
-  CommonActions,
-  RouteProp,
-  useNavigation,
-  useRoute,
+    CommonActions,
+    RouteProp,
+    useNavigation,
+    useRoute,
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  ImageBackground,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    Image,
+    ImageBackground,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withSpring,
+    withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -113,16 +113,14 @@ const LoginScreen = () => {
     }
   }, [clearError, email, error, password]);
 
-  // Navigate based on user role when authenticated or guest mode
-  // If user came from an invite link (pending_invite_token saved), navigate there after login
+  // Sau đăng nhập: luôn vào màn xem trước lời mời (GET invite) — không nhảy thẳng PlanDetail.
+  // POST phản hồi + cọc chỉ sau khi user xem preview và bấm tiếp tục trong PlanInvitePreview / InvitePlanGate.
   useEffect(() => {
     if (isAuthenticated || isGuest) {
       AsyncStorage.getItem("pending_invite_token")
-        .then((pendingToken) => {
+        .then(async (pendingToken) => {
           if (pendingToken && isAuthenticated) {
-            // Clear the pending token first
-            AsyncStorage.removeItem("pending_invite_token");
-            // Navigate to main app, then push the invite screen on top
+            await AsyncStorage.removeItem("pending_invite_token");
             navigation.dispatch(
               CommonActions.reset({
                 index: 1,
@@ -135,14 +133,14 @@ const LoginScreen = () => {
                 ],
               }),
             );
-          } else {
-            navigateToAppropriateScreen(
-              navigation,
-              isAuthenticated,
-              isGuest,
-              user?.role,
-            );
+            return;
           }
+          navigateToAppropriateScreen(
+            navigation,
+            isAuthenticated,
+            isGuest,
+            user?.role,
+          );
         })
         .catch(() => {
           navigateToAppropriateScreen(

@@ -10,6 +10,7 @@
 export type PlanStatus =
   | "draft"
   | "planned"
+  | "planning"
   | "ongoing"
   | "completed"
   | "cancelled";
@@ -62,6 +63,9 @@ export interface PlanItem {
   departure_time?: string;
   estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
   rest_duration?: string; // Format: text (e.g., "1 hour", "2 hours 30 minutes")
+  /** Tính từ điểm dừng trước trong cùng ngày (BE / client enrich). */
+  travel_time_minutes?: number;
+  travel_distance_km?: number;
 }
 
 export interface PlanParticipant {
@@ -112,8 +116,55 @@ export interface PlanInvite {
     status?: string;
     start_date?: string;
     end_date?: string;
+    deposit_amount?: number;
+    penalty_percentage?: number;
     owner?: PlanOwner;
+    /** GET /planners/invite/:token — formatPlannerWithItems */
+    items_by_day?: Record<string, PlanItem[]>;
   };
+}
+
+// ============================================
+// MY INVITES (pending / awaiting_payment)
+// ============================================
+
+export type PlannerInviteType = "friend" | "external";
+export type PlannerInvitePendingStatus = "pending" | "awaiting_payment";
+
+export interface PlannerInviteInviterSummary {
+  id: string;
+  full_name: string;
+  email: string;
+  avatar_url?: string;
+}
+
+export interface PlannerInvitePlannerSummary {
+  id: string;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+  number_of_people?: number;
+  transportation?: string;
+  deposit_amount?: number;
+  penalty_percentage?: number;
+  is_locked?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  /** Một số endpoint trả kèm lịch — dùng để đếm điểm dừng trên card mời. */
+  items_by_day?: Record<string, PlanItem[]>;
+  item_count?: number;
+}
+
+export interface PlannerMyInvite {
+  id: string;
+  token: string;
+  invite_type: PlannerInviteType;
+  status: PlannerInvitePendingStatus;
+  expires_at?: string;
+  created_at?: string;
+  planner?: PlannerInvitePlannerSummary;
+  inviter?: PlannerInviteInviterSummary;
 }
 
 export interface RespondInviteRequest {
@@ -236,6 +287,10 @@ export interface PlanEntity {
   /** Kế hoạch nhóm: cọc thành viên (VND) */
   deposit_amount?: number;
   penalty_percentage?: number;
+  /** Khớp cột `is_locked` trên BE (nhóm, giai đoạn lập kế hoạch) */
+  is_locked?: boolean;
+  /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
+  shared_to_community?: boolean;
 }
 
 export interface GetPlansResponse {
@@ -377,9 +432,12 @@ export interface GetCheckInsResponse {
   };
 }
 
+/** BE CheckinController: nhận `latitude`/`longitude` hoặc `checkin_latitude`/`checkin_longitude`. */
 export interface CheckInItemRequest {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
+  checkin_latitude?: number;
+  checkin_longitude?: number;
   note?: string;
   photos?: string[];
 }
@@ -388,12 +446,46 @@ export interface CheckInItemResponse {
   check_in: CheckInEntity;
 }
 
+/** PATCH /planners/:id/status — khớp SEP490-DATN-BACKEND PlannerService.updatePlannerStatus */
 export interface UpdatePlannerStatusRequest {
-  status: "ongoing" | "completed" | "expired";
+  status: "ongoing" | "completed" | "cancelled";
 }
 
-export interface UpdatePlannerItemStatusRequest {
-  status: "visited" | "skipped";
+/** PATCH /api/planners/:id/lock */
+export interface UpdatePlannerLockRequest {
+  locked: boolean;
+}
+
+/**
+ * PATCH /planners/:id/items/:itemId/status — CheckinController.updateItemStatus
+ * visited: có thể cần bước 2 với confirm_missed + skip_reason khi BE trả requires_confirmation
+ */
+export type UpdatePlannerItemStatusRequest =
+  | {
+      status: "visited";
+      skip_reason?: string;
+      confirm_missed?: boolean;
+      confirmed?: boolean;
+    }
+  | { status: "skipped"; skip_reason: string };
+
+/** Khi chốt visited mà còn thành viên chưa check-in — BE trả để client xác nhận lần 2 */
+export interface MarkVisitedConfirmationResponse {
+  requires_confirmation: true;
+  site?: { id: string; name: string };
+  stats?: { checked_in: number; missed: number };
+  missing_members?: Array<{
+    user_id: string;
+    full_name: string;
+    avatar_url?: string;
+  }>;
+  skip_reason_required?: boolean;
+}
+
+/** POST /planners/:id/items/reorder — leg_number = ngày (leg), item_ids = thứ tự mới */
+export interface ReorderPlannerItemsRequest {
+  leg_number: number;
+  item_ids: string[];
 }
 
 export interface PlannerProgressMember {

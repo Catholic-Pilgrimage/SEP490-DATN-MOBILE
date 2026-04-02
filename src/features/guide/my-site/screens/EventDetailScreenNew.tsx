@@ -197,6 +197,7 @@ const InputField: React.FC<InputFieldProps> = ({
     <View
       style={[
         styles.inputContainer,
+        multiline && styles.inputContainerMultiline,
         !editable && styles.inputDisabled,
         !!error && styles.inputError,
       ]}
@@ -231,6 +232,7 @@ const InputField: React.FC<InputFieldProps> = ({
         textAlignVertical={multiline ? "top" : "center"}
         editable={editable}
         maxLength={maxLength}
+        scrollEnabled={multiline}
       />
     </View>
     {/* Inline error message */}
@@ -940,7 +942,6 @@ export const EventDetailScreen: React.FC = () => {
               }}
               placeholder="Mô tả chi tiết về sự kiện..."
               multiline
-              numberOfLines={4}
               editable={isEditing}
               maxLength={2000}
               error={fieldErrors.description}
@@ -1217,7 +1218,6 @@ export const EventDetailScreen: React.FC = () => {
           }}
           placeholder="Mô tả chi tiết về sự kiện..."
           multiline
-          numberOfLines={4}
           editable={isEditing}
           maxLength={2000}
           error={fieldErrors.description}
@@ -1469,8 +1469,10 @@ export const EventDetailScreen: React.FC = () => {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator
           keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          bounces
         >
           {isCreateMode ? renderStepContent : renderFullForm()}
 

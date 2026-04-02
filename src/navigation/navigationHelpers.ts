@@ -3,6 +3,7 @@
 
 import { CommonActions, NavigationContainerRef } from '@react-navigation/native';
 import { UserRole } from '../types/common.types';
+import { navigationRef } from './navigationRef';
 
 /**
  * Determine navigation destination based on auth state and user role
@@ -89,4 +90,109 @@ export function navigateToGuideMain(navigation: NavigationContainerRef<any> | an
       routes: [{ name: 'GuideMain' }],
     })
   );
+}
+
+/**
+ * Reset root stack to Main → Lịch trình → PlanDetail (invite flow).
+ * Dùng navigationRef để gọi từ Auth / sau login khi cần mở thẳng kế hoạch.
+ */
+export function resetToPlanDetailWithInvite(planId: string, inviteToken: string): void {
+  const run = () => {
+    if (!navigationRef.isReady()) return false;
+    navigationRef.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: 'Main',
+            state: {
+              routes: [
+                {
+                  name: 'MainTabs',
+                  state: {
+                    routes: [
+                      { name: 'Hanh huong' },
+                      { name: 'Nhat ky' },
+                      {
+                        name: 'Lich trinh',
+                        state: {
+                          routes: [
+                            { name: 'PlannerMain' },
+                            {
+                              name: 'PlanDetailScreen',
+                              params: { planId, inviteToken },
+                            },
+                          ],
+                          index: 1,
+                        },
+                      },
+                      { name: 'Cong dong' },
+                      { name: 'Ho so' },
+                    ],
+                    index: 2,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    return true;
+  };
+  if (!run()) {
+    setTimeout(() => run(), 320);
+  }
+}
+
+/**
+ * Reset root stack to Main → Lịch trình → PlannerMain (tab Được mời).
+ * Dùng cho deep link invite: lưu token rồi đưa user vào danh sách lời mời.
+ */
+export function resetToPlannerInvitesTab(): void {
+  const run = () => {
+    if (!navigationRef.isReady()) return false;
+    navigationRef.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [
+          {
+            name: "Main",
+            state: {
+              routes: [
+                {
+                  name: "MainTabs",
+                  state: {
+                    routes: [
+                      { name: "Hanh huong" },
+                      { name: "Nhat ky" },
+                      {
+                        name: "Lich trinh",
+                        state: {
+                          routes: [
+                            {
+                              name: "PlannerMain",
+                              params: { initialTab: "invited" },
+                            },
+                          ],
+                          index: 0,
+                        },
+                      },
+                      { name: "Cong dong" },
+                      { name: "Ho so" },
+                    ],
+                    index: 2,
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    return true;
+  };
+  if (!run()) {
+    setTimeout(() => run(), 320);
+  }
 }

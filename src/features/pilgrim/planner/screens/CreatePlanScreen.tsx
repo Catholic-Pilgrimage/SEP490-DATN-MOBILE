@@ -3,8 +3,8 @@ import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     ScrollView,
     StatusBar,
@@ -23,6 +23,7 @@ import {
     TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import Toast from "react-native-toast-message";
 import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
 import {
   MAX_DEPOSIT_VND,
@@ -125,6 +126,8 @@ const CreatePlanScreen = ({ navigation }: any) => {
   });
 
   const [peopleCount, setPeopleCount] = useState(1);
+  const [showGroupFlowInfo, setShowGroupFlowInfo] = useState(false);
+  const [showDepositInfo, setShowDepositInfo] = useState(false);
   /** BE: motorbike | car | bus */
   const [transportation, setTransportation] = useState<"bus" | "car" | "motorbike">(
     "bus",
@@ -132,8 +135,29 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
   const [depositAmountInput, setDepositAmountInput] = useState("");
   const [penaltyPercentInput, setPenaltyPercentInput] = useState("0");
+  const [formErrors, setFormErrors] = useState<{
+    name?: string;
+    deposit?: string;
+    penalty?: string;
+  }>({});
 
   const [loading, setLoading] = useState(false);
+
+  const showErrorToast = (message: string) => {
+    Toast.show({
+      type: "error",
+      text1: t("common.error"),
+      text2: message,
+    });
+  };
+
+  const showSuccessToast = (message: string) => {
+    Toast.show({
+      type: "success",
+      text1: t("common.success"),
+      text2: message,
+    });
+  };
 
   useEffect(() => {
     if (endDate < startDate) {
@@ -141,21 +165,28 @@ const CreatePlanScreen = ({ navigation }: any) => {
     }
   }, [startDate, endDate]);
 
+  useEffect(() => {
+    if (peopleCount <= 1) {
+      setFormErrors((prev) => ({ ...prev, deposit: undefined, penalty: undefined }));
+    }
+  }, [peopleCount]);
+
   const handleCreate = async () => {
+    setFormErrors({});
+
     if (!name.trim()) {
-      Alert.alert(
-        t("common.error"),
-        t("planner.nameRequired", {
+      setFormErrors((prev) => ({
+        ...prev,
+        name: t("planner.nameRequired", {
           defaultValue: "Vui lòng nhập tên cho kế hoạch",
         }),
-      );
+      }));
       return;
     }
 
     const minStart = tomorrowYMD();
     if (startDate < minStart) {
-      Alert.alert(
-        t("common.error"),
+      showErrorToast(
         t("planner.startDateTomorrowRule", {
           defaultValue: "Ngày bắt đầu phải từ ngày mai trở đi (theo quy định hệ thống).",
         }),
@@ -164,8 +195,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
     }
 
     if (endDate < startDate) {
-      Alert.alert(
-        t("common.error"),
+      showErrorToast(
         t("planner.endDateMustAfterStart", {
           defaultValue: "Ngày kết thúc phải sau hoặc trùng ngày bắt đầu.",
         }),
@@ -175,8 +205,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
     const tripDays = inclusiveTripDays(startDate, endDate);
     if (tripDays > 30) {
-      Alert.alert(
-        t("common.error"),
+      showErrorToast(
         t("planner.maxTripDays", {
           defaultValue: "Chuyến không được quá 30 ngày (tính cả ngày đi và ngày về).",
         }),
@@ -189,16 +218,25 @@ const CreatePlanScreen = ({ navigation }: any) => {
     if (peopleCount > 1) {
       const dep = parseVndInteger(depositAmountInput);
       if (!Number.isFinite(dep) || dep <= 0) {
-        Alert.alert(t("common.error"), t("planner.depositRequiredForGroup"));
+        setFormErrors((prev) => ({
+          ...prev,
+          deposit: t("planner.depositRequiredForGroup"),
+        }));
         return;
       }
       if (dep > MAX_DEPOSIT_VND) {
-        Alert.alert(t("common.error"), t("planner.depositInvalid"));
+        setFormErrors((prev) => ({
+          ...prev,
+          deposit: t("planner.depositInvalid"),
+        }));
         return;
       }
       const pen = parsePenaltyPercent(penaltyPercentInput);
       if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
-        Alert.alert(t("common.error"), t("planner.penaltyInvalid"));
+        setFormErrors((prev) => ({
+          ...prev,
+          penalty: t("planner.penaltyInvalid"),
+        }));
         return;
       }
       depositVnd = dep;
@@ -222,26 +260,23 @@ const CreatePlanScreen = ({ navigation }: any) => {
       const response = await pilgrimPlannerApi.createPlan(payload);
 
       if (response && response.success) {
-        // Success
-        Alert.alert(
-          t("common.success"),
+        showSuccessToast(
           t("planner.createSuccess", {
             defaultValue: "Đã tạo kế hoạch thành công!",
           }),
         );
         navigation.goBack();
       } else {
-        throw new Error(
+        showErrorToast(
           response?.message ||
             t("planner.createFailed", {
               defaultValue: "Tạo kế hoạch thất bại",
             }),
         );
+        return;
       }
     } catch (error: any) {
-      console.error("Create plan error:", error);
-      Alert.alert(
-        t("common.error"),
+      showErrorToast(
         error.message ||
           t("planner.createError", {
             defaultValue: "Không thể tạo kế hoạch. Vui lòng thử lại.",
@@ -282,7 +317,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
             </Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{t("planner.newJourney")}</Text>
-          <View style={{ width: 60 }} />
+          <View style={styles.headerRightSpacer} />
         </View>
 
         <ScrollView
@@ -305,12 +340,18 @@ const CreatePlanScreen = ({ navigation }: any) => {
               </Text>
             </View>
             <TextInput
-              style={styles.input}
+              style={[styles.input, !!formErrors.name && styles.inputError]}
               placeholder="Ví dụ: Hành hương Đức Mẹ La Vang..."
               placeholderTextColor={COLORS.textTertiary}
               value={name}
-              onChangeText={setName}
+              onChangeText={(v) => {
+                setName(v);
+                if (formErrors.name) {
+                  setFormErrors((prev) => ({ ...prev, name: undefined }));
+                }
+              }}
             />
+            {!!formErrors.name && <Text style={styles.fieldErrorText}>{formErrors.name}</Text>}
           </View>
 
           {/* Time Calculation */}
@@ -659,6 +700,12 @@ const CreatePlanScreen = ({ navigation }: any) => {
               <Text style={[styles.label, { marginBottom: 0 }]}>
                 Số lượng người tham gia
               </Text>
+              <TouchableOpacity
+                onPress={() => setShowGroupFlowInfo(true)}
+                style={styles.infoIconButton}
+              >
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
             </View>
             <View style={[styles.card, { padding: SPACING.md }]}>
               <View
@@ -704,35 +751,6 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   </TouchableOpacity>
                 </View>
               </View>
-              <View
-                style={{
-                  marginTop: 16,
-                  backgroundColor: "#FEF3C7",
-                  padding: 12,
-                  borderRadius: 8,
-                  flexDirection: "row",
-                  gap: 8,
-                }}
-              >
-                <Ionicons
-                  name="sparkles"
-                  size={16}
-                  color="#D97706"
-                  style={{ marginTop: 2 }}
-                />
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: "#D97706",
-                    flex: 1,
-                    lineHeight: 18,
-                    fontWeight: "500",
-                  }}
-                >
-                  Bạn có thể tạo mã QR để mời bạn bè tham gia nhóm sau khi lên
-                  lịch trình!
-                </Text>
-              </View>
             </View>
           </View>
 
@@ -746,22 +764,18 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   marginBottom: 8,
                 }}
               >
-                <Ionicons name="cash-outline" size={20} color="#D97706" />
+                <Ionicons name="alert-circle-outline" size={20} color="#D97706" />
                 <Text style={[styles.label, { marginBottom: 0 }]}>
-                  {t("planner.depositAmountLabel")}
+                  Tiền cọc thành viên
                 </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDepositInfo(true)}
+                  style={styles.infoIconButton}
+                >
+                  <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                </TouchableOpacity>
               </View>
               <View style={[styles.card, { padding: SPACING.md }]}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    color: COLORS.textSecondary,
-                    marginBottom: 12,
-                    lineHeight: 18,
-                  }}
-                >
-                  {t("planner.groupDepositSectionHint")}
-                </Text>
                 <Text
                   style={{
                     fontSize: 13,
@@ -773,23 +787,22 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   {t("planner.depositAmountLabel")}
                 </Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, !!formErrors.deposit && styles.inputError]}
                   value={depositAmountInput}
-                  onChangeText={setDepositAmountInput}
+                  onChangeText={(v) => {
+                    setDepositAmountInput(v);
+                    if (formErrors.deposit) {
+                      setFormErrors((prev) => ({ ...prev, deposit: undefined }));
+                    }
+                  }}
                   placeholder={t("planner.depositPlaceholder")}
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="number-pad"
                 />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: COLORS.textSecondary,
-                    marginTop: 6,
-                    marginBottom: 16,
-                  }}
-                >
-                  {t("planner.depositAmountHint")}
-                </Text>
+                {!!formErrors.deposit && (
+                  <Text style={styles.fieldErrorText}>{formErrors.deposit}</Text>
+                )}
+                <View style={{ marginBottom: 16 }} />
                 <Text
                   style={{
                     fontSize: 13,
@@ -800,22 +813,34 @@ const CreatePlanScreen = ({ navigation }: any) => {
                 >
                   {t("planner.penaltyPercentageLabel")}
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  value={penaltyPercentInput}
-                  onChangeText={setPenaltyPercentInput}
-                  placeholder="0"
-                  placeholderTextColor={COLORS.textSecondary}
-                  keyboardType="number-pad"
-                />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: COLORS.textSecondary,
-                    marginTop: 6,
-                  }}
-                >
-                  {t("planner.penaltyPercentageHint")}
+                <View style={[styles.penaltyInputRow, !!formErrors.penalty && styles.inputError]}>
+                  <TextInput
+                    style={styles.penaltyInputField}
+                    value={penaltyPercentInput}
+                    onChangeText={(raw) => {
+                      const digits = raw.replace(/[^0-9]/g, "");
+                      if (!digits) {
+                        setPenaltyPercentInput("");
+                        return;
+                      }
+                      const num = Math.min(100, parseInt(digits, 10) || 0);
+                      setPenaltyPercentInput(String(num));
+                      if (formErrors.penalty) {
+                        setFormErrors((prev) => ({ ...prev, penalty: undefined }));
+                      }
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={COLORS.textSecondary}
+                    keyboardType="number-pad"
+                    maxLength={3}
+                  />
+                  <Text style={styles.percentSuffix}>%</Text>
+                </View>
+                {!!formErrors.penalty && (
+                  <Text style={styles.fieldErrorText}>{formErrors.penalty}</Text>
+                )}
+                <Text style={styles.penaltyPreviewText}>
+                  Mức phạt hiện tại: {Math.max(0, Math.min(100, parseInt(penaltyPercentInput || "0", 10) || 0))}% tiền cọc
                 </Text>
               </View>
             </View>
@@ -844,19 +869,16 @@ const CreatePlanScreen = ({ navigation }: any) => {
                       value: "bus" as const,
                       icon: "bus" as const,
                       label: "Xe buýt",
-                      color: "#FA8C16",
                     },
                     {
                       value: "car" as const,
                       icon: "car" as const,
                       label: "Ô tô",
-                      color: "#1890FF",
                     },
                     {
                       value: "motorbike" as const,
                       icon: "bicycle" as const,
                       label: "Xe máy",
-                      color: "#10B981",
                     },
                   ] as const
                 ).map((item) => (
@@ -876,7 +898,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                       color={
                         transportation === item.value
                           ? COLORS.white
-                          : item.color
+                          : COLORS.textTertiary
                       }
                     />
                     <Text
@@ -884,7 +906,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
                         { fontSize: 12, marginTop: 8, fontWeight: "600" },
                         transportation === item.value
                           ? { color: COLORS.white }
-                          : { color: COLORS.textSecondary },
+                          : { color: COLORS.textTertiary },
                       ]}
                     >
                       {item.label}
@@ -902,7 +924,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
         <View
           style={[
             styles.footer,
-            { paddingBottom: Math.max(insets.bottom, 16) },
+            { paddingBottom: Math.max(insets.bottom + 12, 24) },
           ]}
         >
           <TouchableOpacity
@@ -919,6 +941,51 @@ const CreatePlanScreen = ({ navigation }: any) => {
             )}
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={showGroupFlowInfo}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowGroupFlowInfo(false)}
+        >
+          <View style={styles.infoModalOverlay}>
+            <View style={styles.infoModalCard}>
+              <Text style={styles.infoModalTitle}>Quy trình đi nhóm</Text>
+              <Text style={styles.infoModalText}>
+                ① <Text style={{ fontWeight: "700" }}>Hoàn thiện lịch & điểm</Text> trong chi tiết kế hoạch{"\n"}
+                ② <Text style={{ fontWeight: "700" }}>Mời email / QR & chat</Text>{"\n"}
+                ③ <Text style={{ fontWeight: "700" }}>Thành viên đồng ý & đóng cọc</Text>{"\n"}
+                ④ <Text style={{ fontWeight: "700" }}>Trưởng đoàn khóa hành trình</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.infoModalBtn}
+                onPress={() => setShowGroupFlowInfo(false)}
+              >
+                <Text style={styles.infoModalBtnText}>Đã hiểu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showDepositInfo}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDepositInfo(false)}
+        >
+          <View style={styles.infoModalOverlay}>
+            <View style={styles.infoModalCard}>
+              <Text style={styles.infoModalTitle}>Tiền cọc thành viên</Text>
+              <Text style={styles.infoModalText}>{t("planner.groupDepositSectionHint")}</Text>
+              <TouchableOpacity
+                style={styles.infoModalBtn}
+                onPress={() => setShowDepositInfo(false)}
+              >
+                <Text style={styles.infoModalBtnText}>Đã hiểu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </KeyboardAvoidingView>
   );
@@ -938,7 +1005,6 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     backgroundColor: "rgba(255,255,255,0.8)",
@@ -946,14 +1012,21 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(0,0,0,0.05)",
   },
   headerTitle: {
+    flex: 2,
+    textAlign: "center",
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: "bold",
     color: COLORS.textPrimary,
     fontFamily: TYPOGRAPHY.fontFamily.display,
   },
   cancelButton: {
+    flex: 1,
+    alignItems: "flex-start",
     padding: 8,
     marginLeft: -8,
+  },
+  headerRightSpacer: {
+    flex: 1,
   },
   cancelText: {
     fontSize: TYPOGRAPHY.fontSize.md,
@@ -979,9 +1052,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: COLORS.white,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: "#F9F7F1",
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.md,
     height: 56,
@@ -989,6 +1060,16 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontWeight: "600",
     ...SHADOWS.subtle,
+  },
+  inputError: {
+    borderWidth: 1,
+    borderColor: "#EF4444",
+  },
+  fieldErrorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#DC2626",
+    fontWeight: "500",
   },
   durationBadge: {
     backgroundColor: "#FEF3C7",
@@ -1016,6 +1097,74 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: COLORS.white,
+  },
+  penaltyInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F7F1",
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    height: 56,
+    ...SHADOWS.subtle,
+  },
+  penaltyInputField: {
+    flex: 1,
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: COLORS.textPrimary,
+    fontWeight: "600",
+  },
+  percentSuffix: {
+    fontSize: 18,
+    color: COLORS.textSecondary,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+  penaltyPreviewText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  infoIconButton: {
+    padding: 2,
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.lg,
+  },
+  infoModalCard: {
+    width: "100%",
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.xl,
+    padding: SPACING.lg,
+    ...SHADOWS.medium,
+  },
+  infoModalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 10,
+  },
+  infoModalText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: COLORS.textSecondary,
+  },
+  infoModalBtn: {
+    marginTop: SPACING.md,
+    alignSelf: "flex-end",
+    backgroundColor: COLORS.accent,
+    borderRadius: BORDER_RADIUS.full,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  infoModalBtnText: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: "700",
   },
   counterValueBig: {
     fontSize: 20,

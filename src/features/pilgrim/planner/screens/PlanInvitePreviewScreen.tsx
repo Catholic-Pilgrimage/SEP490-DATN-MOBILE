@@ -1,76 +1,61 @@
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import type { TFunction } from "i18next";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  AppState,
-  AppStateStatus,
-  Image,
-  ImageBackground,
-  Linking,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    AppState,
+    AppStateStatus,
+    FlatList,
+    Image,
+    ImageBackground,
+    Linking,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { MapPin, VietmapView } from "../../../../components/map/VietmapView";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
-  BORDER_RADIUS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
-import { ERROR_MESSAGES } from "../../../../config/api.config";
 import { useAuth } from "../../../../hooks/useAuth";
+import {
+    resetToPlanDetailWithInvite,
+    resetToPlannerInvitesTab,
+} from "../../../../navigation/navigationHelpers";
 import { RootStackParamList } from "../../../../navigation/RootNavigator";
 import { pilgrimPlannerApi } from "../../../../services/api/pilgrim";
-import { PlanInvite, RespondInviteResponse } from "../../../../types/pilgrim";
+import { PlanInvite } from "../../../../types/pilgrim";
+import type {
+    PlanItem,
+    PlannerMessage,
+    RespondInviteResponse,
+} from "../../../../types/pilgrim/planner.types";
+import { emailsMatch } from "../utils/planShare.utils";
 
 const BG_IMAGE = require("../../../../../assets/images/bg1.jpg");
 
-function humanizeInviteApiMessage(raw: string, t: TFunction): string {
-  if (!raw) return "";
-  if (raw.includes("Share planner must have a deposit amount configured")) {
-    return t("planner.inviteDepositNotConfigured");
-  }
-  if (raw.includes("Failed to create payment link")) {
-    return t("planner.invitePaymentLinkFailed");
-  }
-  return raw;
-}
-
-function isTransientNetworkError(e: unknown): boolean {
-  if (!(e instanceof Error)) return false;
-  const m = e.message;
-  return (
-    m === ERROR_MESSAGES.NETWORK_ERROR ||
-    m === ERROR_MESSAGES.TIMEOUT_ERROR ||
-    m.includes("Network Error") ||
-    m.includes("ECONNABORTED")
-  );
-}
-
-const TRANSPORT_MAP: Record<
-  string,
-  { label: string; icon: keyof typeof Ionicons.glyphMap }
-> = {
-  car: { label: "Ô tô", icon: "car-outline" },
-  bus: { label: "Xe buýt", icon: "bus-outline" },
-  motorbike: { label: "Xe máy", icon: "bicycle-outline" },
-  walk: { label: "Đi bộ", icon: "walk-outline" },
-  train: { label: "Tàu hỏa", icon: "train-outline" },
-  plane: { label: "Máy bay", icon: "airplane-outline" },
-  other: { label: "Khác", icon: "ellipsis-horizontal-outline" },
-};
-
-// Màu sắc giống LoginScreen
 const INVITE_COLORS = {
   primary: "#cfaa3a",
   textMain: "#191710",
@@ -84,69 +69,99 @@ const INVITE_COLORS = {
   warningBg: "#fff3cd",
   warning: "#856404",
 };
+const PREVIEW_CHAT_PAGE_SIZE = 20;
+const PREVIEW_CHAT_POLL_MS = 8000;
 
 type Props = NativeStackScreenProps<RootStackParamList, "PlanInvitePreview">;
 
+function humanizeInviteApiMessage(raw: string, tr: TFunction): string {
+  if (!raw) return "";
+  if (raw.includes("Share planner must have a deposit amount configured")) {
+    return tr("planner.inviteDepositNotConfigured");
+  }
+  if (raw.includes("Failed to create payment link")) {
+    return tr("planner.invitePaymentLinkFailed");
+  }
+  return raw;
+}
+
+/**
+ * Deep link / mở từ email: mặc định `mode: "preview"` — luôn GET preview và so khớp email.
+ * — Đúng email → xem trước, Tham gia / thanh toán, vào PlanDetail.
+ * — Sai email → chặn, gợi ý đăng xuất & đăng nhập lại (token được giữ trong pending_invite_token).
+ * — Guest / chưa đăng nhập → gợi ý đăng nhập đúng email.
+ * — `mode: "redirect"`: chỉ lưu token + về tab Được mời (không kiểm tra email — chỉ khi truyền explicit).
+ */
 const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
-  const { token } = route.params;
+  const { token, mode = "preview" } = route.params;
   const { t } = useTranslation();
-  const { isGuest, user } = useAuth();
+  const { isGuest, user, logout } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [invite, setInvite] = useState<PlanInvite | null>(null);
   const [loading, setLoading] = useState(true);
-  const [responding, setResponding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGuestLogin, setShowGuestLogin] = useState(false);
+  const [responding, setResponding] = useState(false);
   const [awaitingPayReturn, setAwaitingPayReturn] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatSending, setChatSending] = useState(false);
+  const [chatText, setChatText] = useState("");
+  const [messages, setMessages] = useState<PlannerMessage[]>([]);
   const joinSuccessShownRef = useRef(false);
+  const autoRedirectedRef = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /**
-   * Lưu token vào AsyncStorage trước khi user được chuyển sang màn hình Login.
-   * Sau khi login thành công, LoginScreen sẽ đọc key này và navigate trở lại.
-   */
   const handleBeforeLogin = useCallback(async () => {
     await AsyncStorage.setItem("pending_invite_token", token);
   }, [token]);
 
-  useEffect(() => {
-    joinSuccessShownRef.current = false;
-    setAwaitingPayReturn(false);
-    fetchInvitePreview();
-  }, [token]);
+  const handleSwitchAccountForInvite = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem("pending_invite_token", token);
+      await logout();
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{ name: "Auth" }],
+        }),
+      );
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.inviteSwitchAccountFailed", {
+          defaultValue: "Không thể đăng xuất. Thử lại.",
+        }),
+      });
+    }
+  }, [logout, navigation, t, token]);
 
+  // Opt-in: lưu token rồi về tab Được mời (bỏ qua màn preview — không dùng cho link email mặc định).
   useEffect(() => {
-    const onAppState = (state: AppStateStatus) => {
-      if (state !== "active" || !awaitingPayReturn) return;
-      void (async () => {
-        try {
-          const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
-          if (!res.success || !res.data) return;
-          setInvite(res.data);
-          if (
-            res.data.status === "accepted" &&
-            !joinSuccessShownRef.current
-          ) {
-            joinSuccessShownRef.current = true;
-            setAwaitingPayReturn(false);
-            Toast.show({
-              type: "success",
-              text1: t("planner.inviteJoinSuccessTitle"),
-              text2: t("planner.inviteJoinSuccessBody"),
-              visibilityTime: 2800,
-              onHide: () => navigation.navigate("Main" as never),
-            });
-          }
-        } catch {
-          /* silent — user có thể mở lại app khi chưa có mạng */
-        }
-      })();
-    };
-    const sub = AppState.addEventListener("change", onAppState);
-    return () => sub.remove();
-  }, [awaitingPayReturn, token, navigation, t]);
+    if (mode !== "redirect") return;
+    void (async () => {
+      await handleBeforeLogin();
+      resetToPlannerInvitesTab();
+    })();
+  }, [handleBeforeLogin, mode]);
 
-  const fetchInvitePreview = async () => {
+  if (mode === "redirect") {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: COLORS.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={COLORS.accent} />
+      </View>
+    );
+  }
+
+  const fetchInvitePreview = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -156,102 +171,79 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
       } else {
         setError(res.message || "Không tìm thấy lời mời.");
       }
-    } catch (e: any) {
-      setError(e.message || "Lời mời không hợp lệ hoặc đã hết hạn.");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : "Lời mời không hợp lệ hoặc đã hết hạn.";
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
-  const handleRespond = async (action: "accept" | "reject") => {
-    // Nếu chưa đăng nhập → hiện GuestLoginModal
-    if (isGuest || !user) {
-      setShowGuestLogin(true);
+  useEffect(() => {
+    if (mode === "redirect") return;
+    void fetchInvitePreview();
+  }, [fetchInvitePreview, mode]);
+
+  useEffect(() => {
+    joinSuccessShownRef.current = false;
+    autoRedirectedRef.current = false;
+  }, [token]);
+
+  /** Sau khi mở PayOS / trình duyệt, quay lại app → GET lại token để biết đã thanh toán. */
+  useEffect(() => {
+    const onAppState = (state: AppStateStatus) => {
+      if (state !== "active" || !awaitingPayReturn) return;
+      void (async () => {
+        try {
+          const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
+          if (!res.success || !res.data) return;
+          setInvite(res.data);
+          if (res.data.status === "accepted" && !joinSuccessShownRef.current) {
+            joinSuccessShownRef.current = true;
+            setAwaitingPayReturn(false);
+            const pid = res.data.planner_id;
+            Toast.show({
+              type: "success",
+              text1: t("planner.inviteJoinSuccessTitle"),
+              text2: t("planner.inviteJoinSuccessBody"),
+              visibilityTime: 2800,
+              onHide: () => {
+                if (pid) resetToPlanDetailWithInvite(pid, token);
+              },
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
+    };
+    const sub = AppState.addEventListener("change", onAppState);
+    return () => sub.remove();
+  }, [awaitingPayReturn, token, t]);
+
+  const openPlanInApp = useCallback(() => {
+    if (!invite?.planner_id) return;
+    resetToPlanDetailWithInvite(invite.planner_id, token);
+  }, [invite?.planner_id, token]);
+
+  /**
+   * POST /api/planners/invite/:token { action: "accept" } — đồng ý tham gia;
+   * BE trả checkout_url (PayOS) hoặc đã trừ ví → sau đó vào PlanDetail.
+   */
+  const handleJoinPlan = useCallback(async () => {
+    if (!invite?.planner_id) return;
+    if (invite.status !== "pending" && invite.status !== "awaiting_payment") {
       return;
     }
-
     try {
       setResponding(true);
-
-      let res: Awaited<
-        ReturnType<typeof pilgrimPlannerApi.respondToInvite>
-      > | null = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          res = await pilgrimPlannerApi.respondToInvite(token, { action });
-          break;
-        } catch (e) {
-          if (attempt === 0 && isTransientNetworkError(e)) {
-            await new Promise((r) => setTimeout(r, 700));
-            continue;
-          }
-          throw e;
-        }
-      }
-      if (!res) {
-        throw new Error(
-          t("planner.inviteRespondFailed", {
-            defaultValue: "Không thể phản hồi lời mời.",
-          }),
-        );
-      }
-
-      if (res.success) {
-        if (action === "reject") {
-          Toast.show({
-            type: "info",
-            text1: t("planner.depositInviteRejected", {
-              defaultValue: "Đã từ chối",
-            }),
-            text2: res.message,
-            visibilityTime: 2000,
-            onHide: () => navigation.goBack(),
-          });
-          return;
-        }
-
-        const extra = res.data as RespondInviteResponse | undefined;
-        const payUrl = extra?.checkout_url || extra?.payment_url;
-        const fromWallet = extra?.paid_from_wallet === true;
-
-        if (fromWallet) {
-          Toast.show({
-            type: "success",
-            text1: t("planner.inviteJoinWalletTitle"),
-            text2: extra?.message || res.message,
-            visibilityTime: 2800,
-            onHide: () => navigation.navigate("Main" as never),
-          });
-          setInvite((prev) =>
-            prev ? { ...prev, status: "accepted" } : prev,
-          );
-          return;
-        }
-
-        if (payUrl) {
-          const can = await Linking.canOpenURL(payUrl);
-          if (can) await Linking.openURL(payUrl);
-          setAwaitingPayReturn(true);
-          setInvite((prev) =>
-            prev ? { ...prev, status: "awaiting_payment" } : prev,
-          );
-          Toast.show({
-            type: "info",
-            text1: t("planner.invitePaymentOpenedTitle"),
-            text2: t("planner.invitePaymentOpenedBody"),
-            visibilityTime: 5500,
-          });
-          return;
-        }
-
-        Toast.show({
-          type: "success",
-          text1: t("planner.inviteJoinSuccessTitle"),
-          text2: res.message,
-          visibilityTime: 2500,
-          onHide: () => navigation.navigate("Main" as never),
-        });
-      } else {
+      const res = await pilgrimPlannerApi.respondToInvite(token, {
+        action: "accept",
+      });
+      if (!res.success) {
         const raw = res.message || res.error?.message || "";
         Toast.show({
           type: "error",
@@ -262,10 +254,46 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
               defaultValue: "Không thể phản hồi lời mời.",
             }),
         });
+        return;
       }
+
+      const extra = res.data as RespondInviteResponse | undefined;
+      const payUrl = extra?.checkout_url || extra?.payment_url;
+      const fromWallet = extra?.paid_from_wallet === true;
+
+      if (fromWallet) {
+        Toast.show({
+          type: "success",
+          text1: t("planner.inviteJoinWalletTitle"),
+          text2: extra?.message || res.message,
+          visibilityTime: 2800,
+          onHide: () => openPlanInApp(),
+        });
+        return;
+      }
+
+      if (payUrl) {
+        const can = await Linking.canOpenURL(payUrl);
+        if (can) await Linking.openURL(payUrl);
+        setAwaitingPayReturn(true);
+        Toast.show({
+          type: "info",
+          text1: t("planner.invitePaymentOpenedTitle"),
+          text2: t("planner.invitePaymentOpenedBody"),
+          visibilityTime: 5500,
+        });
+        return;
+      }
+
+      Toast.show({
+        type: "success",
+        text1: t("planner.inviteJoinSuccessTitle"),
+        text2: res.message,
+        visibilityTime: 2500,
+        onHide: () => openPlanInApp(),
+      });
     } catch (e: unknown) {
-      const raw =
-        e instanceof Error ? e.message : typeof e === "string" ? e : "";
+      const raw = e instanceof Error ? e.message : "";
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -278,9 +306,119 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
     } finally {
       setResponding(false);
     }
-  };
+  }, [invite, token, openPlanInApp, t]);
 
-  // ─── Loading ───
+  const planner = invite?.planner;
+  const itemsByDay = planner?.items_by_day;
+  const dayKeys = itemsByDay
+    ? Object.keys(itemsByDay).sort((a, b) => Number(a) - Number(b))
+    : [];
+
+  const mapPins = useMemo<MapPin[]>(() => {
+    if (!itemsByDay) return [];
+    const pins: MapPin[] = [];
+    Object.entries(itemsByDay).forEach(([day, items]) => {
+      items.forEach((item) => {
+        const lat = item.site?.latitude;
+        const lng = item.site?.longitude;
+        if (typeof lat === "number" && typeof lng === "number") {
+          pins.push({
+            id: `${day}-${item.id}`,
+            latitude: lat,
+            longitude: lng,
+            title: item.site?.name || `Ngày ${day}`,
+            subtitle: `Ngày ${day}`,
+          });
+        }
+      });
+    });
+    return pins;
+  }, [itemsByDay]);
+
+  const canUseChat = Boolean(invite?.planner_id && user && !isGuest);
+  const previewDepositAmount = planner?.deposit_amount ?? 0;
+
+  const fetchChatPreview = useCallback(async () => {
+    if (!invite?.planner_id || !canUseChat) return;
+    try {
+      setChatLoading(true);
+      const res = await pilgrimPlannerApi.getPlanMessages(invite.planner_id, {
+        page: 1,
+        limit: PREVIEW_CHAT_PAGE_SIZE,
+      });
+      if (res.success && res.data) {
+        setMessages(res.data.messages ?? []);
+      }
+    } catch {
+      // silent in preview
+    } finally {
+      setChatLoading(false);
+    }
+  }, [invite?.planner_id, canUseChat]);
+
+  useEffect(() => {
+    if (!canUseChat || !invite?.planner_id) return;
+    void fetchChatPreview();
+  }, [canUseChat, invite?.planner_id, fetchChatPreview]);
+
+  useEffect(() => {
+    if (!canUseChat || !invite?.planner_id) return;
+    pollRef.current = setInterval(() => {
+      void fetchChatPreview();
+    }, PREVIEW_CHAT_POLL_MS);
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+      }
+    };
+  }, [canUseChat, invite?.planner_id, fetchChatPreview]);
+
+  const handleSendPreviewMessage = useCallback(async () => {
+    const content = chatText.trim();
+    if (!content || chatSending || !invite?.planner_id || !canUseChat) return;
+    setChatSending(true);
+    setChatText("");
+    try {
+      const res = await pilgrimPlannerApi.sendPlanMessage(invite.planner_id, {
+        message_type: "text",
+        content,
+      });
+      if (res.success && res.data) {
+        setMessages((prev) => [res.data!, ...prev]);
+      } else {
+        setChatText(content);
+      }
+    } catch {
+      setChatText(content);
+    } finally {
+      setChatSending(false);
+    }
+  }, [chatText, chatSending, invite?.planner_id, canUseChat]);
+
+  useEffect(() => {
+    if (
+      invite?.status === "accepted" &&
+      invite?.planner_id &&
+      !autoRedirectedRef.current
+    ) {
+      autoRedirectedRef.current = true;
+      resetToPlanDetailWithInvite(invite.planner_id, token);
+    }
+  }, [invite?.status, invite?.planner_id, token]);
+
+  const commonBg = (
+    <LinearGradient
+      colors={[
+        "transparent",
+        "rgba(253,248,240,0.92)",
+        "rgba(253,248,240,0.99)",
+      ]}
+      style={StyleSheet.absoluteFillObject}
+      start={{ x: 0, y: 0.35 }}
+      end={{ x: 0, y: 1 }}
+    />
+  );
+
   if (loading) {
     return (
       <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
@@ -289,25 +427,19 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
           backgroundColor="transparent"
           translucent
         />
-        <LinearGradient
-          colors={[
-            "transparent",
-            "rgba(253,248,240,0.92)",
-            "rgba(253,248,240,0.99)",
-          ]}
-          style={StyleSheet.absoluteFillObject}
-          start={{ x: 0, y: 0.35 }}
-          end={{ x: 0, y: 1 }}
-        />
+        {commonBg}
         <View style={[styles.centered, { paddingTop: insets.top }]}>
           <ActivityIndicator size="large" color={INVITE_COLORS.primary} />
-          <Text style={styles.loadingText}>Đang tải thông tin lời mời...</Text>
+          <Text style={styles.loadingText}>
+            {t("planner.inviteLoading", {
+              defaultValue: "Đang tải thông tin lời mời...",
+            })}
+          </Text>
         </View>
       </ImageBackground>
     );
   }
 
-  // ─── Error ───
   if (error || !invite) {
     return (
       <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
@@ -316,16 +448,7 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
           backgroundColor="transparent"
           translucent
         />
-        <LinearGradient
-          colors={[
-            "transparent",
-            "rgba(253,248,240,0.92)",
-            "rgba(253,248,240,0.99)",
-          ]}
-          style={StyleSheet.absoluteFillObject}
-          start={{ x: 0, y: 0.35 }}
-          end={{ x: 0, y: 1 }}
-        />
+        {commonBg}
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={[styles.closeBtn, { top: insets.top + 8 }]}
@@ -339,13 +462,19 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
               size={64}
               color={INVITE_COLORS.danger}
             />
-            <Text style={styles.errorTitle}>Lời mời không hợp lệ</Text>
+            <Text style={styles.errorTitle}>
+              {t("planner.inviteInvalidTitle", {
+                defaultValue: "Lời mời không hợp lệ",
+              })}
+            </Text>
             <Text style={styles.errorSubtitle}>{error}</Text>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Text style={styles.backButtonText}>Quay lại</Text>
+              <Text style={styles.backButtonText}>
+                {t("common.goBack", { defaultValue: "Quay lại" })}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -353,43 +482,224 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
     );
   }
 
-  const planner = invite.planner;
-  const isExpired = invite.status === "expired";
-  const isAwaitingPayment = invite.status === "awaiting_payment";
-  const showAcceptReject =
-    !isExpired && invite.status === "pending";
-  const isAlreadyResponded =
-    invite.status === "accepted" || invite.status === "rejected";
+  const inviteEmailTrimmed = invite.email?.trim() ?? "";
+  const showEmailMismatch =
+    Boolean(user?.email) &&
+    !isGuest &&
+    inviteEmailTrimmed.length > 0 &&
+    !emailsMatch(invite.email, user!.email!);
 
-  const formatViDate = (iso?: string) => {
-    if (!iso) return null;
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-  const startDateLabel = planner ? formatViDate(planner.start_date) : null;
-  const endDateLabel = planner ? formatViDate(planner.end_date) : null;
-  const dayCount =
-    planner?.number_of_days ?? planner?.estimated_days ?? null;
-
-  const openWalletTab = () => {
-    (navigation as { navigate: (name: string, params?: object) => void }).navigate(
-      "Main",
-      {
-        screen: "MainTabs",
-        params: {
-          screen: "Ho so",
-          params: { screen: "Wallet" },
-        },
-      },
+  if (showEmailMismatch) {
+    return (
+      <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        {commonBg}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.closeBtn, { top: insets.top + 8 }]}
+        >
+          <Ionicons name="close" size={22} color={INVITE_COLORS.textMain} />
+        </TouchableOpacity>
+        <View
+          style={[
+            styles.centered,
+            { paddingTop: insets.top, paddingHorizontal: SPACING.lg },
+          ]}
+        >
+          <Ionicons
+            name="mail-unread-outline"
+            size={56}
+            color={INVITE_COLORS.warning}
+          />
+          <Text style={styles.errorTitle}>
+            {t("planner.inviteWrongAccountTitle", {
+              defaultValue: "Sai tài khoản",
+            })}
+          </Text>
+          <Text style={styles.errorSubtitle}>
+            {t("planner.inviteWrongAccountBody", {
+              email: invite.email,
+              defaultValue: `Lời mời gửi tới ${invite.email}. Vui lòng đăng nhập đúng email đó hoặc đăng xuất và đăng nhập lại.`,
+            })}
+          </Text>
+          <TouchableOpacity
+            style={styles.switchAccountCta}
+            onPress={() => void handleSwitchAccountForInvite()}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.switchAccountCtaText}>
+              {t("planner.inviteSwitchAccountCta", {
+                defaultValue: "Đăng xuất và đăng nhập email mời",
+              })}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>
+              {t("common.goBack", { defaultValue: "Quay lại" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ImageBackground>
     );
-  };
+  }
 
-  // ─── Main ───
+  const needsLogin = isGuest || !user;
+
+  if (needsLogin) {
+    return (
+      <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        {commonBg}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.closeBtn, { top: insets.top + 8 }]}
+        >
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.iconWrapper}>
+            <Ionicons
+              name="mail-unread-outline"
+              size={48}
+              color={INVITE_COLORS.primary}
+            />
+          </View>
+          <Text style={styles.inviteLabel}>
+            {t("planner.inviteYouWereInvited", {
+              defaultValue: "Bạn được mời tham gia",
+            })}
+          </Text>
+          <Text style={styles.planName}>
+            {planner?.name ??
+              t("planner.defaultName", { defaultValue: "Kế hoạch hành hương" })}
+          </Text>
+          {planner?.owner && (
+            <View style={styles.ownerRow}>
+              {planner.owner.avatar_url ? (
+                <Image
+                  source={{ uri: planner.owner.avatar_url }}
+                  style={styles.ownerAvatar}
+                />
+              ) : (
+                <View style={styles.ownerAvatarPlaceholder}>
+                  <Ionicons
+                    name="person"
+                    size={16}
+                    color={INVITE_COLORS.textMuted}
+                  />
+                </View>
+              )}
+              <Text style={styles.ownerName}>
+                {t("planner.by", { defaultValue: "bởi" })}{" "}
+                <Text style={styles.ownerNameBold}>
+                  {planner.owner.full_name}
+                </Text>
+              </Text>
+            </View>
+          )}
+          <Text style={styles.guestHint}>
+            {t("planner.inviteLoginHint", {
+              defaultValue:
+                "Đăng nhập bằng đúng email đã nhận lời mời để xem lịch trình nhóm và trò chuyện.",
+            })}
+          </Text>
+          <TouchableOpacity
+            style={styles.primaryCta}
+            onPress={() => setShowGuestLogin(true)}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.primaryCtaText}>
+              {t("auth.login", { defaultValue: "Đăng nhập" })}
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
+        <GuestLoginModal
+          visible={showGuestLogin}
+          onClose={() => setShowGuestLogin(false)}
+          onBeforeLogin={handleBeforeLogin}
+          message={t("planner.inviteLoginModalMessage", {
+            defaultValue: "Đăng nhập bằng email đã nhận lời mời trong thư.",
+          })}
+        />
+      </ImageBackground>
+    );
+  }
+
+  if (invite.status === "expired" || invite.status === "rejected") {
+    return (
+      <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="transparent"
+          translucent
+        />
+        {commonBg}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={[styles.closeBtn, { top: insets.top + 8 }]}
+        >
+          <Ionicons name="close" size={22} color="#fff" />
+        </TouchableOpacity>
+        <View
+          style={[
+            styles.centered,
+            { paddingTop: insets.top, paddingHorizontal: SPACING.lg },
+          ]}
+        >
+          <Ionicons
+            name={
+              invite.status === "expired"
+                ? "time-outline"
+                : "close-circle-outline"
+            }
+            size={56}
+            color={
+              invite.status === "expired"
+                ? INVITE_COLORS.warning
+                : INVITE_COLORS.danger
+            }
+          />
+          <Text style={styles.errorTitle}>
+            {invite.status === "expired"
+              ? t("planner.inviteExpiredTitle", {
+                  defaultValue: "Lời mời đã hết hạn",
+                })
+              : t("planner.inviteRejectedTitle", {
+                  defaultValue: "Lời mời đã bị từ chối",
+                })}
+          </Text>
+          <Text style={styles.errorSubtitle}>{planner?.name ?? ""}</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>
+              {t("common.goBack", { defaultValue: "Quay lại" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </ImageBackground>
+    );
+  }
+
+  /** Đã đăng nhập đúng email: GET preview; bấm Tham gia → POST accept (+ thanh toán nếu có). */
   return (
     <ImageBackground source={BG_IMAGE} style={styles.bg} resizeMode="cover">
       <StatusBar
@@ -397,367 +707,268 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
         backgroundColor="transparent"
         translucent
       />
-
-      {/* Gradient: phần trên trong suốt → phần dưới kem sáng */}
-      <LinearGradient
-        colors={[
-          "transparent",
-          "rgba(253,248,240,0.92)",
-          "rgba(253,248,240,0.99)",
-        ]}
-        style={StyleSheet.absoluteFillObject}
-        start={{ x: 0, y: 0.35 }}
-        end={{ x: 0, y: 1 }}
-      />
-
-      {/* Close button nổi trên ảnh */}
+      <View style={styles.headerMapWrap}>
+        <VietmapView
+          initialRegion={
+            mapPins[0]
+              ? {
+                  latitude: mapPins[0].latitude,
+                  longitude: mapPins[0].longitude,
+                  zoom: 10,
+                }
+              : undefined
+          }
+          pins={mapPins}
+          scrollEnabled={true}
+          showInfoCards={false}
+          style={styles.headerMap}
+        />
+        <LinearGradient
+          colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.15)", "transparent"]}
+          style={[StyleSheet.absoluteFillObject, { zIndex: 1, height: "40%" }]}
+          pointerEvents="none"
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.7)"]}
+          style={[StyleSheet.absoluteFillObject, { zIndex: 1, top: "55%" }]}
+          pointerEvents="none"
+        />
+      </View>
       <TouchableOpacity
         onPress={() => navigation.goBack()}
         style={[styles.closeBtn, { top: insets.top + 8 }]}
       >
         <Ionicons name="close" size={22} color="#fff" />
       </TouchableOpacity>
-
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 120 },
+          {
+            paddingTop: insets.top + 280,
+            paddingBottom: insets.bottom + 120,
+            alignItems: "stretch",
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Icon — đổi theo status */}
-        <View
-          style={[
-            styles.iconWrapper,
-            (isAlreadyResponded || isAwaitingPayment) && {
-              backgroundColor:
-                invite.status === "accepted"
-                  ? "rgba(40,167,69,0.12)"
-                  : isAwaitingPayment
-                    ? "rgba(207,170,58,0.15)"
-                    : "rgba(220,53,69,0.12)",
-              borderColor:
-                invite.status === "accepted"
-                  ? "rgba(40,167,69,0.35)"
-                  : isAwaitingPayment
-                    ? "rgba(207,170,58,0.4)"
-                    : "rgba(220,53,69,0.35)",
-            },
-            isExpired && {
-              backgroundColor: "rgba(133,100,4,0.1)",
-              borderColor: "rgba(133,100,4,0.3)",
-            },
-          ]}
-        >
-          <Ionicons
-            name={
-              isExpired
-                ? "time-outline"
-                : invite.status === "accepted"
-                  ? "checkmark-circle-outline"
-                  : isAwaitingPayment
-                    ? "wallet-outline"
-                    : invite.status === "rejected"
-                      ? "close-circle-outline"
-                      : "mail-unread-outline"
-            }
-            size={48}
-            color={
-              isExpired
-                ? INVITE_COLORS.warning
-                : invite.status === "accepted"
-                  ? INVITE_COLORS.success
-                  : isAwaitingPayment
-                    ? INVITE_COLORS.primary
-                    : invite.status === "rejected"
-                      ? INVITE_COLORS.danger
-                      : INVITE_COLORS.primary
-            }
-          />
-        </View>
-
-        {/* Label */}
-        <Text style={styles.inviteLabel}>Bạn được mời tham gia</Text>
-
-        {/* Plan name */}
-        <Text style={styles.planName}>
-          {planner?.name ?? "Kế hoạch hành hương"}
-        </Text>
-
-        {/* Owner */}
-        {planner?.owner && (
-          <View style={styles.ownerRow}>
-            {planner.owner.avatar_url ? (
-              <Image
-                source={{ uri: planner.owner.avatar_url }}
-                style={styles.ownerAvatar}
-              />
-            ) : (
-              <View style={styles.ownerAvatarPlaceholder}>
-                <Ionicons
-                  name="person"
-                  size={16}
-                  color={INVITE_COLORS.textMuted}
-                />
-              </View>
-            )}
-            <Text style={styles.ownerName}>
-              bởi{" "}
-              <Text style={styles.ownerNameBold}>
-                {planner.owner.full_name}
-              </Text>
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.divider} />
-
-        {/* Date */}
-        {planner && (startDateLabel || endDateLabel) && (
-          <View style={styles.infoRow}>
-            <Ionicons
-              name="calendar-outline"
-              size={20}
-              color={INVITE_COLORS.primary}
-            />
-            <Text style={styles.infoText}>
-              {startDateLabel ?? "—"}
-              {endDateLabel ? ` – ${endDateLabel}` : ""}
-            </Text>
-          </View>
-        )}
-
-        {/* Số ngày */}
-        {dayCount != null && (
-          <View style={styles.infoRow}>
-            <Ionicons
-              name="time-outline"
-              size={20}
-              color={INVITE_COLORS.primary}
-            />
-            <Text style={styles.infoText}>
-              <Text style={styles.infoTextBold}>{dayCount}</Text> ngày
-            </Text>
-          </View>
-        )}
-
-        {/* Số người */}
-        {planner?.number_of_people != null && (
-          <View style={styles.infoRow}>
-            <Ionicons
-              name="people-outline"
-              size={20}
-              color={INVITE_COLORS.primary}
-            />
-            <Text style={styles.infoText}>
-              <Text style={styles.infoTextBold}>
-                {planner.number_of_people}
-              </Text>{" "}
-              người
-            </Text>
-          </View>
-        )}
-
-        {/* Phương tiện */}
-        {planner?.transportation && (
-          <View style={styles.infoRow}>
-            <Ionicons
-              name={
-                TRANSPORT_MAP[planner.transportation]?.icon ?? "car-outline"
-              }
-              size={20}
-              color={INVITE_COLORS.primary}
-            />
-            <Text style={styles.infoText}>
-              {TRANSPORT_MAP[planner.transportation]?.label ??
-                planner.transportation}
-            </Text>
-          </View>
-        )}
-
-        {/* Role */}
-        <View style={styles.infoRow}>
-          <Ionicons
-            name="eye-outline"
-            size={20}
-            color={INVITE_COLORS.primary}
-          />
-          <Text style={styles.infoText}>
-            Vai trò: <Text style={styles.infoTextBold}>Người xem</Text>
+        <View style={styles.previewHeroCard}>
+          <Text style={styles.previewBadge}>
+            {t("planner.invitePreviewOnly", {
+              defaultValue: "Xem trước từ link mời (chưa thanh toán)",
+            })}
           </Text>
-        </View>
-
-        {/* Status badges */}
-        {isExpired && (
-          <View style={[styles.statusBadge, styles.statusExpired]}>
-            <Ionicons
-              name="time-outline"
-              size={16}
-              color={INVITE_COLORS.warning}
-            />
-            <Text style={[styles.statusText, { color: INVITE_COLORS.warning }]}>
-              Lời mời đã hết hạn
+          <Text style={styles.planName}>
+            {planner?.name ??
+              t("planner.defaultName", { defaultValue: "Kế hoạch hành hương" })}
+          </Text>
+          <View style={styles.previewMetaRow}>
+            <Text style={styles.previewMetaText}>
+              {t("planner.dayLabel", { defaultValue: "Ngày" })}:{" "}
+              {dayKeys.length || 0}
+            </Text>
+            <Text style={styles.previewMetaDot}>•</Text>
+            <Text style={styles.previewMetaText}>
+              {t("planner.peopleCount", { defaultValue: "Số người" })}:{" "}
+              {planner?.number_of_people ?? 1}
             </Text>
           </View>
-        )}
-        {invite.status === "accepted" && (
-          <View style={[styles.statusBadge, styles.statusAccepted]}>
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={16}
-              color={INVITE_COLORS.success}
-            />
-            <Text style={[styles.statusText, { color: INVITE_COLORS.success }]}>
-              Đã chấp nhận
-            </Text>
-          </View>
-        )}
-        {invite.status === "rejected" && (
-          <View style={[styles.statusBadge, styles.statusRejected]}>
-            <Ionicons
-              name="close-circle-outline"
-              size={16}
-              color={INVITE_COLORS.danger}
-            />
-            <Text style={[styles.statusText, { color: INVITE_COLORS.danger }]}>
-              Đã từ chối
-            </Text>
-          </View>
-        )}
-        {isAwaitingPayment && (
-          <View style={[styles.statusBadge, styles.statusAwaitingPayment]}>
+          <View style={styles.previewMetaRow}>
             <Ionicons
               name="wallet-outline"
               size={16}
-              color={INVITE_COLORS.warning}
+              color={INVITE_COLORS.primary}
             />
-            <Text style={[styles.statusText, { color: INVITE_COLORS.warning }]}>
-              Chờ thanh toán cọc
+            <Text style={styles.previewMetaText}>
+              {t("planner.depositAmount", { defaultValue: "Mức cọc" })}:{" "}
+              {previewDepositAmount > 0
+                ? `${Math.round(previewDepositAmount).toLocaleString("vi-VN")} ₫`
+                : t("planner.noDeposit", { defaultValue: "Không yêu cầu cọc" })}
             </Text>
           </View>
+          {planner?.owner && (
+            <View style={styles.ownerRow}>
+              {planner.owner.avatar_url ? (
+                <Image
+                  source={{ uri: planner.owner.avatar_url }}
+                  style={styles.ownerAvatar}
+                />
+              ) : (
+                <View style={styles.ownerAvatarPlaceholder}>
+                  <Ionicons
+                    name="person"
+                    size={16}
+                    color={INVITE_COLORS.textMuted}
+                  />
+                </View>
+              )}
+              <Text style={styles.ownerName}>
+                {t("planner.by", { defaultValue: "bởi" })}{" "}
+                <Text style={styles.ownerNameBold}>
+                  {planner.owner.full_name}
+                </Text>
+              </Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.sectionTitle}>
+          {t("planner.itinerary", { defaultValue: "Lịch trình" })}
+        </Text>
+        {dayKeys.length === 0 ? (
+          <Text style={styles.muted}>
+            {t("planner.inviteNoSchedule", {
+              defaultValue: "Chưa có chi tiết lịch trình trong bản xem trước.",
+            })}
+          </Text>
+        ) : (
+          dayKeys.map((day) => (
+            <View key={day} style={styles.dayBlock}>
+              <Text style={styles.dayTitle}>
+                {t("planner.dayLabel", { defaultValue: "Ngày" })} {day}
+              </Text>
+              {(itemsByDay![day] as PlanItem[]).map((item) => (
+                <View key={item.id} style={styles.itemRow}>
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color={INVITE_COLORS.primary}
+                  />
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.site?.name ?? "—"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ))
         )}
+
+        <View style={styles.chatCard}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.sectionTitle}>
+              {t("planner.previewChatTitle", {
+                defaultValue: "Chat với trưởng đoàn",
+              })}
+            </Text>
+            {chatLoading && (
+              <ActivityIndicator size="small" color={INVITE_COLORS.primary} />
+            )}
+          </View>
+          {!canUseChat ? (
+            <Text style={styles.muted}>
+              {t("planner.inviteLoginHint", {
+                defaultValue:
+                  "Đăng nhập đúng email mời để trò chuyện với trưởng đoàn.",
+              })}
+            </Text>
+          ) : (
+            <>
+              <View style={styles.chatListBox}>
+                {messages.length === 0 ? (
+                  <Text style={styles.chatEmpty}>
+                    {t("chat.empty", {
+                      defaultValue:
+                        "Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện!",
+                    })}
+                  </Text>
+                ) : (
+                  <FlatList
+                    data={messages.slice(0, 12)}
+                    keyExtractor={(item) => item.id}
+                    inverted
+                    scrollEnabled={false}
+                    renderItem={({ item }) => (
+                      <View style={styles.chatMessageRow}>
+                        <Text style={styles.chatSender}>
+                          {item.user?.full_name ||
+                            item.sender?.full_name ||
+                            "Ẩn danh"}
+                        </Text>
+                        <Text style={styles.chatContent}>
+                          {item.content || "📷 Hình ảnh"}
+                        </Text>
+                      </View>
+                    )}
+                  />
+                )}
+              </View>
+              <View style={styles.chatComposer}>
+                <TextInput
+                  style={styles.chatInput}
+                  value={chatText}
+                  onChangeText={setChatText}
+                  placeholder={t("chat.placeholder", {
+                    defaultValue: "Nhập tin nhắn...",
+                  })}
+                  placeholderTextColor={COLORS.textTertiary}
+                  editable={!chatSending}
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.chatSendButton,
+                    (!chatText.trim() || chatSending) &&
+                      styles.chatSendDisabled,
+                  ]}
+                  onPress={() => void handleSendPreviewMessage()}
+                  disabled={!chatText.trim() || chatSending}
+                >
+                  {chatSending ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+        </View>
+
+        <Text style={styles.stepHint}>
+          {t("planner.inviteNextStepHint", {
+            defaultValue:
+              "Bấm Tham gia kế hoạch để xác nhận; nếu nhóm có cọc, hệ thống mở thanh toán (PayOS) hoặc ví.",
+          })}
+        </Text>
       </ScrollView>
 
-      {/* Action Buttons — fixed bottom */}
-      {showAcceptReject && (
-        <View
-          style={[
-            styles.actionBar,
-            { paddingBottom: Math.max(insets.bottom, 16) },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.rejectBtn]}
-            onPress={() => handleRespond("reject")}
-            disabled={responding}
-          >
-            {responding ? (
-              <ActivityIndicator color={INVITE_COLORS.textMain} />
-            ) : (
-              <>
-                <Ionicons
-                  name="close-circle-outline"
-                  size={20}
-                  color={INVITE_COLORS.textMain}
-                />
-                <Text style={styles.rejectBtnText}>Từ chối</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.acceptBtn]}
-            onPress={() => handleRespond("accept")}
-            disabled={responding}
-          >
-            {responding ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons
-                  name="checkmark-circle-outline"
-                  size={20}
-                  color="#fff"
-                />
-                <Text style={styles.acceptBtnText}>Chấp nhận</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Banner khi không còn pending (hết hạn / đã phản hồi / chờ cọc) */}
-      {(isAlreadyResponded || isExpired || isAwaitingPayment) && (
-        <View
-          style={[
-            styles.processedBar,
-            { paddingBottom: Math.max(insets.bottom, 16) },
-            isExpired && styles.processedBarExpired,
-            invite.status === "accepted" && styles.processedBarAccepted,
-            invite.status === "rejected" && styles.processedBarRejected,
-            isAwaitingPayment && styles.processedBarAwaitingPayment,
-          ]}
-        >
-          <Ionicons
-            name={
-              isExpired
-                ? "time-outline"
-                : isAwaitingPayment
-                  ? "wallet-outline"
-                  : invite.status === "accepted"
-                    ? "checkmark-circle"
-                    : "close-circle"
-            }
-            size={22}
-            color={
-              isExpired
-                ? INVITE_COLORS.warning
-                : isAwaitingPayment
-                  ? INVITE_COLORS.warning
-                  : invite.status === "accepted"
-                    ? INVITE_COLORS.success
-                    : INVITE_COLORS.danger
-            }
-          />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.processedBarTitle}>
-              {isExpired
-                ? "Lời mời đã hết hạn"
-                : isAwaitingPayment
-                  ? "Hoàn tất thanh toán cọc"
-                  : invite.status === "accepted"
-                    ? "Lời mời này đã được xử lý"
-                    : "Lời mời này đã được xử lý"}
+      <View
+        style={[
+          styles.bottomBar,
+          { paddingBottom: Math.max(insets.bottom, 16) },
+        ]}
+      >
+        {(invite.status === "pending" ||
+          invite.status === "awaiting_payment") && (
+          <>
+            <Text style={styles.joinUsBanner}>
+              {t("planner.inviteJoinUsBanner", {
+                defaultValue: "Tham gia cùng chúng tôi",
+              })}
             </Text>
-            <Text style={styles.processedBarSub}>
-              {isExpired
-                ? "Token đã quá 7 ngày, không thể phản hồi."
-                : isAwaitingPayment
-                  ? "Bạn đã chấp nhận tham gia. Hoàn tất cọc qua liên kết thanh toán hoặc kiểm tra Ví trong Hồ sơ."
-                  : invite.status === "accepted"
-                    ? "Bạn đã chấp nhận lời mời này trước đó."
-                    : "Bạn đã từ chối lời mời này trước đó."}
-            </Text>
-            {isAwaitingPayment && (
-              <TouchableOpacity
-                style={styles.walletCta}
-                onPress={openWalletTab}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.walletCtaText}>Mở Ví</Text>
-                <Ionicons name="chevron-forward" size={18} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
-
-      <GuestLoginModal
-        visible={showGuestLogin}
-        onClose={() => setShowGuestLogin(false)}
-        onBeforeLogin={handleBeforeLogin}
-        message="Bạn cần đăng nhập để phản hồi lời mời tham gia kế hoạch."
-      />
+            <TouchableOpacity
+              style={[
+                styles.primaryCta,
+                styles.ctaFooter,
+                responding && { opacity: 0.75 },
+              ]}
+              onPress={() => void handleJoinPlan()}
+              disabled={responding}
+              activeOpacity={0.9}
+            >
+              {responding ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryCtaText}>
+                  {t("planner.inviteJoinPlanCta", {
+                    defaultValue: "Tham gia kế hoạch",
+                  })}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
+        {/* Không có nút "Mở kế hoạch" ở preview.
+            Khi đã accepted/member sẽ tự replace sang PlanDetail qua useEffect. */}
+      </View>
     </ImageBackground>
   );
 };
@@ -765,8 +976,17 @@ const PlanInvitePreviewScreen = ({ route, navigation }: Props) => {
 export default PlanInvitePreviewScreen;
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
+  bg: { flex: 1 },
+  headerMapWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 340,
+  },
+  headerMap: {
+    width: "100%",
+    height: "100%",
   },
   centered: {
     flex: 1,
@@ -779,7 +999,6 @@ const styles = StyleSheet.create({
     color: INVITE_COLORS.textMuted,
     fontSize: TYPOGRAPHY.fontSize.md,
   },
-  // ── Close button ──
   closeBtn: {
     position: "absolute",
     left: SPACING.md,
@@ -791,10 +1010,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // ── Error ──
   errorSection: {
     alignItems: "center",
-    gap: SPACING.sm,
     paddingHorizontal: SPACING.lg,
     marginTop: SPACING.xl,
   },
@@ -808,6 +1025,7 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     color: INVITE_COLORS.textMuted,
     textAlign: "center",
+    marginTop: SPACING.sm,
   },
   backButton: {
     marginTop: SPACING.md,
@@ -821,10 +1039,56 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: TYPOGRAPHY.fontSize.md,
   },
-  // ── Scroll ──
   scrollContent: {
     alignItems: "center",
     paddingHorizontal: SPACING.xl,
+  },
+  previewHeroCard: {
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: INVITE_COLORS.borderLight,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.subtle,
+  },
+  previewMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+  previewMetaText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: INVITE_COLORS.textMuted,
+    fontWeight: "600",
+  },
+  previewMetaDot: {
+    marginHorizontal: 6,
+    color: INVITE_COLORS.textMuted,
+  },
+  sectionTitle: {
+    alignSelf: "stretch",
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "700",
+    color: INVITE_COLORS.textMain,
+    marginBottom: SPACING.sm,
+  },
+  mapCard: {
+    alignSelf: "stretch",
+    backgroundColor: INVITE_COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: INVITE_COLORS.borderLight,
+    padding: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  map: {
+    width: "100%",
+    height: 220,
+    borderRadius: BORDER_RADIUS.md,
+    overflow: "hidden",
   },
   iconWrapper: {
     width: 100,
@@ -854,8 +1118,7 @@ const styles = StyleSheet.create({
   ownerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: SPACING.sm,
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.lg,
   },
   ownerAvatar: {
     width: 30,
@@ -863,6 +1126,7 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     borderWidth: 1.5,
     borderColor: INVITE_COLORS.borderLight,
+    marginRight: SPACING.sm,
   },
   ownerAvatarPlaceholder: {
     width: 30,
@@ -871,6 +1135,7 @@ const styles = StyleSheet.create({
     backgroundColor: INVITE_COLORS.borderLight,
     justifyContent: "center",
     alignItems: "center",
+    marginRight: SPACING.sm,
   },
   ownerName: {
     fontSize: TYPOGRAPHY.fontSize.md,
@@ -880,159 +1145,188 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: INVITE_COLORS.textMain,
   },
+  guestHint: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    color: INVITE_COLORS.textMuted,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: SPACING.lg,
+  },
+  primaryCta: {
+    backgroundColor: INVITE_COLORS.primary,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl * 2,
+    borderRadius: BORDER_RADIUS.full,
+    minWidth: 200,
+    alignItems: "center",
+  },
+  primaryCtaText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: TYPOGRAPHY.fontSize.md,
+  },
+  switchAccountCta: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: BORDER_RADIUS.full,
+    borderWidth: 2,
+    borderColor: INVITE_COLORS.primary,
+    backgroundColor: "rgba(255,255,255,0.85)",
+    alignItems: "center",
+    alignSelf: "stretch",
+    maxWidth: 340,
+  },
+  switchAccountCtaText: {
+    color: INVITE_COLORS.primary,
+    fontWeight: "700",
+    fontSize: TYPOGRAPHY.fontSize.md,
+    textAlign: "center",
+  },
+  previewBadge: {
+    alignSelf: "center",
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: INVITE_COLORS.primary,
+    fontWeight: "700",
+    marginBottom: SPACING.sm,
+    textAlign: "center",
+  },
   divider: {
     width: "60%",
     height: 1,
     backgroundColor: INVITE_COLORS.borderLight,
     marginVertical: SPACING.lg,
+    alignSelf: "center",
   },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
+  dayBlock: {
+    alignSelf: "stretch",
     marginBottom: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: INVITE_COLORS.borderLight,
   },
-  infoText: {
-    fontSize: TYPOGRAPHY.fontSize.md,
-    color: INVITE_COLORS.textMuted,
-    fontWeight: "500",
+  chatCard: {
+    alignSelf: "stretch",
+    backgroundColor: INVITE_COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: INVITE_COLORS.borderLight,
+    padding: SPACING.md,
+    marginTop: SPACING.sm,
   },
-  infoTextBold: {
+  chatHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  chatListBox: {
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+    minHeight: 110,
+  },
+  chatEmpty: {
+    color: COLORS.textSecondary,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    textAlign: "center",
+    marginTop: SPACING.sm,
+  },
+  chatMessageRow: {
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.borderLight,
+  },
+  chatSender: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: INVITE_COLORS.primary,
     fontWeight: "700",
-    color: INVITE_COLORS.textMain,
   },
-  // ── Status ──
-  statusBadge: {
+  chatContent: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: INVITE_COLORS.textMain,
+    marginTop: 2,
+  },
+  chatComposer: {
+    marginTop: SPACING.sm,
     flexDirection: "row",
     alignItems: "center",
-    gap: SPACING.xs,
-    marginTop: SPACING.md,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: COLORS.backgroundSoft,
     borderRadius: BORDER_RADIUS.full,
     borderWidth: 1,
-  },
-  statusExpired: {
-    backgroundColor: INVITE_COLORS.warningBg,
-    borderColor: "#ffc107",
-  },
-  statusAccepted: {
-    backgroundColor: INVITE_COLORS.successBg,
-    borderColor: INVITE_COLORS.success,
-  },
-  statusRejected: {
-    backgroundColor: INVITE_COLORS.dangerBg,
-    borderColor: INVITE_COLORS.danger,
-  },
-  statusAwaitingPayment: {
-    backgroundColor: INVITE_COLORS.warningBg,
-    borderColor: "#ffc107",
-  },
-  statusText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    fontWeight: "700",
-  },
-  // ── Action bar ──
-  actionBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    gap: SPACING.sm,
+    borderColor: COLORS.borderLight,
     paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.md,
-    backgroundColor: "rgba(253,248,240,0.97)",
-    borderTopWidth: 1,
-    borderTopColor: INVITE_COLORS.borderLight,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: SPACING.xs,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  rejectBtn: {
-    backgroundColor: "transparent",
-    borderWidth: 2,
-    borderColor: INVITE_COLORS.textMain,
-  },
-  rejectBtnText: {
+    paddingVertical: 10,
     color: INVITE_COLORS.textMain,
-    fontWeight: "700",
-    fontSize: TYPOGRAPHY.fontSize.md,
-  },
-  acceptBtn: {
-    backgroundColor: INVITE_COLORS.primary,
-    shadowColor: INVITE_COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  acceptBtnText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: TYPOGRAPHY.fontSize.md,
-  },
-  // ── Processed / Already responded bar ──
-  processedBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: INVITE_COLORS.borderLight,
-    backgroundColor: "rgba(253,248,240,0.97)",
-  },
-  processedBarExpired: {
-    backgroundColor: "rgba(255,243,205,0.97)",
-    borderTopColor: "#ffc107",
-  },
-  processedBarAccepted: {
-    backgroundColor: "rgba(212,237,218,0.97)",
-    borderTopColor: INVITE_COLORS.success,
-  },
-  processedBarRejected: {
-    backgroundColor: "rgba(248,215,218,0.97)",
-    borderTopColor: INVITE_COLORS.danger,
-  },
-  processedBarAwaitingPayment: {
-    alignItems: "flex-start",
-  },
-  walletCta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    marginTop: SPACING.sm,
-    alignSelf: "flex-start",
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: INVITE_COLORS.primary,
-    borderRadius: BORDER_RADIUS.full,
-  },
-  walletCtaText: {
-    color: "#fff",
-    fontWeight: "700",
     fontSize: TYPOGRAPHY.fontSize.sm,
   },
-  processedBarTitle: {
+  chatSendButton: {
+    marginLeft: SPACING.sm,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: INVITE_COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  chatSendDisabled: {
+    opacity: 0.55,
+  },
+  dayTitle: {
     fontSize: TYPOGRAPHY.fontSize.md,
     fontWeight: "700",
+    marginBottom: SPACING.sm,
     color: INVITE_COLORS.textMain,
   },
-  processedBarSub: {
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  itemName: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: INVITE_COLORS.textMain,
+  },
+  muted: {
+    alignSelf: "stretch",
+    color: INVITE_COLORS.textMuted,
+    fontStyle: "italic",
+    fontSize: TYPOGRAPHY.fontSize.sm,
+  },
+  stepHint: {
+    alignSelf: "stretch",
     fontSize: TYPOGRAPHY.fontSize.sm,
     color: INVITE_COLORS.textMuted,
-    marginTop: 2,
+    lineHeight: 20,
+    marginTop: SPACING.md,
+  },
+  bottomBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.md,
+    backgroundColor: "rgba(253,248,240,0.98)",
+    borderTopWidth: 1,
+    borderTopColor: INVITE_COLORS.borderLight,
+  },
+  joinUsBanner: {
+    textAlign: "center",
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: "700",
+    color: INVITE_COLORS.textMain,
+    marginBottom: SPACING.sm,
+  },
+  ctaFooter: {
+    alignSelf: "stretch",
+    width: "100%",
   },
 });

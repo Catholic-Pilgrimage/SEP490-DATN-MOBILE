@@ -18,6 +18,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   StyleProp,
@@ -383,7 +384,11 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                   selectedPin?.id === pin.id && styles.markerContainerSelected,
                 ]}
               >
-                <Text style={styles.markerIcon}>{pin.icon || "📍"}</Text>
+                <PinGlyph
+                  color={COLORS.white}
+                  selected={selectedPin?.id === pin.id}
+                  size={selectedPin?.id === pin.id ? 30 : 28}
+                />
               </View>
             </PointAnnotation>
           ))}
@@ -402,9 +407,9 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                   { backgroundColor: selectedPin.color || COLORS.accent },
                 ]}
               >
-                <Text style={styles.pinCardIcon}>
-                  {selectedPin.icon || "📍"}
-                </Text>
+                <View style={styles.pinCardIcon}>
+                  <PinGlyph color={COLORS.white} selected size={24} />
+                </View>
               </View>
               <View style={styles.pinCardText}>
                 <Text style={styles.pinCardTitle} numberOfLines={1}>
@@ -436,7 +441,9 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                     { backgroundColor: COLORS.danger },
                   ]}
                 >
-                  <Text style={styles.pinCardIcon}>{tapInfo.icon}</Text>
+                  <View style={styles.pinCardIcon}>
+                    <PinGlyph color={COLORS.white} selected size={24} />
+                  </View>
                 </View>
                 <View style={styles.pinCardText}>
                   <Text style={styles.pinCardTitle} numberOfLines={1}>
@@ -451,7 +458,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                   style={styles.dismissBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Text style={styles.dismissText}>✕</Text>
+                  <Ionicons name="close" size={16} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
             ) : null}
@@ -469,6 +476,22 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
 );
 
 VietmapView.displayName = "VietmapView";
+
+const PinGlyph = ({
+  color,
+  selected = false,
+  size = 28,
+}: {
+  color: string;
+  selected?: boolean;
+  size?: number;
+}) => (
+  <Ionicons
+    name={selected ? "location" : "location-outline"}
+    size={size}
+    color={color}
+  />
+);
 
 const styles = StyleSheet.create({
   container: {
@@ -503,9 +526,6 @@ const styles = StyleSheet.create({
     elevation: 8,
     shadowOpacity: 0.5,
   },
-  markerIcon: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
-  },
   pinCard: {
     position: "absolute",
     left: SPACING.md,
@@ -533,7 +553,8 @@ const styles = StyleSheet.create({
     ...SHADOWS.small,
   },
   pinCardIcon: {
-    fontSize: TYPOGRAPHY.fontSize.xxl + 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   pinCardText: {
     flex: 1,

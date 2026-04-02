@@ -1,25 +1,23 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import Slider from "@react-native-community/slider";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
     Alert,
-    FlatList,
     Image,
-    Modal,
     Platform,
     ScrollView,
     StatusBar,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
-    View,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Swipeable } from "react-native-gesture-handler";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
@@ -34,8 +32,7 @@ import {
     BORDER_RADIUS,
     COLORS,
     SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+    SPACING
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
@@ -49,7 +46,6 @@ import { useSites } from "../../../../hooks/useSites";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import { PlannerCalendarSyncResult } from "../../../../services/calendar/calendarService";
-import locationService from "../../../../services/location/locationService";
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
@@ -70,242 +66,60 @@ import {
     UpdatePlanItemRequest,
     UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
-import { SharePlanModal } from "../components/SharePlanModal";
+import { getInitialsFromFullName } from "../../../../utils/initials";
+import AddSiteModal from "../components/plan-detail/AddSiteModal";
+import EditItemModal, {
+    type EditItemModalProps,
+} from "../components/plan-detail/EditItemModal";
+import EditPlanModal from "../components/plan-detail/EditPlanModal";
+import InvitePreviewCard from "../components/plan-detail/InvitePreviewCard";
+import ItemDetailModal from "../components/plan-detail/ItemDetailModal";
+import NearbyPlacesModal from "../components/plan-detail/NearbyPlacesModal";
+import SiteEventsModal from "../components/plan-detail/SiteEventsModal";
+import TimeInputModal from "../components/plan-detail/TimeInputModal";
+import { PlannerTransactionsModal } from "../components/shared/PlannerTransactionsModal";
+import { SharePlanModal } from "../components/shared/SharePlanModal";
+import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import {
     MAX_DEPOSIT_VND,
     parsePenaltyPercent,
     parseVndInteger,
 } from "../utils/depositInput.utils";
-
-interface LocalSiteSnapshot {
-  id: string;
-  name: string;
-  address?: string;
-  coverImage?: string;
-  latitude?: number;
-  longitude?: number;
-}
-
-const mapOfflineNearbyPlace = (place: {
-  id: string;
-  name: string;
-  place_type: string;
-  address: string;
-  latitude?: string | number;
-  longitude?: string | number;
-  phone?: string;
-  description?: string;
-}): SiteNearbyPlace => ({
-  id: place.id,
-  code: place.id,
-  name: place.name,
-  category: place.place_type as NearbyPlaceCategory,
-  address: place.address,
-  latitude: Number(place.latitude || 0),
-  longitude: Number(place.longitude || 0),
-  distance_meters: 0,
-  phone: place.phone,
-  description: place.description,
-});
-
-const cloneItemsByDay = (itemsByDay?: Record<string, PlanItem[]>) => {
-  const cloned: Record<string, PlanItem[]> = {};
-
-  Object.entries(itemsByDay || {}).forEach(([dayKey, items]) => {
-    cloned[dayKey] = items.map((item) => ({
-      ...item,
-      site: { ...item.site },
-      nearby_amenity_ids: item.nearby_amenity_ids
-        ? [...item.nearby_amenity_ids]
-        : undefined,
-    }));
-  });
-
-  return cloned;
-};
-
-const buildPlanFromItemsByDay = (
-  currentPlan: PlanEntity,
-  itemsByDay: Record<string, PlanItem[]>,
-) => {
-  const normalized: Record<string, PlanItem[]> = {};
-  const dayKeys = Object.keys(itemsByDay).sort(
-    (left, right) => Number(left) - Number(right),
-  );
-
-  dayKeys.forEach((dayKey) => {
-    const sortedItems = [...itemsByDay[dayKey]]
-      .sort((left, right) => {
-        const leftOrder = left.order_index ?? Number.MAX_SAFE_INTEGER;
-        const rightOrder = right.order_index ?? Number.MAX_SAFE_INTEGER;
-        if (leftOrder !== rightOrder) {
-          return leftOrder - rightOrder;
-        }
-        return (left.estimated_time || "").localeCompare(
-          right.estimated_time || "",
-        );
-      })
-      .map((item, index) => ({
-        ...item,
-        day_number: Number(dayKey),
-        order_index: index + 1,
-      }));
-
-    normalized[dayKey] = sortedItems;
-  });
-
-  const flatItems = dayKeys.flatMap((dayKey) => normalized[dayKey]);
-  const highestDay =
-    dayKeys.reduce((maxDay, dayKey) => Math.max(maxDay, Number(dayKey)), 1) ||
-    1;
-
-  return {
-    ...currentPlan,
-    items: flatItems,
-    items_by_day: normalized,
-    number_of_days: Math.max(currentPlan.number_of_days || 1, highestDay),
-  };
-};
-
-const createLocalPlanItem = (
-  planId: string,
-  dayNumber: number,
-  dayItems: PlanItem[],
-  draft: {
-    site_id: string;
-    event_id?: string;
-    note?: string;
-    estimated_time?: string;
-    rest_duration?: string;
-    nearby_amenity_ids?: string[];
-  },
-  itemId?: string,
-  siteSnapshot?: LocalSiteSnapshot,
-): PlanItem => ({
-  id: itemId || createOfflinePlannerItemId(),
-  planner_id: planId,
-  site_id: draft.site_id,
-  event_id: draft.event_id,
-  day_number: dayNumber,
-  order_index: dayItems.length + 1,
-  note: draft.note,
-  estimated_time: draft.estimated_time,
-  rest_duration: draft.rest_duration,
-  nearby_amenity_ids: draft.nearby_amenity_ids,
-  site: {
-    id: siteSnapshot?.id || draft.site_id,
-    name: siteSnapshot?.name || "Pilgrimage Site",
-    address: siteSnapshot?.address,
-    image: siteSnapshot?.coverImage,
-    cover_image: siteSnapshot?.coverImage,
-    latitude: siteSnapshot?.latitude,
-    longitude: siteSnapshot?.longitude,
-  },
-});
-
-const applyLocalAddItem = (
-  currentPlan: PlanEntity,
-  planId: string,
-  draft: {
-    site_id: string;
-    day_number: number;
-    event_id?: string;
-    note?: string;
-    estimated_time?: string;
-    rest_duration?: string;
-    nearby_amenity_ids?: string[];
-  },
-  itemId?: string,
-  siteSnapshot?: LocalSiteSnapshot,
-) => {
-  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
-  const dayKey = String(draft.day_number);
-  const dayItems = [...(itemsByDay[dayKey] || [])];
-
-  dayItems.push(
-    createLocalPlanItem(
-      planId,
-      draft.day_number,
-      dayItems,
-      draft,
-      itemId,
-      siteSnapshot,
-    ),
-  );
-  itemsByDay[dayKey] = dayItems;
-
-  return buildPlanFromItemsByDay(
-    {
-      ...currentPlan,
-      number_of_days: Math.max(
-        currentPlan.number_of_days || 1,
-        draft.day_number,
-      ),
-    },
-    itemsByDay,
-  );
-};
-
-const applyLocalItemUpdate = (
-  currentPlan: PlanEntity,
-  itemId: string,
-  changes: Partial<{
-    estimated_time: string;
-    rest_duration: string;
-    note: string;
-    event_id?: string;
-    nearby_amenity_ids: string[];
-  }>,
-) => {
-  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
-
-  Object.entries(itemsByDay).forEach(([dayKey, dayItems]) => {
-    itemsByDay[dayKey] = dayItems.map((item) => {
-      if (item.id !== itemId) {
-        return item;
-      }
-
-      return {
-        ...item,
-        estimated_time:
-          changes.estimated_time !== undefined
-            ? changes.estimated_time
-            : item.estimated_time,
-        rest_duration:
-          changes.rest_duration !== undefined
-            ? changes.rest_duration
-            : item.rest_duration,
-        note: changes.note !== undefined ? changes.note : item.note,
-        event_id:
-          changes.event_id !== undefined ? changes.event_id : item.event_id,
-        nearby_amenity_ids:
-          changes.nearby_amenity_ids !== undefined
-            ? changes.nearby_amenity_ids
-            : item.nearby_amenity_ids,
-      };
-    });
-  });
-
-  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
-};
-
-const applyLocalDeleteItem = (currentPlan: PlanEntity, itemId: string) => {
-  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
-
-  Object.entries(itemsByDay).forEach(([dayKey, dayItems]) => {
-    const nextItems = dayItems.filter((item) => item.id !== itemId);
-    if (nextItems.length === 0) {
-      delete itemsByDay[dayKey];
-      return;
-    }
-    itemsByDay[dayKey] = nextItems;
-  });
-
-  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
-};
+import {
+    LocalSiteSnapshot,
+    applyLocalAddItem,
+    applyLocalDeleteItem,
+    applyLocalItemUpdate,
+    applyLocalSwapDayItems,
+    mapOfflineNearbyPlace,
+    sortPlanDayItems,
+} from "../utils/planDetailLocalPlan.utils";
+import {
+    buildPlanMapPins,
+    getPlanMapCenter,
+    getPlannerRosterCount,
+} from "../utils/planDetailMap.utils";
+import {
+    buildDurationString,
+    calculateEndTimeRaw,
+    getDateForDayRaw,
+    parseDurationToMinutesRaw,
+} from "../utils/planDetailTime.utils";
+import styles from "./PlanDetailScreen.styles";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
-  const { planId, autoAddSiteId, autoAddDay } = route.params;
+  const {
+    planId,
+    autoAddSiteId,
+    autoAddDay,
+    inviteToken,
+    inviteStatus,
+    invitedView,
+    ownerName,
+    ownerEmail,
+    depositAmount,
+    penaltyPercentage,
+  } = route.params || {};
   const { t } = useTranslation();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -316,110 +130,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
   );
+  const isInvitePendingView =
+    !!invitedView &&
+    !!inviteToken &&
+    ["pending", "awaiting_payment"].includes(
+      String(inviteStatus || "").toLowerCase(),
+    );
+  const isReadOnlyPlannerView = !isPlanOwner;
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
   const { confirm, ConfirmModal } = useConfirm();
   const { isOffline, offlineQueueCount } = useOffline();
   const [syncingOfflineActions, setSyncingOfflineActions] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const mapRef = useRef<VietmapViewRef>(null);
 
-  // Day-based pin colors for visual distinction
-  const DAY_PIN_COLORS = [
-    "#E74C3C", // Red
-    "#3498DB", // Blue
-    "#2ECC71", // Green
-    "#F39C12", // Orange
-    "#9B59B6", // Purple
-    "#1ABC9C", // Teal
-    "#E67E22", // Dark Orange
-    "#E91E63", // Pink
-    "#00BCD4", // Cyan
-    "#8BC34A", // Light Green
-  ];
-
-  const DAY_PIN_ICONS = [
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-    "📍",
-  ];
-
-  // Prepare Map Pins — one per site, colored by day
-  const mapPins: MapPin[] = useMemo(() => {
-    if (!plan || !plan.items_by_day) return [];
-    const pins: MapPin[] = [];
-    const seenSiteIds = new Set<string>(); // avoid duplicate pins for same site
-    Object.entries(plan.items_by_day).forEach(([dayKey, items]) => {
-      const dayIndex = parseInt(dayKey, 10) - 1;
-      const pinColor = DAY_PIN_COLORS[dayIndex % DAY_PIN_COLORS.length];
-      const pinIcon = DAY_PIN_ICONS[dayIndex % DAY_PIN_ICONS.length];
-      items.forEach((item, index) => {
-        const siteId = item.site_id || item.site?.id || "";
-        if (
-          item.site &&
-          item.site.latitude &&
-          item.site.longitude &&
-          !seenSiteIds.has(siteId)
-        ) {
-          if (siteId) seenSiteIds.add(siteId);
-          pins.push({
-            id: item.id || `pin_${dayKey}_${index}`,
-            latitude: Number(item.site.latitude),
-            longitude: Number(item.site.longitude),
-            title: item.site.name,
-            subtitle: `Ngày ${dayKey}${item.site.address ? " • " + item.site.address : ""}`,
-            icon: pinIcon,
-            color: pinColor,
-          });
-        }
-      });
-    });
-    return pins;
-  }, [plan]);
-
-  // Calculate map center & zoom to fit ALL pins
-  const mapCenter = useMemo(() => {
-    if (mapPins.length === 0) {
-      return { latitude: 10.762622, longitude: 106.660172, zoom: 6 }; // Default center Vietnam
-    }
-    if (mapPins.length === 1) {
-      return {
-        latitude: mapPins[0].latitude,
-        longitude: mapPins[0].longitude,
-        zoom: 13,
-      };
-    }
-    // Calculate bounding box center
-    const lats = mapPins.map((p) => p.latitude);
-    const lngs = mapPins.map((p) => p.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-    const centerLat = (minLat + maxLat) / 2;
-    const centerLng = (minLng + maxLng) / 2;
-    const latDiff = maxLat - minLat;
-    const lngDiff = maxLng - minLng;
-    const maxDiff = Math.max(latDiff, lngDiff);
-    let zoom = 12;
-    if (maxDiff > 5) zoom = 4;
-    else if (maxDiff > 3) zoom = 5;
-    else if (maxDiff > 1.5) zoom = 6;
-    else if (maxDiff > 1) zoom = 7;
-    else if (maxDiff > 0.5) zoom = 8;
-    else if (maxDiff > 0.2) zoom = 9;
-    else if (maxDiff > 0.1) zoom = 10;
-    else if (maxDiff > 0.05) zoom = 11;
-    else if (maxDiff > 0.02) zoom = 12;
-    else zoom = 13;
-    return { latitude: centerLat, longitude: centerLng, zoom };
-  }, [mapPins]);
+  const mapPins: MapPin[] = useMemo(() => buildPlanMapPins(plan), [plan]);
+  const mapCenter = useMemo(() => getPlanMapCenter(mapPins), [mapPins]);
 
   // Fly camera to fit all pins when pins change
   useEffect(() => {
@@ -495,6 +222,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [note, setNote] = useState("");
 
   const [showShareModal, setShowShareModal] = useState(false);
+  const [sharingToCommunity, setSharingToCommunity] = useState(false);
+  const [showTransactionsModal, setShowTransactionsModal] = useState(false);
+  const [updatingPlanStatus, setUpdatingPlanStatus] = useState(false);
 
   // Cross-day auto-push states
   const [crossDayWarning, setCrossDayWarning] = useState<string | null>(null);
@@ -512,10 +242,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [editRouteInfo, setEditRouteInfo] = useState<string>("");
   const [calculatingEditRoute, setCalculatingEditRoute] = useState(false);
 
-  // Check-in state
-  const [checkingInItemId, setCheckingInItemId] = useState<string | null>(null);
   // Item detail sheet state
   const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
+  /** First tap on reorder icon selects; second on another item in the same day swaps. */
+  const [swapPick, setSwapPick] = useState<{
+    dayKey: string;
+    itemId: string;
+  } | null>(null);
 
   // Nearby Places state
   const [showNearbyModal, setShowNearbyModal] = useState(false);
@@ -534,21 +267,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [savedNearbyPlaceIds, setSavedNearbyPlaceIds] = useState<Set<string>>(
     new Set(),
   );
-  const [removingNearbyPlaceId, setRemovingNearbyPlaceId] = useState<
-    string | null
-  >(null);
-
-  // Saved nearby places, and event details for Item Detail view
-  const [selectedItemNearbyPlaces, setSelectedItemNearbyPlaces] = useState<
-    SiteNearbyPlace[]
-  >([]);
-  const [loadingSelectedItemNearby, setLoadingSelectedItemNearby] =
-    useState(false);
-  const [selectedItemEvent, setSelectedItemEvent] = useState<SiteEvent | null>(
-    null,
-  );
-  const [loadingSelectedItemEvent, setLoadingSelectedItemEvent] =
-    useState(false);
 
   // Edit Plan Modal
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
@@ -565,6 +283,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   // Menu Dropdown state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+  const [previewJoinedCount, setPreviewJoinedCount] = useState<number | null>(
+    null,
+  );
 
   // Full Map Modal state
   const [showFullMap, setShowFullMap] = useState(false);
@@ -634,17 +355,78 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     });
   };
 
+  const { respondingInvite, handleRejectInvite, handleJoinInvite } =
+    useInvitePlanActions({
+      inviteToken,
+      planId,
+      navigation,
+      t,
+      isOffline,
+      showConnectionRequiredAlert,
+    });
+
   const handleOpenChat = () => {
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
     }
 
+    const chatReadStorageKey = `planner_chat_last_read_${planId}_${user?.id || "guest"}`;
+    void AsyncStorage.setItem(chatReadStorageKey, new Date().toISOString());
+    setUnreadChatCount(0);
+
     navigation.navigate("PlanChatScreen", {
       planId,
       planName: plan?.name,
     });
   };
+
+  useEffect(() => {
+    const readUnreadCount = async () => {
+      if (!planId || !user?.id || isOffline) return;
+
+      try {
+        const chatReadStorageKey = `planner_chat_last_read_${planId}_${user?.id || "guest"}`;
+        const [messagesRes, lastReadRaw] = await Promise.all([
+          pilgrimPlannerApi.getPlanMessages(planId, { page: 1, limit: 30 }),
+          AsyncStorage.getItem(chatReadStorageKey),
+        ]);
+
+        const data: any = messagesRes?.data ?? (messagesRes as any);
+        const messages: any[] = Array.isArray(data?.messages)
+          ? data.messages
+          : [];
+        const lastReadAt = lastReadRaw ? new Date(lastReadRaw).getTime() : 0;
+
+        const isOwnMessage = (msg: any) => {
+          const uid = String(user.id);
+          return (
+            String(msg?.user_id ?? "") === uid ||
+            String(msg?.sender?.id ?? "") === uid ||
+            String(msg?.user?.id ?? "") === uid
+          );
+        };
+
+        const unread = messages.filter((msg) => {
+          if (isOwnMessage(msg)) return false;
+          const createdAt = msg?.created_at || msg?.createdAt;
+          const ts = createdAt ? new Date(createdAt).getTime() : 0;
+          return ts > lastReadAt;
+        }).length;
+
+        setUnreadChatCount(unread);
+      } catch {
+        // Ignore polling errors (e.g., no permission in some invite states).
+      }
+    };
+
+    void readUnreadCount();
+    const timer = setInterval(() => {
+      void readUnreadCount();
+    }, 10000);
+
+    return () => clearInterval(timer);
+  }, [planId, user?.id, isOffline]);
 
   const getKnownSiteSnapshot = (
     siteId: string,
@@ -730,162 +512,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   }, [isAddModalVisible, activeTab]);
 
-  // Fetch nearby places, and event detail when item detail modal opens
-  useEffect(() => {
-    if (!selectedItem) {
-      setSelectedItemNearbyPlaces([]);
-      setSelectedItemEvent(null);
-      setLoadingSelectedItemNearby(false);
-      setLoadingSelectedItemEvent(false);
-      return;
-    }
-    const siteId = selectedItem.site_id || selectedItem.site?.id || "";
-    const nearbyIds = selectedItem.nearby_amenity_ids || [];
-    let isCancelled = false;
-
-    const loadSelectedItemDetails = async () => {
-      if (!siteId) {
-        if (!isCancelled) {
-          setSelectedItemNearbyPlaces([]);
-          setSelectedItemEvent(null);
-          setLoadingSelectedItemNearby(false);
-          setLoadingSelectedItemEvent(false);
-        }
-        return;
-      }
-
-      const isOnline = await networkService.checkConnection();
-
-      if (!isOnline) {
-        if (!isCancelled) {
-          setSelectedItemEvent(null);
-          setLoadingSelectedItemEvent(false);
-        }
-
-        if (nearbyIds.length === 0) {
-          if (!isCancelled) {
-            setSelectedItemNearbyPlaces([]);
-            setLoadingSelectedItemNearby(false);
-          }
-          return;
-        }
-
-        if (!isCancelled) {
-          setLoadingSelectedItemNearby(true);
-        }
-
-        try {
-          const offlineData =
-            await offlinePlannerService.getPlannerData(planId);
-          const filteredPlaces = (offlineData?.nearby_places || [])
-            .filter(
-              (place) =>
-                place.site_id === siteId && nearbyIds.includes(place.id),
-            )
-            .map(mapOfflineNearbyPlace);
-
-          if (!isCancelled) {
-            setSelectedItemNearbyPlaces(filteredPlaces);
-          }
-        } catch (error) {
-          console.error("Load offline nearby error:", error);
-          if (!isCancelled) {
-            setSelectedItemNearbyPlaces([]);
-          }
-        } finally {
-          if (!isCancelled) {
-            setLoadingSelectedItemNearby(false);
-          }
-        }
-
-        return;
-      }
-
-      if (selectedItem.event_id) {
-        if (!isCancelled) {
-          setLoadingSelectedItemEvent(true);
-        }
-
-        pilgrimSiteApi
-          .getSiteEvents(siteId)
-          .then((res) => {
-            if (isCancelled) {
-              return;
-            }
-
-            if (res.success && res.data?.data) {
-              const ev = res.data.data.find(
-                (e) => e.id === selectedItem.event_id,
-              );
-              setSelectedItemEvent(ev || null);
-            } else {
-              setSelectedItemEvent(null);
-            }
-          })
-          .catch((err) => {
-            console.error("Load event error:", err);
-            if (!isCancelled) {
-              setSelectedItemEvent(null);
-            }
-          })
-          .finally(() => {
-            if (!isCancelled) {
-              setLoadingSelectedItemEvent(false);
-            }
-          });
-      } else if (!isCancelled) {
-        setSelectedItemEvent(null);
-        setLoadingSelectedItemEvent(false);
-      }
-
-      if (nearbyIds.length === 0) {
-        if (!isCancelled) {
-          setSelectedItemNearbyPlaces([]);
-          setLoadingSelectedItemNearby(false);
-        }
-        return;
-      }
-
-      if (!isCancelled) {
-        setLoadingSelectedItemNearby(true);
-      }
-
-      pilgrimSiteApi
-        .getSiteNearbyPlaces(siteId)
-        .then((res) => {
-          if (isCancelled) {
-            return;
-          }
-
-          if (res.success && res.data?.data) {
-            const filtered = res.data.data.filter((p: SiteNearbyPlace) =>
-              nearbyIds.includes(p.id),
-            );
-            setSelectedItemNearbyPlaces(filtered);
-          } else {
-            setSelectedItemNearbyPlaces([]);
-          }
-        })
-        .catch((err) => {
-          console.error("Load saved nearby error:", err);
-          if (!isCancelled) {
-            setSelectedItemNearbyPlaces([]);
-          }
-        })
-        .finally(() => {
-          if (!isCancelled) {
-            setLoadingSelectedItemNearby(false);
-          }
-        });
-    };
-
-    void loadSelectedItemDetails();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [planId, selectedItem]);
-
   const fetchFavorites = async () => {
     try {
       setIsLoadingFavorites(true);
@@ -914,6 +540,48 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const loadPlanFromInvitePreview = async () => {
+    if (!inviteToken) return false;
+    const inviteRes = await pilgrimPlannerApi.getPlanByInviteToken(inviteToken);
+    if (!(inviteRes?.success && inviteRes.data?.planner)) {
+      return false;
+    }
+
+    const preview = inviteRes.data.planner as any;
+    setPlan(
+      (prev) =>
+        ({
+          ...(prev || {}),
+          id: preview.id || planId,
+          user_id: prev?.user_id || "",
+          name: preview.name || "Kế hoạch được mời",
+          start_date: preview.start_date,
+          end_date: preview.end_date,
+          number_of_days: preview.number_of_days || preview.estimated_days || 1,
+          number_of_people: preview.number_of_people || 1,
+          transportation: preview.transportation || "car",
+          status: preview.status || "planned",
+          share_token: prev?.share_token || "",
+          qr_code_url: prev?.qr_code_url || "",
+          created_at: preview.created_at || prev?.created_at || "",
+          updated_at: preview.updated_at || prev?.updated_at || "",
+          items_by_day: preview.items_by_day || prev?.items_by_day || {},
+          owner: preview.owner || prev?.owner,
+          deposit_amount: preview.deposit_amount,
+          penalty_percentage: preview.penalty_percentage,
+          is_locked: preview.is_locked,
+        }) as PlanEntity,
+    );
+
+    setPreviewJoinedCount(
+      typeof preview.companion_count === "number"
+        ? preview.companion_count
+        : null,
+    );
+
+    return true;
+  };
+
   const loadPlan = async () => {
     try {
       setLoading(true);
@@ -927,27 +595,79 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         return;
       }
 
-      const response = await pilgrimPlannerApi.getPlanDetail(planId);
-      if (response.success && response.data) {
-        setPlan(response.data);
-      } else {
-        const hasOfflinePlan = await loadOfflinePlan();
-        if (hasOfflinePlan) {
-          return;
-        }
-
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2:
-            response.message ||
-            t("planner.loadDetailError", {
+      // Invite preview: DO NOT call the protected detail endpoint (may return 403).
+      if (isInvitePendingView) {
+        const loadedFromInvite = await loadPlanFromInvitePreview();
+        if (!loadedFromInvite) {
+          const hasOfflinePlan = await loadOfflinePlan();
+          if (hasOfflinePlan) return;
+          Toast.show({
+            type: "error",
+            text1: t("common.error"),
+            text2: t("planner.loadDetailError", {
               defaultValue: "Không thể tải chi tiết kế hoạch",
             }),
-        });
+          });
+        }
+        return;
       }
+
+      const response = await pilgrimPlannerApi.getPlanDetail(planId);
+      if (response?.success && response.data) {
+        const nextPlan = response.data;
+        setPlan(nextPlan);
+        try {
+          const memRes = await pilgrimPlannerApi.getPlanMembers(planId);
+          if (memRes.success && memRes.data?.members?.length) {
+            setPlan((prev) =>
+              prev && prev.id === nextPlan.id
+                ? {
+                    ...prev,
+                    members: memRes.data!.members as unknown[],
+                  }
+                : prev,
+            );
+          }
+        } catch {
+          /* roster vẫn dựa trên companion_count / mặc định 1 */
+        }
+        return;
+      }
+
+      if (inviteToken) {
+        const loadedFromInvite = await loadPlanFromInvitePreview();
+        if (loadedFromInvite) return;
+      }
+
+      const hasOfflinePlan = await loadOfflinePlan();
+      if (hasOfflinePlan) return;
+
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2:
+          response?.message ||
+          t("planner.loadDetailError", {
+            defaultValue: "Không thể tải chi tiết kế hoạch",
+          }),
+      });
     } catch (error) {
-      console.error("Load plan detail error:", error);
+      if (isInvitePendingView) {
+        // In invite preview mode, we expect the protected detail endpoint is not used.
+        // Keep logs quiet and just fallback to offline / toast.
+      } else {
+        console.error("Load plan detail error:", error);
+        if (inviteToken) {
+          try {
+            const loadedFromInvite = await loadPlanFromInvitePreview();
+            if (loadedFromInvite) {
+              return;
+            }
+          } catch {
+            // Ignore and fallback below
+          }
+        }
+      }
       const hasOfflinePlan = await loadOfflinePlan();
       if (hasOfflinePlan) {
         return;
@@ -966,6 +686,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleOpenEditPlan = () => {
+    if (isReadOnlyPlannerView) return;
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1129,7 +850,37 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const handleOpenSiteDetailFromAddModal = (siteId: string) => {
+    if (!siteId) return;
+    navigation.navigate("SiteDetail" as never, { siteId } as never);
+  };
+
+  const handleOpenEventSite = async (site: SiteSummary) => {
+    setEventSite(site);
+    setShowEventListModal(true);
+    setSiteEvents([]);
+    try {
+      setIsLoadingEvents(true);
+      const eventParams: any = { limit: 20 };
+      if (plan?.start_date && plan?.end_date) {
+        eventParams.start_date = plan.start_date.substring(0, 10);
+        eventParams.end_date = plan.end_date.substring(0, 10);
+      } else {
+        eventParams.upcoming = "true";
+      }
+      const res = await pilgrimSiteApi.getSiteEvents(site.id, eventParams);
+      if (res.success && res.data?.data) {
+        setSiteEvents(res.data.data);
+      }
+    } catch (e) {
+      console.error("Load site events error:", e);
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  };
+
   const handleOpenShareModal = () => {
+    if (isReadOnlyPlannerView) return;
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1138,7 +889,156 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowShareModal(true);
   };
 
+  const handleSharePlannerToCommunity = async () => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+    if (
+      !plan ||
+      (plan.status || "").toLowerCase() !== "completed" ||
+      !isPlanOwner
+    ) {
+      return;
+    }
+    setSharingToCommunity(true);
+    try {
+      const response = await pilgrimPlannerApi.sharePlannerToCommunity(planId);
+      if (response.success) {
+        Toast.show({
+          type: "success",
+          text1: t("planner.shareCommunitySuccessTitle", {
+            defaultValue: "Đã chia sẻ lên cộng đồng",
+          }),
+          text2: t("planner.shareCommunitySuccessBody", {
+            defaultValue: "Bài viết đã được tạo từ hành trình của bạn.",
+          }),
+          visibilityTime: 3500,
+        });
+        setPlan((prev) =>
+          prev ? { ...prev, shared_to_community: true } : prev,
+        );
+        await loadPlan();
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            response.message ||
+            t("planner.shareCommunityError", {
+              defaultValue:
+                "Không thể chia sẻ. Kiểm tra quyền và trạng thái kế hoạch.",
+            }),
+          visibilityTime: 4500,
+        });
+      }
+    } catch (error: any) {
+      console.error("Share planner to community error:", error);
+      const errMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.response?.data?.error?.details?.[0]?.message ||
+        error?.message ||
+        t("planner.shareCommunityError", {
+          defaultValue:
+            "Không thể chia sẻ. Kiểm tra quyền và trạng thái kế hoạch.",
+        });
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: errMsg,
+        visibilityTime: 4500,
+      });
+    } finally {
+      setSharingToCommunity(false);
+    }
+  };
+
+  const handleUpdatePlannerStatus = (targetStatus: "ongoing" | "completed") => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+    if (!isPlanOwner) return;
+
+    const isStart = targetStatus === "ongoing";
+    const title = isStart
+      ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu chuyến đi" })
+      : t("planner.completeJourneyTitle", {
+          defaultValue: "Kết thúc chuyến đi",
+        });
+    const msg = isStart
+      ? t("planner.startJourneyMsg", {
+          defaultValue:
+            "Bạn có chắc muốn bắt đầu chuyến đi? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
+        })
+      : t("planner.completeJourneyMsg", {
+          defaultValue:
+            "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
+        });
+
+    Alert.alert(title, msg, [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: title,
+        style: isStart ? "default" : "destructive",
+        onPress: async () => {
+          setUpdatingPlanStatus(true);
+          try {
+            const res = await pilgrimPlannerApi.updatePlannerStatus(planId, {
+              status: targetStatus,
+            });
+            if (res.success) {
+              Toast.show({
+                type: "success",
+                text1: title,
+                text2: isStart
+                  ? t("planner.startJourneySuccess", {
+                      defaultValue: "Chuyến đi đã bắt đầu!",
+                    })
+                  : t("planner.completeJourneySuccess", {
+                      defaultValue: "Chuyến đi đã hoàn thành!",
+                    }),
+                visibilityTime: 3000,
+              });
+              await loadPlan();
+            } else {
+              Toast.show({
+                type: "error",
+                text1: t("common.error"),
+                text2:
+                  res.message ||
+                  t("planner.statusUpdateFailed", {
+                    defaultValue: "Không thể cập nhật trạng thái.",
+                  }),
+                visibilityTime: 4000,
+              });
+            }
+          } catch (error: any) {
+            console.error("Update planner status error:", error);
+            const errMsg =
+              error?.response?.data?.error?.message ||
+              error?.response?.data?.message ||
+              error?.message ||
+              t("planner.statusUpdateFailed", {
+                defaultValue: "Không thể cập nhật trạng thái.",
+              });
+            Toast.show({
+              type: "error",
+              text1: t("common.error"),
+              text2: errMsg,
+              visibilityTime: 4000,
+            });
+          } finally {
+            setUpdatingPlanStatus(false);
+          }
+        },
+      },
+    ]);
+  };
+
   const handleDeletePlan = () => {
+    if (isReadOnlyPlannerView) return;
     setShowMenuDropdown(false); // Hide menu if open
 
     if (isOffline) {
@@ -1464,6 +1364,149 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     );
   };
 
+  const performSwapTwoItems = async (
+    dayKey: string,
+    itemIdA: string,
+    itemIdB: string,
+  ) => {
+    if (!plan) return;
+    const raw = plan.items_by_day?.[dayKey] || [];
+    const sorted = sortPlanDayItems(raw);
+    const indexA = sorted.findIndex((i) => i.id === itemIdA);
+    const indexB = sorted.findIndex((i) => i.id === itemIdB);
+    if (indexA < 0 || indexB < 0) return;
+
+    const previewPlan = applyLocalSwapDayItems(plan, dayKey, indexA, indexB);
+    const itemA = previewPlan.items?.find((i) => i.id === itemIdA);
+    const itemB = previewPlan.items?.find((i) => i.id === itemIdB);
+    const orderA = itemA?.order_index;
+    const orderB = itemB?.order_index;
+    if (orderA == null || orderB == null) return;
+
+    const newOrder = [...sorted];
+    [newOrder[indexA], newOrder[indexB]] = [
+      newOrder[indexB],
+      newOrder[indexA],
+    ];
+    const itemIds = newOrder
+      .map((i) => i.id)
+      .filter((id): id is string => Boolean(id));
+    if (itemIds.length !== newOrder.length) return;
+
+    try {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items/reorder`,
+          method: "POST",
+          data: {
+            leg_number: Number(dayKey),
+            item_ids: itemIds,
+          },
+        });
+
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalSwapDayItems(currentPlan, dayKey, indexA, indexB),
+          () =>
+            offlinePlannerService.swapPlannerItemsOrder(
+              planId,
+              Number(dayKey),
+              itemIdA,
+              itemIdB,
+            ),
+        );
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("offline.changesSavedOffline"),
+        });
+        return;
+      }
+
+      const res = await pilgrimPlannerApi.reorderPlannerItems(planId, {
+        leg_number: Number(dayKey),
+        item_ids: itemIds,
+      });
+      if (res.success) {
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalSwapDayItems(currentPlan, dayKey, indexA, indexB),
+          () =>
+            offlinePlannerService.swapPlannerItemsOrder(
+              planId,
+              Number(dayKey),
+              itemIdA,
+              itemIdB,
+            ),
+        );
+        loadPlan();
+        return;
+      }
+
+      const r1 = await pilgrimPlannerApi.updatePlanItem(planId, itemIdA, {
+        order_index: orderA,
+      });
+      const r2 = await pilgrimPlannerApi.updatePlanItem(planId, itemIdB, {
+        order_index: orderB,
+      });
+      if (r1.success && r2.success) {
+        await applyPlanMutation(
+          (currentPlan) =>
+            applyLocalSwapDayItems(currentPlan, dayKey, indexA, indexB),
+          () =>
+            offlinePlannerService.swapPlannerItemsOrder(
+              planId,
+              Number(dayKey),
+              itemIdA,
+              itemIdB,
+            ),
+        );
+        loadPlan();
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            res.message ||
+            r1.message ||
+            r2.message ||
+            t("planner.cannotUpdateItem", {
+              defaultValue: "Không thể cập nhật thứ tự điểm",
+            }),
+        });
+      }
+    } catch (error: any) {
+      console.error("Swap items error:", error);
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2:
+          error.message ||
+          t("planner.cannotUpdateItem", {
+            defaultValue: "Không thể cập nhật thứ tự điểm",
+          }),
+      });
+    }
+  };
+
+  const handleReorderIconPress = (dayKey: string, item: PlanItem) => {
+    if (!plan || isReadOnlyPlannerView) return;
+    const id = item.id;
+    if (!id) return;
+
+    if (!swapPick || swapPick.dayKey !== dayKey) {
+      setSwapPick({ dayKey, itemId: id });
+      return;
+    }
+    if (swapPick.itemId === id) {
+      setSwapPick(null);
+      return;
+    }
+    void performSwapTwoItems(dayKey, swapPick.itemId, id);
+    setSwapPick(null);
+  };
+
   const handleOpenEditItem = async (item: PlanItem) => {
     setEditingItem(item);
     // Parse existing estimated_time
@@ -1553,15 +1596,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     d.setMinutes(m || 0);
     setEditTempTime(d);
     setShowEditTimePicker(true);
-  };
-
-  const buildDurationString = (totalMinutes: number): string => {
-    const dh = Math.floor(totalMinutes / 60);
-    const dm = totalMinutes % 60;
-    if (dh > 0 && dm > 0)
-      return `${dh} ${dh === 1 ? "hour" : "hours"} ${dm} ${dm === 1 ? "minute" : "minutes"}`;
-    if (dh > 0) return `${dh} ${dh === 1 ? "hour" : "hours"}`;
-    return `${totalMinutes} ${totalMinutes === 1 ? "minute" : "minutes"}`;
   };
 
   const handleSaveEditItem = async () => {
@@ -1717,49 +1751,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     return String(value);
   };
 
-  const parseDurationToMinutes = (durationStr: any): number => {
-    if (!durationStr) return 0; // Default if nil
-    const durStr = formatTimeValue(durationStr).toLowerCase();
-    let minutes = 0;
-    const hourMatch = durStr.match(/(\d+)\s*hour|(\d+)\s*gi[oờ]/);
-    const minMatch = durStr.match(/(\d+)\s*minute|(\d+)\s*ph[uút]/);
+  const parseDurationToMinutes = (durationStr: any): number =>
+    parseDurationToMinutesRaw(durationStr, formatTimeValue);
 
-    if (hourMatch) {
-      minutes += parseInt(hourMatch[1] || hourMatch[2]) * 60;
-    }
-    if (minMatch) {
-      minutes += parseInt(minMatch[1] || minMatch[2]);
-    }
-    // Fallback if just a number
-    if (!hourMatch && !minMatch) {
-      const rawMatch = durStr.match(/(\d+)/);
-      if (rawMatch) minutes = parseInt(rawMatch[1]);
-    }
-    return minutes;
-  };
+  const calculateEndTime = (startTimeStr: any, durationStr: any): string =>
+    calculateEndTimeRaw(startTimeStr, durationStr, formatTimeValue);
 
-  const calculateEndTime = (startTimeStr: any, durationStr: any): string => {
-    if (!startTimeStr) return "";
-    const startStr = formatTimeValue(startTimeStr);
-    const durationMins = parseDurationToMinutes(durationStr);
-    if (!durationMins) return startStr;
-    const [hours, minutes] = startStr.split(":").map(Number);
-    if (isNaN(hours) || isNaN(minutes)) return startStr;
-    const date = new Date();
-    date.setHours(hours);
-    date.setMinutes(minutes + durationMins);
-    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
-  };
-
-  const getDateForDay = (startDateStr: string, dayNumber: number): string => {
-    try {
-      const date = new Date(startDateStr);
-      date.setDate(date.getDate() + (dayNumber - 1));
-      return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}`;
-    } catch {
-      return "";
-    }
-  };
+  const getDateForDay = (startDateStr: string, dayNumber: number): string =>
+    getDateForDayRaw(startDateStr, dayNumber);
 
   const handleAddItem = async (siteId: string, eventId?: string) => {
     setSelectedSiteId(siteId);
@@ -1945,7 +1944,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             }),
         );
 
-        setIsAddModalVisible(false);
         setShowTimeInputModal(false);
         setNote("");
         Toast.show({
@@ -1988,7 +1986,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 })
             : undefined,
         );
-        setIsAddModalVisible(false);
         setShowTimeInputModal(false);
         setNote("");
         loadPlan();
@@ -2159,193 +2156,39 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  const handleRemoveNearbyPlace = async (placeId: string) => {
-    if (!selectedItem) return;
-    Alert.alert(
-      t("planner.removePlaceTitle"),
-      t("planner.removePlaceConfirm"),
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setRemovingNearbyPlaceId(placeId);
-              const newIds = (selectedItem.nearby_amenity_ids || []).filter(
-                (id) => id !== placeId,
-              );
-              const isOnline = await networkService.checkConnection();
+  const memberAvatars = useMemo(() => {
+    /** Số người thực tế trong đoàn (không dùng number_of_people = quota chỗ). */
+    const rosterCount = getPlannerRosterCount(plan);
+    const ownerName = String(plan?.owner?.full_name || "Trưởng đoàn");
+    const ownerAvatar = String(plan?.owner?.avatar_url || "").trim();
+    const ownerId = plan?.user_id ?? plan?.owner?.id;
 
-              if (!isOnline) {
-                await networkService.addToOfflineQueue({
-                  endpoint: `/api/planners/${planId}/items/${selectedItem.id}`,
-                  method: "PUT",
-                  data: {
-                    planner_item_id: selectedItem.id,
-                    nearby_amenity_ids: newIds,
-                  },
-                });
+    const fromApi = Array.isArray((plan as any)?.members)
+      ? (plan as any).members
+          .map((m: any) => ({
+            id: String(m?.id ?? m?.user_id ?? ""),
+            name: String(m?.full_name || m?.user?.full_name || ""),
+            avatar: String(m?.avatar_url || m?.user?.avatar_url || ""),
+          }))
+          .filter((m: any) => !!m.name || !!m.avatar)
+      : [];
 
-                await applyPlanMutation(
-                  (currentPlan) =>
-                    applyLocalItemUpdate(currentPlan, selectedItem.id, {
-                      nearby_amenity_ids: newIds,
-                    }),
-                  () =>
-                    offlinePlannerService.updatePlannerItem(
-                      planId,
-                      selectedItem.id,
-                      {
-                        nearby_amenity_ids: newIds,
-                      },
-                    ),
-                );
+    const list: Array<{ name: string; avatar: string }> = [];
+    list.push({ name: ownerName, avatar: ownerAvatar });
+    fromApi.forEach((m: any) => {
+      if (ownerId && m.id && String(m.id) === String(ownerId)) return;
+      if (list.length >= 2) return;
+      list.push({
+        name: m.name || "Bạn đồng hành",
+        avatar: m.avatar || "",
+      });
+    });
 
-                setSelectedItem((prev) =>
-                  prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
-                );
-                setSelectedItemNearbyPlaces((prev) =>
-                  prev.filter((place) => place.id !== placeId),
-                );
-                return;
-              }
+    /** Tối đa 2 avatar; nếu > 2 người thực tế thì chip +N */
+    const overflowMore = Math.max(0, rosterCount - 2);
 
-              const response = await pilgrimPlannerApi.updatePlanItem(
-                planId,
-                selectedItem.id,
-                {
-                  nearby_amenity_ids: newIds,
-                },
-              );
-              if (response.success) {
-                await applyPlanMutation(
-                  (currentPlan) =>
-                    applyLocalItemUpdate(currentPlan, selectedItem.id, {
-                      nearby_amenity_ids: newIds,
-                    }),
-                  () =>
-                    offlinePlannerService.updatePlannerItem(
-                      planId,
-                      selectedItem.id,
-                      {
-                        nearby_amenity_ids: newIds,
-                      },
-                    ),
-                );
-                setSelectedItem((prev) =>
-                  prev ? { ...prev, nearby_amenity_ids: newIds } : prev,
-                );
-                setSelectedItemNearbyPlaces((prev) =>
-                  prev.filter((p) => p.id !== placeId),
-                );
-                loadPlan();
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2: response.message || t("planner.cannotDeletePlace"),
-                });
-              }
-            } catch (error: any) {
-              Toast.show({
-                type: "error",
-                text1: t("common.error"),
-                text2: error.message || t("planner.cannotDeletePlace"),
-              });
-            } finally {
-              setRemovingNearbyPlaceId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const handleCheckIn = async (itemId: string, siteName: string) => {
-    Alert.alert(
-      t("planner.checkInTitle"),
-      t("planner.checkInConfirm", { siteName }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("planner.checkInTitle"),
-          onPress: async () => {
-            try {
-              setCheckingInItemId(itemId);
-
-              // Get current location
-              const location = await locationService.getCurrentLocation();
-
-              const isOnline = await networkService.checkConnection();
-              if (!isOnline) {
-                await networkService.addToOfflineQueue({
-                  endpoint: `/api/planners/${planId}/items/${itemId}/checkin`,
-                  method: "POST",
-                  data: {
-                    planner_item_id: itemId,
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                  },
-                });
-
-                Toast.show({
-                  type: "success",
-                  text1: t("common.success"),
-                  text2: t("planner.checkInOfflineSaved", { siteName }),
-                });
-                return;
-              }
-
-              const response = await pilgrimPlannerApi.checkInPlanItem(
-                planId,
-                itemId,
-                {
-                  latitude: location.latitude,
-                  longitude: location.longitude,
-                },
-              );
-
-              if (response.success) {
-                Toast.show({
-                  type: "success",
-                  text1: t("common.success"),
-                  text2: t("planner.checkInSuccess", { siteName }),
-                });
-                loadPlan(); // Reload to update UI
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2: response.message || t("planner.cannotCheckIn"),
-                });
-              }
-            } catch (error: any) {
-              console.error("Check-in error:", error);
-              if (
-                error.message?.includes("Location") ||
-                error.message?.includes("Geolocation")
-              ) {
-                Toast.show({
-                  type: "error",
-                  text1: t("planner.locationError"),
-                  text2: t("planner.locationPermissionDenied"),
-                });
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2: error.message || t("planner.cannotCheckIn"),
-                });
-              }
-            } finally {
-              setCheckingInItemId(null);
-            }
-          },
-        },
-      ],
-    );
-  };
+    return { list, people: rosterCount, overflowMore };
+  }, [plan]);
 
   if (loading) {
     return (
@@ -2373,11 +2216,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const translateStatus = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "planning":
-        return "Đang lên kế hoạch";
+        return "Đang lập kế hoạch";
       case "planned":
-        return "Đã lên kế hoạch";
+        return "Sẵn sàng";
       case "ongoing":
-        return "Đang thực hiện";
+        return "Đang hành hương";
       case "completed":
         return "Hoàn thành";
       case "cancelled":
@@ -2389,10 +2232,22 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const getPilgrimTag = (item: PlanItem): string => {
+    if (item.event_id) return "Thánh lễ";
+    const note = String(item.note || "").toLowerCase();
+    if (note.includes("chầu")) return "Chầu Thánh Thể";
+    if (note.includes("đức mẹ") || note.includes("duc me"))
+      return "Viếng Đức Mẹ";
+    if (note.includes("nghỉ") || note.includes("rest")) return "Nghỉ ngơi";
+    return "Điểm viếng";
+  };
+
   const totalDays =
     plan.number_of_days ||
     (plan.items_by_day ? Object.keys(plan.items_by_day).length : 1);
   const sortedDays = Array.from({ length: totalDays }, (_, i) => String(i + 1));
+  const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
+  const isCompletedPlan = (plan.status || "").toLowerCase() === "completed";
 
   return (
     <View style={styles.container}>
@@ -2408,69 +2263,53 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           ref={mapRef}
           initialRegion={mapCenter}
           pins={mapPins}
-          scrollEnabled={true}
-          showInfoCards={true}
+          scrollEnabled={false}
+          showInfoCards={false}
           tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
           cardBottomOffset={180}
           style={styles.headerImage}
         />
         <LinearGradient
-          colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.15)", "transparent"]}
+          colors={["rgba(0,0,0,0.72)", "rgba(0,0,0,0.38)", "transparent"]}
           style={[StyleSheet.absoluteFill, { zIndex: 1, height: "35%" }]}
           pointerEvents="none"
         />
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.75)"]}
+          colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.88)"]}
           style={[StyleSheet.absoluteFill, { zIndex: 1, top: "55%" }]}
           pointerEvents="none"
         />
 
         {/* Navbar */}
-        <View style={[styles.navbar, { marginTop: insets.top, zIndex: 10 }]}>
+        <View
+          style={[styles.navbar, { paddingTop: safeTopInset + 8, zIndex: 10 }]}
+        >
           <TouchableOpacity
             style={styles.navButton}
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <Ionicons name="arrow-back" size={26} color="#fff" />
           </TouchableOpacity>
           <View style={styles.navActions}>
             <TouchableOpacity
               style={styles.navButton}
               onPress={() => setShowFullMap(true)}
             >
-              <Ionicons name="expand-outline" size={22} color="#fff" />
+              <Ionicons name="expand-outline" size={24} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.navButton,
-                isOnlineOnlyActionDisabled && styles.disabledAction,
-              ]}
-              onPress={handleOpenChat}
-              disabled={isOnlineOnlyActionDisabled}
-            >
-              <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.navButton,
-                isOnlineOnlyActionDisabled && styles.disabledAction,
-              ]}
-              onPress={handleOpenShareModal}
-              disabled={isOnlineOnlyActionDisabled}
-            >
-              <Ionicons name="qr-code-outline" size={24} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.navButton}
-              onPress={() => setShowMenuDropdown(true)}
-            >
-              <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-            </TouchableOpacity>
+            {isPlanOwner && (
+              <TouchableOpacity
+                style={styles.navButton}
+                onPress={() => setShowMenuDropdown(true)}
+              >
+                <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
         {/* Menu Dropdown Popup */}
-        {showMenuDropdown && (
+        {isPlanOwner && showMenuDropdown && (
           <TouchableOpacity
             style={{
               position: "absolute",
@@ -2716,6 +2555,44 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   flexDirection: "row",
                   alignItems: "center",
                   padding: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#F3F4F6",
+                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
+                }}
+                onPress={() => {
+                  setShowMenuDropdown(false);
+                  setShowTransactionsModal(true);
+                }}
+                disabled={isOnlineOnlyActionDisabled}
+              >
+                <Ionicons
+                  name="wallet-outline"
+                  size={20}
+                  color={
+                    isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#8B5CF6"
+                  }
+                  style={{ marginRight: 12 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: isOnlineOnlyActionDisabled
+                      ? COLORS.textTertiary
+                      : "#8B5CF6",
+                    fontWeight: "500",
+                  }}
+                >
+                  {t("planner.fundStatement", {
+                    defaultValue: "Sao kê quỹ nhóm",
+                  })}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: 12,
                   opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
                 }}
                 onPress={handleDeletePlan}
@@ -2792,7 +2669,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="rgba(255,255,255,0.9)"
                 />
                 <Text style={styles.metaText}>
-                  {new Date(plan.start_date).toLocaleDateString("vi-VN")}
+                  {plan.start_date
+                    ? new Date(plan.start_date).toLocaleDateString("vi-VN")
+                    : "—"}
                 </Text>
               </View>
               <View style={styles.metaDivider} />
@@ -2806,74 +2685,48 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               </View>
             </View>
 
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
-                }}
-                onPress={handleOpenShareModal}
-                disabled={isOnlineOnlyActionDisabled}
-              >
-                {/* Mini Avatars */}
-                <View style={{ flexDirection: "row" }}>
-                  <Image
-                    source={{
-                      uri:
-                        plan.owner?.avatar_url ||
-                        "https://i.pravatar.cc/100?img=1",
-                    }}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      borderWidth: 1.5,
-                      borderColor: "#fff",
-                    }}
-                  />
-                  {plan.number_of_people > 1 && (
+            <View style={styles.memberGroup}>
+              <View style={styles.memberAvatarStack}>
+                {memberAvatars.list.map((member, idx) => {
+                  const initials = getInitialsFromFullName(member.name || "B");
+                  const hasAvatar = !!member.avatar;
+                  return hasAvatar ? (
+                    <Image
+                      key={`${member.name}_${idx}`}
+                      source={{ uri: member.avatar }}
+                      style={[
+                        styles.memberAvatar,
+                        { marginLeft: idx === 0 ? 0 : -10 },
+                      ]}
+                    />
+                  ) : (
                     <View
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 14,
-                        backgroundColor: COLORS.accent,
-                        justifyContent: "center",
-                        alignItems: "center",
-                        marginLeft: -10,
-                        borderWidth: 1.5,
-                        borderColor: "#fff",
-                      }}
+                      key={`${member.name}_${idx}`}
+                      style={[
+                        styles.memberInitialAvatar,
+                        { marginLeft: idx === 0 ? 0 : -10 },
+                      ]}
                     >
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          color: "#fff",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        +{plan.number_of_people - 1}
-                      </Text>
+                      <Text style={styles.memberInitialText}>{initials}</Text>
                     </View>
-                  )}
-                </View>
-                <View
-                  style={{
-                    marginLeft: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 14,
-                    backgroundColor: "rgba(255,255,255,0.25)",
-                  }}
-                >
-                  <Text
-                    style={{ color: "#fff", fontSize: 13, fontWeight: "bold" }}
+                  );
+                })}
+                {memberAvatars.overflowMore > 0 ? (
+                  <View
+                    style={[
+                      styles.memberOverflowChip,
+                      { marginLeft: memberAvatars.list.length === 0 ? 0 : -10 },
+                    ]}
                   >
-                    + Mời
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                    <Text style={styles.memberOverflowChipText}>
+                      +{memberAvatars.overflowMore}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.memberCountText}>
+                {memberAvatars.people} người
+              </Text>
             </View>
           </View>
         </View>
@@ -2884,6 +2737,77 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        <View style={styles.quickActionsRow}>
+          <TouchableOpacity
+            style={[
+              styles.quickActionButton,
+              isOnlineOnlyActionDisabled && styles.disabledAction,
+            ]}
+            onPress={handleOpenChat}
+            disabled={isOnlineOnlyActionDisabled}
+          >
+            <Ionicons name="chatbubbles-outline" size={18} color="#FFF8E7" />
+            <Text style={styles.quickActionText}>Chat nhóm</Text>
+            {unreadChatCount > 0 && (
+              <View style={styles.quickActionBadge}>
+                <Text style={styles.quickActionBadgeText}>
+                  {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {isPlanOwner && (
+            <TouchableOpacity
+              style={[
+                styles.quickActionButton,
+                (isCompletedPlan
+                  ? isOnlineOnlyActionDisabled || sharingToCommunity
+                  : isOnlineOnlyActionDisabled) && styles.disabledAction,
+              ]}
+              onPress={
+                isCompletedPlan
+                  ? handleSharePlannerToCommunity
+                  : handleOpenShareModal
+              }
+              disabled={
+                isCompletedPlan
+                  ? isOnlineOnlyActionDisabled || sharingToCommunity
+                  : isOnlineOnlyActionDisabled
+              }
+            >
+              <Ionicons
+                name={
+                  isCompletedPlan ? "share-social-outline" : "qr-code-outline"
+                }
+                size={18}
+                color="#FFF8E7"
+              />
+              <Text style={styles.quickActionText}>
+                {isCompletedPlan ? "Chia sẻ" : "Mời bạn bè"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {isInvitePendingView && (
+          <InvitePreviewCard
+            ownerName={ownerName}
+            ownerEmail={ownerEmail}
+            depositAmount={depositAmount}
+            penaltyPercentage={penaltyPercentage}
+            joinedCount={previewJoinedCount}
+            estimatedJoinedCount={Math.max(
+              (plan?.number_of_people || 1) - 1,
+              0,
+            )}
+            responding={respondingInvite}
+            onJoin={handleJoinInvite}
+            onReject={handleRejectInvite}
+            onChat={handleOpenChat}
+          />
+        )}
+
         {offlineQueueCount > 0 && (
           <View
             style={{
@@ -2996,12 +2920,96 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           </View>
         )}
 
+        {/* Journey Status Actions — Bắt đầu / Kết thúc chuyến đi */}
+        {isPlanOwner && (
+          <View style={{ marginBottom: SPACING.md }}>
+            {(plan.status || "").toLowerCase() === "planned" && (
+              <TouchableOpacity
+                onPress={() => handleUpdatePlannerStatus("ongoing")}
+                disabled={updatingPlanStatus}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: COLORS.accent,
+                  paddingVertical: 14,
+                  borderRadius: BORDER_RADIUS.lg,
+                  opacity: updatingPlanStatus ? 0.7 : 1,
+                }}
+              >
+                {updatingPlanStatus ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                ) : (
+                  <Ionicons
+                    name="rocket-outline"
+                    size={20}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <Text
+                  style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                >
+                  {t("planner.startJourneyCta", {
+                    defaultValue: "Bắt đầu chuyến đi",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {(plan.status || "").toLowerCase() === "ongoing" && (
+              <TouchableOpacity
+                onPress={() => handleUpdatePlannerStatus("completed")}
+                disabled={updatingPlanStatus}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: COLORS.success,
+                  paddingVertical: 14,
+                  borderRadius: BORDER_RADIUS.lg,
+                  opacity: updatingPlanStatus ? 0.7 : 1,
+                }}
+              >
+                {updatingPlanStatus ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                ) : (
+                  <Ionicons
+                    name="checkmark-done-outline"
+                    size={20}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <Text
+                  style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                >
+                  {t("planner.completeJourneyCta", {
+                    defaultValue: "Kết thúc chuyến đi",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Itinerary Section */}
-        <Text style={styles.sectionTitle}>{t("planner.itinerary")}</Text>
+        <Text style={styles.sectionTitle}>
+          {t("planner.pilgrimRoute", { defaultValue: "Lộ trình hành hương" })}
+        </Text>
 
         {sortedDays.length > 0 ? (
           sortedDays.map((dayKey) => {
-            const items = plan.items_by_day?.[dayKey] || [];
+            const items = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
             return (
               <View key={dayKey} style={styles.dayContainer}>
                 <View
@@ -3023,7 +3031,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     }}
                   >
                     Ngày {dayKey} •{" "}
-                    {getDateForDay(plan.start_date, Number(dayKey))}
+                    {getDateForDay(plan.start_date ?? "", Number(dayKey))}
                   </Text>
                 </View>
 
@@ -3031,7 +3039,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   <View
                     style={[
                       styles.timelineLine,
-                      { width: 1.5, backgroundColor: "#E5E7EB", left: 24 },
+                      {
+                        width: 2,
+                        backgroundColor: "#E7E2D5",
+                        left: 24,
+                        top: 6,
+                        bottom: -18,
+                      },
                     ]}
                   />
                   <View style={styles.timelineItems}>
@@ -3064,84 +3078,226 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                             fontWeight: "500",
                           }}
                         >
-                          Bấm để thêm nhà thờ/điểm đến
+                          Bấm để thêm địa điểm viếng
                         </Text>
                       </TouchableOpacity>
                     )}
-                    {items.map((item: PlanItem, index) => (
-                      <TouchableOpacity
-                        key={item.id || index}
-                        style={styles.timelineItem}
-                        onPress={() => setSelectedItem(item)}
-                      >
-                        <View
-                          style={[
-                            styles.timelineDot,
-                            {
-                              borderColor: "#D97706",
-                              borderWidth: 2,
-                              backgroundColor: "#fff",
-                              width: 12,
-                              height: 12,
-                              borderRadius: 6,
-                              left: -6,
-                            },
-                          ]}
-                        />
-                        <View style={styles.itemCard}>
-                          <Image
-                            source={{
-                              uri:
-                                item.site.cover_image ||
-                                item.site.image ||
-                                "https://via.placeholder.com/100",
+                    {items.map((item: PlanItem, index) => {
+                      const travelMinutes = (
+                        item as PlanItem & {
+                          travel_time_minutes?: number;
+                          travel_distance_km?: number;
+                        }
+                      ).travel_time_minutes;
+                      const travelDistanceKm = (
+                        item as PlanItem & {
+                          travel_time_minutes?: number;
+                          travel_distance_km?: number;
+                        }
+                      ).travel_distance_km;
+                      const swapSelected =
+                        swapPick?.dayKey === dayKey &&
+                        swapPick?.itemId === item.id;
+                      const cardBody = (
+                        <View style={styles.itemCardInner}>
+                          <TouchableOpacity
+                            style={{
+                              flex: 1,
+                              flexDirection: "row",
+                              alignItems: "center",
                             }}
-                            style={styles.itemImage}
-                          />
-                          <View style={styles.itemContent}>
-                            <Text style={styles.itemName}>
-                              {item.site.name}
-                            </Text>
-                            {item.site.address && (
-                              <Text
-                                style={styles.itemAddress}
-                                numberOfLines={1}
-                              >
-                                {item.site.address}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              setSwapPick(null);
+                              setSelectedItem(item);
+                            }}
+                          >
+                            <Image
+                              source={{
+                                uri:
+                                  item.site.cover_image ||
+                                  item.site.image ||
+                                  "https://via.placeholder.com/100",
+                              }}
+                              style={styles.itemImage}
+                            />
+                            <View style={styles.itemContent}>
+                              <Text style={styles.itemName}>
+                                {item.site.name}
                               </Text>
-                            )}
-                            {/* End Time display (instead of duration), and remove formatting seconds from raw time if formatTimeValue does not handle it cleanly, but calculateEndTime will. */}
-                            <View style={styles.itemFooter}>
-                              <View style={styles.itemTimeInfo}>
-                                <Ionicons
-                                  name="time-outline"
-                                  size={16}
-                                  color={COLORS.accent}
-                                />
-                                <Text style={styles.itemTime}>
-                                  {formatTimeValue(
-                                    item.estimated_time || item.arrival_time,
-                                  )}
-                                  {item.rest_duration
-                                    ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}`
-                                    : ""}
+                              <View style={styles.pilgrimTag}>
+                                <Text style={styles.pilgrimTagText}>
+                                  {getPilgrimTag(item)}
                                 </Text>
                               </View>
+                              {item.site.address && (
+                                <Text
+                                  style={styles.itemAddress}
+                                  numberOfLines={1}
+                                >
+                                  {item.site.address}
+                                </Text>
+                              )}
+                              <View style={styles.itemFooter}>
+                                <View style={styles.itemTimeInfo}>
+                                  <Ionicons
+                                    name="time-outline"
+                                    size={16}
+                                    color={COLORS.accent}
+                                  />
+                                  <Text style={styles.itemTime}>
+                                    {formatTimeValue(
+                                      item.estimated_time ||
+                                        item.arrival_time,
+                                    )}
+                                    {item.rest_duration
+                                      ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}`
+                                      : ""}
+                                  </Text>
+                                </View>
+                              </View>
+                              {item.note && item.note !== "Visited" && (
+                                <Text
+                                  style={styles.itemNote}
+                                  numberOfLines={1}
+                                >
+                                  {item.note}
+                                </Text>
+                              )}
                             </View>
-                            {item.note && item.note !== "Visited" && (
-                              <Text style={styles.itemNote} numberOfLines={1}>
-                                {item.note}
-                              </Text>
+                          </TouchableOpacity>
+                          {isPlanOwner ? (
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleReorderIconPress(dayKey, item)
+                              }
+                              hitSlop={{
+                                top: 12,
+                                bottom: 12,
+                                left: 8,
+                                right: 8,
+                              }}
+                              style={{
+                                paddingHorizontal: 4,
+                                paddingVertical: 4,
+                              }}
+                            >
+                              <Ionicons
+                                name={
+                                  swapSelected
+                                    ? "reorder-two"
+                                    : "reorder-two-outline"
+                                }
+                                size={24}
+                                color={
+                                  swapSelected
+                                    ? COLORS.accent
+                                    : COLORS.textTertiary
+                                }
+                              />
+                            </TouchableOpacity>
+                          ) : (
+                            <View
+                              style={{ paddingHorizontal: 4, paddingVertical: 4 }}
+                            >
+                              <Ionicons
+                                name="reorder-two-outline"
+                                size={24}
+                                color={COLORS.textTertiary}
+                                style={{ opacity: 0.35 }}
+                              />
+                            </View>
+                          )}
+                        </View>
+                      );
+                      const timelineRow = (
+                        <View style={styles.timelineItem}>
+                          <View
+                            style={[
+                              styles.timelineDot,
+                              {
+                                borderColor: "#C9A227",
+                                borderWidth: 2,
+                                backgroundColor: "#fff",
+                                width: 12,
+                                height: 12,
+                                borderRadius: 6,
+                                left: -6,
+                              },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              styles.timelineCardShadowWrap,
+                              swapSelected && {
+                                borderWidth: 2,
+                                borderColor: COLORS.accent,
+                              },
+                            ]}
+                          >
+                            {isPlanOwner ? (
+                              <Swipeable
+                                overshootRight={false}
+                                containerStyle={styles.timelineSwipeInner}
+                                renderRightActions={() => (
+                                  <View
+                                    style={styles.timelineDeleteActionWrap}
+                                  >
+                                    <TouchableOpacity
+                                      style={styles.timelineDeleteAction}
+                                      activeOpacity={0.92}
+                                      onPress={() =>
+                                        item.id && handleDeleteItem(item.id)
+                                      }
+                                    >
+                                      <Ionicons
+                                        name="trash-outline"
+                                        size={26}
+                                        color="#fff"
+                                      />
+                                      <Text
+                                        style={styles.timelineDeleteActionLabel}
+                                      >
+                                        {t("common.delete", {
+                                          defaultValue: "Xóa",
+                                        })}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                )}
+                              >
+                                {cardBody}
+                              </Swipeable>
+                            ) : (
+                              <View style={styles.timelineSwipeInner}>
+                                {cardBody}
+                              </View>
                             )}
                           </View>
-                          <Ionicons
-                            name="reorder-two-outline"
-                            size={24}
-                            color={COLORS.textTertiary}
-                          />
                         </View>
-                      </TouchableOpacity>
-                    ))}
+                      );
+                      return (
+                        <View key={item.id || index}>
+                          {index > 0 && typeof travelMinutes === "number" && (
+                            <View style={styles.travelInfoRow}>
+                              <Ionicons
+                                name="car-outline"
+                                size={13}
+                                color="#8B6F3D"
+                              />
+                              <Text style={styles.travelInfoText}>
+                                Di chuyển{" "}
+                                {Math.max(1, Math.round(travelMinutes))} phút
+                                {typeof travelDistanceKm === "number"
+                                  ? ` • ${travelDistanceKm.toFixed(1)} km`
+                                  : ""}
+                              </Text>
+                            </View>
+                          )}
+                          {timelineRow}
+                        </View>
+                      );
+                    })}
                     <TouchableOpacity
                       style={styles.addSmallButton}
                       onPress={() => openAddModal(Number(dayKey))}
@@ -3149,7 +3305,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       <Ionicons name="add" size={16} color={COLORS.primary} />
                       <Text style={styles.addSmallButtonText}>
                         {t("planner.addStop", {
-                          defaultValue: "Thêm điểm dừng",
+                          defaultValue: "Thêm điểm viếng",
                         })}
                       </Text>
                     </TouchableOpacity>
@@ -3184,7 +3340,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               onPress={() => openAddModal(1)}
             >
               <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-                + Thêm điểm dừng đầu tiên
+                + Thêm địa điểm đầu tiên
               </Text>
             </TouchableOpacity>
           </View>
@@ -3195,1221 +3351,145 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Site Modal */}
-      <Modal
+      <AddSiteModal
         visible={isAddModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setIsAddModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{t("planner.chooseLocation")}</Text>
-            <TouchableOpacity onPress={() => setIsAddModalVisible(false)}>
-              <Text style={styles.modalClose}>{t("planner.close")}</Text>
-            </TouchableOpacity>
-          </View>
+        onClose={() => setIsAddModalVisible(false)}
+        t={t}
+        styles={styles}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenEventsTab={() => {
+          setActiveTab("events");
+          loadEventSites();
+        }}
+        isLoadingSites={isLoadingSites}
+        isLoadingFavorites={isLoadingFavorites}
+        isLoadingEventSites={isLoadingEventSites}
+        eventSitesList={eventSitesList}
+        onSelectEventSite={handleOpenEventSite}
+        sites={sites}
+        favorites={favorites}
+        onAddSite={(siteId) => handleAddItem(siteId)}
+        onOpenSiteDetail={handleOpenSiteDetailFromAddModal}
+        addingItem={addingItem}
+        alreadyAddedSiteIds={
+          new Set(
+            Object.values(plan.items_by_day || {})
+              .flat()
+              .map((it: any) => String(it?.site_id || it?.site?.id || ""))
+              .filter(Boolean),
+          )
+        }
+        addedCount={Object.values(plan.items_by_day || {}).flat().length}
+      />
 
-          {/* Tabs */}
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                activeTab === "all" && styles.activeTabButton,
-              ]}
-              onPress={() => setActiveTab("all")}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "all" && styles.activeTabText,
-                ]}
-              >
-                {t("planner.allLocations")}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                activeTab === "events" && styles.activeTabButton,
-              ]}
-              onPress={() => {
-                setActiveTab("events");
-                loadEventSites();
-              }}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "events" && styles.activeTabText,
-                ]}
-              >
-                Sự kiện
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                activeTab === "favorites" && styles.activeTabButton,
-              ]}
-              onPress={() => setActiveTab("favorites")}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "favorites" && styles.activeTabText,
-                ]}
-              >
-                {t("planner.myFavorites")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {isLoadingSites ||
-          isLoadingFavorites ||
-          (activeTab === "events" && isLoadingEventSites) ? (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.accent}
-              style={{ marginTop: 20 }}
-            />
-          ) : activeTab === "events" ? (
-            /* Events tab: pick a site to see its events */
-            eventSitesList.length === 0 ? (
-              <View
-                style={{
-                  flex: 1,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: 32,
-                }}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={48}
-                  color={COLORS.textTertiary}
-                />
-                <Text
-                  style={{
-                    color: COLORS.textSecondary,
-                    marginTop: 12,
-                    fontSize: 15,
-                    textAlign: "center",
-                  }}
-                >
-                  Hiện tại không có địa điểm nào có sự kiện diễn ra trong thời
-                  gian lịch trình của bạn.
-                </Text>
-              </View>
-            ) : (
-              <FlatList
-                data={eventSitesList}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={{ padding: 16 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.siteItem}
-                    onPress={async () => {
-                      setEventSite(item);
-                      setShowEventListModal(true);
-                      setSiteEvents([]);
-                      try {
-                        setIsLoadingEvents(true);
-                        const eventParams: any = { limit: 20 };
-                        if (plan?.start_date && plan?.end_date) {
-                          eventParams.start_date = plan.start_date.substring(
-                            0,
-                            10,
-                          );
-                          eventParams.end_date = plan.end_date.substring(0, 10);
-                        } else {
-                          eventParams.upcoming = "true";
-                        }
-
-                        const res = await pilgrimSiteApi.getSiteEvents(
-                          item.id,
-                          eventParams,
-                        );
-                        if (res.success && res.data?.data) {
-                          setSiteEvents(res.data.data);
-                        }
-                      } catch (e) {
-                        console.error("Load site events error:", e);
-                      } finally {
-                        setIsLoadingEvents(false);
-                      }
-                    }}
-                  >
-                    <Image
-                      source={{
-                        uri:
-                          item.coverImage || "https://via.placeholder.com/60",
-                      }}
-                      style={styles.siteItemImage}
-                    />
-                    <View style={styles.siteItemContent}>
-                      <Text style={styles.siteItemName}>{item.name}</Text>
-                      <Text style={styles.siteItemAddress} numberOfLines={1}>
-                        Chọn để xem sự kiện
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={24}
-                      color={COLORS.accent}
-                    />
-                  </TouchableOpacity>
-                )}
-              />
-            )
-          ) : (
-            <FlatList
-              data={activeTab === "all" ? sites : favorites}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: 16 }}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.siteItem}
-                  onPress={() => handleAddItem(item.id)}
-                  disabled={addingItem}
-                >
-                  <Image
-                    source={{
-                      uri: item.coverImage || "https://via.placeholder.com/60",
-                    }}
-                    style={styles.siteItemImage}
-                  />
-                  <View style={styles.siteItemContent}>
-                    <Text style={styles.siteItemName}>{item.name}</Text>
-                    <Text style={styles.siteItemAddress} numberOfLines={1}>
-                      {item.address}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="add-circle-outline"
-                    size={24}
-                    color={COLORS.accent}
-                  />
-                </TouchableOpacity>
-              )}
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Site Events Modal */}
-      <Modal
+      <SiteEventsModal
         visible={showEventListModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowEventListModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle} numberOfLines={1}>
-              {eventSite?.name || t("planner.events")}
-            </Text>
-            <TouchableOpacity onPress={() => setShowEventListModal(false)}>
-              <Text style={styles.modalClose}>{t("planner.close")}</Text>
-            </TouchableOpacity>
-          </View>
+        onClose={() => setShowEventListModal(false)}
+        title={eventSite?.name || t("planner.events")}
+        t={t}
+        styles={styles}
+        isLoading={isLoadingEvents}
+        events={siteEvents}
+        onSelectEvent={(ev) => {
+          const dateStr = ev.start_date
+            ? new Date(ev.start_date).toLocaleDateString("vi-VN", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
+            : "";
+          const endStr =
+            ev.end_date && ev.end_date !== ev.start_date
+              ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+              : "";
+          const timeStr = ev.start_time ? ` lúc ${ev.start_time}` : "";
+          const noteText = `🎉 Chọn Sự kiện: ${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
+          setNote(noteText);
+          setShowEventListModal(false);
+          if (eventSite) {
+            handleAddItem(eventSite.id, ev.id);
+          }
+        }}
+      />
 
-          {isLoadingEvents ? (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.accent}
-              style={{ marginTop: 40 }}
-            />
-          ) : siteEvents.length === 0 ? (
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 32,
-              }}
-            >
-              <Ionicons
-                name="calendar-outline"
-                size={48}
-                color={COLORS.textSecondary}
-              />
-              <Text
-                style={{
-                  color: COLORS.textSecondary,
-                  marginTop: 12,
-                  fontSize: 15,
-                  textAlign: "center",
-                }}
-              >
-                Không có sự kiện sắp tới tại địa điểm này
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={siteEvents}
-              keyExtractor={(ev) => ev.id}
-              contentContainerStyle={{ padding: 16 }}
-              renderItem={({ item: ev }) => {
-                const dateStr = ev.start_date
-                  ? new Date(ev.start_date).toLocaleDateString("vi-VN", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                    })
-                  : "";
-                const endStr =
-                  ev.end_date && ev.end_date !== ev.start_date
-                    ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-                    : "";
-                const timeStr = ev.start_time ? ` lúc ${ev.start_time}` : "";
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.siteItem,
-                      { alignItems: "flex-start", paddingVertical: 14 },
-                    ]}
-                    onPress={() => {
-                      // Pre-fill note with event info and open time setup modal
-                      const noteText = `🎉 Chọn Sự kiện: ${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
-                      setNote(noteText);
-                      setShowEventListModal(false);
-                      if (eventSite) {
-                        handleAddItem(eventSite.id, ev.id);
-                      }
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <View
-                          style={{
-                            backgroundColor: COLORS.accent,
-                            borderRadius: 6,
-                            padding: 6,
-                          }}
-                        >
-                          <Ionicons
-                            name="calendar"
-                            size={16}
-                            color={COLORS.textPrimary}
-                          />
-                        </View>
-                        <Text
-                          style={[styles.siteItemName, { flex: 1 }]}
-                          numberOfLines={2}
-                        >
-                          {ev.name}
-                        </Text>
-                      </View>
-                      <Text
-                        style={[styles.siteItemAddress, { marginLeft: 38 }]}
-                      >
-                        📅 {dateStr}
-                        {endStr}
-                        {timeStr}
-                      </Text>
-                      {ev.location && (
-                        <Text
-                          style={[styles.siteItemAddress, { marginLeft: 38 }]}
-                          numberOfLines={1}
-                        >
-                          📍 {ev.location}
-                        </Text>
-                      )}
-                      {ev.description && (
-                        <Text
-                          style={[styles.siteItemAddress, { marginLeft: 38 }]}
-                          numberOfLines={2}
-                        >
-                          {ev.description}
-                        </Text>
-                      )}
-                    </View>
-                    <Ionicons
-                      name="add-circle-outline"
-                      size={24}
-                      color={COLORS.accent}
-                      style={{ marginTop: 2, alignSelf: "center" }}
-                    />
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Time Input Modal */}
-      <Modal
+      <TimeInputModal
         visible={showTimeInputModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowTimeInputModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{t("planner.setTime")}</Text>
-            <TouchableOpacity onPress={() => setShowTimeInputModal(false)}>
-              <Text style={styles.modalClose}>{t("common.cancel")}</Text>
-            </TouchableOpacity>
-          </View>
+        onClose={() => setShowTimeInputModal(false)}
+        t={t}
+        styles={styles}
+        selectedDay={selectedDay}
+        calculatingRoute={calculatingRoute}
+        routeInfo={routeInfo}
+        crossDayWarning={crossDayWarning}
+        estimatedTime={estimatedTime}
+        restDuration={restDuration}
+        setRestDuration={setRestDuration}
+        note={note}
+        setNote={setNote}
+        openTimePicker={openTimePicker}
+        formatDuration={formatDuration}
+        addingItem={addingItem}
+        selectedSiteId={selectedSiteId}
+        onConfirmAdd={() => addItemToItinerary(selectedSiteId!)}
+      />
 
-          <ScrollView contentContainerStyle={{ padding: 16 }}>
-            <Text style={styles.timeInputLabel}>
-              {t("planner.addLocationDay")} {selectedDay}
-            </Text>
-            <Text style={styles.timeInputDescription}>
-              Vui lòng chọn giờ dự kiến và thời gian nghỉ (tối thiểu 1 giờ).
-            </Text>
+      <EditItemModal
+        {...({
+          visible: showEditItemModal,
+          onClose: () => setShowEditItemModal(false),
+          t,
+          styles,
+          editingItem,
+          calculatingEditRoute,
+          editRouteInfo,
+          openEditTimePicker,
+          editEstimatedTime,
+          editRestDuration,
+          setEditRestDuration,
+          formatDuration,
+          editNote,
+          setEditNote,
+          handleSaveEditItem,
+          savingEdit,
+          onOpenNearbyPlaces: editingItem
+            ? () => {
+                setShowEditItemModal(false);
+                setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
+              }
+            : undefined,
+        } satisfies EditItemModalProps)}
+      />
 
-            {/* Route Calculation Info */}
-            {calculatingRoute ? (
-              <View style={styles.routeInfoContainer}>
-                <ActivityIndicator size="small" color={COLORS.textPrimary} />
-                <Text style={styles.routeInfoText}>
-                  Đang tính toán lộ trình...
-                </Text>
-              </View>
-            ) : routeInfo ? (
-              <View style={styles.routeInfoContainer}>
-                <Ionicons
-                  name="car-outline"
-                  size={20}
-                  color={COLORS.textPrimary}
-                />
-                <Text style={styles.routeInfoText}>{routeInfo}</Text>
-              </View>
-            ) : null}
-
-            {crossDayWarning ? (
-              <View
-                style={[
-                  styles.routeInfoContainer,
-                  { backgroundColor: "#E8F5E9" },
-                ]}
-              >
-                <Ionicons
-                  name="information-circle-outline"
-                  size={20}
-                  color="#4CAF50"
-                />
-                <Text style={[styles.routeInfoText, { color: "#4CAF50" }]}>
-                  {crossDayWarning}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={styles.timeInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>Giờ dự kiến</Text>
-              <TouchableOpacity
-                style={styles.timePickerButton}
-                onPress={openTimePicker}
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={24}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.timePickerButtonText}>{estimatedTime}</Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.timeInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>Thời gian nghỉ</Text>
-              <Text style={styles.durationValueText}>
-                {formatDuration(restDuration)}
-              </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={60}
-                maximumValue={240}
-                step={15}
-                value={restDuration}
-                onValueChange={setRestDuration}
-                minimumTrackTintColor={COLORS.primary}
-                maximumTrackTintColor={COLORS.border}
-                thumbTintColor={COLORS.accent}
-              />
-              <View style={styles.sliderLabels}>
-                <Text style={styles.sliderLabelText}>1 giờ</Text>
-                <Text style={styles.sliderLabelText}>4 giờ</Text>
-              </View>
-            </View>
-
-            <View style={styles.noteInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>
-                {t("planner.noteOptional")}
-              </Text>
-              <TextInput
-                style={styles.noteInput}
-                placeholder={t("planner.notePlaceholder")}
-                placeholderTextColor={COLORS.textTertiary}
-                value={note}
-                onChangeText={setNote}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.confirmButton,
-                addingItem && styles.saveTimeButtonDisabled,
-              ]}
-              onPress={() => addItemToItinerary(selectedSiteId!)}
-              disabled={addingItem || !selectedSiteId}
-            >
-              {addingItem ? (
-                <ActivityIndicator color={COLORS.textPrimary} />
-              ) : (
-                <Text style={styles.confirmButtonText}>
-                  {t("planner.addToItinerary")}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Edit Item Modal */}
-      <Modal
-        visible={showEditItemModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowEditItemModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Chỉnh sửa địa điểm</Text>
-            <TouchableOpacity onPress={() => setShowEditItemModal(false)}>
-              <Text style={styles.modalClose}>Hủy</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={{ padding: 16 }}>
-            {editingItem && (
-              <Text style={[styles.timeInputLabel, { marginBottom: 16 }]}>
-                {editingItem.site.name}
-              </Text>
-            )}
-
-            {/* Route Calculation Info */}
-            {calculatingEditRoute ? (
-              <View style={styles.routeInfoContainer}>
-                <ActivityIndicator size="small" color={COLORS.textPrimary} />
-                <Text style={styles.routeInfoText}>
-                  Đang tính toán lộ trình...
-                </Text>
-              </View>
-            ) : editRouteInfo ? (
-              <View style={styles.routeInfoContainer}>
-                <Ionicons
-                  name="car-outline"
-                  size={20}
-                  color={COLORS.textPrimary}
-                />
-                <Text style={styles.routeInfoText}>{editRouteInfo}</Text>
-              </View>
-            ) : null}
-
-            {/* Estimated Time */}
-            <View style={styles.timeInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>
-                {t("planner.estimatedTime")}
-              </Text>
-              <TouchableOpacity
-                style={styles.timePickerButton}
-                onPress={openEditTimePicker}
-              >
-                <Ionicons
-                  name="time-outline"
-                  size={24}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.timePickerButtonText}>
-                  {editEstimatedTime}
-                </Text>
-                <Ionicons
-                  name="chevron-down"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Rest Duration */}
-            <View style={styles.timeInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>Thời gian nghỉ</Text>
-              <Text style={styles.durationValueText}>
-                {formatDuration(editRestDuration)}
-              </Text>
-              <Slider
-                style={styles.slider}
-                minimumValue={60}
-                maximumValue={240}
-                step={15}
-                value={editRestDuration}
-                onValueChange={setEditRestDuration}
-                minimumTrackTintColor={COLORS.primary}
-                maximumTrackTintColor={COLORS.border}
-                thumbTintColor={COLORS.accent}
-              />
-              <View style={styles.sliderLabels}>
-                <Text style={styles.sliderLabelText}>
-                  1 {t("planner.hour")}
-                </Text>
-                <Text style={styles.sliderLabelText}>
-                  4 {t("planner.hours")}
-                </Text>
-              </View>
-            </View>
-
-            {/* Note */}
-            <View style={styles.noteInputContainer}>
-              <Text style={styles.timeInputFieldLabel}>
-                {t("planner.noteOptional")}
-              </Text>
-              <TextInput
-                style={styles.noteInput}
-                placeholder={t("planner.notePlaceholder")}
-                placeholderTextColor={COLORS.textTertiary}
-                value={editNote}
-                onChangeText={setEditNote}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-            </View>
-
-            {/* Save Button */}
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={handleSaveEditItem}
-              disabled={savingEdit}
-            >
-              {savingEdit ? (
-                <ActivityIndicator color={COLORS.textPrimary} />
-              ) : (
-                <Text style={styles.confirmButtonText}>Lưu thay đổi</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Nearby Places Modal */}
-      <Modal
+      <NearbyPlacesModal
         visible={showNearbyModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowNearbyModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle} numberOfLines={1}>
-              {t("planner.nearbyLocations")} - {nearbySiteName}
-            </Text>
-            <TouchableOpacity onPress={() => setShowNearbyModal(false)}>
-              <Text style={styles.modalClose}>{t("planner.close")}</Text>
-            </TouchableOpacity>
-          </View>
+        onClose={() => setShowNearbyModal(false)}
+        t={t}
+        styles={styles}
+        nearbySiteName={nearbySiteName}
+        nearbyCategory={nearbyCategory}
+        setNearbyCategory={setNearbyCategory}
+        loadingNearby={loadingNearby}
+        nearbyPlaces={nearbyPlaces}
+        savedNearbyPlaceIds={savedNearbyPlaceIds}
+        savingNearbyPlaceId={savingNearbyPlaceId}
+        handleSaveNearbyPlace={handleSaveNearbyPlace}
+      />
 
-          {/* Category Filter Tabs */}
-          <View style={[styles.tabContainer, { paddingHorizontal: 16 }]}>
-            {(["all", "food", "lodging", "medical"] as const).map((cat) => (
-              <TouchableOpacity
-                key={cat}
-                style={[
-                  styles.tabButton,
-                  nearbyCategory === cat && styles.activeTabButton,
-                ]}
-                onPress={() => setNearbyCategory(cat)}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    nearbyCategory === cat && styles.activeTabText,
-                  ]}
-                >
-                  {cat === "all"
-                    ? "Tất cả"
-                    : cat === "food"
-                      ? "🍜 Ăn uống"
-                      : cat === "lodging"
-                        ? "🏨 Lưu trú"
-                        : "🏥 Y tế"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {loadingNearby ? (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.accent}
-              style={{ marginTop: 40 }}
-            />
-          ) : (
-            <FlatList
-              data={
-                nearbyCategory === "all"
-                  ? nearbyPlaces
-                  : nearbyPlaces.filter((p) => p.category === nearbyCategory)
-              }
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: 16 }}
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Ionicons
-                    name="location-outline"
-                    size={48}
-                    color={COLORS.textTertiary}
-                  />
-                  <Text style={styles.emptyStateText}>
-                    {t("planner.noNearbyLocations")}
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => (
-                <View style={styles.nearbyPlaceCard}>
-                  <View style={styles.nearbyPlaceCategoryBadge}>
-                    <Text style={styles.nearbyPlaceCategoryText}>
-                      {item.category === "food"
-                        ? "🍜"
-                        : item.category === "lodging"
-                          ? "🏨"
-                          : "🏥"}
-                    </Text>
-                  </View>
-                  <View style={styles.nearbyPlaceContent}>
-                    <Text style={styles.nearbyPlaceName}>{item.name}</Text>
-                    {item.address ? (
-                      <Text style={styles.nearbyPlaceAddress} numberOfLines={1}>
-                        {item.address}
-                      </Text>
-                    ) : null}
-                    <View
-                      style={{ flexDirection: "row", gap: 12, marginTop: 4 }}
-                    >
-                      {item.distance_meters ? (
-                        <Text style={styles.nearbyPlaceMeta}>
-                          📍{" "}
-                          {item.distance_meters >= 1000
-                            ? `${(item.distance_meters / 1000).toFixed(1)} km`
-                            : `${item.distance_meters} m`}
-                        </Text>
-                      ) : null}
-                      {item.phone ? (
-                        <Text style={styles.nearbyPlaceMeta}>
-                          📞 {item.phone}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {item.description ? (
-                      <Text
-                        style={styles.nearbyPlaceDescription}
-                        numberOfLines={2}
-                      >
-                        {item.description}
-                      </Text>
-                    ) : null}
-                    <TouchableOpacity
-                      style={[
-                        styles.nearbyPlaceSelectBtn,
-                        savedNearbyPlaceIds.has(item.id) && {
-                          backgroundColor: "#4CAF50",
-                        },
-                      ]}
-                      onPress={() => handleSaveNearbyPlace(item)}
-                      disabled={
-                        savingNearbyPlaceId === item.id ||
-                        savedNearbyPlaceIds.has(item.id)
-                      }
-                    >
-                      {savingNearbyPlaceId === item.id ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                      ) : savedNearbyPlaceIds.has(item.id) ? (
-                        <>
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={14}
-                            color="#fff"
-                          />
-                          <Text style={styles.nearbyPlaceSelectBtnText}>
-                            Đã lưu
-                          </Text>
-                        </>
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="bookmark-outline"
-                            size={14}
-                            color="#fff"
-                          />
-                          <Text style={styles.nearbyPlaceSelectBtnText}>
-                            Lưu vào lịch trình
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Item Detail Modal */}
-      <Modal
+      <ItemDetailModal
         visible={!!selectedItem}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setSelectedItem(null)}
-      >
-        {selectedItem && (
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle} numberOfLines={1}>
-                {t("planner.locationDetails")}
-              </Text>
-              <TouchableOpacity onPress={() => setSelectedItem(null)}>
-                <Text style={styles.modalClose}>{t("planner.close")}</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ padding: 16 }}>
-              {/* Site image + name */}
-              <View style={styles.itemDetailHero}>
-                <Image
-                  source={{
-                    uri:
-                      selectedItem.site.cover_image ||
-                      selectedItem.site.image ||
-                      "https://via.placeholder.com/300x150",
-                  }}
-                  style={styles.itemDetailImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.itemDetailOverlay} />
-                <Text style={styles.itemDetailSiteName}>
-                  {selectedItem.site.name}
-                </Text>
-              </View>
-
-              {/* Info rows */}
-              {selectedItem.site.address ? (
-                <View style={styles.itemDetailRow}>
-                  <Ionicons
-                    name="location-outline"
-                    size={18}
-                    color={COLORS.accent}
-                  />
-                  <Text style={styles.itemDetailRowText}>
-                    {selectedItem.site.address}
-                  </Text>
-                </View>
-              ) : null}
-
-              {selectedItem.estimated_time || selectedItem.arrival_time ? (
-                <View style={styles.itemDetailRow}>
-                  <Ionicons
-                    name="time-outline"
-                    size={18}
-                    color={COLORS.accent}
-                  />
-                  <Text style={styles.itemDetailRowText}>
-                    Giờ dự kiến:{" "}
-                    {formatTimeValue(
-                      selectedItem.estimated_time || selectedItem.arrival_time,
-                    )}
-                  </Text>
-                </View>
-              ) : null}
-
-              {selectedItem.rest_duration ? (
-                <View style={styles.itemDetailRow}>
-                  <Ionicons
-                    name="hourglass-outline"
-                    size={18}
-                    color={COLORS.accent}
-                  />
-                  <Text style={styles.itemDetailRowText}>
-                    Thời gian nghỉ:{" "}
-                    {formatTimeValue(selectedItem.rest_duration)}
-                  </Text>
-                </View>
-              ) : null}
-
-              {selectedItem.note ? (
-                <View
-                  style={[styles.itemDetailRow, { alignItems: "flex-start" }]}
-                >
-                  <Ionicons
-                    name="document-text-outline"
-                    size={18}
-                    color={COLORS.accent}
-                  />
-                  <Text style={[styles.itemDetailRowText, { flex: 1 }]}>
-                    {selectedItem.note}
-                  </Text>
-                </View>
-              ) : null}
-
-              {/* Event Details */}
-              {loadingSelectedItemEvent ? (
-                <View
-                  style={[
-                    styles.itemDetailRow,
-                    { justifyContent: "center", marginTop: 8 },
-                  ]}
-                >
-                  <ActivityIndicator size="small" color={COLORS.accent} />
-                  <Text style={[styles.itemDetailRowText, { marginLeft: 8 }]}>
-                    Đang tải thông tin sự kiện...
-                  </Text>
-                </View>
-              ) : selectedItemEvent ? (
-                <View
-                  style={{
-                    marginTop: 8,
-                    marginBottom: 8,
-                    padding: 12,
-                    backgroundColor: "#E3F2FD",
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "#BBDEFB",
-                  }}
-                >
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Ionicons name="calendar" size={18} color="#1976D2" />
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: "700",
-                        color: "#1565C0",
-                        marginLeft: 8,
-                      }}
-                    >
-                      {selectedItemEvent.name}
-                    </Text>
-                  </View>
-
-                  {selectedItemEvent.description ? (
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: COLORS.textSecondary,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {selectedItemEvent.description}
-                    </Text>
-                  ) : null}
-
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={14}
-                      color={COLORS.textTertiary}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: COLORS.textSecondary,
-                        marginLeft: 6,
-                      }}
-                    >
-                      Bắt đầu:{" "}
-                      {selectedItemEvent.start_date
-                        ? new Date(
-                            selectedItemEvent.start_date,
-                          ).toLocaleDateString("vi-VN")
-                        : ""}{" "}
-                      {selectedItemEvent.start_time
-                        ? `lúc ${selectedItemEvent.start_time}`
-                        : ""}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Ionicons
-                      name="flag-outline"
-                      size={14}
-                      color={COLORS.textTertiary}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        color: COLORS.textSecondary,
-                        marginLeft: 6,
-                      }}
-                    >
-                      Kết thúc:{" "}
-                      {selectedItemEvent.end_date
-                        ? new Date(
-                            selectedItemEvent.end_date,
-                          ).toLocaleDateString("vi-VN")
-                        : ""}{" "}
-                      {selectedItemEvent.end_time
-                        ? `lúc ${selectedItemEvent.end_time}`
-                        : ""}
-                    </Text>
-                  </View>
-
-                  {selectedItemEvent.location ? (
-                    <View
-                      style={{ flexDirection: "row", alignItems: "center" }}
-                    >
-                      <Ionicons
-                        name="location-outline"
-                        size={14}
-                        color={COLORS.textTertiary}
-                      />
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          color: COLORS.textSecondary,
-                          marginLeft: 6,
-                        }}
-                      >
-                        Địa điểm: {selectedItemEvent.location}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              ) : selectedItem.event_id && isOffline ? (
-                <View
-                  style={{
-                    marginTop: 8,
-                    marginBottom: 8,
-                    padding: 12,
-                    backgroundColor: "#FFF7ED",
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: "#FDBA74",
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <Ionicons
-                      name="cloud-offline-outline"
-                      size={16}
-                      color="#C2410C"
-                    />
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: 13,
-                        color: "#9A3412",
-                        marginLeft: 8,
-                      }}
-                    >
-                      {t("planner.eventDetailsOfflineUnavailable", {
-                        defaultValue:
-                          "Chi tiet su kien se hien thi khi co mang hoac khi goi offline ho tro du lieu nay.",
-                      })}
-                    </Text>
-                  </View>
-                </View>
-              ) : null}
-
-              {/* Saved Nearby Places */}
-              {loadingSelectedItemNearby ? (
-                <View
-                  style={[styles.itemDetailRow, { justifyContent: "center" }]}
-                >
-                  <ActivityIndicator size="small" color={COLORS.accent} />
-                  <Text style={[styles.itemDetailRowText, { marginLeft: 8 }]}>
-                    {t("planner.loadingNearbyLocations")}
-                  </Text>
-                </View>
-              ) : selectedItemNearbyPlaces.length > 0 ? (
-                <View style={{ marginTop: 4, marginBottom: 4 }}>
-                  <View style={styles.itemDetailRow}>
-                    <Ionicons
-                      name="map-outline"
-                      size={18}
-                      color={COLORS.accent}
-                    />
-                    <Text
-                      style={[styles.itemDetailRowText, { fontWeight: "600" }]}
-                    >
-                      {t("planner.savedNearbyLocations")} (
-                      {selectedItemNearbyPlaces.length})
-                    </Text>
-                  </View>
-                  {selectedItemNearbyPlaces.map((place) => (
-                    <View key={place.id} style={styles.savedNearbyPlaceRow}>
-                      <Text style={styles.savedNearbyPlaceEmoji}>
-                        {place.category === "food"
-                          ? "🍜"
-                          : place.category === "lodging"
-                            ? "🏨"
-                            : "🏥"}
-                      </Text>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.savedNearbyPlaceName}>
-                          {place.name}
-                        </Text>
-                        {place.address ? (
-                          <Text
-                            style={styles.savedNearbyPlaceAddress}
-                            numberOfLines={1}
-                          >
-                            {place.address}
-                          </Text>
-                        ) : null}
-                        {place.phone ? (
-                          <Text style={styles.savedNearbyPlaceAddress}>
-                            📞 {place.phone}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => handleRemoveNearbyPlace(place.id)}
-                        disabled={removingNearbyPlaceId === place.id}
-                        style={{ padding: 4 }}
-                      >
-                        {removingNearbyPlaceId === place.id ? (
-                          <ActivityIndicator size="small" color="#e53e3e" />
-                        ) : (
-                          <Ionicons
-                            name="trash-outline"
-                            size={16}
-                            color="#e53e3e"
-                          />
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-
-              <View style={styles.itemDetailDivider} />
-
-              {/* Action buttons */}
-              <TouchableOpacity
-                style={styles.itemDetailActionBtn}
-                disabled={checkingInItemId === selectedItem.id}
-                onPress={() => {
-                  setSelectedItem(null);
-                  handleCheckIn(selectedItem.id, selectedItem.site.name);
-                }}
-              >
-                {checkingInItemId === selectedItem.id ? (
-                  <ActivityIndicator size="small" color={COLORS.accent} />
-                ) : (
-                  <Ionicons
-                    name="checkmark-circle-outline"
-                    size={22}
-                    color={COLORS.accent}
-                  />
-                )}
-                <Text style={styles.itemDetailActionText}>Check-in</Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={COLORS.textTertiary}
-                  style={{ marginLeft: "auto" }}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.itemDetailActionBtn}
-                onPress={() => {
-                  setSelectedItem(null);
-                  handleOpenNearbyPlaces(selectedItem);
-                }}
-              >
-                <Ionicons name="map-outline" size={22} color={COLORS.accent} />
-                <Text style={styles.itemDetailActionText}>
-                  {t("planner.nearbyLocations")}
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={COLORS.textTertiary}
-                  style={{ marginLeft: "auto" }}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.itemDetailActionBtn}
-                onPress={() => {
-                  const item = selectedItem;
-                  setSelectedItem(null);
-                  handleOpenEditItem(item);
-                }}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={22}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.itemDetailActionText}>
-                  Chỉnh sửa thời gian & ghi chú
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={COLORS.textTertiary}
-                  style={{ marginLeft: "auto" }}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.itemDetailActionBtn,
-                  { borderColor: "#FF6B6B22" },
-                ]}
-                onPress={() => {
-                  const itemId = selectedItem.id;
-                  setSelectedItem(null);
-                  handleDeleteItem(itemId);
-                }}
-              >
-                <Ionicons name="trash-outline" size={22} color="#FF6B6B" />
-                <Text
-                  style={[styles.itemDetailActionText, { color: "#FF6B6B" }]}
-                >
-                  Xóa khỏi lịch trình
-                </Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        )}
-      </Modal>
+        selectedItem={selectedItem}
+        onClose={() => setSelectedItem(null)}
+        t={t}
+        styles={styles}
+        formatTimeValue={formatTimeValue}
+        calculateEndTime={calculateEndTime}
+        getPilgrimTag={getPilgrimTag}
+        isOffline={isOffline}
+        handleOpenEditItem={handleOpenEditItem}
+        handleDeleteItem={handleDeleteItem}
+        isPlanOwner={isPlanOwner}
+      />
 
       {/* Edit Time Picker */}
       {showEditTimePicker && (
@@ -4441,511 +3521,39 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         isPlanOwner={isPlanOwner}
         isOffline={isOffline}
         onOfflineRequired={showConnectionRequiredAlert}
+        onPlanRefresh={() => void loadPlan()}
       />
-      {/* Edit Plan Modal */}
-      <Modal
+      <PlannerTransactionsModal
+        visible={showTransactionsModal}
+        onClose={() => setShowTransactionsModal(false)}
+        planId={planId}
+        planName={plan.name}
+      />
+      <EditPlanModal
         visible={showEditPlanModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowEditPlanModal(false)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "flex-end",
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "#fff",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              maxHeight: "90%",
-            }}
-          >
-            <ScrollView
-              contentContainerStyle={{ padding: 24, paddingBottom: 40 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 20,
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: COLORS.textPrimary,
-                  }}
-                >
-                  {t("planner.editPlan")}
-                </Text>
-                <TouchableOpacity onPress={() => setShowEditPlanModal(false)}>
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={COLORS.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              {/* Name */}
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: COLORS.textSecondary,
-                  marginBottom: 6,
-                }}
-              >
-                {t("planner.planName")}
-              </Text>
-              <TextInput
-                style={{
-                  borderWidth: 1,
-                  borderColor: COLORS.border,
-                  borderRadius: 12,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  fontSize: 15,
-                  color: COLORS.textPrimary,
-                  marginBottom: 16,
-                  backgroundColor: "#FAFAFA",
-                }}
-                value={editPlanName}
-                onChangeText={setEditPlanName}
-                placeholder={t("planner.planNamePlaceholder")}
-                placeholderTextColor={COLORS.textSecondary}
-              />
-
-              {/* Dates */}
-              <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
-                {/* Start Date */}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: COLORS.textSecondary,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {t("planner.startDate")}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowEditStartDatePicker(true)}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      borderRadius: 12,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      backgroundColor: "#FAFAFA",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={16}
-                      color={COLORS.primary}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: editPlanStartDate
-                          ? COLORS.textPrimary
-                          : COLORS.textSecondary,
-                      }}
-                    >
-                      {editPlanStartDate
-                        ? new Date(editPlanStartDate).toLocaleDateString(
-                            "vi-VN",
-                            {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                            },
-                          )
-                        : "Chọn ngày"}
-                    </Text>
-                  </TouchableOpacity>
-                  {showEditStartDatePicker && (
-                    <DateTimePicker
-                      value={
-                        editPlanStartDate
-                          ? new Date(editPlanStartDate)
-                          : new Date()
-                      }
-                      mode="date"
-                      display={Platform.OS === "ios" ? "inline" : "default"}
-                      onChange={(_, selectedDate) => {
-                        setShowEditStartDatePicker(Platform.OS === "ios");
-                        if (selectedDate) {
-                          const iso = selectedDate.toISOString().split("T")[0];
-                          setEditPlanStartDate(iso);
-                          // Auto-adjust end date if it's before start date
-                          if (editPlanEndDate && editPlanEndDate < iso) {
-                            setEditPlanEndDate(iso);
-                          }
-                        }
-                      }}
-                      minimumDate={new Date()}
-                      locale="vi"
-                    />
-                  )}
-                </View>
-
-                {/* End Date */}
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: COLORS.textSecondary,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {t("planner.endDate")}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowEditEndDatePicker(true)}
-                    style={{
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      borderRadius: 12,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      backgroundColor: "#FAFAFA",
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Ionicons
-                      name="calendar-outline"
-                      size={16}
-                      color={COLORS.primary}
-                    />
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color: editPlanEndDate
-                          ? COLORS.textPrimary
-                          : COLORS.textSecondary,
-                      }}
-                    >
-                      {editPlanEndDate
-                        ? new Date(editPlanEndDate).toLocaleDateString(
-                            "vi-VN",
-                            {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                            },
-                          )
-                        : "Chọn ngày"}
-                    </Text>
-                  </TouchableOpacity>
-                  {showEditEndDatePicker && (
-                    <DateTimePicker
-                      value={
-                        editPlanEndDate ? new Date(editPlanEndDate) : new Date()
-                      }
-                      mode="date"
-                      display={Platform.OS === "ios" ? "inline" : "default"}
-                      onChange={(_, selectedDate) => {
-                        setShowEditEndDatePicker(Platform.OS === "ios");
-                        if (selectedDate) {
-                          setEditPlanEndDate(
-                            selectedDate.toISOString().split("T")[0],
-                          );
-                        }
-                      }}
-                      minimumDate={
-                        editPlanStartDate
-                          ? new Date(editPlanStartDate)
-                          : new Date()
-                      }
-                      locale="vi"
-                    />
-                  )}
-                </View>
-              </View>
-
-              {/* People Count */}
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: COLORS.textSecondary,
-                  marginBottom: 6,
-                }}
-              >
-                {t("planner.numberOfPeople")}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 16,
-                  marginBottom: 24,
-                  backgroundColor: "#F5F5F5",
-                  borderRadius: 12,
-                  padding: 8,
-                  alignSelf: "flex-start",
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() =>
-                    setEditPlanPeople(Math.max(1, editPlanPeople - 1))
-                  }
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: "#fff",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Ionicons
-                    name="remove"
-                    size={18}
-                    color={COLORS.textPrimary}
-                  />
-                </TouchableOpacity>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "700",
-                    color: COLORS.textPrimary,
-                    minWidth: 28,
-                    textAlign: "center",
-                  }}
-                >
-                  {editPlanPeople}
-                </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setEditPlanPeople(Math.min(50, editPlanPeople + 1))
-                  }
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: "#fff",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Ionicons name="add" size={18} color={COLORS.textPrimary} />
-                </TouchableOpacity>
-              </View>
-
-              {editPlanPeople > 1 ? (
-                <View style={{ marginBottom: 20 }}>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: COLORS.textSecondary,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {t("planner.depositAmountLabel")}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: COLORS.textSecondary,
-                      marginBottom: 8,
-                      lineHeight: 17,
-                    }}
-                  >
-                    {t("planner.groupDepositSectionHint")}
-                  </Text>
-                  <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      borderRadius: 12,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      fontSize: 15,
-                      color: COLORS.textPrimary,
-                      marginBottom: 8,
-                      backgroundColor: "#FAFAFA",
-                    }}
-                    value={editPlanDepositInput}
-                    onChangeText={setEditPlanDepositInput}
-                    placeholder={t("planner.depositPlaceholder")}
-                    placeholderTextColor={COLORS.textSecondary}
-                    keyboardType="number-pad"
-                  />
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      color: COLORS.textSecondary,
-                      marginBottom: 14,
-                    }}
-                  >
-                    {t("planner.depositAmountHint")}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontWeight: "600",
-                      color: COLORS.textSecondary,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {t("planner.penaltyPercentageLabel")}
-                  </Text>
-                  <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: COLORS.border,
-                      borderRadius: 12,
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      fontSize: 15,
-                      color: COLORS.textPrimary,
-                      marginBottom: 6,
-                      backgroundColor: "#FAFAFA",
-                    }}
-                    value={editPlanPenaltyInput}
-                    onChangeText={setEditPlanPenaltyInput}
-                    placeholder="0"
-                    placeholderTextColor={COLORS.textSecondary}
-                    keyboardType="number-pad"
-                  />
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      color: COLORS.textSecondary,
-                    }}
-                  >
-                    {t("planner.penaltyPercentageHint")}
-                  </Text>
-                </View>
-              ) : null}
-
-              {/* Transport */}
-              <Text
-                style={{
-                  fontSize: 13,
-                  fontWeight: "600",
-                  color: COLORS.textSecondary,
-                  marginBottom: 8,
-                  marginTop: 4,
-                }}
-              >
-                {t("planner.transportation")}
-              </Text>
-              <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
-                {[
-                  {
-                    value: "bus",
-                    label: t("planner.bus"),
-                    icon: "bus" as const,
-                  },
-                  {
-                    value: "car",
-                    label: t("planner.car"),
-                    icon: "car" as const,
-                  },
-                  {
-                    value: "other",
-                    label: t("planner.motorcycle"),
-                    icon: null,
-                  },
-                ].map((item) => (
-                  <TouchableOpacity
-                    key={item.value}
-                    onPress={() => setEditPlanTransportation(item.value)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor:
-                        editPlanTransportation === item.value
-                          ? COLORS.accent
-                          : "#F5F5F5",
-                      borderWidth:
-                        editPlanTransportation === item.value ? 0 : 1,
-                      borderColor: COLORS.border,
-                      gap: 4,
-                    }}
-                  >
-                    {item.icon ? (
-                      <Ionicons
-                        name={item.icon}
-                        size={20}
-                        color={
-                          editPlanTransportation === item.value
-                            ? COLORS.textPrimary
-                            : COLORS.textSecondary
-                        }
-                      />
-                    ) : (
-                      <Text style={{ fontSize: 18 }}>🏍️</Text>
-                    )}
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: "600",
-                        color:
-                          editPlanTransportation === item.value
-                            ? COLORS.textPrimary
-                            : COLORS.textSecondary,
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Save Button */}
-              <TouchableOpacity
-                onPress={handleSavePlan}
-                disabled={savingPlan}
-                style={{
-                  backgroundColor: COLORS.accent,
-                  borderRadius: 14,
-                  paddingVertical: 15,
-                  alignItems: "center",
-                  opacity: savingPlan ? 0.7 : 1,
-                }}
-              >
-                {savingPlan ? (
-                  <ActivityIndicator color={COLORS.textPrimary} />
-                ) : (
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "700",
-                      color: COLORS.textPrimary,
-                    }}
-                  >
-                    {t("planner.saveChanges")}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowEditPlanModal(false)}
+        onSave={handleSavePlan}
+        saving={savingPlan}
+        t={t}
+        editPlanName={editPlanName}
+        setEditPlanName={setEditPlanName}
+        editPlanStartDate={editPlanStartDate}
+        setEditPlanStartDate={setEditPlanStartDate}
+        editPlanEndDate={editPlanEndDate}
+        setEditPlanEndDate={setEditPlanEndDate}
+        editPlanPeople={editPlanPeople}
+        setEditPlanPeople={setEditPlanPeople}
+        editPlanTransportation={editPlanTransportation}
+        setEditPlanTransportation={setEditPlanTransportation}
+        editPlanDepositInput={editPlanDepositInput}
+        setEditPlanDepositInput={setEditPlanDepositInput}
+        editPlanPenaltyInput={editPlanPenaltyInput}
+        setEditPlanPenaltyInput={setEditPlanPenaltyInput}
+        showEditStartDatePicker={showEditStartDatePicker}
+        setShowEditStartDatePicker={setShowEditStartDatePicker}
+        showEditEndDatePicker={showEditEndDatePicker}
+        setShowEditEndDatePicker={setShowEditEndDatePicker}
+      />
 
       {/* Full Map Modal */}
       <FullMapModal
@@ -4991,662 +3599,5 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  centerContent: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    fontSize: TYPOGRAPHY.fontSize.lg,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
-  },
-  backButton: {
-    padding: SPACING.sm,
-  },
-  backButtonText: {
-    color: COLORS.primary,
-    fontWeight: "bold",
-  },
-  headerImageContainer: {
-    width: "100%",
-    height: 260,
-    position: "relative",
-    overflow: "visible",
-  },
-  headerImage: {
-    width: "100%",
-    height: "100%",
-  },
-  headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  navbar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    zIndex: 10,
-  },
-  navButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    ...SHADOWS.small,
-  },
-  disabledAction: {
-    opacity: 0.5,
-  },
-  navActions: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-  },
-  headerContent: {
-    position: "absolute",
-    bottom: SPACING.xl, // Push up slightly
-    left: SPACING.lg,
-    right: SPACING.lg,
-  },
-  badgeContainer: {
-    flexDirection: "row",
-    gap: SPACING.sm,
-    marginBottom: SPACING.sm,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.accent, // Yellow
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
-    textTransform: "uppercase",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#fff",
-    fontFamily: TYPOGRAPHY.fontFamily.display,
-    marginBottom: SPACING.sm,
-    textShadowColor: "rgba(0,0,0,0.5)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  metaText: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  metaDivider: {
-    width: 1,
-    height: 14,
-    backgroundColor: "rgba(255,255,255,0.4)",
-    marginHorizontal: SPACING.md,
-  },
-  content: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: 24,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-  },
-  dayContainer: {
-    marginBottom: SPACING.lg,
-  },
-  dayHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: SPACING.lg,
-    marginBottom: SPACING.md,
-  },
-  dayNumberContainer: {
-    backgroundColor: COLORS.primary, // Dark
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.sm,
-  },
-  dayNumber: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  dayLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  timelineContainer: {
-    paddingHorizontal: SPACING.lg,
-    position: "relative",
-  },
-  timelineLine: {
-    position: "absolute",
-    left: 36, // Adjust based on layout
-    top: 0,
-    bottom: 0,
-    width: 2,
-    backgroundColor: COLORS.border,
-  },
-  timelineItems: {
-    gap: SPACING.md,
-    paddingLeft: 12, // Space for line
-  },
-  timelineItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.white,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    position: "absolute",
-    left: -19, // Center on line
-    zIndex: 1,
-  },
-  itemCard: {
-    flex: 1,
-    flexDirection: "row",
-    backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.sm,
-    marginLeft: 12,
-    ...SHADOWS.small,
-    alignItems: "center",
-  },
-  itemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.backgroundSoft,
-  },
-  itemContent: {
-    flex: 1,
-    paddingHorizontal: SPACING.sm,
-    justifyContent: "center",
-  },
-  itemName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  itemAddress: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-    marginBottom: 4,
-  },
-  itemFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  itemTimeInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: COLORS.accentSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  itemTime: {
-    fontSize: 11,
-    fontWeight: "500",
-    color: COLORS.primary,
-  },
-  itemNote: {
-    fontSize: 11,
-    color: COLORS.textTertiary,
-    fontStyle: "italic",
-    maxWidth: 100,
-  },
-  itemActions: {
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-  },
-  checkInButton: {
-    padding: 4,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: SPACING.xl,
-    gap: SPACING.sm,
-  },
-  emptyStateText: {
-    color: COLORS.textTertiary,
-    fontSize: 14,
-  },
-  addItemsButton: {
-    marginTop: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.background,
-    borderWidth: 1,
-    borderColor: COLORS.accent,
-  },
-  addItemsButtonText: {
-    color: COLORS.primary,
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  addSmallButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    marginLeft: 40,
-    gap: 4,
-  },
-  addSmallButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.primary,
-  },
-  addNextDayButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: SPACING.lg,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    backgroundColor: COLORS.accentSubtle,
-    borderRadius: BORDER_RADIUS.lg,
-    borderWidth: 2,
-    borderColor: COLORS.accent,
-    borderStyle: "dashed",
-    gap: SPACING.sm,
-  },
-  addNextDayButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.accent,
-  },
-  // Modal Styles
-  modalContainer: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-    paddingTop: 40, // Add padding to push content down
-  },
-  modalHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
-  },
-  modalClose: {
-    fontSize: 16,
-    color: COLORS.primary,
-  },
-  siteItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    marginBottom: 12,
-    ...SHADOWS.small,
-  },
-  siteItemImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: COLORS.backgroundSoft,
-  },
-  siteItemContent: {
-    flex: 1,
-    marginLeft: 12,
-    marginRight: 8,
-  },
-  siteItemName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  siteItemAddress: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    marginBottom: 8,
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-  activeTabButton: {
-    borderBottomColor: COLORS.primary,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textTertiary,
-  },
-  activeTabText: {
-    color: COLORS.primary,
-  },
-  timeInputLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  timeInputDescription: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.lg,
-  },
-  routeInfoContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.xs,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    backgroundColor: COLORS.accentSubtle,
-    borderRadius: BORDER_RADIUS.md,
-    marginBottom: SPACING.md,
-  },
-  routeInfoText: {
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    fontWeight: "500",
-    flex: 1,
-  },
-  timeInputContainer: {
-    marginBottom: SPACING.md,
-  },
-  timeInputFieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  timeInputHint: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-    marginBottom: SPACING.xs,
-    fontStyle: "italic",
-  },
-  timePickerButton: {
-    backgroundColor: COLORS.white,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  timePickerButtonText: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.primary,
-    flex: 1,
-    textAlign: "center",
-    letterSpacing: 2,
-  },
-  durationValueText: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    textAlign: "center",
-    marginVertical: SPACING.md,
-  },
-  slider: {
-    width: "100%",
-    height: 40,
-  },
-  sliderLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  sliderLabelText: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  noteInputContainer: {
-    marginBottom: SPACING.md,
-  },
-  noteInput: {
-    marginTop: SPACING.xs,
-    backgroundColor: COLORS.backgroundSoft,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    minHeight: 80,
-    maxHeight: 120,
-  },
-  confirmButton: {
-    backgroundColor: COLORS.accent,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    alignItems: "center",
-    marginTop: SPACING.lg,
-    ...SHADOWS.small,
-  },
-  saveTimeButtonDisabled: {
-    opacity: 0.5,
-  },
-  confirmButtonText: {
-    color: COLORS.textPrimary,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Nearby Places
-  nearbyPlaceCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    ...SHADOWS.small,
-  },
-  nearbyPlaceCategoryBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.background,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: SPACING.sm,
-  },
-  nearbyPlaceCategoryText: {
-    fontSize: 20,
-  },
-  nearbyPlaceContent: {
-    flex: 1,
-  },
-  nearbyPlaceName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
-  },
-  nearbyPlaceAddress: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  nearbyPlaceMeta: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-  },
-  nearbyPlaceDescription: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    fontStyle: "italic",
-  },
-  nearbyPlaceSelectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: COLORS.accent,
-    borderRadius: BORDER_RADIUS.sm,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginTop: 8,
-    alignSelf: "flex-start",
-  },
-  nearbyPlaceSelectBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  // Item Detail Modal
-  itemDetailHero: {
-    borderRadius: BORDER_RADIUS.md,
-    overflow: "hidden",
-    height: 160,
-    marginBottom: SPACING.md,
-    position: "relative",
-    justifyContent: "flex-end",
-  },
-  itemDetailImage: {
-    ...StyleSheet.absoluteFillObject,
-    width: "100%",
-    height: "100%",
-  },
-  itemDetailOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
-  },
-  itemDetailSiteName: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    padding: SPACING.md,
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  itemDetailRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  itemDetailRowText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    flexShrink: 1,
-  },
-  itemDetailDivider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.md,
-  },
-  itemDetailActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.sm,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.small,
-  },
-  itemDetailActionText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
-  },
-  // Saved nearby places in item detail
-  savedNearbyPlaceRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    marginBottom: 4,
-    backgroundColor: COLORS.backgroundCard,
-    borderRadius: BORDER_RADIUS.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.accent,
-  },
-  savedNearbyPlaceEmoji: {
-    fontSize: 18,
-    lineHeight: 24,
-  },
-  savedNearbyPlaceName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  savedNearbyPlaceAddress: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-});
 
 export default PlanDetailScreen;
