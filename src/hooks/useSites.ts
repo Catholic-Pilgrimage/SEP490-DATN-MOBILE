@@ -32,6 +32,7 @@ const mapSiteResponse = (site: any): SiteSummary => ({
   region: site.region,
   latitude: site.latitude || 0,
   longitude: site.longitude || 0,
+  patronSaint: site.patron_saint || site.patronSaint || undefined,
 });
 
 // ===== useSites =====

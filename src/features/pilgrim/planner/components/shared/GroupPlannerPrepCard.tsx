@@ -85,7 +85,8 @@ export const GroupPlannerPrepCard: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const scheduleOk = scheduleCompleteHeuristic(plan);
-  const locked = !!plan.is_locked;
+  const lockedEdit = !!plan.is_locked;
+  const lockedPlan = String(plan.status || "").toLowerCase() === "locked";
   const ctx = getPlannerFlowContext(plan);
   /** BE: isRealGroup = joinedMemberCount >= 2 (PlannerMember.join_status = joined) */
   const joinedOk =
@@ -157,16 +158,31 @@ export const GroupPlannerPrepCard: React.FC<Props> = ({
       ) : null}
 
       <StepRow
-        done={locked}
+        done={lockedEdit}
         label={t("planner.groupStepLock", {
-          defaultValue: "3. Khóa hành trình",
+          defaultValue: "3. Khóa chỉnh sửa",
         })}
         sub={
-          locked
-            ? t("planner.groupStepLockOk", { defaultValue: "Đã khóa (theo server)." })
+          lockedEdit
+            ? t("planner.groupStepLockOk", { defaultValue: "Đã khóa chỉnh sửa (theo server)." })
             : t("planner.groupStepLockNeed", {
                 defaultValue:
-                  "Trong màn chia sẻ — bật khóa khi đoàn đã thống nhất (BE kiểm tra).",
+                  "Trong màn chia sẻ — bật khóa chỉnh sửa khi đoàn đã thống nhất (BE kiểm tra).",
+              })
+        }
+      />
+
+      <StepRow
+        done={lockedPlan}
+        label={t("planner.groupStepLockPlan", {
+          defaultValue: "4. Chốt hành trình",
+        })}
+        sub={
+          lockedPlan
+            ? t("planner.groupStepLockPlanOk", { defaultValue: "Đã chốt hành trình (server)." })
+            : t("planner.groupStepLockPlanNeed", {
+                defaultValue:
+                  "Sau khi khóa chỉnh sửa, bấm “Chốt hành trình” để server chuyển sang trạng thái sẵn sàng bắt đầu.",
               })
         }
       />
@@ -187,7 +203,7 @@ export const GroupPlannerPrepCard: React.FC<Props> = ({
           <Ionicons name="share-social-outline" size={20} color="#fff" />
           <Text style={styles.btnPrimaryText}>
             {t("planner.groupOpenSharePanel", {
-              defaultValue: "Mời & khóa hành trình",
+              defaultValue: "Mời & khóa chỉnh sửa",
             })}
           </Text>
         </TouchableOpacity>

@@ -326,7 +326,7 @@ const mapOfflineDataToPlanEntity = (
     end_date: data.planner.end_date,
     number_of_people: data.planner.number_of_people || 1,
     transportation: data.planner.transportation || "other",
-    status: data.planner.status || "planned",
+    status: data.planner.status || "planning",
     share_token: data.planner.share_token || "",
     qr_code_url: data.planner.qr_code_url || "",
     owner: data.planner.owner,

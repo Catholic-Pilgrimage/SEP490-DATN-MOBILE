@@ -4,14 +4,12 @@
 
 // Enums
 import {
-  DayOfWeek,
-  NearbyPlaceCategory,
-  SiteMediaType,
-  SiteRegion,
-  SiteType
+    DayOfWeek,
+    NearbyPlaceCategory,
+    SiteMediaType,
+    SiteRegion,
+    SiteType,
 } from "../common.types";
-
-
 
 // Site Base
 export interface Site {
@@ -50,9 +48,11 @@ export interface SiteSummary {
   distance?: number;
   isFavorite: boolean;
   type: SiteType;
-  region?: 'Bac' | 'Trung' | 'Nam';
+  region?: "Bac" | "Trung" | "Nam";
   latitude?: number;
   longitude?: number;
+  /** Bổn mạng — dùng lọc/ghi chú khi thêm điểm vào kế hoạch nhóm. */
+  patronSaint?: string;
 }
 
 export interface NearbySite extends SiteSummary {
@@ -132,7 +132,12 @@ export interface SiteMediaResponse {
   data: {
     site: { id: string; code: string; name: string };
     data: SiteMedia[];
-    pagination?: { page: number; limit: number; totalItems: number; totalPages: number };
+    pagination?: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+    };
   };
 }
 
@@ -176,7 +181,7 @@ export interface SiteEvent {
 export interface GetSiteEventsParams {
   page?: number;
   limit?: number;
-  upcoming?: 'true' | 'false';
+  upcoming?: "true" | "false";
   start_date?: string;
   end_date?: string;
 }
@@ -186,7 +191,12 @@ export interface SiteEventResponse {
   data: {
     site: { id: string; code: string; name: string };
     data: SiteEvent[];
-    pagination?: { page: number; limit: number; totalItems: number; totalPages: number };
+    pagination?: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+    };
   };
 }
 
@@ -216,7 +226,12 @@ export interface SiteNearbyPlaceResponse {
   data: {
     site: { id: string; code: string; name: string };
     data: SiteNearbyPlace[];
-    pagination: { page: number; limit: number; totalItems: number; totalPages: number };
+    pagination: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+    };
   };
 }
 
@@ -247,7 +262,7 @@ export interface SearchSitesParams {
   province?: string;
   page?: number;
   limit?: number;
-  has_events?: 'true' | 'false';
+  has_events?: "true" | "false";
   start_date?: string;
   end_date?: string;
 }

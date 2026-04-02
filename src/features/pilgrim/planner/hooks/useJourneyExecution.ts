@@ -5,8 +5,8 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import locationService from "../../../../services/location/locationService";
 import networkService from "../../../../services/network/networkService";
 import {
-  MarkVisitedConfirmationResponse,
-  PlanItem,
+    MarkVisitedConfirmationResponse,
+    PlanItem,
 } from "../../../../types/pilgrim/planner.types";
 
 export const useJourneyExecution = (
@@ -159,8 +159,7 @@ export const useJourneyExecution = (
                           );
                         if (!r2.success) {
                           throw new Error(
-                            r2.message ||
-                              "Không thể hoàn tất sau khi xác nhận",
+                            r2.message || "Không thể hoàn tất sau khi xác nhận",
                           );
                         }
                         Toast.show({

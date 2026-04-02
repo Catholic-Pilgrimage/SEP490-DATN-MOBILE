@@ -49,6 +49,7 @@ export function getPlannerFlowContext(plan: PlanEntity): PlannerFlowContext {
   const isSolo = (plan.number_of_people ?? 1) <= 1;
   const hasItems = countItems(plan) > 0;
   const scheduleLooksComplete = scheduleCompleteHeuristic(plan);
+  const isPlanLocked = st === "locked";
 
   if (st === "completed" || st === "cancelled") {
     return {
@@ -70,7 +71,7 @@ export function getPlannerFlowContext(plan: PlanEntity): PlannerFlowContext {
 
   // planning (default từ BE)
   if (!isSolo) {
-    if (scheduleLooksComplete && plan.is_locked) {
+    if (scheduleLooksComplete && isPlanLocked) {
       return {
         phase: "ready_start",
         isSolo,
@@ -87,7 +88,7 @@ export function getPlannerFlowContext(plan: PlanEntity): PlannerFlowContext {
       };
     }
   } else {
-    if (scheduleLooksComplete && hasItems) {
+    if (scheduleLooksComplete && hasItems && isPlanLocked) {
       return {
         phase: "ready_start",
         isSolo,
