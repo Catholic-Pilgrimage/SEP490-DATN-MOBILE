@@ -214,17 +214,58 @@ function transformError(error: AxiosError): Error {
     return new Error(error.message || ERROR_MESSAGES.UNKNOWN_ERROR);
   }
 
-  const { status, data } = error.response as AxiosResponse<any>;
+  const { status } = error.response as AxiosResponse<any>;
+  let data: any = (error.response as AxiosResponse<any>).data;
+
+  if (typeof data === "string") {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      data = {};
+    }
+  }
+
+  const coalesceMessage = (m: unknown): string | null => {
+    if (typeof m === "string" && m.trim()) return m.trim();
+    if (Array.isArray(m)) {
+      const parts = m
+        .map((item) =>
+          typeof item === "string"
+            ? item
+            : (item as { message?: string; msg?: string })?.message ||
+              (item as { msg?: string })?.msg ||
+              "",
+        )
+        .filter(Boolean);
+      return parts.length ? parts.join(". ") : null;
+    }
+    return null;
+  };
 
   // Extract error message from API response (hỗ trợ nhiều dạng body)
   const apiMessage =
+    coalesceMessage(data?.message) ??
     (typeof data?.error === "string" ? data.error : null) ??
-    data?.error?.message ??
-    data?.message;
+    coalesceMessage(data?.error?.message) ??
+    (typeof data?.title === "string" ? data.title : null);
 
   // Extract validation details if available
   const details = data?.error?.details || data?.details;
   let detailMessage = "";
+
+  if (
+    !detailMessage &&
+    details &&
+    typeof details === "object" &&
+    !Array.isArray(details)
+  ) {
+    const msgs = Object.values(details as Record<string, unknown>)
+      .map((v) => coalesceMessage(v))
+      .filter((s): s is string => Boolean(s));
+    if (msgs.length) {
+      detailMessage = msgs.join(". ");
+    }
+  }
 
   if (details && Array.isArray(details) && details.length > 0) {
     // Format validation errors - only show the message, not field name
@@ -242,9 +283,21 @@ function transformError(error: AxiosError): Error {
   // Use detail message if available, otherwise use main message
   const fullMessage = detailMessage || apiMessage;
 
+  if (__DEV__ && error.response) {
+    console.warn(
+      "[API] Error response",
+      status,
+      typeof (error.response as AxiosResponse<any>).data === "string"
+        ? String((error.response as AxiosResponse<any>).data).slice(0, 400)
+        : (error.response as AxiosResponse<any>).data,
+    );
+  }
+
   switch (status) {
     case HTTP_STATUS.BAD_REQUEST:
       return new Error(fullMessage || "Yêu cầu không hợp lệ.");
+    case HTTP_STATUS.UNPROCESSABLE_ENTITY:
+      return new Error(fullMessage || "Dữ liệu không hợp lệ.");
     case HTTP_STATUS.UNAUTHORIZED:
       return new Error(fullMessage || ERROR_MESSAGES.INVALID_CREDENTIALS);
     case HTTP_STATUS.FORBIDDEN:

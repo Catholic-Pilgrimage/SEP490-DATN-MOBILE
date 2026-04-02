@@ -9,6 +9,15 @@ export function buildPlannerInviteDeepLink(token: string): string {
   return `pilgrimapp://planners/invite/${token.trim()}`;
 }
 
+/** So khớp email lời mời với tài khoản đang đăng nhập (không phân biệt hoa thường). */
+export function emailsMatch(
+  a?: string | null,
+  b?: string | null,
+): boolean {
+  if (!a || !b) return false;
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 /** Loại chủ đoàn khỏi danh sách phụ (đã hiển thị card owner riêng). */
 export function mapMembersToParticipants(
   members: PlannerMemberApiRow[],

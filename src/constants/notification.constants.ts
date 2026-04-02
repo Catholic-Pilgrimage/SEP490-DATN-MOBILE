@@ -31,6 +31,12 @@ export const NOTIFICATION_TITLES: Record<NotificationType, string> = {
   // ========== PILGRIM NOTIFICATIONS ==========
   planner_invite: "Lời mời tham gia",
   planner_joined: "Thành viên mới",
+  planner_first_checkin: "Có người check-in",
+  planner_item_missed: "Ghi nhận vắng mặt",
+  planner_item_skipped: "Điểm đến bị bỏ qua",
+  planner_item_skipped_last: "Điểm cuối bị bỏ qua",
+  planner_item_added: "Lịch trình cập nhật",
+  planner_schedule_changed: "Lịch trình thay đổi",
   favorite_site_update: "Cập nhật mới",
 
   // SOS
@@ -90,6 +96,12 @@ export const NOTIFICATION_ROUTES: Partial<Record<NotificationType, string>> = {
   // Pilgrim
   planner_invite: "PlannerDetail",
   planner_joined: "PlannerDetail",
+  planner_first_checkin: "PlannerDetail",
+  planner_item_missed: "PlannerDetail",
+  planner_item_skipped: "PlannerDetail",
+  planner_item_skipped_last: "PlannerDetail",
+  planner_item_added: "PlannerDetail",
+  planner_schedule_changed: "PlannerDetail",
   favorite_site_update: "SiteDetail",
   sos_assigned: "SOSDetail",
   sos_resolved: "SOSDetail",
@@ -108,6 +120,12 @@ export const NOTIFICATION_PRIORITY = {
     "shift_assigned",
     "shift_rejected",
     "planner_invite",
+    "planner_first_checkin",
+    "planner_item_skipped",
+    "planner_item_skipped_last",
+    "planner_item_added",
+    "planner_schedule_changed",
+    "planner_item_missed",
     "sos_resolved",
   ] as NotificationType[],
   LOW: [

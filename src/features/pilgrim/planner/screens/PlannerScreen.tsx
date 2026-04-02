@@ -14,15 +14,20 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
-import { PlanEntity, TransportationType } from '../../../../types/pilgrim/planner.types';
-import PlanCard, { PlanUI } from '../components/PlanCard';
+import { PlanEntity, PlannerMyInvite, TransportationType } from '../../../../types/pilgrim/planner.types';
+import PlanCard, { PlanUI } from '../components/shared/PlanCard';
+import InvitedPlanCard, { InvitedPlanUI } from '../components/shared/InvitedPlanCard';
 
 import { useTranslation } from 'react-i18next';
 
-// Animated guest card with floating + icon pulse
+// ─── Tab enum ────────────────────────────────────────────────
+type PlannerTab = 'my' | 'invited';
+
+// ─── Animated guest card with floating + icon pulse ──────────
 const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any }) => {
     const cardFloat = useRef(new Animated.Value(0)).current;
     const iconPulse = useRef(new Animated.Value(1)).current;
@@ -60,66 +65,371 @@ const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any
         </View>
     );
 };
+
 const { width } = Dimensions.get('window');
 
-export const PlannerScreen = ({ navigation }: any) => {
+// ─── Tab bar component ───────────────────────────────────────
+const TabBar = ({
+    activeTab,
+    onTabChange,
+    t,
+    myCount,
+    invitedCount,
+}: {
+    activeTab: PlannerTab;
+    onTabChange: (tab: PlannerTab) => void;
+    t: any;
+    myCount: number;
+    invitedCount: number;
+}) => {
+    const indicatorAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.spring(indicatorAnim, {
+            toValue: activeTab === 'my' ? 0 : 1,
+            useNativeDriver: true,
+            friction: 8,
+            tension: 70,
+        }).start();
+    }, [activeTab]);
+
+    const tabWidth = (width - SPACING.lg * 2 - 8) / 2;
+
+    const translateX = indicatorAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, tabWidth],
+    });
+
+    return (
+        <View style={styles.tabBarContainer}>
+            <View style={styles.tabBarInner}>
+                {/* Animated indicator */}
+                <Animated.View
+                    style={[
+                        styles.tabIndicator,
+                        {
+                            width: tabWidth,
+                            transform: [{ translateX }],
+                        },
+                    ]}
+                />
+
+                {/* My Plans Tab */}
+                <TouchableOpacity
+                    style={[styles.tabButton]}
+                    onPress={() => onTabChange('my')}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.tabContent}>
+                        <Ionicons
+                            name="map-outline"
+                            size={18}
+                            color={activeTab === 'my' ? '#4A3110' : '#8B7355'}
+                        />
+                        <Text
+                            style={[
+                                styles.tabLabel,
+                                activeTab === 'my' && styles.tabLabelActive,
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {t('planner.myPlansTab', { defaultValue: 'Của tôi' })}
+                        </Text>
+                        {myCount > 0 && (
+                            <View style={[styles.tabBadge, activeTab === 'my' && styles.tabBadgeActive]}>
+                                <Text style={[styles.tabBadgeText, activeTab === 'my' && styles.tabBadgeTextActive]}>
+                                    {myCount}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+
+                {/* Invited Plans Tab */}
+                <TouchableOpacity
+                    style={[styles.tabButton]}
+                    onPress={() => onTabChange('invited')}
+                    activeOpacity={0.7}
+                >
+                    <View style={styles.tabContent}>
+                        <Ionicons
+                            name="mail-outline"
+                            size={18}
+                            color={activeTab === 'invited' ? '#4A3110' : '#8B7355'}
+                        />
+                        <Text
+                            style={[
+                                styles.tabLabel,
+                                activeTab === 'invited' && styles.tabLabelActive,
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {t('planner.invitedPlansTab', { defaultValue: 'Được mời' })}
+                        </Text>
+                        {invitedCount > 0 && (
+                            <View style={[styles.tabBadge, activeTab === 'invited' && styles.tabBadgeActive]}>
+                                <Text style={[styles.tabBadgeText, activeTab === 'invited' && styles.tabBadgeTextActive]}>
+                                    {invitedCount}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+};
+
+const TRANSPORT_TYPES: TransportationType[] = [
+    'motorbike',
+    'car',
+    'bus',
+    'train',
+    'plane',
+    'walk',
+    'other',
+];
+
+/** Chuẩn hóa chuỗi từ API (có thể khác hoa/thường) → TransportationType. */
+function normalizePlannerTransport(raw: unknown): TransportationType {
+    if (raw == null || raw === '') return 'car';
+    const s = String(raw).toLowerCase().trim();
+    if (TRANSPORT_TYPES.includes(s as TransportationType)) return s as TransportationType;
+    return 'car';
+}
+
+function countStopsFromPlannerSummary(pl: {
+    items_by_day?: Record<string, unknown[]>;
+    item_count?: number;
+}): number {
+    if (pl.items_by_day && Object.keys(pl.items_by_day).length > 0) {
+        return Object.values(pl.items_by_day).reduce(
+            (acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0),
+            0,
+        );
+    }
+    if (typeof pl.item_count === 'number' && pl.item_count >= 0) {
+        return pl.item_count;
+    }
+    return 0;
+}
+
+// ─── Map PlanEntity → PlanUI helper ──────────────────────────
+const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
+    let totalItems = 0;
+    if (entity.items) {
+        totalItems = entity.items.length;
+    } else if (entity.items_by_day) {
+        totalItems = Object.values(entity.items_by_day).flat().length;
+    } else if ((entity as any).item_count !== undefined) {
+        totalItems = (entity as any).item_count;
+    } else if ((entity as any).total_items !== undefined) {
+        totalItems = (entity as any).total_items;
+    } else if ((entity as any).stopCount !== undefined) {
+        totalItems = (entity as any).stopCount;
+    }
+
+    return {
+        id: entity.id,
+        title: entity.name,
+        startDate: entity.start_date,
+        endDate: entity.end_date || entity.start_date,
+        status: (entity.status as any) || 'planned',
+        stopCount: totalItems,
+        participantCount: entity.number_of_people,
+        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
+        isShared: !!entity.share_token,
+        transportation: [normalizePlannerTransport(entity.transportation)],
+    };
+};
+
+
+
+const mapInvitedPlanEntityToUI = (entity: PlanEntity): InvitedPlanUI => {
+    const base = mapPlanEntityToUI(entity);
+    return {
+        ...base,
+        ownerName: entity.owner?.full_name,
+        ownerAvatar: entity.owner?.avatar_url,
+        ownerEmail: entity.owner?.email,
+        depositAmount: entity.deposit_amount,
+        penaltyPercentage: entity.penalty_percentage,
+    };
+};
+
+const mapMyInviteToInvitedPlanUI = (invite: PlannerMyInvite): InvitedPlanUI | null => {
+    if (!invite.planner) return null;
+    const pl = invite.planner;
+    const mapped: InvitedPlanUI = {
+        id: pl.id,
+        title: pl.name,
+        startDate: pl.start_date,
+        endDate: pl.end_date || pl.start_date,
+        status: (pl.status as any) || 'planned',
+        stopCount: countStopsFromPlannerSummary(pl),
+        participantCount: pl.number_of_people || 0,
+        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
+        isShared: false,
+        transportation: [normalizePlannerTransport(pl.transportation)],
+        ownerName: invite.inviter?.full_name,
+        ownerAvatar: invite.inviter?.avatar_url,
+        ownerEmail: invite.inviter?.email,
+        inviteStatus: invite.status,
+        inviteToken: invite.token,
+        depositAmount: pl.deposit_amount,
+        penaltyPercentage: pl.penalty_percentage,
+    };
+    return mapped;
+};
+
+// ─── Empty state for Invited tab ─────────────────────────────
+const InvitedEmptyState = ({ t }: { t: any }) => (
+    <View style={styles.invitedEmptyContainer}>
+        <View style={styles.invitedEmptyIconWrap}>
+            <Ionicons name="mail-unread-outline" size={56} color="#C9A96E" style={{ opacity: 0.6 }} />
+        </View>
+        <Text style={styles.invitedEmptyTitle}>
+            {t('planner.noInvitedPlans', { defaultValue: 'Chưa có lời mời nào' })}
+        </Text>
+        <Text style={styles.invitedEmptySubtitle}>
+            {t('planner.noInvitedPlansHint', {
+                defaultValue: 'Khi ai đó mời bạn tham gia kế hoạch hành hương, nó sẽ xuất hiện ở đây.',
+            })}
+        </Text>
+    </View>
+);
+
+export const PlannerScreen = ({ navigation, route }: any) => {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { isGuest, exitGuestMode } = useAuth();
+    const { isGuest, exitGuestMode, user } = useAuth();
+
+    // ── Tab state ──
+    const [activeTab, setActiveTab] = useState<PlannerTab>('my');
+
+    useEffect(() => {
+        const initial = route?.params?.initialTab as PlannerTab | undefined;
+        if (initial === 'invited' || initial === 'my') {
+            setActiveTab(initial);
+        }
+    }, [route?.params?.initialTab]);
+
+    // ── My Plans state ──
     const [plans, setPlans] = useState<PlanUI[]>([]);
     const [loading, setLoading] = useState(!isGuest);
 
-    // Fetch Plans
-    const fetchPlans = useCallback(async () => {
+    // ── Invited Plans state ──
+    const [invitedPlans, setInvitedPlans] = useState<InvitedPlanUI[]>([]);
+    const [invitedLoading, setInvitedLoading] = useState(!isGuest);
+
+    // ── Fetch All Plans ──
+    const fetchAllPlans = useCallback(async () => {
         try {
             setLoading(true);
-            const response = await pilgrimPlannerApi.getPlans({ page: 1, limit: 10 });
-            if (response && response.success && response.data?.planners) {
-                // Map API Entity to UI Model
-                const mappedPlans: PlanUI[] = response.data.planners.map((entity: PlanEntity) => {
-                    // Try to calculate total items from various possible response formats
-                    let totalItems = 0;
-                    if (entity.items) {
-                        totalItems = entity.items.length;
-                    } else if (entity.items_by_day) {
-                        totalItems = Object.values(entity.items_by_day).flat().length;
-                    } else if ((entity as any).item_count !== undefined) {
-                        totalItems = (entity as any).item_count;
-                    } else if ((entity as any).total_items !== undefined) {
-                        totalItems = (entity as any).total_items;
-                    } else if ((entity as any).stopCount !== undefined) {
-                        totalItems = (entity as any).stopCount;
-                    }
+            setInvitedLoading(true);
+            const [plansRes, invitesRes] = await Promise.all([
+                pilgrimPlannerApi.getPlans({ page: 1, limit: 100 }),
+                pilgrimPlannerApi.getMyInvites(),
+            ]);
 
-                    return {
-                        id: entity.id,
-                        title: entity.name,
-                        startDate: entity.start_date,
-                        endDate: entity.end_date || entity.start_date, // Fallback if end_date missing
-                        status: (entity.status as any) || 'planned',
-                        stopCount: totalItems,
-                        participantCount: entity.number_of_people,
-                        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
-                        isShared: !!entity.share_token, // Check share_token for shared status
-                        transportation: [entity.transportation as TransportationType],
-                    };
+            let memberPlansData: InvitedPlanUI[] = [];
+            if (plansRes && plansRes.success && plansRes.data?.planners) {
+                const myPlansData: PlanUI[] = [];
+                const memberPlans: InvitedPlanUI[] = [];
+                
+                plansRes.data.planners.forEach((entity: PlanEntity) => {
+                    if (entity.user_id === user?.id || (entity.owner && entity.owner.id === user?.id)) {
+                        myPlansData.push(mapPlanEntityToUI(entity));
+                    } else {
+                        // Joined as member/viewer/editor
+                        memberPlans.push({
+                            ...mapInvitedPlanEntityToUI(entity),
+                            inviteStatus: 'accepted',
+                            inviteToken: undefined,
+                        });
+                    }
                 });
-                setPlans(mappedPlans);
+                
+                setPlans(myPlansData);
+                memberPlansData = memberPlans;
+            }
+
+            const inviteRows = Array.isArray(invitesRes?.data)
+                ? invitesRes.data
+                : Array.isArray((invitesRes as any)?.data?.invites)
+                    ? (invitesRes as any).data.invites
+                    : [];
+
+            if (invitesRes && invitesRes.success && inviteRows.length > 0) {
+                const mappedInvites = inviteRows
+                    .map(mapMyInviteToInvitedPlanUI)
+                    .filter((v): v is InvitedPlanUI => !!v);
+                setInvitedPlans([...mappedInvites, ...memberPlansData]);
+            } else {
+                setInvitedPlans(memberPlansData);
             }
         } catch (error) {
             console.error('Failed to fetch plans:', error);
-            // Optional: Alert.alert('Error', 'Failed to load plans');
         } finally {
             setLoading(false);
+            setInvitedLoading(false);
+        }
+    }, [user?.id]);
+
+    // ── Load Invited Plan for Guest ──
+    const loadGuestInvitedPlan = useCallback(async () => {
+        try {
+            setInvitedLoading(true);
+            const token = await AsyncStorage.getItem('pending_invite_token');
+            if (token) {
+                const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
+                if (res.success && res.data && res.data.planner) {
+                    const planner = res.data.planner;
+                    let totalItems = 0;
+                    if (planner.items_by_day) {
+                        totalItems = Object.values(planner.items_by_day).flat().length;
+                    }
+                    
+                    const mapped: InvitedPlanUI = {
+                        id: planner.id || '',
+                        title: planner.name || '',
+                        startDate: planner.start_date,
+                        endDate: planner.end_date || planner.start_date,
+                        status: (planner.status as any) || 'planned',
+                        stopCount: totalItems,
+                        participantCount: planner.number_of_people || 0,
+                        coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
+                        isShared: false,
+                        transportation: [normalizePlannerTransport(planner.transportation)],
+                        ownerName: planner.owner?.full_name,
+                        ownerAvatar: planner.owner?.avatar_url,
+                        inviteStatus: res.data.status,
+                        inviteToken: token,
+                    };
+
+                    setInvitedPlans([mapped]);
+                } else {
+                    setInvitedPlans([]);
+                }
+            } else {
+                setInvitedPlans([]);
+            }
+        } catch (error) {
+            console.error('Failed to load guest invite plan:', error);
+            setInvitedPlans([]);
+        } finally {
+            setInvitedLoading(false);
         }
     }, []);
 
     useFocusEffect(
         useCallback(() => {
             if (!isGuest) {
-                fetchPlans();
+                fetchAllPlans();
+            } else {
+                loadGuestInvitedPlan();
             }
-        }, [fetchPlans, isGuest])
+        }, [fetchAllPlans, loadGuestInvitedPlan, isGuest])
     );
 
     const handleLogin = async () => {
@@ -166,6 +476,111 @@ export const PlannerScreen = ({ navigation }: any) => {
         outputRange: [0, -50],
         extrapolate: 'clamp',
     });
+
+    const navigateToPlanByStatus = useCallback(
+        (
+            planId: string,
+            status?: string,
+            extraParams?: Record<string, any>,
+        ) => {
+            const normalized = String(status || '').toLowerCase();
+            if (normalized === 'ongoing') {
+                navigation.navigate('ActiveJourneyScreen', { planId, ...(extraParams || {}) });
+                return;
+            }
+            navigation.navigate('PlanDetailScreen', { planId, ...(extraParams || {}) });
+        },
+        [navigation],
+    );
+
+    // ── Render plan lists ──────
+    const renderMyPlans = () => {
+        if (loading) {
+            return (
+                <View style={{ paddingVertical: SPACING.xxl, alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={COLORS.accent} />
+                </View>
+            );
+        }
+
+        if (plans.length === 0) {
+            return (
+                <TouchableOpacity style={styles.emptyStateCard} activeOpacity={0.8} onPress={() => navigation.navigate('CreatePlanScreen')}>
+                    <View style={styles.emptyIllustration}>
+                        <Ionicons name="map-outline" size={48} color={COLORS.textTertiary} style={{ opacity: 0.5 }} />
+                        <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} style={{ position: 'absolute', bottom: -5, right: -5 }} />
+                    </View>
+                    <View style={styles.emptyTextContainer}>
+                        <Text style={styles.emptyTitle}>{t('planner.planNewJourney', { defaultValue: 'Lên Kế Hoạch Chuyến Đi Mới' })}</Text>
+                        <Text style={styles.emptySubtitle}>{t('planner.startJourney', { defaultValue: 'Bắt đầu hành trình tâm linh tiếp theo của bạn.' })}</Text>
+                    </View>
+                </TouchableOpacity>
+            );
+        }
+
+        return plans.map((plan) => (
+            <PlanCard
+                key={plan.id}
+                plan={plan}
+                onPress={() => navigateToPlanByStatus(plan.id, plan.status)}
+                onShare={() => console.log('Share plan', plan.id)}
+                onEdit={() => console.log('Edit plan', plan.id)}
+            />
+        ));
+    };
+
+    const renderInvitedPlans = () => {
+        if (invitedLoading) {
+            return (
+                <View style={{ paddingVertical: SPACING.xxl, alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={COLORS.accent} />
+                </View>
+            );
+        }
+
+        if (invitedPlans.length === 0) {
+            return <InvitedEmptyState t={t} />;
+        }
+
+        return invitedPlans.map((plan) => (
+            <InvitedPlanCard
+                key={plan.id}
+                plan={plan}
+                onPress={() => {
+                    if (plan.inviteToken) {
+                        navigation.navigate('PlanDetailScreen', {
+                            planId: plan.id,
+                            inviteToken: plan.inviteToken,
+                            inviteStatus: plan.inviteStatus,
+                            ownerName: plan.ownerName,
+                            ownerEmail: plan.ownerEmail,
+                            depositAmount: plan.depositAmount,
+                            penaltyPercentage: plan.penaltyPercentage,
+                            invitedView: true,
+                        });
+                    } else {
+                        navigateToPlanByStatus(plan.id, plan.status);
+                    }
+                }}
+                onJoin={() => {
+                    if (!plan.inviteToken) return;
+                    navigation.navigate('PlanDetailScreen', {
+                        planId: plan.id,
+                        inviteToken: plan.inviteToken,
+                        inviteStatus: plan.inviteStatus,
+                        ownerName: plan.ownerName,
+                        ownerEmail: plan.ownerEmail,
+                        depositAmount: plan.depositAmount,
+                        penaltyPercentage: plan.penaltyPercentage,
+                        invitedView: true,
+                    });
+                }}
+                onChat={() => {
+                    navigation.navigate('PlanChatScreen', { planId: plan.id, planName: plan.title });
+                }}
+            />
+        ));
+    };
 
     return (
         <ImageBackground
@@ -239,48 +654,26 @@ export const PlannerScreen = ({ navigation }: any) => {
                     </View>
                 </Animated.View>
 
-                {/* Plans List */}
-                {isGuest ? (
-                    <GuestCardAnimated handleLogin={handleLogin} t={t} />
-                ) : (
-                    <>
-                        <View style={{ marginTop: 10 }}>
-                            {loading ? (
-                                <View style={{ paddingVertical: SPACING.xxl, alignItems: 'center' }}>
-                                    <ActivityIndicator size="large" color={COLORS.accent} />
-                                </View>
-                            ) : (
-                                plans.map((plan) => (
-                                    <PlanCard
-                                        key={plan.id}
-                                        plan={plan}
-                                        onPress={() => navigation.navigate('PlanDetailScreen', { planId: plan.id })}
-                                        onShare={() => console.log('Share plan', plan.id)}
-                                        onEdit={() => console.log('Edit plan', plan.id)}
-                                    />
-                                ))
-                            )}
-                        </View>
+                {/* Tab Bar ALWAYS VISIBLE */}
+                <TabBar
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    t={t}
+                    myCount={isGuest ? 0 : plans.length}
+                    invitedCount={invitedPlans.length}
+                />
 
-                        {/* Empty State / CTA - Only shown when no plans exist and not loading */}
-                        {!loading && plans.length === 0 && (
-                            <TouchableOpacity style={styles.emptyStateCard} activeOpacity={0.8} onPress={() => navigation.navigate('CreatePlanScreen')}>
-                                <View style={styles.emptyIllustration}>
-                                    <Ionicons name="map-outline" size={48} color={COLORS.textTertiary} style={{ opacity: 0.5 }} />
-                                    <Ionicons name="add-circle-outline" size={32} color={COLORS.accent} style={{ position: 'absolute', bottom: -5, right: -5 }} />
-                                </View>
-                                <View style={styles.emptyTextContainer}>
-                                    <Text style={styles.emptyTitle}>{t('planner.planNewJourney', { defaultValue: 'Lên Kế Hoạch Chuyến Đi Mới' })}</Text>
-                                    <Text style={styles.emptySubtitle}>{t('planner.startJourney', { defaultValue: 'Bắt đầu hành trình tâm linh tiếp theo của bạn.' })}</Text>
-                                </View>
-                            </TouchableOpacity>
-                        )}
-                    </>
-                )}
+                {/* Plans List */}
+                <View style={{ marginTop: 12 }}>
+                    {activeTab === 'my' 
+                        ? (isGuest ? <GuestCardAnimated handleLogin={handleLogin} t={t} /> : renderMyPlans()) 
+                        : renderInvitedPlans()
+                    }
+                </View>
             </Animated.ScrollView>
 
-            {/* FAB - Hidden for guests */}
-            {!isGuest && (
+            {/* FAB - Hidden for guests, only show on My tab */}
+            {!isGuest && activeTab === 'my' && (
                 <TouchableOpacity
                     style={styles.fab}
                     activeOpacity={0.9}
@@ -341,16 +734,16 @@ const styles = StyleSheet.create({
     },
     headerSubtitle: {
         fontSize: 14,
-        fontWeight: '700', // SemiBold/Bold
+        fontWeight: '700',
         color: COLORS.accent,
-        letterSpacing: 2, // Increased letter spacing
+        letterSpacing: 2,
         textTransform: 'uppercase',
         marginBottom: 6,
     },
     headerTitle: {
-        fontSize: 42, // Larger
+        fontSize: 42,
         fontFamily: Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' }),
-        fontWeight: '700', // Bold but not ExtraBold
+        fontWeight: '700',
         color: COLORS.textPrimary,
         lineHeight: 48,
         letterSpacing: -0.5,
@@ -374,16 +767,84 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: -20,
         top: -30,
-        opacity: 0.15, // 15% opacity
+        opacity: 0.15,
         transform: [{ rotate: '-15deg' }],
     },
     shellIcon: {
-        // Additional styling if needed
     },
     content: {
         paddingHorizontal: SPACING.lg,
     },
-    // Empty State
+
+    // ── Tab Bar ──────────────────────────────────
+    tabBarContainer: {
+        marginTop: 4,
+        marginBottom: 0,
+    },
+    tabBarInner: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(245, 230, 200, 0.85)',
+        borderRadius: 14,
+        padding: 4,
+        borderWidth: 1,
+        borderColor: 'rgba(201, 169, 110, 0.4)',
+        position: 'relative',
+    },
+    tabIndicator: {
+        position: 'absolute',
+        top: 4,
+        left: 4,
+        bottom: 4,
+        borderRadius: 11,
+        backgroundColor: '#FFFFFF',
+        ...SHADOWS.small,
+        elevation: 2,
+        borderWidth: 1,
+        borderColor: 'rgba(201, 169, 110, 0.25)',
+    },
+    tabButton: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
+    },
+    tabContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    tabLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#8B7355',
+    },
+    tabLabelActive: {
+        color: '#4A3110',
+        fontWeight: '700',
+    },
+    tabBadge: {
+        backgroundColor: 'rgba(139, 115, 85, 0.2)',
+        borderRadius: 10,
+        minWidth: 22,
+        height: 22,
+        paddingHorizontal: 6,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabBadgeActive: {
+        backgroundColor: 'rgba(212, 175, 55, 0.2)',
+    },
+    tabBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#8B7355',
+    },
+    tabBadgeTextActive: {
+        color: '#6B4E0A',
+    },
+
+    // ── Empty State ──────────────────────────────
     emptyStateCard: {
         marginTop: SPACING.md,
         backgroundColor: 'rgba(255, 255, 255, 0.5)',
@@ -416,6 +877,42 @@ const styles = StyleSheet.create({
         fontSize: TYPOGRAPHY.fontSize.sm,
         color: COLORS.textSecondary,
     },
+
+    // ── Invited Empty State ──────────────────────
+    invitedEmptyContainer: {
+        marginTop: SPACING.xl,
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        borderRadius: BORDER_RADIUS.xl,
+        padding: SPACING.xl * 1.5,
+        alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: 'rgba(201, 169, 110, 0.3)',
+        borderStyle: 'dashed',
+    },
+    invitedEmptyIconWrap: {
+        width: 90,
+        height: 90,
+        borderRadius: 45,
+        backgroundColor: 'rgba(201, 169, 110, 0.1)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    invitedEmptyTitle: {
+        fontSize: TYPOGRAPHY.fontSize.lg,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        textAlign: 'center',
+        marginBottom: 6,
+    },
+    invitedEmptySubtitle: {
+        fontSize: TYPOGRAPHY.fontSize.sm,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 20,
+        paddingHorizontal: SPACING.sm,
+    },
+
     // FAB
     fab: {
         position: 'absolute',

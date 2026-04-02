@@ -8,9 +8,9 @@ import pilgrimPlannerApi from "../api/pilgrim/plannerApi";
 import networkService, { OfflineAction } from "../network/networkService";
 import offlineMapService from "./offlineMapService";
 import {
-  OfflinePlannerData,
-  OfflinePlannerStoredData,
-  offlinePlannerService,
+    OfflinePlannerData,
+    OfflinePlannerStoredData,
+    offlinePlannerService,
 } from "./offlinePlannerService";
 
 interface DownloadProgress {
@@ -90,8 +90,7 @@ const normalizeApiResponse = <T>(
 
   const success =
     typeof payload.success === "boolean" ? payload.success : undefined;
-  const message =
-    typeof payload.message === "string" ? payload.message : "";
+  const message = typeof payload.message === "string" ? payload.message : "";
 
   if (isData(payload.data)) {
     return {
@@ -127,6 +126,8 @@ const ADD_ITEM_ENDPOINT_PATTERN = /^\/api\/planners\/([^/]+)\/items$/;
 const ITEM_ENDPOINT_PATTERN = /^\/api\/planners\/([^/]+)\/items\/([^/]+)$/;
 const CHECKIN_ENDPOINT_PATTERN =
   /^\/api\/planners\/([^/]+)\/items\/([^/]+)\/checkin$/;
+const REORDER_ENDPOINT_PATTERN =
+  /^\/api\/planners\/([^/]+)\/items\/reorder$/;
 
 const getNestedString = (
   container: Record<string, any>,
@@ -239,8 +240,7 @@ const normalizeOfflinePlannerData = (
 
   const success =
     typeof payload.success === "boolean" ? payload.success : undefined;
-  const message =
-    typeof payload.message === "string" ? payload.message : "";
+  const message = typeof payload.message === "string" ? payload.message : "";
 
   const containers = [
     payload,
@@ -273,7 +273,11 @@ const normalizeOfflinePlannerData = (
 
     const rawSites = [
       ...getNestedArray(container, ["sites", "site_details", "siteDetails"]),
-      ...getNestedArray(plannerSource, ["sites", "site_details", "siteDetails"]),
+      ...getNestedArray(plannerSource, [
+        "sites",
+        "site_details",
+        "siteDetails",
+      ]),
     ];
 
     const derivedSites = rawItems
@@ -294,8 +298,7 @@ const normalizeOfflinePlannerData = (
       siteMap.set(siteId, {
         id: siteId,
         name: String(site.name || site.site_name || "Pilgrimage Site"),
-        name_en:
-          typeof site.name_en === "string" ? site.name_en : undefined,
+        name_en: typeof site.name_en === "string" ? site.name_en : undefined,
         description:
           typeof site.description === "string" ? site.description : undefined,
         description_en:
@@ -303,8 +306,7 @@ const normalizeOfflinePlannerData = (
             ? site.description_en
             : undefined,
         address: typeof site.address === "string" ? site.address : undefined,
-        province:
-          typeof site.province === "string" ? site.province : undefined,
+        province: typeof site.province === "string" ? site.province : undefined,
         region: typeof site.region === "string" ? site.region : undefined,
         latitude: site.latitude,
         longitude: site.longitude,
@@ -323,7 +325,9 @@ const normalizeOfflinePlannerData = (
       });
     });
 
-    const plannerId = String(plannerSource.id || plannerSource.planner_id || "").trim();
+    const plannerId = String(
+      plannerSource.id || plannerSource.planner_id || "",
+    ).trim();
     if (!plannerId) {
       continue;
     }
@@ -427,11 +431,15 @@ const normalizeOfflinePlannerData = (
       data: {
         planner: {
           id: plannerId,
-          name: String(plannerSource.name || plannerSource.plan_name || "Pilgrimage Plan"),
+          name: String(
+            plannerSource.name || plannerSource.plan_name || "Pilgrimage Plan",
+          ),
           start_date: String(
             plannerSource.start_date || plannerSource.startDate || "",
           ),
-          end_date: String(plannerSource.end_date || plannerSource.endDate || ""),
+          end_date: String(
+            plannerSource.end_date || plannerSource.endDate || "",
+          ),
           total_days:
             typeof plannerSource.total_days === "number"
               ? plannerSource.total_days
@@ -574,7 +582,8 @@ class OfflineSyncService {
       }
 
       const offlineData = response.data as OfflinePlannerData;
-      const previousData = await offlinePlannerService.getPlannerData(plannerId);
+      const previousData =
+        await offlinePlannerService.getPlannerData(plannerId);
 
       onProgress?.({
         total: 4,
@@ -736,7 +745,9 @@ class OfflineSyncService {
         if (finalResult.source === "auto") {
           Toast.show({
             type: finalResult.success ? "success" : "error",
-            text1: finalResult.success ? "Đồng bộ thành công" : "Đồng bộ thất bại",
+            text1: finalResult.success
+              ? "Đồng bộ thành công"
+              : "Đồng bộ thất bại",
             text2: finalResult.message,
             visibilityTime: 3000,
           });
@@ -825,7 +836,11 @@ class OfflineSyncService {
         } else if (action.endpoint.includes("/journals")) {
           type = "CREATE_JOURNAL";
         } else if (action.endpoint.includes("/items")) {
-          if (action.method === "POST") type = "ADD_ITEM";
+          if (action.method === "POST" && action.endpoint.includes("/reorder")) {
+            type = "REORDER_ITEMS";
+          } else if (action.method === "POST") {
+            type = "ADD_ITEM";
+          }
           if (action.method === "PUT" || action.method === "PATCH") {
             type = "UPDATE_ITEM";
           }
@@ -840,7 +855,9 @@ class OfflineSyncService {
         };
       });
 
-      const rawResponse = await pilgrimPlannerApi.syncOfflineActions({ actions });
+      const rawResponse = await pilgrimPlannerApi.syncOfflineActions({
+        actions,
+      });
       const response = normalizeApiResponse<Record<string, unknown>>(
         rawResponse,
         isRecord,
@@ -914,7 +931,10 @@ class OfflineSyncService {
     for (const plannerId of plannerIds) {
       const data = await offlinePlannerService.getPlannerData(plannerId);
       await this.cleanupCachedImages(data?.cached_images);
-      await offlineMapService.deletePlannerMapPack(plannerId, data?.offline_map);
+      await offlineMapService.deletePlannerMapPack(
+        plannerId,
+        data?.offline_map,
+      );
     }
 
     await offlinePlannerService.clearAllOfflineData();
@@ -932,7 +952,17 @@ class OfflineSyncService {
   }
 
   private canDirectSyncAction(action: OfflineAction) {
-    if (action.method === "POST" && ADD_ITEM_ENDPOINT_PATTERN.test(action.endpoint)) {
+    if (
+      action.method === "POST" &&
+      ADD_ITEM_ENDPOINT_PATTERN.test(action.endpoint)
+    ) {
+      return true;
+    }
+
+    if (
+      action.method === "POST" &&
+      REORDER_ENDPOINT_PATTERN.test(action.endpoint)
+    ) {
       return true;
     }
 
@@ -959,6 +989,15 @@ class OfflineSyncService {
     action: OfflineAction,
     tempItemIdMap: Map<string, string>,
   ): Promise<DirectSyncActionResult> {
+    const reorderMatch =
+      action.method === "POST"
+        ? action.endpoint.match(REORDER_ENDPOINT_PATTERN)
+        : null;
+
+    if (reorderMatch) {
+      return this.syncReorderPlannerItemsAction(action, reorderMatch[1]);
+    }
+
     const addMatch =
       action.method === "POST"
         ? action.endpoint.match(ADD_ITEM_ENDPOINT_PATTERN)
@@ -1041,6 +1080,48 @@ class OfflineSyncService {
       }
 
       tempItemIdMap.set(clientItemId, serverItemId);
+    }
+
+    return {
+      success: true,
+      plannerIds: [plannerId],
+    };
+  }
+
+  private async syncReorderPlannerItemsAction(
+    action: OfflineAction,
+    plannerId: string,
+  ): Promise<DirectSyncActionResult> {
+    const raw = isRecord(action.data) ? action.data : {};
+    const legRaw = raw.leg_number;
+    const legNumber =
+      typeof legRaw === "number"
+        ? legRaw
+        : typeof legRaw === "string"
+          ? Number(legRaw)
+          : NaN;
+    const ids = Array.isArray(raw.item_ids) ? raw.item_ids : [];
+    const itemIds = ids.filter((id): id is string => typeof id === "string");
+
+    if (!Number.isFinite(legNumber) || legNumber < 1 || itemIds.length === 0) {
+      return {
+        success: false,
+        message: "Dữ liệu reorder không hợp lệ",
+        plannerIds: [plannerId],
+      };
+    }
+
+    const response = await pilgrimPlannerApi.reorderPlannerItems(plannerId, {
+      leg_number: legNumber,
+      item_ids: itemIds,
+    });
+
+    if (!response.success) {
+      return {
+        success: false,
+        message: response.message || "Không thể đồng bộ thứ tự điểm",
+        plannerIds: [plannerId],
+      };
     }
 
     return {
@@ -1142,7 +1223,9 @@ class OfflineSyncService {
   }
 
   private async refreshDownloadedPlanners(plannerIds: Iterable<string>) {
-    const uniquePlannerIds = [...new Set(Array.from(plannerIds).filter(Boolean))];
+    const uniquePlannerIds = [
+      ...new Set(Array.from(plannerIds).filter(Boolean)),
+    ];
 
     for (const plannerId of uniquePlannerIds) {
       try {
@@ -1159,7 +1242,10 @@ class OfflineSyncService {
           );
         }
       } catch (error) {
-        console.warn(`Failed to refresh downloaded planner ${plannerId}:`, error);
+        console.warn(
+          `Failed to refresh downloaded planner ${plannerId}:`,
+          error,
+        );
       }
     }
   }
@@ -1249,7 +1335,10 @@ class OfflineSyncService {
     };
   }
 
-  private resolveQueueAfterSync(queue: OfflineAction[], syncData: SyncResponseData) {
+  private resolveQueueAfterSync(
+    queue: OfflineAction[],
+    syncData: SyncResponseData,
+  ) {
     const explicitFailedIds = new Set(syncData.failed_action_ids || []);
     const explicitSyncedIds = new Set(syncData.synced_action_ids || []);
 

@@ -9,12 +9,12 @@ import {
     SHADOWS,
     SPACING,
     TYPOGRAPHY,
-} from "../../../../constants/theme.constants";
+} from "../../../../../constants/theme.constants";
 import {
     PlanStatus,
     PlanSummary,
     TransportationType,
-} from "../../../../types/pilgrim/planner.types";
+} from "../../../../../types/pilgrim/planner.types";
 
 export interface PlanUI extends PlanSummary {
   isShared?: boolean;
@@ -42,6 +42,8 @@ const getTransportIcon = (
       return "train";
     case "walk":
       return "walk";
+    case "motorbike":
+      return "bicycle";
     default:
       return "navigate";
   }
@@ -59,6 +61,8 @@ const getTransportLabel = (type: TransportationType, t: any): string => {
       return t("transport.train", "Tàu hỏa");
     case "walk":
       return t("transport.walk", "Đi bộ");
+    case "motorbike":
+      return t("transport.motorbike", "Xe máy");
     default:
       return t("transport.other", "Khác");
   }
@@ -233,22 +237,23 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
                   <Ionicons name="location" size={18} color="#8B3A1A" />
                   <Text style={styles.infoTextVal}>{plan.stopCount || 0} địa điểm</Text>
                 </View>
-                {renderAvatars()}
-              </View>
-
-              <View style={styles.infoRowDetails}>
                 <View style={styles.infoItem}>
                   <Ionicons name={getTransportIcon(primaryTransport)} size={18} color="#5A3D0E" />
                   <Text style={styles.infoTextVal}>{getTransportLabel(primaryTransport, t)}</Text>
                 </View>
-
-                {plan.isShared && (
-                  <View style={[styles.infoItem, styles.sharedTag]}>
-                    <Ionicons name="people" size={14} color="#6B4E0A" />
-                    <Text style={styles.sharedTagText}>{t("planner.shared", "Đã chia sẻ")}</Text>
-                  </View>
-                )}
               </View>
+
+              {((plan.participantCount || 0) > 0 || plan.isShared) ? (
+                <View style={styles.infoRowDetails}>
+                  {renderAvatars()}
+                  {plan.isShared && (
+                    <View style={[styles.infoItem, styles.sharedTag]}>
+                      <Ionicons name="people" size={14} color="#6B4E0A" />
+                      <Text style={styles.sharedTagText}>{t("planner.shared", "Đã chia sẻ")}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : null}
             </View>
           </View>
 

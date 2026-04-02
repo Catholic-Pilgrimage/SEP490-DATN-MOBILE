@@ -15,9 +15,9 @@
  */
 
 import {
-  ApiResponse,
-  Pagination,
-  PaginationParams,
+    ApiResponse,
+    Pagination,
+    PaginationParams,
 } from "../../../types/api.types";
 import apiClient from "../apiClient";
 import { SHARED_ENDPOINTS } from "../endpoints";
@@ -53,6 +53,12 @@ export type NotificationType =
   // ========== PILGRIM NOTIFICATIONS ==========
   | "planner_invite" // Được mời tham gia kế hoạch
   | "planner_joined" // Có người tham gia kế hoạch
+  | "planner_first_checkin" // Có người check-in đầu tiên tại điểm
+  | "planner_item_missed" // Bị đánh dấu vắng khi trưởng đoàn chốt
+  | "planner_item_skipped" // Điểm bị bỏ qua (còn điểm sau)
+  | "planner_item_skipped_last" // Điểm cuối bị bỏ qua
+  | "planner_item_added" // Thêm địa điểm vào lịch
+  | "planner_schedule_changed" // Thay đổi lịch / điểm tiếp theo
   | "favorite_site_update" // Site yêu thích có cập nhật
 
   // SOS
@@ -270,6 +276,12 @@ export const isPilgrimNotification = (type: NotificationType): boolean => {
   return [
     "planner_invite",
     "planner_joined",
+    "planner_first_checkin",
+    "planner_item_missed",
+    "planner_item_skipped",
+    "planner_item_skipped_last",
+    "planner_item_added",
+    "planner_schedule_changed",
     "favorite_site_update",
     "sos_assigned",
     "sos_resolved",
@@ -311,6 +323,7 @@ export const isNegativeNotification = (type: NotificationType): boolean => {
     "event_rejected",
     "schedule_rejected",
     "nearby_place_rejected",
+    "planner_item_missed",
   ].includes(type);
 };
 
@@ -336,7 +349,17 @@ export const getNotificationCategory = (
     return "content";
   }
   if (
-    ["planner_invite", "planner_joined", "favorite_site_update"].includes(type)
+    [
+      "planner_invite",
+      "planner_joined",
+      "planner_first_checkin",
+      "planner_item_missed",
+      "planner_item_skipped",
+      "planner_item_skipped_last",
+      "planner_item_added",
+      "planner_schedule_changed",
+      "favorite_site_update",
+    ].includes(type)
   ) {
     return "planner";
   }
@@ -383,7 +406,9 @@ export const getNotificationColor = (type: NotificationType): string => {
 /**
  * Map DTO to Model
  */
-export const mapNotificationDtoToModel = (dto: NotificationDto): Notification => {
+export const mapNotificationDtoToModel = (
+  dto: NotificationDto,
+): Notification => {
   return {
     id: dto.id,
     type: dto.type,

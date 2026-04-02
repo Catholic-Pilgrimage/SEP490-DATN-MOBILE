@@ -69,6 +69,8 @@ export const PILGRIM_ENDPOINTS = {
   PLANNER: {
     LIST: `${API_BASE}/planners`,
     CREATE: `${API_BASE}/planners`,
+    /** GET — lời mời đang chờ của user (pending / awaiting_payment) */
+    MY_INVITES: `${API_BASE}/planners/my-invites`,
     DETAIL: (id: string) => `${API_BASE}/planners/${id}`,
     UPDATE: (id: string) => `${API_BASE}/planners/${id}`,
     DELETE: (id: string) => `${API_BASE}/planners/${id}`,
@@ -94,9 +96,13 @@ export const PILGRIM_ENDPOINTS = {
     CHECKIN_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}/checkin`,
     PLANNER_STATUS: (id: string) => `${API_BASE}/planners/${id}/status`,
+    /** PATCH — chốt / mở khóa lịch (trưởng đoàn, nhóm) */
+    PLANNER_LOCK: (id: string) => `${API_BASE}/planners/${id}/lock`,
     ITEM_STATUS: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}/status`,
     PROGRESS: (id: string) => `${API_BASE}/planners/${id}/progress`,
+    /** POST — chia sẻ hành trình đã hoàn thành lên cộng đồng */
+    SHARE: (id: string) => `${API_BASE}/planners/${id}/share`,
     TRANSACTIONS: (id: string) => `${API_BASE}/planners/${id}/transactions`,
     CANCEL_DEPOSIT: (id: string) =>
       `${API_BASE}/planners/${id}/cancel-deposit`,

@@ -4,7 +4,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system/legacy";
 
-import { PlanEntity, PlanItem, PlanOwner } from "../../types/pilgrim/planner.types";
+import {
+    PlanEntity,
+    PlanItem,
+    PlanOwner,
+} from "../../types/pilgrim/planner.types";
 import type { OfflineMapPack } from "./offlineMapService";
 
 const STORAGE_KEYS = {
@@ -161,7 +165,10 @@ const getStringSizeInBytes = (value: string) => {
   try {
     return unescape(encodeURIComponent(value)).length;
   } catch (error) {
-    console.warn("Failed to calculate UTF-8 size with encodeURIComponent:", error);
+    console.warn(
+      "Failed to calculate UTF-8 size with encodeURIComponent:",
+      error,
+    );
   }
 
   return value.length;
@@ -247,7 +254,9 @@ const buildItemCollections = (
       if (leftOrder !== rightOrder) {
         return leftOrder - rightOrder;
       }
-      return (left.estimated_time || "").localeCompare(right.estimated_time || "");
+      return (left.estimated_time || "").localeCompare(
+        right.estimated_time || "",
+      );
     });
   });
 
@@ -289,7 +298,8 @@ const mapOfflineDataToPlanEntity = (
       note: item.note ?? item.notes,
       nearby_amenity_ids: item.nearby_amenity_ids,
       estimated_time: item.estimated_time,
-      rest_duration: item.rest_duration || formatDurationString(item.duration_minutes),
+      rest_duration:
+        item.rest_duration || formatDurationString(item.duration_minutes),
       site: {
         id: site?.id || item.site_id,
         name: site?.name || "Pilgrimage Site",
@@ -448,7 +458,10 @@ class OfflinePlannerService {
       const orderInDay =
         draft.items
           .filter((item) => item.day_number === draftItem.day_number)
-          .reduce((maxOrder, item) => Math.max(maxOrder, item.order_in_day || 0), 0) + 1;
+          .reduce(
+            (maxOrder, item) => Math.max(maxOrder, item.order_in_day || 0),
+            0,
+          ) + 1;
 
       draft.items.push({
         id: draftItem.id || createOfflinePlannerItemId(),
@@ -466,7 +479,10 @@ class OfflinePlannerService {
         nearby_amenity_ids: draftItem.nearby_amenity_ids || [],
       });
 
-      if (draftItem.site && !draft.sites.some((site) => site.id === draftItem.site_id)) {
+      if (
+        draftItem.site &&
+        !draft.sites.some((site) => site.id === draftItem.site_id)
+      ) {
         draft.sites.push({
           id: draftItem.site_id,
           name: draftItem.site.name || "Pilgrimage Site",
@@ -552,6 +568,35 @@ class OfflinePlannerService {
     return updated ? mapOfflineDataToPlanEntity(updated) : null;
   }
 
+  async swapPlannerItemsOrder(
+    plannerId: string,
+    dayNumber: number,
+    itemIdA: string,
+    itemIdB: string,
+  ): Promise<PlanEntity | null> {
+    const updated = await this.mutatePlannerData(plannerId, (draft) => {
+      const a = draft.items.find((currentItem) => currentItem.id === itemIdA);
+      const b = draft.items.find((currentItem) => currentItem.id === itemIdB);
+      if (
+        !a ||
+        !b ||
+        a.day_number !== dayNumber ||
+        b.day_number !== dayNumber
+      ) {
+        return;
+      }
+
+      const orderA = a.order_in_day ?? 0;
+      const orderB = b.order_in_day ?? 0;
+      a.order_in_day = orderB;
+      b.order_in_day = orderA;
+      this.reindexDay(draft.items, dayNumber);
+      draft.downloaded_at = new Date().toISOString();
+    });
+
+    return updated ? mapOfflineDataToPlanEntity(updated) : null;
+  }
+
   async deletePlannerItem(
     plannerId: string,
     itemId: string,
@@ -562,7 +607,9 @@ class OfflinePlannerService {
         return;
       }
 
-      draft.items = draft.items.filter((currentItem) => currentItem.id !== itemId);
+      draft.items = draft.items.filter(
+        (currentItem) => currentItem.id !== itemId,
+      );
       this.reindexDay(draft.items, item.day_number);
       draft.downloaded_at = new Date().toISOString();
     });
@@ -618,11 +665,12 @@ class OfflinePlannerService {
             (maxDay, item) => Math.max(maxDay, item.day_number || 0),
             0,
           );
-          const siteCount = new Set(
-            data.items
-              .map((item) => item.site_id)
-              .filter((siteId): siteId is string => Boolean(siteId)),
-          ).size || data.sites.length;
+          const siteCount =
+            new Set(
+              data.items
+                .map((item) => item.site_id)
+                .filter((siteId): siteId is string => Boolean(siteId)),
+            ).size || data.sites.length;
           const cachedImagesSize = await this.getCachedImagesSize(
             data.cached_images,
           );
@@ -640,7 +688,8 @@ class OfflinePlannerService {
               cachedImagesSize +
               (data.offline_map?.size_bytes || 0),
             downloadedAt: lastSync || data.downloaded_at,
-            coverImage: data.sites.find((site) => site.cover_image)?.cover_image,
+            coverImage: data.sites.find((site) => site.cover_image)
+              ?.cover_image,
           };
 
           return summary;
@@ -651,12 +700,11 @@ class OfflinePlannerService {
         (planner): planner is OfflinePlannerSummary => planner !== null,
       );
 
-      return validPlanners
-        .sort(
-          (left, right) =>
-            new Date(right.downloadedAt).getTime() -
-            new Date(left.downloadedAt).getTime(),
-        );
+      return validPlanners.sort(
+        (left, right) =>
+          new Date(right.downloadedAt).getTime() -
+          new Date(left.downloadedAt).getTime(),
+      );
     } catch (error) {
       console.error("Failed to get offline planner summaries:", error);
       return [];
@@ -668,7 +716,9 @@ class OfflinePlannerService {
    */
   async getLastSyncTime(plannerId: string): Promise<Date | null> {
     try {
-      const time = await AsyncStorage.getItem(STORAGE_KEYS.LAST_SYNC(plannerId));
+      const time = await AsyncStorage.getItem(
+        STORAGE_KEYS.LAST_SYNC(plannerId),
+      );
       return time ? new Date(time) : null;
     } catch {
       return null;
@@ -732,7 +782,9 @@ class OfflinePlannerService {
       let totalSize = 0;
       const countedUris = new Set<string>();
 
-      const plannerListData = await AsyncStorage.getItem(STORAGE_KEYS.PLANNER_LIST);
+      const plannerListData = await AsyncStorage.getItem(
+        STORAGE_KEYS.PLANNER_LIST,
+      );
       if (plannerListData) {
         totalSize += getStringSizeInBytes(plannerListData);
       }
@@ -754,7 +806,10 @@ class OfflinePlannerService {
             );
             totalSize += parsed.offline_map?.size_bytes || 0;
           } catch (error) {
-            console.warn(`Failed to parse offline planner ${id} for size:`, error);
+            console.warn(
+              `Failed to parse offline planner ${id} for size:`,
+              error,
+            );
           }
         }
 
@@ -836,7 +891,9 @@ class OfflinePlannerService {
   private reindexDay(items: OfflinePlannerItem[], dayNumber: number) {
     const dayItems = items
       .filter((item) => item.day_number === dayNumber)
-      .sort((left, right) => (left.order_in_day || 0) - (right.order_in_day || 0));
+      .sort(
+        (left, right) => (left.order_in_day || 0) - (right.order_in_day || 0),
+      );
 
     dayItems.forEach((item, index) => {
       item.order_in_day = index + 1;

@@ -237,6 +237,8 @@
     "roleMember": "Member",
     "rolePending": "Pending",
     "noCrewYet": "No members yet",
+    "waitingOtherMembers": "Waiting for other members to join…",
+    "manualLockMicrocopy": "Finalizes the roster and itinerary. You cannot add stops or people after locking.",
     "pendingInvites": "Pending invites",
     "sendInvite": "Send invite",
     "roleEditor": "Editor",
