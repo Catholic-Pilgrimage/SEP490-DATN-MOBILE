@@ -1184,66 +1184,66 @@
     }
   },
   "community": {
-    "greeting": "C\u1ed9ng \u0111\u1ed3ng\nC\u00f4ng gi\u00e1o",
-    "createPostPlaceholder": "Chia s\u1ebb \u01a1n ph\u01b0\u1edbc ho\u1eb7c l\u1eddi c\u1ea7u nguy\u1ec7n...",
-    "prayersCount": "{{count}} L\u1eddi c\u1ea7u nguy\u1ec7n",
-    "commentsCount": "{{count}} B\u00ecnh lu\u1eadn",
-    "share": "Chia s\u1ebb",
-    "locatedAt": "\u0110ang \u1edf",
-    "defaultLocation": "Nh\u00e0 th\u1edd \u0110\u1ee9c B\u00e0 S\u00e0i G\u00f2n",
-    "anonymousUser": "Ng\u01b0\u1eddi d\u00f9ng \u1ea9n danh",
-    "feedLoadError": "\u0110\u00e3 c\u00f3 l\u1ed7i x\u1ea3y ra khi t\u1ea3i b\u1ea3ng tin. Vui l\u00f2ng th\u1eed l\u1ea1i.",
-    "emptyFeed": "Ch\u01b0a c\u00f3 b\u00e0i \u0111\u0103ng n\u00e0o. H\u00e3y l\u00e0 ng\u01b0\u1eddi \u0111\u1ea7u ti\u00ean chia s\u1ebb!",
+    "greeting": "Cộng đồng\nCông giáo",
+    "createPostPlaceholder": "Chia sẻ ơn phước hoặc lời cầu nguyện...",
+    "prayersCount": "{{count}} Lời cầu nguyện",
+    "commentsCount": "{{count}} Bình luận",
+    "share": "Chia sẻ",
+    "locatedAt": "Đang ở",
+    "defaultLocation": "Nhà thờ Đức Bà Sài Gòn",
+    "anonymousUser": "Người dùng ẩn danh",
+    "feedLoadError": "Đã có lỗi xảy ra khi tải bảng tin. Vui lòng thử lại.",
+    "emptyFeed": "Chưa có bài đăng nào. Hãy là người đầu tiên chia sẻ!",
     "timeAgo": {
-      "justNow": "V\u1eeba xong",
-      "secondsAgo": "{{count}} gi\u00e2y tr\u01b0\u1edbc",
-      "minutesAgo": "{{count}} ph\u00fat tr\u01b0\u1edbc",
-      "hoursAgo": "{{count}} gi\u1edd tr\u01b0\u1edbc",
-      "daysAgo": "{{count}} ng\u00e0y tr\u01b0\u1edbc"
+      "justNow": "Vừa xong",
+      "secondsAgo": "{{count}} giây trước",
+      "minutesAgo": "{{count}} phút trước",
+      "hoursAgo": "{{count}} giờ trước",
+      "daysAgo": "{{count}} ngày trước"
     }
   },
   "report": {
-    "title": "B\u00e1o c\u00e1o",
-    "detailTitle": "Chi ti\u1ebft b\u00e1o c\u00e1o",
-    "selectReason": "Vui l\u00f2ng ch\u1ecdn l\u00fd do b\u00e1o c\u00e1o",
-    "descriptionLabel": "M\u00f4 t\u1ea3 th\u00eam (kh\u00f4ng b\u1eaft bu\u1ed9c)",
-    "descriptionPlaceholder": "Cung c\u1ea5p th\u00eam th\u00f4ng tin \u0111\u1ec3 gi\u00fap ch\u00fang t\u00f4i hi\u1ec3u v\u1ea5n \u0111\u1ec1...",
-    "submit": "G\u1eedi b\u00e1o c\u00e1o",
-    "successTitle": "\u0110\u00e3 g\u1eedi b\u00e1o c\u00e1o",
-    "successMessage": "C\u1ea3m \u01a1n b\u1ea1n \u0111\u00e3 b\u00e1o c\u00e1o. Ch\u00fang t\u00f4i s\u1ebd xem x\u00e9t n\u1ed9i dung n\u00e0y.",
-    "errorMessage": "Kh\u00f4ng th\u1ec3 g\u1eedi b\u00e1o c\u00e1o. Vui l\u00f2ng th\u1eed l\u1ea1i.",
+    "title": "Báo cáo",
+    "detailTitle": "Chi tiết báo cáo",
+    "selectReason": "Vui lòng chọn lý do báo cáo",
+    "descriptionLabel": "Mô tả thêm (không bắt buộc)",
+    "descriptionPlaceholder": "Cung cấp thêm thông tin để giúp chúng tôi hiểu vấn đề...",
+    "submit": "Gửi báo cáo",
+    "successTitle": "Đã gửi báo cáo",
+    "successMessage": "Cảm ơn bạn đã báo cáo. Chúng tôi sẽ xem xét nội dung này.",
+    "errorMessage": "Không thể gửi báo cáo. Vui lòng thử lại.",
     "reasons": {
       "spam": {
         "label": "Spam",
-        "description": "N\u1ed9i dung qu\u1ea3ng c\u00e1o, l\u1eb7p l\u1ea1i ho\u1eb7c kh\u00f4ng li\u00ean quan"
+        "description": "Nội dung quảng cáo, lặp lại hoặc không liên quan"
       },
       "harassment": {
-        "label": "Qu\u1ea5y r\u1ed1i",
-        "description": "B\u1eaft n\u1ea1t, \u0111e d\u1ecda ho\u1eb7c qu\u1ea5y r\u1ed1i ng\u01b0\u1eddi kh\u00e1c"
+        "label": "Quấy rối",
+        "description": "Bắt nạt, đe dọa hoặc quấy rối người khác"
       },
       "hateSpeech": {
-        "label": "Ng\u00f4n t\u1eeb th\u00f9 gh\u00e9t",
-        "description": "Ph\u00e2n bi\u1ec7t \u0111\u1ed1i x\u1eed, k\u1ef3 th\u1ecb t\u00f4n gi\u00e1o ho\u1eb7c s\u1eafc t\u1ed9c"
+        "label": "Ngôn từ thù ghét",
+        "description": "Phân biệt đối xử, kỳ thị tôn giáo hoặc sắc tộc"
       },
       "falseInformation": {
-        "label": "Th\u00f4ng tin sai l\u1ec7ch",
-        "description": "Tin gi\u1ea3, th\u00f4ng tin g\u00e2y hi\u1ec3u l\u1ea7m"
+        "label": "Thông tin sai lệch",
+        "description": "Tin giả, thông tin gây hiểu lầm"
       },
       "violence": {
-        "label": "B\u1ea1o l\u1ef1c",
-        "description": "N\u1ed9i dung b\u1ea1o l\u1ef1c ho\u1eb7c k\u00edch \u0111\u1ed9ng b\u1ea1o l\u1ef1c"
+        "label": "Bạo lực",
+        "description": "Nội dung bạo lực hoặc kích động bạo lực"
       },
       "nudity": {
-        "label": "N\u1ed9i dung kh\u00f4ng ph\u00f9 h\u1ee3p",
-        "description": "H\u00ecnh \u1ea3nh ho\u1eb7c n\u1ed9i dung khi\u00eau d\u00e2m, ph\u1ea3n c\u1ea3m"
+        "label": "Nội dung không phù hợp",
+        "description": "Hình ảnh hoặc nội dung khiêu dâm, phản cảm"
       },
       "scam": {
-        "label": "L\u1eeba \u0111\u1ea3o",
-        "description": "L\u1eeba \u0111\u1ea3o t\u00e0i ch\u00ednh ho\u1eb7c gi\u1ea3 m\u1ea1o danh t\u00ednh"
+        "label": "Lừa đảo",
+        "description": "Lừa đảo tài chính hoặc giả mạo danh tính"
       },
       "other": {
-        "label": "L\u00fd do kh\u00e1c",
-        "description": "L\u00fd do kh\u00f4ng n\u1eb1m trong danh s\u00e1ch tr\u00ean"
+        "label": "Lý do khác",
+        "description": "Lý do không nằm trong danh sách trên"
       }
     }
   }
