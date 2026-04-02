@@ -1,14 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, {
-  useCallback,
   useEffect,
   useMemo,
-  useRef,
-  useState,
+  useRef
 } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -25,9 +22,7 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import JourneyMembersPanel from "../components/active-journey/JourneyMembersPanel";
 import PlanHeader from "../components/active-journey/PlanHeader";
-import PlanMap from "../components/active-journey/PlanMap";
 import TimelineDaySection from "../components/active-journey/TimelineDaySection";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
@@ -51,11 +46,26 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     mapCenter,
     refreshPlan,
   } = usePlanData(planId);
-  const [membersReloadKey, setMembersReloadKey] = useState(0);
-  const refreshPlanAndMembers = useCallback(async () => {
-    await refreshPlan();
-    setMembersReloadKey((k) => k + 1);
-  }, [refreshPlan]);
+
+  const todayIdx = useMemo(() => {
+    if (!plan?.start_date || !sortedDays.length) return -1;
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
+    
+    return sortedDays.findIndex((_, idx) => {
+      const d = new Date(plan.start_date!);
+      d.setDate(d.getDate() + idx);
+      return d.toISOString().split("T")[0] === todayStr;
+    });
+  }, [plan?.start_date, sortedDays]);
+
+  const [selectedDay, setSelectedDay] = React.useState("");
+
+  useEffect(() => {
+    if (sortedDays.length > 0 && !selectedDay) {
+      setSelectedDay(sortedDays[todayIdx >= 0 ? todayIdx : 0] || "");
+    }
+  }, [sortedDays, todayIdx, selectedDay]);
   const {
     checkingInItemId,
     skippingItemId,
@@ -63,7 +73,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     checkIn,
     skipItem,
     markVisited,
-  } = useJourneyExecution(planId, refreshPlanAndMembers);
+  } = useJourneyExecution(planId, refreshPlan);
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
@@ -79,11 +89,29 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     });
   }, [plan]);
 
+  const hasVisitedStops = useMemo(() => {
+    if (!plan?.items_by_day) return false;
+    const items = Object.values(plan.items_by_day).flat();
+    return items.some((item) => String(item.status || "").toLowerCase() === "visited");
+  }, [plan]);
+
   useEffect(() => {
     const maybeCompleteJourney = async () => {
       if (!plan?.id || !isOwner) return;
       if (String(plan.status || "").toLowerCase() !== "ongoing") return;
       if (!allStopsHandled) return;
+      
+      // Nếu bỏ qua toàn bộ, backend sẽ tự động "cancelled"
+      if (!hasVisitedStops) {
+        Toast.show({
+          type: "info",
+          text1: "Chuyến đi bị hủy",
+          text2: "Bạn đã bỏ qua tất cả địa điểm trong hành trình",
+        });
+        navigation.replace("PlanDetailScreen", { planId: plan.id });
+        return;
+      }
+
       if (completingRef.current) return;
 
       try {
@@ -113,6 +141,18 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
     void maybeCompleteJourney();
   }, [allStopsHandled, isOwner, navigation, plan]);
+
+  // Hide Bottom Tab Bar
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
 
   if (loading) {
     return (
@@ -144,14 +184,20 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         translucent
         backgroundColor="transparent"
       />
-      <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
+
+      {/* TOP BAR */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 10, paddingBottom: 14 }]}>
         <TouchableOpacity
           style={styles.topBtn}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.topTitle}>Hành hương thực tế</Text>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={styles.topTitle} numberOfLines={1} ellipsizeMode="tail">
+            {plan?.name || "Kế hoạch"}
+          </Text>
+        </View>
         <TouchableOpacity
           style={styles.topBtn}
           onPress={() =>
@@ -161,179 +207,287 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             })
           }
         >
-          <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
+          <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <PlanHeader plan={plan} firstItem={firstItem} />
+      {/* BANNER - compact */}
+      <PlanHeader plan={plan} firstItem={firstItem} compact />
 
-        <JourneyMembersPanel
-          planId={plan.id}
-          plan={plan}
-          reloadKey={membersReloadKey}
-        />
-
-        <View style={styles.quickActions}>
-          <TouchableOpacity
-            style={[styles.quickBtn, styles.checkin]}
-            disabled={!firstItem || checkingInItemId === firstItem.id}
-            onPress={() => firstItem && checkIn(firstItem)}
-          >
-            <Ionicons
-              name="checkmark-circle-outline"
-              size={18}
-              color="#166534"
-            />
-            <Text style={styles.quickText}>Check-in</Text>
-          </TouchableOpacity>
-          {isOwner && (
-            <TouchableOpacity
-              style={[styles.quickBtn, styles.visited]}
-              disabled={!firstItem || markingVisitedItemId === firstItem.id}
-              onPress={() => firstItem && markVisited(firstItem)}
-            >
-              <Ionicons name="flag-outline" size={18} color="#92400E" />
-              <Text style={styles.quickText}>Đã viếng, sang điểm kế</Text>
-            </TouchableOpacity>
-          )}
-          {isOwner && (
-            <TouchableOpacity
-              style={[styles.quickBtn, styles.skip]}
-              disabled={!firstItem || skippingItemId === firstItem.id}
-              onPress={() => firstItem && skipItem(firstItem)}
-            >
-              <Ionicons
-                name="play-skip-forward-outline"
-                size={18}
-                color="#9A3412"
-              />
-              <Text style={styles.quickText}>Bỏ qua điểm</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.quickBtn, styles.journal]}
-            onPress={() =>
-              navigation
-                .getParent()
-                ?.navigate("Nhat ky", { screen: "CreateJournalScreen" })
-            }
-          >
-            <Ionicons name="book-outline" size={18} color="#9A3412" />
-            <Text style={styles.quickText}>Nhật ký</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickBtn, styles.sos]}
-            onPress={() => navigation.navigate("SOSList")}
-          >
-            <Ionicons name="warning-outline" size={18} color="#991B1B" />
-            <Text style={styles.quickText}>SOS</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickBtn, styles.chat]}
-            onPress={() =>
-              navigation.navigate("PlanChatScreen", {
-                planId: plan.id,
-                planName: plan.name,
-              })
-            }
-          >
-            <Ionicons name="chatbubbles-outline" size={18} color="#3730A3" />
-            <Text style={styles.quickText}>Chat nhóm</Text>
-          </TouchableOpacity>
+      {/* TIMELINE SECTION - flex grow */}
+      <View style={styles.timelineSection}>
+        <View style={styles.timelineHeader}>
+          <Text style={styles.timelineTitle}>Lịch trình chuyến đi</Text>
         </View>
 
-        <PlanMap
-          pins={mapPins}
-          center={mapCenter}
-          showUserLocation
-          height={250}
-        />
-
-        {sortedDays.map((dayKey) => (
+        {sortedDays.length > 0 ? (
           <TimelineDaySection
-            key={dayKey}
-            dayKey={dayKey}
-            items={plan.items_by_day?.[dayKey] || []}
-            onPressItem={(item) => {
-              if (!isOwner || (plan.status || "").toLowerCase() !== "ongoing")
-                return;
-              void skipItem(item);
-            }}
+            days={sortedDays.map((d, idx) => {
+              const date = new Date(plan!.start_date!);
+              date.setDate(date.getDate() + idx);
+              return {
+                key: d,
+                label: date.toISOString().split("T")[0], // Pass YYYY-MM-DD
+                isToday: idx === todayIdx,
+              };
+            })}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            items={plan.items_by_day?.[selectedDay] || []}
           />
-        ))}
-      </ScrollView>
+        ) : (
+          <View style={styles.timelineEmptyContainer}>
+            <Ionicons name="calendar-outline" size={32} color={COLORS.textTertiary} />
+            <Text style={styles.timelineEmpty}>Chưa có lịch trình nào được lưu</Text>
+          </View>
+        )}
+      </View>
 
-      <TouchableOpacity
-        style={[styles.fab, skippingItemId ? { opacity: 0.6 } : null]}
-        onPress={() => navigation.navigate("SOSList")}
-      >
-        <Ionicons name="warning" size={22} color="#fff" />
-      </TouchableOpacity>
+      {/* ACTION BUTTONS - fixed at bottom, always visible */}
+      <View style={[styles.actionsWrapper, { paddingBottom: insets.bottom + 20 }]}>
+        {/* Row 1: Check-in (Full Width) */}
+        <TouchableOpacity
+          style={styles.checkinFullBtn}
+          disabled={!firstItem || checkingInItemId === firstItem.id}
+          onPress={() => firstItem && checkIn(firstItem)}
+          activeOpacity={0.82}
+        >
+          <Ionicons name="checkmark-circle" size={20} color="#fff" />
+          <Text style={styles.checkinFullText}>Check-in điểm hành hương</Text>
+        </TouchableOpacity>
+
+        {/* Row 2: Owner Specific (Skip/Visited) - Only visible to owner */}
+        {isOwner && (
+          <View style={styles.ownerPrimaryRow}>
+            <TouchableOpacity
+              style={[styles.smallPrimaryBtn, styles.skipBtn]}
+              disabled={!firstItem || skippingItemId === firstItem.id}
+              onPress={() => firstItem && skipItem(firstItem)}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="play-skip-forward" size={16} color="#9A3412" />
+              <Text style={styles.smallPrimaryBtnText}>Bỏ qua</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.smallPrimaryBtn, styles.visitedBtn]}
+              disabled={!firstItem || markingVisitedItemId === firstItem.id}
+              onPress={() => firstItem && markVisited(firstItem)}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="flag" size={16} color="#92400E" />
+              <Text style={styles.smallPrimaryBtnText}>Đã viếng</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 2x2 Grid for 4 buttons */}
+        <View style={styles.buttonGrid}>
+          <View style={styles.gridRow}>
+            <TouchableOpacity
+              style={styles.gridBtn}
+              onPress={() =>
+                navigation.getParent()?.navigate("Nhat ky", { screen: "CreateJournalScreen" })
+              }
+              activeOpacity={0.82}
+            >
+              <Ionicons name="book-outline" size={20} color="#9A3412" />
+              <Text style={styles.gridBtnText}>Nhật ký</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.gridBtn}
+              onPress={() =>
+                navigation.navigate("PlannerMembersScreen", { planId: plan.id })
+              }
+              activeOpacity={0.82}
+            >
+              <Ionicons name="people-outline" size={20} color="#8B7355" />
+              <Text style={styles.gridBtnText}>Thành viên</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.gridRow}>
+            <TouchableOpacity
+              style={styles.gridBtn}
+              onPress={() => navigation.navigate("MapFullScreen", { planId: plan.id })}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="map-outline" size={20} color="#1A2845" />
+              <Text style={styles.gridBtnText}>Bản đồ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.gridBtn, styles.sosGridBtn]}
+              onPress={() => navigation.navigate("SOSList")}
+              activeOpacity={0.82}
+            >
+              <Ionicons name="warning" size={20} color="#DC2626" />
+              <Text style={[styles.gridBtnText, { color: "#DC2626" }]}>Cứu trợ SOS</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // TOP BAR
   topBar: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.holy, // Nâu vàng đậm
     paddingHorizontal: 14,
     paddingBottom: 10,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    ...SHADOWS.small,
   },
   topBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
   },
-  topTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  content: { padding: SPACING.md, paddingBottom: 120 },
-  quickActions: {
-    marginVertical: SPACING.md,
-    flexDirection: "row",
-    flexWrap: "wrap",
+  topTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    maxWidth: 240,
+    letterSpacing: 0.5,
+  },
+
+  // TIMELINE SECTION
+  timelineSection: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingTop: 0,
+    paddingBottom: 4,
+    overflow: "hidden",
+  },
+  timelineHeader: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  timelineTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4B5563",
+    letterSpacing: 0.3,
+  },
+  timelineEmptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderStyle: "dashed",
+    gap: 8,
+  },
+  timelineEmpty: {
+    color: COLORS.textTertiary,
+    fontSize: 13,
+    fontStyle: "italic",
+  },
+
+  // ACTION BUTTONS
+  actionsWrapper: {
+    paddingHorizontal: SPACING.md,
+    paddingTop: 10,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderMedium,
     gap: 10,
   },
-  quickBtn: {
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+
+  // Owner Primary row (Skip/Visited)
+  ownerPrimaryRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  smallPrimaryBtn: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: BORDER_RADIUS.md,
   },
-  checkin: { backgroundColor: "#E8F5E9", borderColor: "#A7F3D0" },
-  journal: { backgroundColor: "#FFF7ED", borderColor: "#FED7AA" },
-  visited: { backgroundColor: "#FFF8E1", borderColor: "#FDE68A" },
-  skip: { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
-  sos: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
-  chat: { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
-  quickText: {
-    marginLeft: 6,
+  smallPrimaryBtnText: {
     fontSize: 13,
-    color: COLORS.textPrimary,
     fontWeight: "700",
+    color: "#9A3412",
   },
-  fab: {
-    position: "absolute",
-    right: 18,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#DC2626",
+  skipBtn: {
+    backgroundColor: "#FEE2E2", // Light red/orange
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  visitedBtn: {
+    backgroundColor: "#ECFDF5", // Light green
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+
+  // Grid Layout
+  buttonGrid: {
+    gap: 10,
+  },
+  gridRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  gridBtn: {
+    flex: 1,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.borderMedium,
+    ...SHADOWS.small,
+  },
+  sosGridBtn: {
+    borderColor: "#FECACA",
+    backgroundColor: "#FEF2F2",
+  },
+  gridBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+
+  // Check-in
+  checkinFullBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#D35400", // Cam hành hương đậm
+    paddingVertical: 14,
+    borderRadius: 30, // Pill shape
     ...SHADOWS.medium,
+  },
+  checkinFullText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
   },
 });
