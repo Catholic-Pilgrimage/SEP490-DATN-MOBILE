@@ -20,30 +20,18 @@ import {
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import type { PlannerMemberApiRow } from "../../../../types/pilgrim/planner.types";
+import type { 
+  PlannerMemberApiRow, 
+  PlannerProgressMember 
+} from "../../../../types/pilgrim/planner.types";
+import { useAuth } from "../../../../hooks/useAuth";
 
 type Props = {
   route: { params?: { planId?: string; planName?: string } };
   navigation: any;
 };
 
-function normalizeMemberStatus(row: PlannerMemberApiRow): string | null {
-  const join = String(row.join_status || "").toLowerCase();
-  if (join) return join;
-  const dep = String(row.deposit_status || "").toLowerCase();
-  if (dep) return dep;
-  return null;
-}
 
-function formatMemberStatusLabel(st: string | null): string | null {
-  if (!st) return null;
-  if (st === "joined") return "Đã tham gia";
-  if (st === "paid") return "Đã đóng cọc";
-  if (st === "awaiting_payment") return "Chờ đóng cọc";
-  if (st === "pending") return "Đang chờ";
-  if (st === "rejected") return "Từ chối";
-  return st;
-}
 
 export default function PlannerMembersScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -53,6 +41,8 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<PlannerMemberApiRow[]>([]);
+  const [progressMap, setProgressMap] = useState<Record<string, PlannerProgressMember>>({});
+  const [ownerId, setOwnerId] = useState<string | null>(null);
   const [summary, setSummary] = useState<{
     total_slots?: number;
     current_members?: number;
@@ -64,13 +54,30 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const loadMembers = useCallback(async () => {
     if (!planId) return;
     try {
-      const res = await pilgrimPlannerApi.getPlanMembers(planId);
-      if (res.success && res.data?.members) {
-        setMembers(res.data.members);
+      const [membersRes, progressRes, detailRes] = await Promise.all([
+        pilgrimPlannerApi.getPlanMembers(planId),
+        pilgrimPlannerApi.getPlannerProgress(planId),
+        pilgrimPlannerApi.getPlanDetail(planId)
+      ]);
+
+      if (detailRes.success && detailRes.data) {
+        setOwnerId(detailRes.data.user_id);
+      }
+
+      if (progressRes.success && progressRes.data?.member_progress) {
+        const pMap: Record<string, PlannerProgressMember> = {};
+        progressRes.data.member_progress.forEach(p => {
+          pMap[p.user_id] = p;
+        });
+        setProgressMap(pMap);
+      }
+
+      if (membersRes.success && membersRes.data?.members) {
+        setMembers(membersRes.data.members);
         setSummary({
-          total_slots: res.data.total_slots,
-          current_members: res.data.current_members,
-          available_slots: res.data.available_slots,
+          total_slots: membersRes.data.total_slots,
+          current_members: membersRes.data.current_members,
+          available_slots: membersRes.data.available_slots,
         });
       } else {
         setMembers([]);
@@ -78,7 +85,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         Toast.show({
           type: "error",
           text1: "Không thể tải danh sách thành viên",
-          text2: res.message || "Vui lòng thử lại",
+          text2: membersRes.message || "Vui lòng thử lại",
         });
       }
     } catch (e: any) {
@@ -158,31 +165,57 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
             </View>
           ) : (
             members.map((m) => {
-              const st = formatMemberStatusLabel(normalizeMemberStatus(m));
+              const progress = progressMap[m.id];
+              const isOwner = m.id === ownerId;
+              const progressPercent = progress?.percent || 0;
+
               return (
-                <View key={m.id} style={styles.memberRow}>
-                  <View style={styles.avatar}>
-                    <Ionicons
-                      name="person"
-                      size={16}
-                      color={COLORS.primary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.memberName} numberOfLines={1}>
-                      {m.full_name || "—"}
-                    </Text>
-                    {m.email ? (
-                      <Text style={styles.memberEmail} numberOfLines={1}>
-                        {m.email}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {st ? (
-                    <View style={styles.statusChip}>
-                      <Text style={styles.statusChipText}>{st}</Text>
+                <View key={m.id} style={styles.memberCard}>
+                  <View style={styles.memberRow}>
+                    <View style={styles.avatar}>
+                      <Ionicons
+                        name="person"
+                        size={20}
+                        color={COLORS.primary}
+                      />
                     </View>
-                  ) : null}
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.nameRow}>
+                        <Text style={styles.memberName} numberOfLines={1}>
+                          {m.full_name || "—"}
+                        </Text>
+                        <View style={[styles.roleBadge, isOwner ? styles.leaderBadge : styles.memberBadge]}>
+                          <Text style={[styles.roleBadgeText, isOwner ? styles.leaderBadgeText : styles.memberBadgeText]}>
+                            {isOwner ? "Trưởng đoàn" : "Thành viên"}
+                          </Text>
+                        </View>
+                      </View>
+                      {m.email ? (
+                        <Text style={styles.memberEmail} numberOfLines={1}>
+                          {m.email}
+                        </Text>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {progress && progress.total_items > 0 && (
+                    <View style={styles.progressSection}>
+                      <View style={styles.progressHeader}>
+                        <Text style={styles.progressLabel}>Tiến độ check-in</Text>
+                        <Text style={styles.progressValue}>
+                          {progress.checked_in}/{progress.total_items} điểm ({Math.round(progressPercent)}%)
+                        </Text>
+                      </View>
+                      <View style={styles.progressBarBg}>
+                        <View 
+                          style={[
+                            styles.progressBarFill, 
+                            { width: `${progressPercent}%` }
+                          ]} 
+                        />
+                      </View>
+                    </View>
+                  )}
                 </View>
               );
             })
@@ -238,38 +271,94 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 18,
   },
-  memberRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  memberCard: {
     padding: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
     backgroundColor: COLORS.white,
     borderWidth: 1,
     borderColor: COLORS.border,
     ...SHADOWS.small,
-    marginBottom: 10,
-    gap: 10,
+    marginBottom: 12,
+  },
+  memberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 0.5,
+  },
+  leaderBadge: {
+    backgroundColor: "#FEF3C7", // Nền vàng nhạt
+    borderColor: "#D97706", // Viền cam đậm
+  },
+  memberBadge: {
+    backgroundColor: "#F3F4F6", // Nền xám nhạt
+    borderColor: "#9CA3AF", // Viền xám
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  leaderBadgeText: {
+    color: "#92400E",
+  },
+  memberBadgeText: {
+    color: "#4B5563",
   },
   avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.accentSubtle,
+    backgroundColor: COLORS.backgroundSoft,
     borderWidth: 1,
-    borderColor: "rgba(201,162,39,0.35)",
+    borderColor: COLORS.border,
   },
-  memberName: { fontSize: 15, fontWeight: "700", color: COLORS.textPrimary },
-  memberEmail: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(201,162,39,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(201,162,39,0.35)",
+  memberName: { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary },
+  memberEmail: { fontSize: 13, color: COLORS.textSecondary, marginTop: 1 },
+  progressSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
   },
-  statusChipText: { fontSize: 12, fontWeight: "700", color: COLORS.primary },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "600",
+  },
+  progressValue: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: "700",
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: COLORS.primary,
+    borderRadius: 3,
+  },
 });
 

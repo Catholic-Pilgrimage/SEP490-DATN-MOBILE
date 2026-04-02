@@ -395,6 +395,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     navigation.navigate("PlanChatScreen", {
       planId,
       planName: plan?.name,
+      ownerId: plan?.user_id || plan?.owner?.id,
     });
   };
 

@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import * as Haptics from "expo-haptics";
 import {
   ActivityIndicator,
   Alert,
   Animated as RNAnimated,
+  Clipboard,
   FlatList,
   Image,
   Keyboard,
@@ -38,7 +40,7 @@ const sortMessagesOldestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
   );
 
 const PlanChatScreen = ({ route, navigation }: any) => {
-  const { planId, planName } = route.params;
+  const { planId, planName, ownerId } = route.params;
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -170,7 +172,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           const fetched = data?.messages ?? [];
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const newOnes = fetched.filter((m) => !existingIds.has(m.id));
+            const newOnes = fetched.filter((m: PlannerMessage) => !existingIds.has(m.id));
             if (newOnes.length === 0) return prev;
             return sortMessagesOldestFirst([...prev, ...newOnes]);
           });
@@ -235,7 +237,50 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     }
   }, [text, sending, planId, t]);
 
-  // --- Delete message ---
+  // --- Actions Menu ---
+  const showMessageMenu = useCallback(
+    (item: PlannerMessage) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const own = isOwn(item);
+      const isPlanOwner = user?.id === ownerId;
+      const canDelete = own || isPlanOwner;
+
+      const options = [
+        {
+          text: "Sao chép tin nhắn",
+          onPress: () => {
+            if (item.content) {
+              Clipboard.setString(item.content);
+            }
+          },
+        },
+      ];
+
+      if (canDelete) {
+        options.push({
+          text: "Xóa tin nhắn",
+          onPress: () => handleDelete(item.id),
+        });
+      }
+
+      options.push({
+        text: "Đóng",
+        onPress: () => {},
+      });
+
+      Alert.alert(
+        "Tùy chọn tin nhắn",
+        undefined,
+        options.map((opt) => ({
+          text: opt.text,
+          onPress: opt.onPress,
+          style: (opt.text === "Xóa tin nhắn" ? "destructive" : "default") as any,
+        }))
+      );
+    },
+    [ownerId, user?.id, t]
+  );
+
   const handleDelete = useCallback(
     (messageId: string) => {
       Alert.alert(
@@ -346,7 +391,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
         )}
         <TouchableOpacity
           activeOpacity={0.7}
-          onLongPress={() => own && handleDelete(item.id)}
+          onLongPress={() => showMessageMenu(item)}
           style={[
             styles.messageRow,
             own ? styles.messageRowOwn : styles.messageRowOther,

@@ -26,7 +26,7 @@ export const QuickActionButton: React.FC<QuickActionButtonProps> = ({
                 <Ionicons
                     name={icon}
                     size={22}
-                    color={COLORS.accent}
+                    color="#B87B00"
                 />
             </View>
             <Text style={styles.label}>{label}</Text>

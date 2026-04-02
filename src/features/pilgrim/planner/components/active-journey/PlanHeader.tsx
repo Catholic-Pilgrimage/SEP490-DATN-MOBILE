@@ -1,3 +1,4 @@
+import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { COLORS, SPACING } from "../../../../../constants/theme.constants";
@@ -20,15 +21,19 @@ export default function PlanHeader({ plan, firstItem }: Props) {
         }}
         style={styles.banner}
       />
-      <View style={styles.content}>
-        <Text style={styles.title}>{plan.name}</Text>
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.8)"]}
+        style={styles.gradientOverlay}
+      >
         <Text style={styles.subtitle}>
           {firstItem?.site?.name || "Điểm đến kế tiếp sẽ hiển thị tại đây"}
         </Text>
         {!!firstItem?.site?.address && (
-          <Text style={styles.address}>{firstItem.site.address}</Text>
+          <Text style={styles.address} numberOfLines={1}>
+            {firstItem.site.address}
+          </Text>
         )}
-      </View>
+      </LinearGradient>
     </View>
   );
 }
@@ -38,15 +43,25 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     backgroundColor: COLORS.backgroundCard,
+    position: "relative",
   },
-  banner: { width: "100%", height: 180 },
-  content: { padding: SPACING.md },
-  title: { fontSize: 20, fontWeight: "700", color: COLORS.textPrimary },
-  subtitle: {
-    marginTop: 6,
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+  banner: { width: "100%", height: 190 },
+  gradientOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: SPACING.md,
+    paddingTop: 32,
   },
-  address: { marginTop: 4, fontSize: 13, color: COLORS.textSecondary },
+  subtitle: { 
+    fontSize: 18, 
+    fontWeight: "700", 
+    color: "#FFFFFF" 
+  },
+  address: { 
+    marginTop: 4, 
+    fontSize: 13, 
+    color: "rgba(255, 255, 255, 0.85)" 
+  },
 });
