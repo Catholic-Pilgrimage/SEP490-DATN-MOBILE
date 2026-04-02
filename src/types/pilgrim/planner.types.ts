@@ -9,8 +9,8 @@
 
 export type PlanStatus =
   | "draft"
-  | "planned"
   | "planning"
+  | "locked"
   | "ongoing"
   | "completed"
   | "cancelled";
@@ -58,6 +58,8 @@ export interface PlanItem {
     cover_image?: string;
     latitude?: number;
     longitude?: number;
+    /** Dùng cho ràng buộc bổn mạng nhóm (đồng bộ với Site.patron_saint). */
+    patron_saint?: string;
   };
   arrival_time?: string;
   departure_time?: string;
@@ -98,12 +100,7 @@ export interface PlanInvite {
   email: string;
   inviter_id?: string;
   role: "viewer";
-  status:
-    | "pending"
-    | "accepted"
-    | "rejected"
-    | "expired"
-    | "awaiting_payment";
+  status: "pending" | "accepted" | "rejected" | "expired" | "awaiting_payment";
   created_at: string;
   expires_at?: string;
   planner?: {
@@ -448,7 +445,7 @@ export interface CheckInItemResponse {
 
 /** PATCH /planners/:id/status — khớp SEP490-DATN-BACKEND PlannerService.updatePlannerStatus */
 export interface UpdatePlannerStatusRequest {
-  status: "ongoing" | "completed" | "cancelled";
+  status: "locked" | "ongoing" | "completed" | "cancelled";
 }
 
 /** PATCH /api/planners/:id/lock */
@@ -530,7 +527,12 @@ export interface PlannerTransactionEntry {
     order_code?: string | null;
   };
   wallet?: {
-    user?: { id?: string; full_name?: string; email?: string; avatar_url?: string };
+    user?: {
+      id?: string;
+      full_name?: string;
+      email?: string;
+      avatar_url?: string;
+    };
   };
 }
 

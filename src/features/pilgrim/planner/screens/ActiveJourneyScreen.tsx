@@ -1,5 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -9,8 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -19,6 +25,7 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import JourneyMembersPanel from "../components/active-journey/JourneyMembersPanel";
 import PlanHeader from "../components/active-journey/PlanHeader";
 import PlanMap from "../components/active-journey/PlanMap";
 import TimelineDaySection from "../components/active-journey/TimelineDaySection";
@@ -34,10 +41,29 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const planId = route.params?.planId || "";
   const { user } = useAuth();
-  const { plan, loading, error, sortedDays, firstItem, mapPins, mapCenter, refreshPlan } =
-    usePlanData(planId);
-  const { checkingInItemId, skippingItemId, markingVisitedItemId, checkIn, skipItem, markVisited } =
-    useJourneyExecution(planId, refreshPlan);
+  const {
+    plan,
+    loading,
+    error,
+    sortedDays,
+    firstItem,
+    mapPins,
+    mapCenter,
+    refreshPlan,
+  } = usePlanData(planId);
+  const [membersReloadKey, setMembersReloadKey] = useState(0);
+  const refreshPlanAndMembers = useCallback(async () => {
+    await refreshPlan();
+    setMembersReloadKey((k) => k + 1);
+  }, [refreshPlan]);
+  const {
+    checkingInItemId,
+    skippingItemId,
+    markingVisitedItemId,
+    checkIn,
+    skipItem,
+    markVisited,
+  } = useJourneyExecution(planId, refreshPlanAndMembers);
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
@@ -103,7 +129,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           {error || "Không tìm thấy hành trình"}
         </Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={{ color: COLORS.accent, fontWeight: "700" }}>Quay lại</Text>
+          <Text style={{ color: COLORS.accent, fontWeight: "700" }}>
+            Quay lại
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -111,24 +139,43 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="light-content"
+        translucent
+        backgroundColor="transparent"
+      />
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
-        <TouchableOpacity style={styles.topBtn} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.topBtn}
+          onPress={() => navigation.goBack()}
+        >
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Hành hương thực tế</Text>
         <TouchableOpacity
           style={styles.topBtn}
           onPress={() =>
-            navigation.navigate("PlanChatScreen", { planId: plan.id, planName: plan.name })
+            navigation.navigate("PlanChatScreen", {
+              planId: plan.id,
+              planName: plan.name,
+            })
           }
         >
           <Ionicons name="chatbubbles-outline" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <PlanHeader plan={plan} firstItem={firstItem} />
+
+        <JourneyMembersPanel
+          planId={plan.id}
+          plan={plan}
+          reloadKey={membersReloadKey}
+        />
 
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -136,7 +183,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             disabled={!firstItem || checkingInItemId === firstItem.id}
             onPress={() => firstItem && checkIn(firstItem)}
           >
-            <Ionicons name="checkmark-circle-outline" size={18} color="#166534" />
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={18}
+              color="#166534"
+            />
             <Text style={styles.quickText}>Check-in</Text>
           </TouchableOpacity>
           {isOwner && (
@@ -155,14 +206,20 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               disabled={!firstItem || skippingItemId === firstItem.id}
               onPress={() => firstItem && skipItem(firstItem)}
             >
-              <Ionicons name="play-skip-forward-outline" size={18} color="#9A3412" />
+              <Ionicons
+                name="play-skip-forward-outline"
+                size={18}
+                color="#9A3412"
+              />
               <Text style={styles.quickText}>Bỏ qua điểm</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.quickBtn, styles.journal]}
             onPress={() =>
-              navigation.getParent()?.navigate("Nhat ky", { screen: "CreateJournalScreen" })
+              navigation
+                .getParent()
+                ?.navigate("Nhat ky", { screen: "CreateJournalScreen" })
             }
           >
             <Ionicons name="book-outline" size={18} color="#9A3412" />
@@ -178,7 +235,10 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={[styles.quickBtn, styles.chat]}
             onPress={() =>
-              navigation.navigate("PlanChatScreen", { planId: plan.id, planName: plan.name })
+              navigation.navigate("PlanChatScreen", {
+                planId: plan.id,
+                planName: plan.name,
+              })
             }
           >
             <Ionicons name="chatbubbles-outline" size={18} color="#3730A3" />
@@ -186,7 +246,12 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </View>
 
-        <PlanMap pins={mapPins} center={mapCenter} showUserLocation height={250} />
+        <PlanMap
+          pins={mapPins}
+          center={mapCenter}
+          showUserLocation
+          height={250}
+        />
 
         {sortedDays.map((dayKey) => (
           <TimelineDaySection
@@ -194,7 +259,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             dayKey={dayKey}
             items={plan.items_by_day?.[dayKey] || []}
             onPressItem={(item) => {
-              if (!isOwner || (plan.status || "").toLowerCase() !== "ongoing") return;
+              if (!isOwner || (plan.status || "").toLowerCase() !== "ongoing")
+                return;
               void skipItem(item);
             }}
           />
@@ -252,7 +318,12 @@ const styles = StyleSheet.create({
   skip: { backgroundColor: "#FFF7ED", borderColor: "#FDBA74" },
   sos: { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
   chat: { backgroundColor: "#EEF2FF", borderColor: "#C7D2FE" },
-  quickText: { marginLeft: 6, fontSize: 13, color: COLORS.textPrimary, fontWeight: "700" },
+  quickText: {
+    marginLeft: 6,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    fontWeight: "700",
+  },
   fab: {
     position: "absolute",
     right: 18,

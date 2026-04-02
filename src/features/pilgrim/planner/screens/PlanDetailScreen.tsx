@@ -5,39 +5,39 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Image,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Swipeable } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
-    CalendarSyncError,
-    useCalendarSync,
+  CalendarSyncError,
+  useCalendarSync,
 } from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
@@ -49,27 +49,27 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-    createOfflinePlannerItemId,
-    offlinePlannerService,
+  createOfflinePlannerItemId,
+  offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import {
-    NearbyPlaceCategory,
-    SiteEvent,
-    SiteNearbyPlace,
-    SiteSummary,
+  NearbyPlaceCategory,
+  SiteEvent,
+  SiteNearbyPlace,
+  SiteSummary,
 } from "../../../../types/pilgrim";
 import {
-    AddPlanItemRequest,
-    PlanEntity,
-    PlanItem,
-    UpdatePlanItemRequest,
-    UpdatePlanRequest,
+  AddPlanItemRequest,
+  PlanEntity,
+  PlanItem,
+  UpdatePlanItemRequest,
+  UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import { getInitialsFromFullName } from "../../../../utils/initials";
 import AddSiteModal from "../components/plan-detail/AddSiteModal";
 import EditItemModal, {
-    type EditItemModalProps,
+  type EditItemModalProps,
 } from "../components/plan-detail/EditItemModal";
 import EditPlanModal from "../components/plan-detail/EditPlanModal";
 import InvitePreviewCard from "../components/plan-detail/InvitePreviewCard";
@@ -81,30 +81,34 @@ import { PlannerTransactionsModal } from "../components/shared/PlannerTransactio
 import { SharePlanModal } from "../components/shared/SharePlanModal";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import {
-    MAX_DEPOSIT_VND,
-    parsePenaltyPercent,
-    parseVndInteger,
+  MAX_DEPOSIT_VND,
+  parsePenaltyPercent,
+  parseVndInteger,
 } from "../utils/depositInput.utils";
 import {
-    LocalSiteSnapshot,
-    applyLocalAddItem,
-    applyLocalDeleteItem,
-    applyLocalItemUpdate,
-    applyLocalSwapDayItems,
-    mapOfflineNearbyPlace,
-    sortPlanDayItems,
+  LocalSiteSnapshot,
+  applyLocalAddItem,
+  applyLocalDeleteItem,
+  applyLocalItemUpdate,
+  applyLocalSwapDayItems,
+  mapOfflineNearbyPlace,
+  sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
-    buildPlanMapPins,
-    getPlanMapCenter,
-    getPlannerRosterCount,
+  buildPlanMapPins,
+  getPlanMapCenter,
+  getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-    buildDurationString,
-    calculateEndTimeRaw,
-    getDateForDayRaw,
-    parseDurationToMinutesRaw,
+  buildDurationString,
+  calculateEndTimeRaw,
+  getDateForDayRaw,
+  parseDurationToMinutesRaw,
 } from "../utils/planDetailTime.utils";
+import {
+  getGroupPatronConstraintFromPlan,
+  sitePatronMatchesGroup,
+} from "../utils/planPatronScope.utils";
 import styles from "./PlanDetailScreen.styles";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -137,6 +141,15 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       String(inviteStatus || "").toLowerCase(),
     );
   const isReadOnlyPlannerView = !isPlanOwner;
+  const showMembersInsteadOfChat = useMemo(() => {
+    const st = String(plan?.status || "").toLowerCase();
+    return (
+      !!plan &&
+      !isPlanOwner &&
+      !isInvitePendingView &&
+      (st === "planning" || st === "locked")
+    );
+  }, [isInvitePendingView, isPlanOwner, plan]);
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
   const { confirm, ConfirmModal } = useConfirm();
   const { isOffline, offlineQueueCount } = useOffline();
@@ -147,6 +160,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const mapPins: MapPin[] = useMemo(() => buildPlanMapPins(plan), [plan]);
   const mapCenter = useMemo(() => getPlanMapCenter(mapPins), [mapPins]);
+  const groupPatronConstraint = useMemo(
+    () => getGroupPatronConstraintFromPlan(plan),
+    [plan],
+  );
 
   // Fly camera to fit all pins when pins change
   useEffect(() => {
@@ -381,6 +398,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     });
   };
 
+  const handleOpenMembers = () => {
+    navigation.navigate(
+      "PlannerMembersScreen" as never,
+      {
+        planId,
+        planName: plan?.name,
+      } as never,
+    );
+  };
+
   useEffect(() => {
     const readUnreadCount = async () => {
       if (!planId || !user?.id || isOffline) return;
@@ -529,6 +556,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             isFavorite: true,
             type: site.type,
             region: site.region,
+            patronSaint: site.patron_saint || undefined,
           }),
         );
         setFavorites(mappedFavorites);
@@ -560,7 +588,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           number_of_days: preview.number_of_days || preview.estimated_days || 1,
           number_of_people: preview.number_of_people || 1,
           transportation: preview.transportation || "car",
-          status: preview.status || "planned",
+          status: preview.status || "planning",
           share_token: prev?.share_token || "",
           qr_code_url: prev?.qr_code_url || "",
           created_at: preview.created_at || prev?.created_at || "",
@@ -839,6 +867,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           type: site.type,
           latitude: site.latitude || 0,
           longitude: site.longitude || 0,
+          patronSaint: site.patron_saint || site.patronSaint || undefined,
         }));
         setEventSitesList(siteData);
       }
@@ -963,14 +992,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     const isStart = targetStatus === "ongoing";
     const title = isStart
-      ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu chuyến đi" })
+      ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu hành hương" })
       : t("planner.completeJourneyTitle", {
           defaultValue: "Kết thúc chuyến đi",
         });
     const msg = isStart
       ? t("planner.startJourneyMsg", {
           defaultValue:
-            "Bạn có chắc muốn bắt đầu chuyến đi? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
+            "Bạn có chắc muốn bắt đầu hành hương? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
         })
       : t("planner.completeJourneyMsg", {
           defaultValue:
@@ -1002,6 +1031,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 visibilityTime: 3000,
               });
               await loadPlan();
+              if (isStart) {
+                navigation.navigate(
+                  "ActiveJourneyScreen" as never,
+                  {
+                    planId,
+                  } as never,
+                );
+              }
             } else {
               Toast.show({
                 type: "error",
@@ -1384,10 +1421,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     if (orderA == null || orderB == null) return;
 
     const newOrder = [...sorted];
-    [newOrder[indexA], newOrder[indexB]] = [
-      newOrder[indexB],
-      newOrder[indexA],
-    ];
+    [newOrder[indexA], newOrder[indexB]] = [newOrder[indexB], newOrder[indexA]];
     const itemIds = newOrder
       .map((i) => i.id)
       .filter((id): id is string => Boolean(id));
@@ -1760,7 +1794,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const getDateForDay = (startDateStr: string, dayNumber: number): string =>
     getDateForDayRaw(startDateStr, dayNumber);
 
-  const handleAddItem = async (siteId: string, eventId?: string) => {
+  const startAddItemFlow = async (siteId: string, eventId?: string) => {
     setSelectedSiteId(siteId);
     setSelectedEventId(eventId || null);
     setCalculatingRoute(true);
@@ -1854,6 +1888,56 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     setCalculatingRoute(false);
     setShowTimeInputModal(true);
+  };
+
+  const handleAddItem = async (siteId: string, eventId?: string) => {
+    const constraint = getGroupPatronConstraintFromPlan(plan);
+    if (constraint) {
+      const known = [
+        ...sites,
+        ...favorites,
+        ...eventSitesList,
+        ...(eventSite ? [eventSite] : []),
+      ].find((s) => s.id === siteId);
+      const m = sitePatronMatchesGroup(known?.patronSaint, constraint);
+      if (m === "mismatch") {
+        Alert.alert(
+          t("planner.patronMismatchAlertTitle", {
+            defaultValue: "Không cùng bổn mạng với đoàn",
+          }),
+          t("planner.patronMismatchAlertBody", {
+            defaultValue:
+              "Đoàn đang theo bổn mạng «{{patron}}» (địa điểm đầu: {{anchor}}). Địa điểm này có bổn mạng khác — server sẽ từ chối. Vui lòng chọn địa điểm khác.",
+            patron: constraint.displayPatron,
+            anchor: constraint.anchorSiteName,
+          }),
+        );
+        return;
+      }
+      if (m === "unknown") {
+        Alert.alert(
+          t("planner.patronUnknownAlertTitle", {
+            defaultValue: "Chưa có bổn mạng trên danh sách",
+          }),
+          t("planner.patronUnknownAlertBody", {
+            defaultValue:
+              "Ứng dụng chưa có dữ liệu bổn mạng cho địa điểm này. Bạn vẫn có thể thử thêm; nếu không khớp với đoàn, server sẽ báo lỗi. Tiếp tục?",
+          }),
+          [
+            {
+              text: t("common.cancel", { defaultValue: "Hủy" }),
+              style: "cancel",
+            },
+            {
+              text: t("common.continue", { defaultValue: "Tiếp tục" }),
+              onPress: () => void startAddItemFlow(siteId, eventId),
+            },
+          ],
+        );
+        return;
+      }
+    }
+    await startAddItemFlow(siteId, eventId);
   };
 
   const addItemToItinerary = async (siteId: string) => {
@@ -2009,11 +2093,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         error?.response?.data?.error?.details?.[0]?.message ||
         error?.message ||
         "Không thể thêm địa điểm";
+      const patronErr =
+        typeof errMsg === "string" &&
+        (errMsg.includes("bổn mạng") || errMsg.includes("Bổn mạng"));
       Toast.show({
         type: "error",
-        text1: "Không thể thêm địa điểm",
+        text1: patronErr
+          ? t("planner.patronConstraintToastTitle", {
+              defaultValue: "Không cùng bổn mạng đoàn",
+            })
+          : t("planner.addItemFailedTitle", {
+              defaultValue: "Không thể thêm địa điểm",
+            }),
         text2: errMsg,
-        visibilityTime: 4000,
+        visibilityTime: patronErr ? 6500 : 4000,
       });
     } finally {
       setAddingItem(false);
@@ -2217,7 +2310,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     switch (status?.toLowerCase()) {
       case "planning":
         return "Đang lập kế hoạch";
-      case "planned":
+      case "locked":
         return "Sẵn sàng";
       case "ongoing":
         return "Đang hành hương";
@@ -2297,7 +2390,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             >
               <Ionicons name="expand-outline" size={24} color="#fff" />
             </TouchableOpacity>
-            {isPlanOwner && (
+            {(isPlanOwner || !isPlanOwner) && (
               <TouchableOpacity
                 style={styles.navButton}
                 onPress={() => setShowMenuDropdown(true)}
@@ -2309,7 +2402,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         </View>
 
         {/* Menu Dropdown Popup */}
-        {isPlanOwner && showMenuDropdown && (
+        {showMenuDropdown && (
           <TouchableOpacity
             style={{
               position: "absolute",
@@ -2334,41 +2427,43 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 minWidth: 160,
               }}
             >
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  padding: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F3F4F6",
-                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
-                }}
-                onPress={() => {
-                  setShowMenuDropdown(false);
-                  handleOpenEditPlan();
-                }}
-                disabled={isOnlineOnlyActionDisabled}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={20}
-                  color={
-                    isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E"
-                  }
-                  style={{ marginRight: 12 }}
-                />
-                <Text
+              {isPlanOwner && (
+                <TouchableOpacity
                   style={{
-                    fontSize: 16,
-                    color: isOnlineOnlyActionDisabled
-                      ? COLORS.textTertiary
-                      : "#C08A2E",
-                    fontWeight: "500",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F3F4F6",
+                    opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
                   }}
+                  onPress={() => {
+                    setShowMenuDropdown(false);
+                    handleOpenEditPlan();
+                  }}
+                  disabled={isOnlineOnlyActionDisabled}
                 >
-                  Sửa kế hoạch
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={
+                      isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#C08A2E"
+                    }
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: isOnlineOnlyActionDisabled
+                        ? COLORS.textTertiary
+                        : "#C08A2E",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Sửa kế hoạch
+                  </Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
                 style={{
                   flexDirection: "row",
@@ -2588,36 +2683,38 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 </Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  padding: 12,
-                  opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
-                }}
-                onPress={handleDeletePlan}
-                disabled={isOnlineOnlyActionDisabled}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={20}
-                  color={
-                    isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444"
-                  }
-                  style={{ marginRight: 12 }}
-                />
-                <Text
+              {isPlanOwner && (
+                <TouchableOpacity
                   style={{
-                    fontSize: 16,
-                    color: isOnlineOnlyActionDisabled
-                      ? COLORS.textTertiary
-                      : "#EF4444",
-                    fontWeight: "500",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 12,
+                    opacity: isOnlineOnlyActionDisabled ? 0.5 : 1,
                   }}
+                  onPress={handleDeletePlan}
+                  disabled={isOnlineOnlyActionDisabled}
                 >
-                  Xóa kế hoạch
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={
+                      isOnlineOnlyActionDisabled ? COLORS.textTertiary : "#EF4444"
+                    }
+                    style={{ marginRight: 12 }}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: isOnlineOnlyActionDisabled
+                        ? COLORS.textTertiary
+                        : "#EF4444",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Xóa kế hoạch
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </TouchableOpacity>
         )}
@@ -2738,6 +2835,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.quickActionsRow}>
+          {/* Nút chat planner member luôn hiển thị bên trái */}
           <TouchableOpacity
             style={[
               styles.quickActionButton,
@@ -2756,6 +2854,21 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               </View>
             )}
           </TouchableOpacity>
+
+          {/* Nút thành viên chỉ hiển thị cho planner member, không hiển thị cho owner */}
+          {!isPlanOwner && (
+            <TouchableOpacity
+              style={[
+                styles.quickActionButton,
+                isOnlineOnlyActionDisabled && styles.disabledAction,
+              ]}
+              onPress={handleOpenMembers}
+              disabled={isOnlineOnlyActionDisabled}
+            >
+              <Ionicons name="people-outline" size={18} color="#FFF8E7" />
+              <Text style={styles.quickActionText}>Thành viên</Text>
+            </TouchableOpacity>
+          )}
 
           {isPlanOwner && (
             <TouchableOpacity
@@ -2790,6 +2903,50 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           )}
         </View>
 
+        {/* Người được mời: nút tham gia / từ chối nằm dưới "Chat nhóm" */}
+        {isInvitePendingView && (
+          <View
+            style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}
+          >
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: COLORS.accent,
+                  borderRadius: BORDER_RADIUS.md,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  opacity: respondingInvite ? 0.6 : 1,
+                }}
+                onPress={handleJoinInvite}
+                disabled={respondingInvite || isOffline}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
+                  Tham gia
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: "#FEE2E2",
+                  borderRadius: BORDER_RADIUS.md,
+                  paddingVertical: 12,
+                  alignItems: "center",
+                  opacity: respondingInvite ? 0.6 : 1,
+                }}
+                onPress={handleRejectInvite}
+                disabled={respondingInvite || isOffline}
+                activeOpacity={0.85}
+              >
+                <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
+                  Từ chối
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {isInvitePendingView && (
           <InvitePreviewCard
             ownerName={ownerName}
@@ -2801,10 +2958,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               (plan?.number_of_people || 1) - 1,
               0,
             )}
-            responding={respondingInvite}
-            onJoin={handleJoinInvite}
-            onReject={handleRejectInvite}
-            onChat={handleOpenChat}
           />
         )}
 
@@ -2922,82 +3075,123 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
         {/* Journey Status Actions — Bắt đầu / Kết thúc chuyến đi */}
         {isPlanOwner && (
-          <View style={{ marginBottom: SPACING.md }}>
-            {(plan.status || "").toLowerCase() === "planned" && (
-              <TouchableOpacity
-                onPress={() => handleUpdatePlannerStatus("ongoing")}
-                disabled={updatingPlanStatus}
-                activeOpacity={0.85}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: COLORS.accent,
-                  paddingVertical: 14,
-                  borderRadius: BORDER_RADIUS.lg,
-                  opacity: updatingPlanStatus ? 0.7 : 1,
-                }}
-              >
-                {updatingPlanStatus ? (
-                  <ActivityIndicator
-                    size="small"
-                    color="#fff"
-                    style={{ marginRight: 8 }}
-                  />
-                ) : (
-                  <Ionicons
-                    name="rocket-outline"
-                    size={20}
-                    color="#fff"
-                    style={{ marginRight: 8 }}
-                  />
-                )}
-                <Text
-                  style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+          <View
+            style={{ marginBottom: SPACING.md, paddingHorizontal: SPACING.lg }}
+          >
+            {(plan.status || "").toLowerCase() === "locked" && (
+              <View>
+                <TouchableOpacity
+                  onPress={() => handleUpdatePlannerStatus("ongoing")}
+                  disabled={updatingPlanStatus}
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: COLORS.accent,
+                    width: "100%",
+                    alignSelf: "stretch",
+                    paddingVertical: 14,
+                    borderRadius: BORDER_RADIUS.lg,
+                    opacity: updatingPlanStatus ? 0.7 : 1,
+                  }}
                 >
-                  {t("planner.startJourneyCta", {
-                    defaultValue: "Bắt đầu chuyến đi",
-                  })}
-                </Text>
-              </TouchableOpacity>
+                  {updatingPlanStatus ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="rocket-outline"
+                      size={20}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  <Text
+                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                  >
+                    {t("planner.startJourneyCta", {
+                      defaultValue: "Bắt đầu hành hương",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
             {(plan.status || "").toLowerCase() === "ongoing" && (
-              <TouchableOpacity
-                onPress={() => handleUpdatePlannerStatus("completed")}
-                disabled={updatingPlanStatus}
-                activeOpacity={0.85}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: COLORS.success,
-                  paddingVertical: 14,
-                  borderRadius: BORDER_RADIUS.lg,
-                  opacity: updatingPlanStatus ? 0.7 : 1,
-                }}
-              >
-                {updatingPlanStatus ? (
-                  <ActivityIndicator
-                    size="small"
-                    color="#fff"
-                    style={{ marginRight: 8 }}
-                  />
-                ) : (
-                  <Ionicons
-                    name="checkmark-done-outline"
-                    size={20}
-                    color="#fff"
-                    style={{ marginRight: 8 }}
-                  />
-                )}
-                <Text
-                  style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+              <View style={{ gap: SPACING.sm }}>
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate(
+                      "ActiveJourneyScreen" as never,
+                      {
+                        planId,
+                      } as never,
+                    )
+                  }
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#1E4D6B",
+                    paddingVertical: 14,
+                    borderRadius: BORDER_RADIUS.lg,
+                  }}
                 >
-                  {t("planner.completeJourneyCta", {
-                    defaultValue: "Kết thúc chuyến đi",
-                  })}
-                </Text>
-              </TouchableOpacity>
+                  <Ionicons
+                    name="navigate-circle-outline"
+                    size={22}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                  >
+                    {t("planner.openActiveJourneyCta", {
+                      defaultValue: "Vào hành trình thực tế",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleUpdatePlannerStatus("completed")}
+                  disabled={updatingPlanStatus}
+                  activeOpacity={0.85}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: COLORS.success,
+                    paddingVertical: 14,
+                    borderRadius: BORDER_RADIUS.lg,
+                    opacity: updatingPlanStatus ? 0.7 : 1,
+                  }}
+                >
+                  {updatingPlanStatus ? (
+                    <ActivityIndicator
+                      size="small"
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                  ) : (
+                    <Ionicons
+                      name="checkmark-done-outline"
+                      size={20}
+                      color="#fff"
+                      style={{ marginRight: 8 }}
+                    />
+                  )}
+                  <Text
+                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                  >
+                    {t("planner.completeJourneyCta", {
+                      defaultValue: "Kết thúc chuyến đi",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         )}
@@ -3049,7 +3243,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     ]}
                   />
                   <View style={styles.timelineItems}>
-                    {items.length === 0 && (
+                    {items.length === 0 && isPlanOwner && (
                       <TouchableOpacity
                         style={{
                           borderWidth: 1.5,
@@ -3147,8 +3341,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                   />
                                   <Text style={styles.itemTime}>
                                     {formatTimeValue(
-                                      item.estimated_time ||
-                                        item.arrival_time,
+                                      item.estimated_time || item.arrival_time,
                                     )}
                                     {item.rest_duration
                                       ? ` - ${calculateEndTime(item.estimated_time || item.arrival_time, item.rest_duration)}`
@@ -3157,10 +3350,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                 </View>
                               </View>
                               {item.note && item.note !== "Visited" && (
-                                <Text
-                                  style={styles.itemNote}
-                                  numberOfLines={1}
-                                >
+                                <Text style={styles.itemNote} numberOfLines={1}>
                                   {item.note}
                                 </Text>
                               )}
@@ -3198,7 +3388,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                             </TouchableOpacity>
                           ) : (
                             <View
-                              style={{ paddingHorizontal: 4, paddingVertical: 4 }}
+                              style={{
+                                paddingHorizontal: 4,
+                                paddingVertical: 4,
+                              }}
                             >
                               <Ionicons
                                 name="reorder-two-outline"
@@ -3240,9 +3433,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                                 overshootRight={false}
                                 containerStyle={styles.timelineSwipeInner}
                                 renderRightActions={() => (
-                                  <View
-                                    style={styles.timelineDeleteActionWrap}
-                                  >
+                                  <View style={styles.timelineDeleteActionWrap}>
                                     <TouchableOpacity
                                       style={styles.timelineDeleteAction}
                                       activeOpacity={0.92}
@@ -3298,17 +3489,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                         </View>
                       );
                     })}
-                    <TouchableOpacity
-                      style={styles.addSmallButton}
-                      onPress={() => openAddModal(Number(dayKey))}
-                    >
-                      <Ionicons name="add" size={16} color={COLORS.primary} />
-                      <Text style={styles.addSmallButtonText}>
-                        {t("planner.addStop", {
-                          defaultValue: "Thêm điểm viếng",
-                        })}
-                      </Text>
-                    </TouchableOpacity>
+                    {isPlanOwner && (
+                      <TouchableOpacity
+                        style={styles.addSmallButton}
+                        onPress={() => openAddModal(Number(dayKey))}
+                      >
+                        <Ionicons name="add" size={16} color={COLORS.primary} />
+                        <Text style={styles.addSmallButtonText}>
+                          {t("planner.addStop", {
+                            defaultValue: "Thêm điểm viếng",
+                          })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               </View>
@@ -3369,7 +3562,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         onSelectEventSite={handleOpenEventSite}
         sites={sites}
         favorites={favorites}
-        onAddSite={(siteId) => handleAddItem(siteId)}
+        onAddSite={isPlanOwner ? (siteId) => handleAddItem(siteId) : undefined}
         onOpenSiteDetail={handleOpenSiteDetailFromAddModal}
         addingItem={addingItem}
         alreadyAddedSiteIds={
@@ -3381,6 +3574,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           )
         }
         addedCount={Object.values(plan.items_by_day || {}).flat().length}
+        groupPatronConstraint={groupPatronConstraint}
+        disabled={!isPlanOwner}
       />
 
       <SiteEventsModal
@@ -3594,8 +3789,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         }}
       />
 
-      {/* Confirm Modal */}
-      <ConfirmModal />
+      {/* Confirm Modal (ẩn trong màn người được mời để tránh che UI) */}
+      {!isInvitePendingView ? <ConfirmModal /> : null}
     </View>
   );
 };

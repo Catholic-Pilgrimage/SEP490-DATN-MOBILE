@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import { Text, View } from "react-native";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -13,10 +13,6 @@ interface InvitePreviewCardProps {
   penaltyPercentage?: number;
   joinedCount: number | null;
   estimatedJoinedCount: number;
-  responding: boolean;
-  onJoin: () => void;
-  onReject: () => void;
-  onChat: () => void;
 }
 
 export default function InvitePreviewCard({
@@ -26,10 +22,6 @@ export default function InvitePreviewCard({
   penaltyPercentage,
   joinedCount,
   estimatedJoinedCount,
-  responding,
-  onJoin,
-  onReject,
-  onChat,
 }: InvitePreviewCardProps) {
   return (
     <View
@@ -66,54 +58,7 @@ export default function InvitePreviewCard({
         Thành viên đã tham gia:{" "}
         {joinedCount !== null ? `${joinedCount} người` : `~${estimatedJoinedCount} người`}
       </Text>
-      <View style={{ flexDirection: "row", gap: 10, marginTop: SPACING.md }}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: COLORS.accent,
-            borderRadius: BORDER_RADIUS.md,
-            paddingVertical: 12,
-            alignItems: "center",
-            opacity: responding ? 0.6 : 1,
-          }}
-          onPress={onJoin}
-          disabled={responding}
-        >
-          <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-            Tham gia
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: "#FEE2E2",
-            borderRadius: BORDER_RADIUS.md,
-            paddingVertical: 12,
-            alignItems: "center",
-            opacity: responding ? 0.6 : 1,
-          }}
-          onPress={onReject}
-          disabled={responding}
-        >
-          <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-            Từ chối
-          </Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity
-        style={{
-          marginTop: 10,
-          borderRadius: BORDER_RADIUS.md,
-          backgroundColor: "#E2E8F0",
-          paddingVertical: 12,
-          alignItems: "center",
-        }}
-        onPress={onChat}
-      >
-        <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-          Chat với trưởng đoàn
-        </Text>
-      </TouchableOpacity>
+      {/* Actions are rendered in PlanDetailScreen (below "Chat nhóm") */}
     </View>
   );
 }

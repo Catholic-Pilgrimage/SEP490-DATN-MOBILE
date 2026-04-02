@@ -1,20 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
-import { SiteSummary } from "../../../../../types/pilgrim";
 import type { SiteType } from "../../../../../types/common.types";
+import { SiteSummary } from "../../../../../types/pilgrim";
+import type { GroupPatronConstraint } from "../../utils/planPatronScope.utils";
+import { sitePatronMatchesGroup } from "../../utils/planPatronScope.utils";
 
 type RegionFilter = "all" | "north" | "central" | "south";
 
@@ -39,6 +41,8 @@ interface AddSiteModalProps {
   addingItem: boolean;
   alreadyAddedSiteIds: Set<string>;
   addedCount: number;
+  /** Kế hoạch nhóm: bổn mạng bắt buộc trùng điểm đầu (khớp BE). */
+  groupPatronConstraint?: GroupPatronConstraint | null;
 }
 
 export default function AddSiteModal({
@@ -61,10 +65,12 @@ export default function AddSiteModal({
   addingItem,
   alreadyAddedSiteIds,
   addedCount,
+  groupPatronConstraint = null,
 }: AddSiteModalProps) {
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
+  const [onlyMatchingPatron, setOnlyMatchingPatron] = useState(false);
   const q = searchQuery.trim().toLowerCase();
 
   /** Padding đáy list để không bị floating bar che — tính trực tiếp tránh lỗi scope/Hermes với biến trung gian. */
@@ -80,35 +86,90 @@ export default function AddSiteModal({
     return true;
   };
 
+  const patronRank = (s: SiteSummary) => {
+    if (!groupPatronConstraint) return 0;
+    const m = sitePatronMatchesGroup(s.patronSaint, groupPatronConstraint);
+    if (m === "match") return 0;
+    if (m === "unknown") return 1;
+    return 2;
+  };
+
+  const applyPatronListFilter = (list: SiteSummary[]) => {
+    if (!groupPatronConstraint || !onlyMatchingPatron) return list;
+    return list.filter((s) => {
+      if (alreadyAddedSiteIds.has(s.id)) return true;
+      return (
+        sitePatronMatchesGroup(s.patronSaint, groupPatronConstraint) ===
+        "match"
+      );
+    });
+  };
+
+  const sortByPatronThenName = (list: SiteSummary[]) => {
+    if (!groupPatronConstraint) return list;
+    return [...list].sort((a, b) => {
+      const d = patronRank(a) - patronRank(b);
+      if (d !== 0) return d;
+      return (a.name || "").localeCompare(b.name || "", "vi");
+    });
+  };
+
   const filteredSites = useMemo(() => {
     const byRegion = sites.filter(matchesRegion);
-    if (!q) return byRegion;
-    return byRegion.filter((s) => {
-      const name = (s.name || "").toLowerCase();
-      const address = (s.address || "").toLowerCase();
-      return name.includes(q) || address.includes(q);
-    });
-  }, [q, sites, regionFilter]);
+    const searched = !q
+      ? byRegion
+      : byRegion.filter((s) => {
+          const name = (s.name || "").toLowerCase();
+          const address = (s.address || "").toLowerCase();
+          return name.includes(q) || address.includes(q);
+        });
+    return sortByPatronThenName(applyPatronListFilter(searched));
+  }, [
+    q,
+    sites,
+    regionFilter,
+    groupPatronConstraint,
+    onlyMatchingPatron,
+    alreadyAddedSiteIds,
+  ]);
 
   const filteredFavorites = useMemo(() => {
     const byRegion = favorites.filter(matchesRegion);
-    if (!q) return byRegion;
-    return byRegion.filter((s) => {
-      const name = (s.name || "").toLowerCase();
-      const address = (s.address || "").toLowerCase();
-      return name.includes(q) || address.includes(q);
-    });
-  }, [q, favorites, regionFilter]);
+    const searched = !q
+      ? byRegion
+      : byRegion.filter((s) => {
+          const name = (s.name || "").toLowerCase();
+          const address = (s.address || "").toLowerCase();
+          return name.includes(q) || address.includes(q);
+        });
+    return sortByPatronThenName(applyPatronListFilter(searched));
+  }, [
+    q,
+    favorites,
+    regionFilter,
+    groupPatronConstraint,
+    onlyMatchingPatron,
+    alreadyAddedSiteIds,
+  ]);
 
   const filteredEventSites = useMemo(() => {
     const byRegion = eventSitesList.filter(matchesRegion);
-    if (!q) return byRegion;
-    return byRegion.filter((s) => {
-      const name = (s.name || "").toLowerCase();
-      const address = (s.address || "").toLowerCase();
-      return name.includes(q) || address.includes(q);
-    });
-  }, [q, eventSitesList, regionFilter]);
+    const searched = !q
+      ? byRegion
+      : byRegion.filter((s) => {
+          const name = (s.name || "").toLowerCase();
+          const address = (s.address || "").toLowerCase();
+          return name.includes(q) || address.includes(q);
+        });
+    return sortByPatronThenName(applyPatronListFilter(searched));
+  }, [
+    q,
+    eventSitesList,
+    regionFilter,
+    groupPatronConstraint,
+    onlyMatchingPatron,
+    alreadyAddedSiteIds,
+  ]);
 
   const featuredSites = useMemo(() => {
     const source = filteredSites;
@@ -144,7 +205,8 @@ export default function AddSiteModal({
       other: "Địa điểm",
     };
     if (raw in byEnum) return byEnum[raw as SiteType];
-    if (raw.includes("cathedral") || raw.includes("vương cung")) return "Thánh địa";
+    if (raw.includes("cathedral") || raw.includes("vương cung"))
+      return "Thánh địa";
     if (raw.includes("parish") || raw.includes("giáo xứ")) return "Giáo xứ";
     return "Hành hương";
   };
@@ -152,15 +214,30 @@ export default function AddSiteModal({
   const getShortLocation = (address?: string) => {
     const raw = String(address || "").trim();
     if (!raw) return "Địa điểm hành hương";
-    const parts = raw.split(",").map((x) => x.trim()).filter(Boolean);
-    if (parts.length >= 2) return `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`;
+    const parts = raw
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+    if (parts.length >= 2)
+      return `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`;
     return parts[0];
   };
 
   const renderSiteRow = (item: SiteSummary, featured = false) => {
     const isAdded = alreadyAddedSiteIds.has(item.id);
+    const patronMatch = groupPatronConstraint
+      ? sitePatronMatchesGroup(item.patronSaint, groupPatronConstraint)
+      : null;
+    const patronBlocked = patronMatch === "mismatch" && !isAdded;
+
     return (
-      <View style={[sharedStyles.siteItem, localStyles.siteCard]}>
+      <View
+        style={[
+          sharedStyles.siteItem,
+          localStyles.siteCard,
+          patronBlocked ? localStyles.cardPatronBlocked : null,
+        ]}
+      >
         <TouchableOpacity
           style={localStyles.siteMainPressable}
           activeOpacity={0.85}
@@ -168,10 +245,17 @@ export default function AddSiteModal({
           disabled={!onOpenSiteDetail}
         >
           <Image
-            source={{ uri: item.coverImage || "https://via.placeholder.com/60" }}
+            source={{
+              uri: item.coverImage || "https://via.placeholder.com/60",
+            }}
             style={sharedStyles.siteItemImage}
           />
-          <View style={[sharedStyles.siteItemContent, localStyles.siteItemTextColumn]}>
+          <View
+            style={[
+              sharedStyles.siteItemContent,
+              localStyles.siteItemTextColumn,
+            ]}
+          >
             <View style={localStyles.siteTitleBlock}>
               <Text
                 style={[sharedStyles.siteItemName, localStyles.siteTitle]}
@@ -183,33 +267,71 @@ export default function AddSiteModal({
             </View>
             <View style={localStyles.siteTagsRow}>
               <View style={localStyles.typeBadge}>
-                <Text style={localStyles.typeBadgeText}>{getTypeLabel(item)}</Text>
+                <Text style={localStyles.typeBadgeText}>
+                  {getTypeLabel(item)}
+                </Text>
               </View>
               {featured && (
                 <View style={localStyles.featuredBadge}>
                   <Text style={localStyles.featuredBadgeText}>Nổi bật</Text>
                 </View>
               )}
+              {item.patronSaint ? (
+                <View style={localStyles.patronBadge}>
+                  <Text style={localStyles.patronBadgeText} numberOfLines={1}>
+                    {t("planner.patronSaintShort", {
+                      defaultValue: "Bổn mạng: {{name}}",
+                      name: item.patronSaint,
+                    })}
+                  </Text>
+                </View>
+              ) : groupPatronConstraint ? (
+                <View style={localStyles.patronBadgeWarn}>
+                  <Text style={localStyles.patronBadgeWarnText} numberOfLines={1}>
+                    {t("planner.patronDataMissing", {
+                      defaultValue: "Chưa có bổn mạng trên hệ thống",
+                    })}
+                  </Text>
+                </View>
+              ) : null}
             </View>
             <Text
-              style={[sharedStyles.siteItemAddress, localStyles.siteAddressLine]}
+              style={[
+                sharedStyles.siteItemAddress,
+                localStyles.siteAddressLine,
+              ]}
               numberOfLines={2}
               ellipsizeMode="tail"
             >
               📍 {getShortLocation(item.address)}
             </Text>
+            {patronBlocked && groupPatronConstraint ? (
+              <Text style={localStyles.patronBlockHint} numberOfLines={2}>
+                {t("planner.patronMismatchRowHint", {
+                  defaultValue:
+                    "Khác bổn mạng đoàn ({{expected}}) — không thể thêm.",
+                  expected: groupPatronConstraint.displayPatron,
+                })}
+              </Text>
+            ) : null}
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[localStyles.addSiteButton, isAdded && localStyles.addedSiteButton]}
-          onPress={() => !isAdded && onAddSite(item.id)}
-          disabled={addingItem || isAdded}
+          style={[
+            localStyles.addSiteButton,
+            isAdded && localStyles.addedSiteButton,
+            patronBlocked && localStyles.addSiteButtonDisabled,
+          ]}
+          onPress={() => !isAdded && !patronBlocked && onAddSite(item.id)}
+          disabled={addingItem || isAdded || patronBlocked}
         >
           {addingItem && !isAdded ? (
             <ActivityIndicator size="small" color="#4B5563" />
           ) : isAdded ? (
             <Ionicons name="checkmark" size={20} color="#fff" />
+          ) : patronBlocked ? (
+            <Ionicons name="ban-outline" size={20} color="#9CA3AF" />
           ) : (
             <Ionicons name="add" size={22} color="#4B5563" />
           )}
@@ -227,7 +349,9 @@ export default function AddSiteModal({
     >
       <View style={sharedStyles.modalContainer}>
         <View style={sharedStyles.modalHeader}>
-          <Text style={sharedStyles.modalTitle}>{t("planner.chooseLocation")}</Text>
+          <Text style={sharedStyles.modalTitle}>
+            {t("planner.chooseLocation")}
+          </Text>
           <TouchableOpacity onPress={onClose}>
             <Text style={sharedStyles.modalClose}>{t("planner.close")}</Text>
           </TouchableOpacity>
@@ -235,10 +359,18 @@ export default function AddSiteModal({
 
         <View style={sharedStyles.tabContainer}>
           <TouchableOpacity
-            style={[sharedStyles.tabButton, activeTab === "all" && sharedStyles.activeTabButton]}
+            style={[
+              sharedStyles.tabButton,
+              activeTab === "all" && sharedStyles.activeTabButton,
+            ]}
             onPress={() => setActiveTab("all")}
           >
-            <Text style={[sharedStyles.tabText, activeTab === "all" && sharedStyles.activeTabText]}>
+            <Text
+              style={[
+                sharedStyles.tabText,
+                activeTab === "all" && sharedStyles.activeTabText,
+              ]}
+            >
               {t("planner.allLocations")}
             </Text>
           </TouchableOpacity>
@@ -249,7 +381,12 @@ export default function AddSiteModal({
             ]}
             onPress={onOpenEventsTab}
           >
-            <Text style={[sharedStyles.tabText, activeTab === "events" && sharedStyles.activeTabText]}>
+            <Text
+              style={[
+                sharedStyles.tabText,
+                activeTab === "events" && sharedStyles.activeTabText,
+              ]}
+            >
               Sự kiện
             </Text>
           </TouchableOpacity>
@@ -261,7 +398,10 @@ export default function AddSiteModal({
             onPress={() => setActiveTab("favorites")}
           >
             <Text
-              style={[sharedStyles.tabText, activeTab === "favorites" && sharedStyles.activeTabText]}
+              style={[
+                sharedStyles.tabText,
+                activeTab === "favorites" && sharedStyles.activeTabText,
+              ]}
             >
               {t("planner.myFavorites")}
             </Text>
@@ -280,13 +420,22 @@ export default function AddSiteModal({
               gap: 8,
             }}
           >
-            <Ionicons name="search-outline" size={18} color={COLORS.textTertiary} />
+            <Ionicons
+              name="search-outline"
+              size={18}
+              color={COLORS.textTertiary}
+            />
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
               placeholder={t("common.search", { defaultValue: "Tìm kiếm" })}
               placeholderTextColor={COLORS.textTertiary}
-              style={{ flex: 1, color: COLORS.textPrimary, fontSize: 14, padding: 0 }}
+              style={{
+                flex: 1,
+                color: COLORS.textPrimary,
+                fontSize: 14,
+                padding: 0,
+              }}
               autoCorrect={false}
               autoCapitalize="none"
               clearButtonMode="while-editing"
@@ -294,7 +443,11 @@ export default function AddSiteModal({
             />
             {!!searchQuery && (
               <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={COLORS.textTertiary}
+                />
               </TouchableOpacity>
             )}
           </View>
@@ -326,12 +479,69 @@ export default function AddSiteModal({
           ))}
         </View>
 
-        {isLoadingSites || isLoadingFavorites || (activeTab === "events" && isLoadingEventSites) ? (
-          <ActivityIndicator size="large" color={COLORS.accent} style={{ marginTop: 20 }} />
+        {groupPatronConstraint ? (
+          <View style={localStyles.patronCallout}>
+            <Ionicons name="ribbon-outline" size={22} color="#1E4D6B" />
+            <View style={localStyles.patronCalloutTextWrap}>
+              <Text style={localStyles.patronCalloutTitle}>
+                {t("planner.groupPatronCalloutTitle", {
+                  defaultValue: "Kế hoạch nhóm — cùng một bổn mạng",
+                })}
+              </Text>
+              <Text style={localStyles.patronCalloutBody}>
+                {t("planner.groupPatronCalloutBody", {
+                  defaultValue:
+                    'Đoàn đang theo bổn mạng «{{patron}}» (địa điểm đầu: {{anchor}}). Chỉ chọn nơi cùng bổn mạng — server sẽ từ chối nếu khác.',
+                  patron: groupPatronConstraint.displayPatron,
+                  anchor: groupPatronConstraint.anchorSiteName,
+                })}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {groupPatronConstraint ? (
+          <TouchableOpacity
+            style={localStyles.patronFilterRow}
+            onPress={() => setOnlyMatchingPatron((v) => !v)}
+            activeOpacity={0.75}
+          >
+            <Ionicons
+              name={onlyMatchingPatron ? "checkbox" : "square-outline"}
+              size={22}
+              color={onlyMatchingPatron ? COLORS.primary : COLORS.textTertiary}
+            />
+            <Text style={localStyles.patronFilterLabel}>
+              {t("planner.onlyMatchingPatronFilter", {
+                defaultValue: "Chỉ hiện địa điểm đúng bổn mạng đoàn",
+              })}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {isLoadingSites ||
+        isLoadingFavorites ||
+        (activeTab === "events" && isLoadingEventSites) ? (
+          <ActivityIndicator
+            size="large"
+            color={COLORS.accent}
+            style={{ marginTop: 20 }}
+          />
         ) : activeTab === "events" ? (
           filteredEventSites.length === 0 ? (
-            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32 }}>
-              <Ionicons name="calendar-outline" size={48} color={COLORS.textTertiary} />
+            <View
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 32,
+              }}
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={48}
+                color={COLORS.textTertiary}
+              />
               <Text
                 style={{
                   color: COLORS.textSecondary,
@@ -340,7 +550,8 @@ export default function AddSiteModal({
                   textAlign: "center",
                 }}
               >
-                Hiện tại không có địa điểm nào có sự kiện diễn ra trong thời gian lịch trình của bạn.
+                Hiện tại không có địa điểm nào có sự kiện diễn ra trong thời
+                gian lịch trình của bạn.
               </Text>
             </View>
           ) : (
@@ -351,18 +562,30 @@ export default function AddSiteModal({
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
-                <TouchableOpacity style={sharedStyles.siteItem} onPress={() => onSelectEventSite(item)}>
+                <TouchableOpacity
+                  style={sharedStyles.siteItem}
+                  onPress={() => onSelectEventSite(item)}
+                >
                   <Image
-                    source={{ uri: item.coverImage || "https://via.placeholder.com/60" }}
+                    source={{
+                      uri: item.coverImage || "https://via.placeholder.com/60",
+                    }}
                     style={sharedStyles.siteItemImage}
                   />
                   <View style={sharedStyles.siteItemContent}>
                     <Text style={sharedStyles.siteItemName}>{item.name}</Text>
-                    <Text style={sharedStyles.siteItemAddress} numberOfLines={1}>
+                    <Text
+                      style={sharedStyles.siteItemAddress}
+                      numberOfLines={1}
+                    >
                       Chọn để xem sự kiện
                     </Text>
                   </View>
-                  <Ionicons name="calendar-outline" size={24} color={COLORS.accent} />
+                  <Ionicons
+                    name="calendar-outline"
+                    size={24}
+                    color={COLORS.accent}
+                  />
                 </TouchableOpacity>
               )}
             />
@@ -375,11 +598,17 @@ export default function AddSiteModal({
             ListHeaderComponent={
               activeTab === "all" && featuredSites.length > 0 ? (
                 <View style={{ marginBottom: 10 }}>
-                  <Text style={localStyles.featuredSectionTitle}>Gợi ý nổi tiếng</Text>
+                  <Text style={localStyles.featuredSectionTitle}>
+                    Gợi ý nổi tiếng
+                  </Text>
                   {featuredSites.map((s) => (
-                    <View key={`featured_${s.id}`}>{renderSiteRow(s, true)}</View>
+                    <View key={`featured_${s.id}`}>
+                      {renderSiteRow(s, true)}
+                    </View>
                   ))}
-                  <Text style={localStyles.normalSectionTitle}>Tất cả địa điểm</Text>
+                  <Text style={localStyles.normalSectionTitle}>
+                    Tất cả địa điểm
+                  </Text>
                 </View>
               ) : null
             }
@@ -399,8 +628,14 @@ export default function AddSiteModal({
             <Text style={localStyles.bottomBarText} numberOfLines={1}>
               Đã thêm: {addedCount} địa điểm
             </Text>
-            <TouchableOpacity style={localStyles.bottomBarButton} onPress={onClose} activeOpacity={0.85}>
-              <Text style={localStyles.bottomBarButtonText}>Xem lịch trình</Text>
+            <TouchableOpacity
+              style={localStyles.bottomBarButton}
+              onPress={onClose}
+              activeOpacity={0.85}
+            >
+              <Text style={localStyles.bottomBarButtonText}>
+                Xem lịch trình
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -564,5 +799,86 @@ const localStyles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 13,
     fontWeight: "700",
+  },
+  patronCallout: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(30, 77, 107, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(30, 77, 107, 0.2)",
+  },
+  patronCalloutTextWrap: { flex: 1, minWidth: 0 },
+  patronCalloutTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1E4D6B",
+    marginBottom: 4,
+  },
+  patronCalloutBody: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  patronFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 6,
+  },
+  patronFilterLabel: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  patronBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(30, 77, 107, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(30, 77, 107, 0.22)",
+    maxWidth: "100%",
+  },
+  patronBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#1E4D6B",
+  },
+  patronBadgeWarn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(234, 179, 8, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(234, 179, 8, 0.35)",
+  },
+  patronBadgeWarnText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#A16207",
+  },
+  patronBlockHint: {
+    marginTop: 6,
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#B91C1C",
+    lineHeight: 15,
+  },
+  cardPatronBlocked: {
+    opacity: 0.92,
+  },
+  addSiteButtonDisabled: {
+    backgroundColor: "#F3F4F6",
+    opacity: 0.65,
   },
 });

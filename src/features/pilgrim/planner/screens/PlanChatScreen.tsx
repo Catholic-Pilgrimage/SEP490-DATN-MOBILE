@@ -30,6 +30,13 @@ import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
 const POLL_INTERVAL = 8000;
 const PAGE_SIZE = 30;
 
+/** Cũ → mới (tin mới nhất ở cuối mảng), giống Messenger / FB. */
+const sortMessagesOldestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
+  [...msgs].sort(
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+
 const PlanChatScreen = ({ route, navigation }: any) => {
   const { planId, planName } = route.params;
   const { t } = useTranslation();
@@ -46,6 +53,8 @@ const PlanChatScreen = ({ route, navigation }: any) => {
 
   const flatListRef = useRef<FlatList>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const didInitialScrollRef = useRef(false);
+  const lastNewestMessageIdRef = useRef<string | null>(null);
   const keyboardHeight = useRef(new RNAnimated.Value(0)).current;
 
   // Keyboard handling
@@ -91,10 +100,10 @@ const PlanChatScreen = ({ route, navigation }: any) => {
             setMessages((prev) => {
               const existingIds = new Set(prev.map((m) => m.id));
               const newOnes = fetched.filter((m: any) => !existingIds.has(m.id));
-              return [...prev, ...newOnes];
+              return sortMessagesOldestFirst([...newOnes, ...prev]);
             });
           } else {
-            setMessages(fetched);
+            setMessages(sortMessagesOldestFirst(fetched));
           }
         }
         const total = data?.pagination?.total ?? 0;
@@ -106,6 +115,13 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     [planId],
   );
 
+  useEffect(() => {
+    didInitialScrollRef.current = false;
+    lastNewestMessageIdRef.current = null;
+    setPage(1);
+    setHasMore(true);
+  }, [planId]);
+
   // Initial load
   useEffect(() => {
     (async () => {
@@ -114,6 +130,32 @@ const PlanChatScreen = ({ route, navigation }: any) => {
       setLoading(false);
     })();
   }, [fetchMessages]);
+
+  // Lần đầu vào: cuộn xuống cuối; tin mới (poll / gửi): cuộn theo nếu có tin mới nhất mới.
+  useEffect(() => {
+    if (loading || messages.length === 0) return;
+    const newestId = messages[messages.length - 1]?.id ?? null;
+
+    if (!didInitialScrollRef.current) {
+      didInitialScrollRef.current = true;
+      if (newestId) lastNewestMessageIdRef.current = newestId;
+      requestAnimationFrame(() =>
+        flatListRef.current?.scrollToEnd({ animated: false }),
+      );
+      return;
+    }
+
+    if (
+      newestId &&
+      lastNewestMessageIdRef.current != null &&
+      newestId !== lastNewestMessageIdRef.current
+    ) {
+      lastNewestMessageIdRef.current = newestId;
+      requestAnimationFrame(() =>
+        flatListRef.current?.scrollToEnd({ animated: true }),
+      );
+    }
+  }, [loading, messages]);
 
   // Polling for new messages
   useEffect(() => {
@@ -130,7 +172,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
             const existingIds = new Set(prev.map((m) => m.id));
             const newOnes = fetched.filter((m) => !existingIds.has(m.id));
             if (newOnes.length === 0) return prev;
-            return [...newOnes, ...prev];
+            return sortMessagesOldestFirst([...prev, ...newOnes]);
           });
         }
       } catch {
@@ -166,7 +208,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
         content,
       });
       if ((res.success || res.data) && res.data) {
-        setMessages((prev) => [res.data!, ...prev]);
+        setMessages((prev) => sortMessagesOldestFirst([...prev, res.data!]));
       } else {
         Alert.alert(
           t("common.error", { defaultValue: "Lỗi" }),
@@ -274,23 +316,24 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     });
   };
 
-  // Check if a date separator should show between two messages
+  /** data cũ → mới: hiện nhãn ngày phía trên tin đầu của ngày mới. */
   const shouldShowDate = (index: number): boolean => {
-    if (index === messages.length - 1) return true;
-    const current = new Date(messages[index].created_at).toDateString();
-    const next = new Date(messages[index + 1].created_at).toDateString();
-    return current !== next;
+    if (index === 0) return true;
+    const prevDay = new Date(messages[index - 1].created_at).toDateString();
+    const curDay = new Date(messages[index].created_at).toDateString();
+    return prevDay !== curDay;
   };
 
   // --- Render message ---
   const renderMessage = ({ item, index }: { item: PlannerMessage; index: number }) => {
     const own = isOwn(item);
     const sender = item.user ?? item.sender;
+    const next = messages[index + 1];
     const showAvatar =
       !own &&
       (index === messages.length - 1 ||
-        messages[index + 1]?.user_id !== item.user_id ||
-        shouldShowDate(index));
+        String(next?.user_id) !== String(item.user_id) ||
+        (next != null && shouldShowDate(index + 1)));
 
     return (
       <View>
@@ -416,11 +459,15 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
-          inverted
           contentContainerStyle={styles.messageList}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.3}
-          ListFooterComponent={
+          maintainVisibleContentPosition={
+            loadingMore
+              ? { minIndexForVisible: 0, autoscrollToTopThreshold: 24 }
+              : undefined
+          }
+          onStartReached={handleLoadMore}
+          onStartReachedThreshold={0.35}
+          ListHeaderComponent={
             loadingMore ? (
               <ActivityIndicator
                 size="small"

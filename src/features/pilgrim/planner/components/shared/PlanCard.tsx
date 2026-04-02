@@ -96,6 +96,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
     if (s === "ongoing") {
       return { text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"), color: "#FFF8E1", bg: "rgba(90, 60, 20, 0.75)", icon: "rocket-outline" };
     }
+    if (s === "locked") {
+      return { text: t("planner.statusLocked", "SẴN SÀNG KHỞI HÀNH"), color: "#FFF8E1", bg: "rgba(90, 60, 20, 0.75)", icon: "lock-closed-outline" };
+    }
     if (s === "completed") {
       return { text: t("planner.statusCompleted", "HOÀN THÀNH"), color: "#FFF8E1", bg: "rgba(60, 90, 40, 0.75)", icon: "checkmark-circle-outline" };
     }
