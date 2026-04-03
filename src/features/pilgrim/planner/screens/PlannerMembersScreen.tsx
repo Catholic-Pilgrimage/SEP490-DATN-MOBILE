@@ -54,22 +54,37 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const loadMembers = useCallback(async () => {
     if (!planId) return;
     try {
-      const [membersRes, progressRes, detailRes] = await Promise.all([
-        pilgrimPlannerApi.getPlanMembers(planId),
-        pilgrimPlannerApi.getPlannerProgress(planId),
-        pilgrimPlannerApi.getPlanDetail(planId)
-      ]);
+      let planStatus: string | undefined;
 
-      if (detailRes.success && detailRes.data) {
-        setOwnerId(detailRes.data.user_id);
+      try {
+        const detailRes = await pilgrimPlannerApi.getPlanDetail(planId);
+        if (detailRes?.success && detailRes.data) {
+          setOwnerId(detailRes.data.user_id);
+          planStatus = detailRes.data.status;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch plan detail (might be pending invite)", err);
       }
 
-      if (progressRes.success && progressRes.data?.member_progress) {
+      const membersRes = await pilgrimPlannerApi.getPlanMembers(planId);
+
+      let progressRes: any = null;
+      if (planStatus === "ongoing") {
+        try {
+          progressRes = await pilgrimPlannerApi.getPlannerProgress(planId);
+        } catch (e) {
+          console.warn("Failed to fetch plan progress", e);
+        }
+      }
+
+      if (progressRes?.success && progressRes.data?.member_progress) {
         const pMap: Record<string, PlannerProgressMember> = {};
-        progressRes.data.member_progress.forEach(p => {
+        progressRes.data.member_progress.forEach((p: PlannerProgressMember) => {
           pMap[p.user_id] = p;
         });
         setProgressMap(pMap);
+      } else {
+        setProgressMap({});
       }
 
       if (membersRes.success && membersRes.data?.members) {
@@ -93,7 +108,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       setSummary(null);
       Toast.show({
         type: "error",
-        text1: "Không thể tải danh sách thành viên",
+        text1: "Không thể tải danh sách",
         text2: e?.message || "Vui lòng thử lại",
       });
     }

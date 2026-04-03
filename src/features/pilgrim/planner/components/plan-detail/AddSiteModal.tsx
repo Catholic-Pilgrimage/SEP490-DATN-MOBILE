@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "../../../../../config/toast.config";
 import {
     ActivityIndicator,
     FlatList,
@@ -15,8 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
 import type { SiteType } from "../../../../../types/common.types";
 import { SiteSummary } from "../../../../../types/pilgrim";
-import type { GroupPatronConstraint } from "../../utils/planPatronScope.utils";
-import { sitePatronMatchesGroup } from "../../utils/planPatronScope.utils";
+
 
 type RegionFilter = "all" | "north" | "central" | "south";
 
@@ -35,14 +36,12 @@ interface AddSiteModalProps {
   onSelectEventSite: (site: SiteSummary) => void;
   sites: SiteSummary[];
   favorites: SiteSummary[];
-  onAddSite: (siteId: string) => void;
+  onAddSite?: (siteId: string) => void;
   /** Chạm vào ảnh/tên địa điểm — mở trang chi tiết site (nút + vẫn chỉ thêm vào lịch). */
   onOpenSiteDetail?: (siteId: string) => void;
   addingItem: boolean;
   alreadyAddedSiteIds: Set<string>;
   addedCount: number;
-  /** Kế hoạch nhóm: bổn mạng bắt buộc trùng điểm đầu (khớp BE). */
-  groupPatronConstraint?: GroupPatronConstraint | null;
 }
 
 export default function AddSiteModal({
@@ -65,12 +64,10 @@ export default function AddSiteModal({
   addingItem,
   alreadyAddedSiteIds,
   addedCount,
-  groupPatronConstraint = null,
 }: AddSiteModalProps) {
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
   const [regionFilter, setRegionFilter] = useState<RegionFilter>("all");
-  const [onlyMatchingPatron, setOnlyMatchingPatron] = useState(false);
   const q = searchQuery.trim().toLowerCase();
 
   /** Padding đáy list để không bị floating bar che — tính trực tiếp tránh lỗi scope/Hermes với biến trung gian. */
@@ -86,34 +83,6 @@ export default function AddSiteModal({
     return true;
   };
 
-  const patronRank = (s: SiteSummary) => {
-    if (!groupPatronConstraint) return 0;
-    const m = sitePatronMatchesGroup(s.patronSaint, groupPatronConstraint);
-    if (m === "match") return 0;
-    if (m === "unknown") return 1;
-    return 2;
-  };
-
-  const applyPatronListFilter = (list: SiteSummary[]) => {
-    if (!groupPatronConstraint || !onlyMatchingPatron) return list;
-    return list.filter((s) => {
-      if (alreadyAddedSiteIds.has(s.id)) return true;
-      return (
-        sitePatronMatchesGroup(s.patronSaint, groupPatronConstraint) ===
-        "match"
-      );
-    });
-  };
-
-  const sortByPatronThenName = (list: SiteSummary[]) => {
-    if (!groupPatronConstraint) return list;
-    return [...list].sort((a, b) => {
-      const d = patronRank(a) - patronRank(b);
-      if (d !== 0) return d;
-      return (a.name || "").localeCompare(b.name || "", "vi");
-    });
-  };
-
   const filteredSites = useMemo(() => {
     const byRegion = sites.filter(matchesRegion);
     const searched = !q
@@ -123,15 +92,8 @@ export default function AddSiteModal({
           const address = (s.address || "").toLowerCase();
           return name.includes(q) || address.includes(q);
         });
-    return sortByPatronThenName(applyPatronListFilter(searched));
-  }, [
-    q,
-    sites,
-    regionFilter,
-    groupPatronConstraint,
-    onlyMatchingPatron,
-    alreadyAddedSiteIds,
-  ]);
+    return [...searched].sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
+  }, [q, sites, regionFilter]);
 
   const filteredFavorites = useMemo(() => {
     const byRegion = favorites.filter(matchesRegion);
@@ -142,15 +104,8 @@ export default function AddSiteModal({
           const address = (s.address || "").toLowerCase();
           return name.includes(q) || address.includes(q);
         });
-    return sortByPatronThenName(applyPatronListFilter(searched));
-  }, [
-    q,
-    favorites,
-    regionFilter,
-    groupPatronConstraint,
-    onlyMatchingPatron,
-    alreadyAddedSiteIds,
-  ]);
+    return [...searched].sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
+  }, [q, favorites, regionFilter]);
 
   const filteredEventSites = useMemo(() => {
     const byRegion = eventSitesList.filter(matchesRegion);
@@ -161,15 +116,8 @@ export default function AddSiteModal({
           const address = (s.address || "").toLowerCase();
           return name.includes(q) || address.includes(q);
         });
-    return sortByPatronThenName(applyPatronListFilter(searched));
-  }, [
-    q,
-    eventSitesList,
-    regionFilter,
-    groupPatronConstraint,
-    onlyMatchingPatron,
-    alreadyAddedSiteIds,
-  ]);
+    return [...searched].sort((a, b) => (a.name || "").localeCompare(b.name || "", "vi"));
+  }, [q, eventSitesList, regionFilter]);
 
   const featuredSites = useMemo(() => {
     const source = filteredSites;
@@ -225,17 +173,12 @@ export default function AddSiteModal({
 
   const renderSiteRow = (item: SiteSummary, featured = false) => {
     const isAdded = alreadyAddedSiteIds.has(item.id);
-    const patronMatch = groupPatronConstraint
-      ? sitePatronMatchesGroup(item.patronSaint, groupPatronConstraint)
-      : null;
-    const patronBlocked = patronMatch === "mismatch" && !isAdded;
 
     return (
       <View
         style={[
           sharedStyles.siteItem,
           localStyles.siteCard,
-          patronBlocked ? localStyles.cardPatronBlocked : null,
         ]}
       >
         <TouchableOpacity
@@ -276,24 +219,16 @@ export default function AddSiteModal({
                   <Text style={localStyles.featuredBadgeText}>Nổi bật</Text>
                 </View>
               )}
-              {item.patronSaint ? (
-                <View style={localStyles.patronBadge}>
-                  <Text style={localStyles.patronBadgeText} numberOfLines={1}>
+              {item.patronSaint && (
+                <View style={[localStyles.typeBadge, { backgroundColor: 'rgba(30, 77, 107, 0.1)', borderColor: 'rgba(30, 77, 107, 0.2)' }]}>
+                  <Text style={[localStyles.typeBadgeText, { color: '#1E4D6B' }]} numberOfLines={1}>
                     {t("planner.patronSaintShort", {
                       defaultValue: "Bổn mạng: {{name}}",
                       name: item.patronSaint,
                     })}
                   </Text>
                 </View>
-              ) : groupPatronConstraint ? (
-                <View style={localStyles.patronBadgeWarn}>
-                  <Text style={localStyles.patronBadgeWarnText} numberOfLines={1}>
-                    {t("planner.patronDataMissing", {
-                      defaultValue: "Chưa có bổn mạng trên hệ thống",
-                    })}
-                  </Text>
-                </View>
-              ) : null}
+              )}
             </View>
             <Text
               style={[
@@ -305,15 +240,6 @@ export default function AddSiteModal({
             >
               📍 {getShortLocation(item.address)}
             </Text>
-            {patronBlocked && groupPatronConstraint ? (
-              <Text style={localStyles.patronBlockHint} numberOfLines={2}>
-                {t("planner.patronMismatchRowHint", {
-                  defaultValue:
-                    "Khác bổn mạng đoàn ({{expected}}) — không thể thêm.",
-                  expected: groupPatronConstraint.displayPatron,
-                })}
-              </Text>
-            ) : null}
           </View>
         </TouchableOpacity>
 
@@ -321,17 +247,14 @@ export default function AddSiteModal({
           style={[
             localStyles.addSiteButton,
             isAdded && localStyles.addedSiteButton,
-            patronBlocked && localStyles.addSiteButtonDisabled,
           ]}
-          onPress={() => !isAdded && !patronBlocked && onAddSite(item.id)}
-          disabled={addingItem || isAdded || patronBlocked}
+          onPress={() => !isAdded && onAddSite?.(item.id)}
+          disabled={addingItem || isAdded}
         >
           {addingItem && !isAdded ? (
             <ActivityIndicator size="small" color="#4B5563" />
           ) : isAdded ? (
             <Ionicons name="checkmark" size={20} color="#fff" />
-          ) : patronBlocked ? (
-            <Ionicons name="ban-outline" size={20} color="#9CA3AF" />
           ) : (
             <Ionicons name="add" size={22} color="#4B5563" />
           )}
@@ -479,45 +402,7 @@ export default function AddSiteModal({
           ))}
         </View>
 
-        {groupPatronConstraint ? (
-          <View style={localStyles.patronCallout}>
-            <Ionicons name="ribbon-outline" size={22} color="#1E4D6B" />
-            <View style={localStyles.patronCalloutTextWrap}>
-              <Text style={localStyles.patronCalloutTitle}>
-                {t("planner.groupPatronCalloutTitle", {
-                  defaultValue: "Kế hoạch nhóm — cùng một bổn mạng",
-                })}
-              </Text>
-              <Text style={localStyles.patronCalloutBody}>
-                {t("planner.groupPatronCalloutBody", {
-                  defaultValue:
-                    'Đoàn đang theo bổn mạng «{{patron}}» (địa điểm đầu: {{anchor}}). Chỉ chọn nơi cùng bổn mạng — server sẽ từ chối nếu khác.',
-                  patron: groupPatronConstraint.displayPatron,
-                  anchor: groupPatronConstraint.anchorSiteName,
-                })}
-              </Text>
-            </View>
-          </View>
-        ) : null}
 
-        {groupPatronConstraint ? (
-          <TouchableOpacity
-            style={localStyles.patronFilterRow}
-            onPress={() => setOnlyMatchingPatron((v) => !v)}
-            activeOpacity={0.75}
-          >
-            <Ionicons
-              name={onlyMatchingPatron ? "checkbox" : "square-outline"}
-              size={22}
-              color={onlyMatchingPatron ? COLORS.primary : COLORS.textTertiary}
-            />
-            <Text style={localStyles.patronFilterLabel}>
-              {t("planner.onlyMatchingPatronFilter", {
-                defaultValue: "Chỉ hiện địa điểm đúng bổn mạng đoàn",
-              })}
-            </Text>
-          </TouchableOpacity>
-        ) : null}
 
         {isLoadingSites ||
         isLoadingFavorites ||
@@ -639,6 +524,9 @@ export default function AddSiteModal({
             </TouchableOpacity>
           </View>
         </View>
+      </View>
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+        <Toast config={toastConfig} />
       </View>
     </Modal>
   );
@@ -799,83 +687,6 @@ const localStyles = StyleSheet.create({
     color: COLORS.textPrimary,
     fontSize: 13,
     fontWeight: "700",
-  },
-  patronCallout: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    marginHorizontal: 16,
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(30, 77, 107, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(30, 77, 107, 0.2)",
-  },
-  patronCalloutTextWrap: { flex: 1, minWidth: 0 },
-  patronCalloutTitle: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#1E4D6B",
-    marginBottom: 4,
-  },
-  patronCalloutBody: {
-    fontSize: 12,
-    lineHeight: 17,
-    color: COLORS.textSecondary,
-    fontWeight: "500",
-  },
-  patronFilterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
-    paddingVertical: 6,
-  },
-  patronFilterLabel: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  patronBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: "rgba(30, 77, 107, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(30, 77, 107, 0.22)",
-    maxWidth: "100%",
-  },
-  patronBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#1E4D6B",
-  },
-  patronBadgeWarn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: "rgba(234, 179, 8, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(234, 179, 8, 0.35)",
-  },
-  patronBadgeWarnText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#A16207",
-  },
-  patronBlockHint: {
-    marginTop: 6,
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#B91C1C",
-    lineHeight: 15,
-  },
-  cardPatronBlocked: {
-    opacity: 0.92,
   },
   addSiteButtonDisabled: {
     backgroundColor: "#F3F4F6",

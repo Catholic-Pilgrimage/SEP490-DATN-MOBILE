@@ -7,11 +7,12 @@ import { PlanEntity, PlanItem } from "../../../../../types/pilgrim/planner.types
 type Props = {
   plan: PlanEntity;
   firstItem: PlanItem | null;
+  compact?: boolean;
 };
 
-export default function PlanHeader({ plan, firstItem }: Props) {
+export default function PlanHeader({ plan, firstItem, compact }: Props) {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && { borderRadius: 0 }]}>
       <Image
         source={{
           uri:

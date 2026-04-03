@@ -10,7 +10,7 @@ import {
   SOSDetailScreen,
   SOSListScreen,
 } from "../features/guide/support/screens";
-import PlanInvitePreviewScreen from "../features/pilgrim/planner/screens/PlanInvitePreviewScreen";
+
 import VerificationRequestScreen from "../features/pilgrim/profile/screens/VerificationRequestScreen";
 import NotificationsScreen from "../features/shared/notifications/screens/NotificationsScreen";
 import SettingsScreen from "../features/shared/settings/screens/SettingsScreen";
@@ -36,14 +36,25 @@ export type RootStackParamList = {
   VerificationRequest: undefined;
   Notifications: undefined;
   // Planner Invite
-  PlanInvitePreview: { token: string; mode?: "redirect" | "preview" };
 };
 
 const linking = {
   prefixes: ["pilgrimapp://"],
   config: {
     screens: {
-      PlanInvitePreview: "planners/invite/:token",
+      Main: {
+        screens: {
+          MainTabs: {
+            screens: {
+              "Lich trinh": {
+                screens: {
+                  PlannerMain: "planners/invite/:token",
+                }
+              }
+            }
+          }
+        }
+      }
     },
   },
 };
@@ -144,14 +155,6 @@ export const RootNavigator = () => {
           component={NotificationsScreen}
           options={{
             animation: "slide_from_right",
-          }}
-        />
-        <Stack.Screen
-          name="PlanInvitePreview"
-          component={PlanInvitePreviewScreen}
-          options={{
-            animation: "slide_from_bottom",
-            presentation: "modal",
           }}
         />
       </Stack.Navigator>
