@@ -12,6 +12,7 @@ import {
   useNotificationContext,
 } from "./contexts/NotificationContext";
 import { NotificationModal } from "./features/pilgrim/explore/components/NotificationModal";
+import { ConfirmProvider } from "./hooks/useConfirm";
 import "./i18n";
 import { RootNavigator } from "./navigation/RootNavigator";
 import offlineSyncServiceInstance from "./services/offline/offlineSyncService";
@@ -90,10 +91,12 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <NotificationProvider>
-              <OfflineSyncToastBridge />
-              <RootNavigator />
-              <GlobalNotificationModal />
-              <Toast config={toastConfig} />
+              <ConfirmProvider>
+                <OfflineSyncToastBridge />
+                <RootNavigator />
+                <GlobalNotificationModal />
+                <Toast config={toastConfig} />
+              </ConfirmProvider>
             </NotificationProvider>
           </AuthProvider>
         </QueryClientProvider>

@@ -6,11 +6,13 @@
  */
 import Mapbox, {
   Camera,
+  LineLayer,
   LocationPuck,
   MapView,
   PointAnnotation,
   RasterLayer,
   RasterSource,
+  ShapeSource,
 } from "@rnmapbox/maps";
 import React, {
   forwardRef,
@@ -85,6 +87,22 @@ export interface VietmapViewProps {
   showInfoCards?: boolean;
   
   tapRelocatesPin?: boolean;
+
+  /**
+   * Route coordinates to draw as a polyline on the map.
+   * Each entry is [longitude, latitude] (GeoJSON order).
+   * This draws a SINGLE continuous polyline.
+   */
+  routeCoordinates?: [number, number][];
+
+  /**
+   * Multiple route segments — each segment gets its own color.
+   * Takes priority over `routeCoordinates` if both are specified.
+   */
+  routeSegments?: {
+    coordinates: [number, number][];
+    color?: string;
+  }[];
 }
 
 export interface VietmapViewRef {
@@ -106,6 +124,18 @@ const SNAP_THRESHOLD = 0.0003; // ~30m
 /** Stable empty default — `pins = []` in params creates a new array every render and breaks `useEffect([pins])`. */
 const EMPTY_PINS: MapPin[] = [];
 
+/** Colors for route segments when using multi-segment mode */
+const ROUTE_SEGMENT_COLORS = [
+  "#E74C3C", // red
+  "#3498DB", // blue
+  "#2ECC71", // green
+  "#F39C12", // orange
+  "#9B59B6", // purple
+  "#1ABC9C", // teal
+  "#E67E22", // dark orange
+  "#E91E63", // pink
+];
+
 export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
   (
     {
@@ -121,6 +151,8 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       cardBottomOffset = 0,
       showInfoCards = true,
       tapRelocatesPin = false,
+      routeCoordinates,
+      routeSegments,
     },
     ref,
   ) => {
@@ -359,6 +391,79 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
               pulsing={{ isEnabled: true, color: COLORS.info, radius: 50 }}
             />
           )}
+
+          {/* Route polyline rendering */}
+          {routeSegments && routeSegments.length > 0
+            ? routeSegments.map((segment, idx) => {
+                if (!segment.coordinates || segment.coordinates.length < 2) return null;
+                const geoJson: GeoJSON.Feature<GeoJSON.LineString> = {
+                  type: 'Feature',
+                  properties: {},
+                  geometry: {
+                    type: 'LineString',
+                    coordinates: segment.coordinates,
+                  },
+                };
+                const segColor = segment.color || ROUTE_SEGMENT_COLORS[idx % ROUTE_SEGMENT_COLORS.length];
+                return (
+                  <ShapeSource key={`route-seg-${idx}`} id={`route-segment-${idx}`} shape={geoJson}>
+                    <LineLayer
+                      id={`route-line-bg-${idx}`}
+                      style={{
+                        lineColor: '#000000',
+                        lineWidth: 7,
+                        lineOpacity: 0.15,
+                        lineJoin: 'round',
+                        lineCap: 'round',
+                      }}
+                    />
+                    <LineLayer
+                      id={`route-line-${idx}`}
+                      style={{
+                        lineColor: segColor,
+                        lineWidth: 4,
+                        lineJoin: 'round',
+                        lineCap: 'round',
+                      }}
+                    />
+                  </ShapeSource>
+                );
+              })
+            : routeCoordinates && routeCoordinates.length >= 2
+              ? (() => {
+                  const geoJson: GeoJSON.Feature<GeoJSON.LineString> = {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: {
+                      type: 'LineString',
+                      coordinates: routeCoordinates,
+                    },
+                  };
+                  return (
+                    <ShapeSource id="route-line-source" shape={geoJson}>
+                      <LineLayer
+                        id="route-line-bg"
+                        style={{
+                          lineColor: '#000000',
+                          lineWidth: 7,
+                          lineOpacity: 0.15,
+                          lineJoin: 'round',
+                          lineCap: 'round',
+                        }}
+                      />
+                      <LineLayer
+                        id="route-line-main"
+                        style={{
+                          lineColor: COLORS.accent,
+                          lineWidth: 4,
+                          lineJoin: 'round',
+                          lineCap: 'round',
+                        }}
+                      />
+                    </ShapeSource>
+                  );
+                })()
+              : null}
 
           {localPins.map((pin) => (
             <PointAnnotation

@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { COLORS } from "../../../../../constants/theme.constants";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "../../../../../config/toast.config";
 
 interface TimeInputModalProps {
   visible: boolean;
@@ -154,6 +156,9 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             )}
           </TouchableOpacity>
         </ScrollView>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+          <Toast config={toastConfig} />
+        </View>
       </View>
     </Modal>
   );

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import locationService from "../../../../services/location/locationService";
 import networkService from "../../../../services/network/networkService";
@@ -12,15 +12,17 @@ import {
 export const useJourneyExecution = (
   planId: string,
   refreshPlan: () => Promise<void>,
+  onCompleted?: () => void,
 ) => {
   const [checkingInItemId, setCheckingInItemId] = useState<string | null>(null);
   const [skippingItemId, setSkippingItemId] = useState<string | null>(null);
   const [markingVisitedItemId, setMarkingVisitedItemId] = useState<
     string | null
   >(null);
+  const { confirm } = useConfirm();
 
   const checkIn = useCallback(
-    async (item: PlanItem) => {
+    async (item: PlanItem, isLastItem?: boolean) => {
       if (!item.id) return;
       try {
         setCheckingInItemId(item.id);
@@ -59,6 +61,25 @@ export const useJourneyExecution = (
           text1: "Check-in thành công",
           text2: item.site.name,
         });
+        
+        // Auto-complete check for last item
+        if (isLastItem) {
+          try {
+            const compRes = await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "completed" });
+            if (compRes.success) {
+              Toast.show({
+                type: "success",
+                text1: "Hành trình đã kết thúc!",
+                text2: "Tất cả thành viên đã check-in điểm cuối.",
+              });
+              onCompleted?.();
+              return;
+            }
+          } catch (e) {
+            // Probably not everyone checked in yet, stay in active journey
+          }
+        }
+
         await refreshPlan();
       } catch (e: any) {
         Toast.show({
@@ -70,7 +91,7 @@ export const useJourneyExecution = (
         setCheckingInItemId(null);
       }
     },
-    [planId, refreshPlan],
+    [planId, refreshPlan, onCompleted],
   );
 
   const skipItem = useCallback(
@@ -109,7 +130,7 @@ export const useJourneyExecution = (
   );
 
   const markVisited = useCallback(
-    async (item: PlanItem) => {
+    async (item: PlanItem, isLastItem?: boolean) => {
       if (!item.id) return;
       try {
         setMarkingVisitedItemId(item.id);
@@ -125,6 +146,28 @@ export const useJourneyExecution = (
             response.message || "Không thể chuyển trạng thái đã viếng",
           );
         }
+
+        const handleSuccessVisited = async () => {
+          if (isLastItem) {
+            try {
+              const compRes = await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "completed" });
+              if (compRes.success) {
+                Toast.show({
+                  type: "success",
+                  text1: "Hành trình đã kết thúc!",
+                  text2: "Trưởng đoàn đã chốt điểm cuối cùng.",
+                });
+                onCompleted?.();
+                return true;
+              }
+            } catch (e) {
+              // Stick to refresh
+            }
+          }
+          await refreshPlan();
+          return false;
+        };
+
         const payload = response.data;
         if (
           payload &&
@@ -135,54 +178,46 @@ export const useJourneyExecution = (
         ) {
           const missed =
             (payload as MarkVisitedConfirmationResponse).stats?.missed ?? 0;
-          await new Promise<void>((resolve) => {
-            Alert.alert(
-              "Xác nhận chốt điểm",
-              `Còn ${missed} thành viên chưa check-in. Xác nhận ghi nhận vắng và chốt điểm?`,
-              [
-                { text: "Hủy", style: "cancel", onPress: () => resolve() },
-                {
-                  text: "Xác nhận",
-                  onPress: () => {
-                    void (async () => {
-                      try {
-                        const r2 =
-                          await pilgrimPlannerApi.updatePlannerItemStatus(
-                            planId,
-                            item.id,
-                            {
-                              status: "visited",
-                              confirm_missed: true,
-                              skip_reason:
-                                "Trưởng đoàn xác nhận chốt điểm (ghi nhận vắng mặt)",
-                            },
-                          );
-                        if (!r2.success) {
-                          throw new Error(
-                            r2.message || "Không thể hoàn tất sau khi xác nhận",
-                          );
-                        }
-                        Toast.show({
-                          type: "success",
-                          text1: "Đã hoàn tất điểm viếng",
-                          text2: item.site.name,
-                        });
-                        await refreshPlan();
-                      } catch (e: any) {
-                        Toast.show({
-                          type: "error",
-                          text1: "Không thể cập nhật trạng thái",
-                          text2: e?.message || "Vui lòng thử lại",
-                        });
-                      } finally {
-                        resolve();
-                      }
-                    })();
-                  },
-                },
-              ],
-            );
+            
+          const isConfirmed = await confirm({
+            type: "warning",
+            title: "Xác nhận chốt điểm",
+            message: `Còn ${missed} thành viên chưa check-in. Xác nhận ghi nhận vắng và chốt điểm?`,
+            confirmText: "Xác nhận",
+            cancelText: "Hủy",
           });
+
+          if (isConfirmed) {
+            try {
+              const r2 = await pilgrimPlannerApi.updatePlannerItemStatus(
+                planId,
+                item.id,
+                {
+                  status: "visited",
+                  confirm_missed: true,
+                  skip_reason:
+                    "Trưởng đoàn xác nhận chốt điểm (ghi nhận vắng mặt)",
+                },
+              );
+              if (!r2.success) {
+                throw new Error(
+                  r2.message || "Không thể hoàn tất sau khi xác nhận",
+                );
+              }
+              Toast.show({
+                type: "success",
+                text1: "Đã hoàn tất điểm viếng",
+                text2: item.site.name,
+              });
+              await handleSuccessVisited();
+            } catch (e: any) {
+              Toast.show({
+                type: "error",
+                text1: "Không thể cập nhật trạng thái",
+                text2: e?.message || "Vui lòng thử lại",
+              });
+            }
+          }
           return;
         }
         Toast.show({
@@ -190,7 +225,7 @@ export const useJourneyExecution = (
           text1: "Đã hoàn tất điểm viếng",
           text2: item.site.name,
         });
-        await refreshPlan();
+        await handleSuccessVisited();
       } catch (e: any) {
         Toast.show({
           type: "error",
@@ -201,7 +236,7 @@ export const useJourneyExecution = (
         setMarkingVisitedItemId(null);
       }
     },
-    [planId, refreshPlan],
+    [planId, refreshPlan, onCompleted],
   );
 
   return {

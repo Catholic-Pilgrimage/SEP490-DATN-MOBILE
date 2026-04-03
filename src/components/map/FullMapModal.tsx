@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
   Platform,
   ScrollView,
@@ -44,6 +45,15 @@ interface FullMapModalProps {
   onConfirmLocationSelection?: () => void;
   
   tapRelocatesPin?: boolean;
+
+  /** Single continuous route polyline [lng, lat][] */
+  routeCoordinates?: [number, number][];
+  /** Multiple color-coded route segments */
+  routeSegments?: { coordinates: [number, number][]; color?: string }[];
+  /** Summary text shown at the bottom, e.g. "120 km • 2 giờ 15 phút" */
+  routeSummary?: string;
+  /** True while route is being calculated */
+  routeLoading?: boolean;
 }
 
 export const FullMapModal: React.FC<FullMapModalProps> = ({
@@ -59,6 +69,10 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   onLocationSelected,
   onConfirmLocationSelection,
   tapRelocatesPin: tapRelocatesPinProp,
+  routeCoordinates,
+  routeSegments,
+  routeSummary,
+  routeLoading = false,
 }) => {
   const tapRelocatesPin = tapRelocatesPinProp ?? isSelectingLocation;
   const { t } = useTranslation();
@@ -203,6 +217,8 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
             tileUrlTemplate={tileUrlTemplate}
             style={styles.map}
             tapRelocatesPin={tapRelocatesPin}
+            routeCoordinates={routeCoordinates}
+            routeSegments={routeSegments}
           />
 
           {onAddPlace && !isSelectingLocation && (
@@ -243,6 +259,24 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
             </View>
           )}
         </View>
+
+        {/* Route summary bar */}
+        {(routeLoading || routeSummary) && (
+          <View style={[styles.routeSummaryBar, { paddingBottom: Math.max(insets.bottom, 8) + 8 }]}>
+            {routeLoading ? (
+              <View style={styles.routeSummaryContent}>
+                <ActivityIndicator size="small" color={COLORS.accent} />
+                <Text style={styles.routeSummaryText}>Đang tính tuyến đường...</Text>
+              </View>
+            ) : routeSummary ? (
+              <View style={styles.routeSummaryContent}>
+                <MaterialIcons name="directions" size={20} color={COLORS.accent} />
+                <Text style={styles.routeSummaryText}>{routeSummary}</Text>
+              </View>
+            ) : null}
+          </View>
+        )}
+
         <Toast config={toastConfig} />
       </View>
     </Modal>
@@ -423,6 +457,24 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.white,
+  },
+  routeSummaryBar: {
+    backgroundColor: "rgba(253, 248, 240, 0.97)",
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm + 2,
+  },
+  routeSummaryContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+  },
+  routeSummaryText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+    flex: 1,
   },
 });
 

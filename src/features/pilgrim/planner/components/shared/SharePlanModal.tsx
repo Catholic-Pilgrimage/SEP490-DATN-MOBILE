@@ -14,8 +14,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { useConfirm } from "../../../../../hooks/useConfirm";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -61,6 +64,8 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   onPlanRefresh,
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { confirm } = useConfirm();
   const [participants, setParticipants] = useState<PlanParticipant[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PlanInvite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -217,64 +222,61 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
       return;
     }
 
-    Alert.alert(
-      t("planner.lockPlanTitle", { defaultValue: "Chốt hành trình" }),
-      t("planner.lockPlanConfirm", {
+    const confirmed = await confirm({
+      type: "info",
+      title: t("planner.lockPlanTitle", { defaultValue: "Chốt hành trình" }),
+      message: t("planner.lockPlanConfirm", {
         defaultValue:
           "Sau khi chốt, app sẽ chuyển sang màn hành trình thực tế (đang hành hương) và server sẽ chặn chỉnh sửa theo quy tắc.",
       }),
-      [
-        { text: t("common.cancel", { defaultValue: "Hủy" }), style: "cancel" },
-        {
-          text: t("planner.lockPlanConfirmBtn", { defaultValue: "Chốt" }),
-          style: "default",
-          onPress: async () => {
-            setLockPlanSaving(true);
-            try {
-              const statusRes = await pilgrimPlannerApi.updatePlannerStatus(
-                planId,
-                { status: "locked" },
-              );
+      confirmText: t("planner.lockPlanConfirmBtn", { defaultValue: "Chốt" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
 
-              if (statusRes.success) {
-                onPlanRefresh?.();
-                setManualLock(!!statusRes.data?.is_locked);
-                Toast.show({
-                  type: "success",
-                  text1: t("common.success", { defaultValue: "Thành công" }),
-                  text2: t("planner.journeyLocked", {
-                    defaultValue: "Đã khóa hành trình.",
-                  }),
-                });
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2:
-                    statusRes.message ||
-                    t("planner.lockUpdateFailed", {
-                      defaultValue: "Không thể chốt hành trình.",
-                    }),
-                });
-              }
-            } catch (e) {
-              Toast.show({
-                type: "error",
-                text1: t("common.error"),
-                text2: getApiErrorMessage(
-                  e,
-                  t("planner.lockUpdateFailed", {
-                    defaultValue: "Không thể chốt hành trình.",
-                  }),
-                ),
-              });
-            } finally {
-              setLockPlanSaving(false);
-            }
-          },
-        },
-      ],
-    );
+    if (confirmed) {
+      setLockPlanSaving(true);
+      try {
+        const statusRes = await pilgrimPlannerApi.updatePlannerStatus(
+          planId,
+          { status: "locked" },
+        );
+
+        if (statusRes.success) {
+          onPlanRefresh?.();
+          setManualLock(!!statusRes.data?.is_locked);
+          Toast.show({
+            type: "success",
+            text1: t("common.success", { defaultValue: "Thành công" }),
+            text2: t("planner.journeyLocked", {
+              defaultValue: "Đã khóa hành trình.",
+            }),
+          });
+        } else {
+          Toast.show({
+            type: "error",
+            text1: t("common.error"),
+            text2:
+              statusRes.message ||
+              t("planner.lockUpdateFailed", {
+                defaultValue: "Không thể chốt hành trình.",
+              }),
+          });
+        }
+      } catch (e) {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: getApiErrorMessage(
+            e,
+            t("planner.lockUpdateFailed", {
+              defaultValue: "Không thể chốt hành trình.",
+            }),
+          ),
+        });
+      } finally {
+        setLockPlanSaving(false);
+      }
+    }
   };
 
   const formatProgressLine = (row?: PlannerProgressMember) => {
@@ -437,22 +439,21 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     }
   };
 
-  const confirmRemoveMember = (p: PlanParticipant) => {
-    Alert.alert(
-      t("planner.removeMemberTitle", { defaultValue: "Xóa thành viên?" }),
-      t("planner.removeMemberMessage", {
+  const confirmRemoveMember = async (p: PlanParticipant) => {
+    const confirmed = await confirm({
+      type: "warning",
+      title: t("planner.removeMemberTitle", { defaultValue: "Xóa thành viên?" }),
+      message: t("planner.removeMemberMessage", {
         name: p.userName,
         defaultValue: "Xóa {{name}} khỏi kế hoạch?",
       }),
-      [
-        { text: t("common.cancel", { defaultValue: "Hủy" }), style: "cancel" },
-        {
-          text: t("planner.removeMemberConfirm", { defaultValue: "Xóa" }),
-          style: "destructive",
-          onPress: () => void removeMemberFromPlan(p),
-        },
-      ],
-    );
+      confirmText: t("planner.removeMemberConfirm", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (confirmed) {
+      void removeMemberFromPlan(p);
+    }
   };
 
   const ownerUserId = plan?.owner?.id;
@@ -546,7 +547,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, { paddingTop: Platform.OS === "android" ? insets.top || 20 : 16 }]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>{t("planner.sharePlan")}</Text>
           <TouchableOpacity onPress={onClose}>
@@ -977,6 +978,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
           </View>
         </Modal>
       </View>
+      <Toast />
     </Modal>
   );
 };
@@ -985,7 +987,6 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingTop: 40,
   },
   header: {
     padding: 16,

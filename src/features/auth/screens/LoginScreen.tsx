@@ -113,8 +113,7 @@ const LoginScreen = () => {
     }
   }, [clearError, email, error, password]);
 
-  // Sau đăng nhập: luôn vào màn xem trước lời mời (GET invite) — không nhảy thẳng PlanDetail.
-  // POST phản hồi + cọc chỉ sau khi user xem preview và bấm tiếp tục trong PlanInvitePreview / InvitePlanGate.
+  // Sau đăng nhập: tự động xử lý token ở PlannerMain
   useEffect(() => {
     if (isAuthenticated || isGuest) {
       AsyncStorage.getItem("pending_invite_token")
@@ -123,12 +122,20 @@ const LoginScreen = () => {
             await AsyncStorage.removeItem("pending_invite_token");
             navigation.dispatch(
               CommonActions.reset({
-                index: 1,
+                index: 0,
                 routes: [
-                  { name: "Main" },
                   {
-                    name: "PlanInvitePreview",
-                    params: { token: pendingToken },
+                    name: "Main",
+                    params: {
+                      screen: "MainTabs",
+                      params: {
+                        screen: "Lich trinh",
+                        params: {
+                          screen: "PlannerMain",
+                          params: { token: pendingToken },
+                        },
+                      },
+                    },
                   },
                 ],
               }),

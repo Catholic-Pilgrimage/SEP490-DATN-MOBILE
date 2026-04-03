@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  AppState,
   Image,
   Platform,
   ScrollView,
@@ -47,6 +48,7 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import { PlannerCalendarSyncResult } from "../../../../services/calendar/calendarService";
 import vietmapService from "../../../../services/map/vietmapService";
+import type { LngLat, RoutePoint } from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
   createOfflinePlannerItemId,
@@ -151,7 +153,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     );
   }, [isInvitePendingView, isPlanOwner, plan]);
   const { syncing: syncingCalendar, syncPlanToCalendar } = useCalendarSync();
-  const { confirm, ConfirmModal } = useConfirm();
+  const { confirm } = useConfirm();
   const { isOffline, offlineQueueCount } = useOffline();
   const [syncingOfflineActions, setSyncingOfflineActions] = useState(false);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
@@ -306,6 +308,90 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   // Full Map Modal state
   const [showFullMap, setShowFullMap] = useState(false);
+  const [routeCoordinates, setRouteCoordinates] = useState<LngLat[]>([]);
+  const [routeSegments, setRouteSegments] = useState<{ coordinates: LngLat[]; color?: string }[]>([]);
+  const [routeSummary, setRouteSummary] = useState<string>("");
+  const [routeLoading, setRouteLoading] = useState(false);
+
+  // Calculate route when full map opens
+  useEffect(() => {
+    if (!showFullMap || !plan?.items_by_day || isOffline) return;
+
+    const calculatePlanRoute = async () => {
+      // Collect all waypoints ordered by day then by leg_number/order
+      const waypoints: RoutePoint[] = [];
+      const dayKeys = Object.keys(plan.items_by_day!)
+        .map(Number)
+        .sort((a, b) => a - b);
+
+      for (const dayKey of dayKeys) {
+        const dayItems = plan.items_by_day![String(dayKey)] || [];
+        const sorted = [...dayItems].sort(
+          (a, b) => (a.leg_number || 0) - (b.leg_number || 0),
+        );
+        for (const item of sorted) {
+          const lat = Number(item.site?.latitude);
+          const lng = Number(item.site?.longitude);
+          if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+            const prev = waypoints[waypoints.length - 1];
+            if (!prev || prev.latitude !== lat || prev.longitude !== lng) {
+              waypoints.push({ latitude: lat, longitude: lng });
+            }
+          }
+        }
+      }
+
+      if (waypoints.length < 2) {
+        setRouteCoordinates([]);
+        setRouteSegments([]);
+        setRouteSummary("");
+        return;
+      }
+
+      try {
+        setRouteLoading(true);
+        const result = await vietmapService.calculateMultiPointRoute(waypoints);
+
+        if (result.allCoordinates.length >= 2) {
+          setRouteCoordinates(result.allCoordinates);
+
+          const DAY_ROUTE_COLORS = [
+            "#E74C3C", "#3498DB", "#2ECC71", "#F39C12",
+            "#9B59B6", "#1ABC9C", "#E67E22", "#E91E63",
+          ];
+          const segs = result.segments.map((seg, idx) => ({
+            coordinates: seg.route.coordinates,
+            color: DAY_ROUTE_COLORS[idx % DAY_ROUTE_COLORS.length],
+          }));
+          setRouteSegments(segs);
+
+          const totalKm = result.totalDistanceKm;
+          const totalMin = result.totalDurationMinutes;
+          const distText = totalKm < 1
+            ? `${Math.round(totalKm * 1000)} m`
+            : `${totalKm.toFixed(1)} km`;
+          let timeText: string;
+          if (totalMin < 60) {
+            timeText = `${totalMin} phút`;
+          } else {
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            timeText = m === 0 ? `${h} giờ` : `${h} giờ ${m} phút`;
+          }
+          setRouteSummary(
+            `Tổng: ${distText} • ${timeText} • ${waypoints.length} điểm dừng`,
+          );
+        }
+      } catch (err) {
+        console.warn("Route calculation failed:", err);
+        setRouteSummary("");
+      } finally {
+        setRouteLoading(false);
+      }
+    };
+
+    calculatePlanRoute();
+  }, [showFullMap, plan?.items_by_day, isOffline]);
 
   // Calendar Sync Modal state
   const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
@@ -345,6 +431,22 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       });
     };
   }, [navigation]);
+
+  // Handle returning from browser payment (PayOS)
+  useEffect(() => {
+    if (!isInvitePendingView) return;
+    
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        // App has come to the foreground, reload to check if payment succeeded
+        loadPlan();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isInvitePendingView]);
 
   useEffect(() => {
     loadPlan();
@@ -572,9 +674,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const loadPlanFromInvitePreview = async () => {
     if (!inviteToken) return false;
     const inviteRes = await pilgrimPlannerApi.getPlanByInviteToken(inviteToken);
-    if (!(inviteRes?.success && inviteRes.data?.planner)) {
+    if (!(inviteRes?.success && inviteRes.data)) {
       return false;
     }
+
+    if (inviteRes.data.status === "accepted") {
+      // User has successfully joined/paid!
+      Toast.show({
+        type: "success",
+        text1: t("planner.inviteJoinSuccessTitle", { defaultValue: "Tham gia th\u00e0nh c\u00f4ng" }),
+        text2: t("planner.inviteJoinSuccessBody", { defaultValue: "B\u1ea1n \u0111\u00e3 l\u00e0 th\u00e0nh vi\u00ean c\u1ee7a k\u1ebf ho\u1ea1ch n\u00e0y." }),
+        visibilityTime: 3000,
+      });
+      // Replace screen to plain member view
+      navigation.replace("PlanDetailScreen", { planId });
+      return true;
+    }
+
+    if (!inviteRes.data.planner) return false;
 
     const preview = inviteRes.data.planner as any;
     setPlan(
@@ -984,7 +1101,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  const handleUpdatePlannerStatus = (targetStatus: "ongoing" | "completed") => {
+  const handleUpdatePlannerStatus = async (targetStatus: "ongoing" | "completed") => {
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1007,133 +1124,133 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
         });
 
-    Alert.alert(title, msg, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: title,
-        style: isStart ? "default" : "destructive",
-        onPress: async () => {
-          setUpdatingPlanStatus(true);
-          try {
-            const res = await pilgrimPlannerApi.updatePlannerStatus(planId, {
-              status: targetStatus,
-            });
-            if (res.success) {
-              Toast.show({
-                type: "success",
-                text1: title,
-                text2: isStart
-                  ? t("planner.startJourneySuccess", {
-                      defaultValue: "Chuyến đi đã bắt đầu!",
-                    })
-                  : t("planner.completeJourneySuccess", {
-                      defaultValue: "Chuyến đi đã hoàn thành!",
-                    }),
-                visibilityTime: 3000,
-              });
-              await loadPlan();
-              if (isStart) {
-                navigation.navigate(
-                  "ActiveJourneyScreen" as never,
-                  {
-                    planId,
-                  } as never,
-                );
-              }
-            } else {
-              Toast.show({
-                type: "error",
-                text1: t("common.error"),
-                text2:
-                  res.message ||
-                  t("planner.statusUpdateFailed", {
-                    defaultValue: "Không thể cập nhật trạng thái.",
-                  }),
-                visibilityTime: 4000,
-              });
+    const confirmed = await confirm({
+      type: isStart ? "info" : "warning",
+      iconName: isStart ? "rocket-outline" : "flag-outline",
+      title,
+      message: msg,
+      confirmText: isStart ? "Bắt đầu" : title,
+      cancelText: t("common.cancel", { defaultValue: "H\u1ee7y" }),
+    });
+
+    if (!confirmed) return;
+
+    setUpdatingPlanStatus(true);
+    try {
+      const res = await pilgrimPlannerApi.updatePlannerStatus(planId, {
+        status: targetStatus,
+      });
+      if (res.success) {
+        Toast.show({
+          type: "success",
+          text1: title,
+          text2: isStart
+            ? t("planner.startJourneySuccess", {
+                defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 b\u1eaft \u0111\u1ea7u!",
+              })
+            : t("planner.completeJourneySuccess", {
+                defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 ho\u00e0n th\u00e0nh!",
+              }),
+          visibilityTime: 3000,
+        });
+        await loadPlan();
+        if (isStart) {
+          navigation.replace(
+            "ActiveJourneyScreen",
+            {
+              planId,
             }
-          } catch (error: any) {
-            console.error("Update planner status error:", error);
-            const errMsg =
-              error?.response?.data?.error?.message ||
-              error?.response?.data?.message ||
-              error?.message ||
-              t("planner.statusUpdateFailed", {
-                defaultValue: "Không thể cập nhật trạng thái.",
-              });
-            Toast.show({
-              type: "error",
-              text1: t("common.error"),
-              text2: errMsg,
-              visibilityTime: 4000,
-            });
-          } finally {
-            setUpdatingPlanStatus(false);
-          }
-        },
-      },
-    ]);
+          );
+        }
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            res.message ||
+            t("planner.statusUpdateFailed", {
+              defaultValue: "Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i.",
+            }),
+          visibilityTime: 4000,
+        });
+      }
+    } catch (error: any) {
+      console.error("Update planner status error:", error);
+      const errMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        t("planner.statusUpdateFailed", {
+          defaultValue: "Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i.",
+        });
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: errMsg,
+        visibilityTime: 4000,
+      });
+    } finally {
+      setUpdatingPlanStatus(false);
+    }
   };
 
-  const handleDeletePlan = () => {
+  const handleDeletePlan = async () => {
     if (isReadOnlyPlannerView) return;
-    setShowMenuDropdown(false); // Hide menu if open
+    setShowMenuDropdown(false);
 
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
     }
 
-    Alert.alert(
-      t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
-      t("planner.deleteConfirmMsg", {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: t("planner.deleteTitle", { defaultValue: "Xóa kế hoạch" }),
+      message: t("planner.deleteConfirmMsg", {
         defaultValue:
           "Bạn có chắc chắn muốn xóa kế hoạch này? Hành động này không thể hoàn tác.",
       }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const isOnline = await networkService.checkConnection();
-              if (!isOnline) {
-                showConnectionRequiredAlert();
-                return;
-              }
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
 
-              const response = await pilgrimPlannerApi.deletePlan(planId);
-              if (response.success) {
-                if (isAvailableOffline) {
-                  await offlinePlannerService.deletePlannerData(planId);
-                }
-                navigation.goBack();
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2:
-                    response.message ||
-                    t("planner.deleteFailed", {
-                      defaultValue: "Xóa kế hoạch thất bại",
-                    }),
-                });
-              }
-            } catch (error) {
-              console.error("Delete plan error:", error);
-              Toast.show({
-                type: "error",
-                text1: t("common.error"),
-                text2: t("planner.deleteFailed", {
-                  defaultValue: "Xóa kế hoạch thất bại",
-                }),
-              });
-            }
-          },
-        },
-      ],
-    );
+    if (!confirmed) return;
+
+    try {
+      const isOnline = await networkService.checkConnection();
+      if (!isOnline) {
+        showConnectionRequiredAlert();
+        return;
+      }
+
+      const response = await pilgrimPlannerApi.deletePlan(planId);
+      if (response.success) {
+        if (isAvailableOffline) {
+          await offlinePlannerService.deletePlannerData(planId);
+        }
+        navigation.goBack();
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            response.message ||
+            t("planner.deleteFailed", {
+              defaultValue: "Xóa kế hoạch thất bại",
+            }),
+        });
+      }
+    } catch (error) {
+      console.error("Delete plan error:", error);
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.deleteFailed", {
+          defaultValue: "Xóa kế hoạch thất bại",
+        }),
+      });
+    }
   };
 
   const handleSyncCalendar = async () => {
@@ -1256,12 +1373,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowMenuDropdown(false);
 
     if (offlineQueueCount === 0) {
-      Alert.alert(
-        t("common.success"),
-        t("planner.noPendingOfflineActions", {
-          defaultValue: "Khong co hanh dong ngoai tuyen nao cho dong bo",
+      Toast.show({
+        type: "info",
+        text1: t("common.success"),
+        text2: t("planner.noPendingOfflineActions", {
+          defaultValue: "Không có hành động ngoại tuyến nào chờ đồng bộ",
         }),
-      );
+      });
       return;
     }
 
@@ -1332,74 +1450,72 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  const handleDeleteItem = (itemId: string) => {
-    Alert.alert(
-      t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
-      t("planner.removeItemConfirm", {
+  const handleDeleteItem = async (itemId: string) => {
+    const confirmed = await confirm({
+      type: "danger",
+      iconName: "trash-outline",
+      title: t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
+      message: t("planner.removeItemConfirm", {
         defaultValue: "Bạn có chắc chắn muốn xóa địa điểm này khỏi lịch trình?",
       }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.delete"),
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const isOnline = await networkService.checkConnection();
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
 
-              if (!isOnline) {
-                await networkService.addToOfflineQueue({
-                  endpoint: `/api/planners/${planId}/items/${itemId}`,
-                  method: "DELETE",
-                  data: {
-                    planner_item_id: itemId,
-                  },
-                });
+    if (!confirmed) return;
 
-                await applyPlanMutation(
-                  (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
-                  () => offlinePlannerService.deletePlannerItem(planId, itemId),
-                );
-                return;
-              }
+    try {
+      const isOnline = await networkService.checkConnection();
 
-              const response = await pilgrimPlannerApi.deletePlanItem(
-                planId,
-                itemId,
-              );
-              if (response.success) {
-                await applyPlanMutation(
-                  (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
-                  () => offlinePlannerService.deletePlannerItem(planId, itemId),
-                );
-                loadPlan(); // Reload to refresh
-              } else {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error"),
-                  text2:
-                    response.message ||
-                    t("planner.removeItemFailed", {
-                      defaultValue: "Xóa địa điểm thất bại",
-                    }),
-                });
-              }
-            } catch (error: any) {
-              console.error("Delete item error:", error);
-              Toast.show({
-                type: "error",
-                text1: t("common.error"),
-                text2:
-                  error.message ||
-                  t("planner.removeItemFailed", {
-                    defaultValue: "Xóa địa điểm thất bại",
-                  }),
-              });
-            }
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items/${itemId}`,
+          method: "DELETE",
+          data: {
+            planner_item_id: itemId,
           },
-        },
-      ],
-    );
+        });
+
+        await applyPlanMutation(
+          (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
+          () => offlinePlannerService.deletePlannerItem(planId, itemId),
+        );
+        return;
+      }
+
+      const response = await pilgrimPlannerApi.deletePlanItem(
+        planId,
+        itemId,
+      );
+      if (response.success) {
+        await applyPlanMutation(
+          (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
+          () => offlinePlannerService.deletePlannerItem(planId, itemId),
+        );
+        loadPlan();
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            response.message ||
+            t("planner.removeItemFailed", {
+              defaultValue: "Xóa địa điểm thất bại",
+            }),
+        });
+      }
+    } catch (error: any) {
+      console.error("Delete item error:", error);
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2:
+          error.message ||
+          t("planner.removeItemFailed", {
+            defaultValue: "Xóa địa điểm thất bại",
+          }),
+      });
+    }
   };
 
   const performSwapTwoItems = async (
@@ -1892,52 +2008,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleAddItem = async (siteId: string, eventId?: string) => {
-    const constraint = getGroupPatronConstraintFromPlan(plan);
-    if (constraint) {
-      const known = [
-        ...sites,
-        ...favorites,
-        ...eventSitesList,
-        ...(eventSite ? [eventSite] : []),
-      ].find((s) => s.id === siteId);
-      const m = sitePatronMatchesGroup(known?.patronSaint, constraint);
-      if (m === "mismatch") {
-        Alert.alert(
-          t("planner.patronMismatchAlertTitle", {
-            defaultValue: "Không cùng bổn mạng với đoàn",
-          }),
-          t("planner.patronMismatchAlertBody", {
-            defaultValue:
-              "Đoàn đang theo bổn mạng «{{patron}}» (địa điểm đầu: {{anchor}}). Địa điểm này có bổn mạng khác — server sẽ từ chối. Vui lòng chọn địa điểm khác.",
-            patron: constraint.displayPatron,
-            anchor: constraint.anchorSiteName,
-          }),
-        );
-        return;
-      }
-      if (m === "unknown") {
-        Alert.alert(
-          t("planner.patronUnknownAlertTitle", {
-            defaultValue: "Chưa có bổn mạng trên danh sách",
-          }),
-          t("planner.patronUnknownAlertBody", {
-            defaultValue:
-              "Ứng dụng chưa có dữ liệu bổn mạng cho địa điểm này. Bạn vẫn có thể thử thêm; nếu không khớp với đoàn, server sẽ báo lỗi. Tiếp tục?",
-          }),
-          [
-            {
-              text: t("common.cancel", { defaultValue: "Hủy" }),
-              style: "cancel",
-            },
-            {
-              text: t("common.continue", { defaultValue: "Tiếp tục" }),
-              onPress: () => void startAddItemFlow(siteId, eventId),
-            },
-          ],
-        );
-        return;
-      }
-    }
     await startAddItemFlow(siteId, eventId);
   };
 
@@ -2856,8 +2926,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             )}
           </TouchableOpacity>
 
-          {/* Nút thành viên chỉ hiển thị cho planner member, không hiển thị cho owner */}
-          {!isPlanOwner && (
+          {/* Nút thành viên: ẩn cho owner và cho người đang preview lời mời (API trả 403) */}
+          {!isPlanOwner && !isInvitePendingView && (
             <TouchableOpacity
               style={[
                 styles.quickActionButton,
@@ -2904,50 +2974,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           )}
         </View>
 
-        {/* Người được mời: nút tham gia / từ chối nằm dưới "Chat nhóm" */}
-        {isInvitePendingView && (
-          <View
-            style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md }}
-          >
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: COLORS.accent,
-                  borderRadius: BORDER_RADIUS.md,
-                  paddingVertical: 12,
-                  alignItems: "center",
-                  opacity: respondingInvite ? 0.6 : 1,
-                }}
-                onPress={handleJoinInvite}
-                disabled={respondingInvite || isOffline}
-                activeOpacity={0.85}
-              >
-                <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-                  Tham gia
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  backgroundColor: "#FEE2E2",
-                  borderRadius: BORDER_RADIUS.md,
-                  paddingVertical: 12,
-                  alignItems: "center",
-                  opacity: respondingInvite ? 0.6 : 1,
-                }}
-                onPress={handleRejectInvite}
-                disabled={respondingInvite || isOffline}
-                activeOpacity={0.85}
-              >
-                <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-                  Từ chối
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
+        {/* 1. Thẻ Lời mời (Đọc thông tin trước khi quyết định) */}
         {isInvitePendingView && (
           <InvitePreviewCard
             ownerName={ownerName}
@@ -2960,6 +2987,78 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               0,
             )}
           />
+        )}
+
+        {/* 2. Cụm nút Quyết định (Ra quyết định sau khu đọc) */}
+        {isInvitePendingView && (
+          <View
+            style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md, alignItems: "center" }}
+          >
+            <TouchableOpacity
+              style={{
+                width: "100%",
+                backgroundColor: COLORS.accent,
+                borderRadius: BORDER_RADIUS.md,
+                paddingVertical: 14,
+                alignItems: "center",
+                opacity: respondingInvite ? 0.6 : 1,
+                marginBottom: 12,
+              }}
+              onPress={async () => {
+                const depositText = depositAmount != null && Number(depositAmount) > 0
+                  ? `${Math.round(Number(depositAmount)).toLocaleString("vi-VN")} \u20ab`
+                  : null;
+                const confirmed = await confirm({
+                  type: "info",
+                  iconName: "checkmark-circle-outline",
+                  title: "X\u00e1c nh\u1eadn tham gia",
+                  message: depositText
+                    ? `B\u1ea1n s\u1ebd tham gia k\u1ebf ho\u1ea1ch n\u00e0y v\u00e0 c\u1ea7n thanh to\u00e1n ti\u1ec1n c\u1ecdc ${depositText}. Ti\u1ebfp t\u1ee5c?`
+                    : "B\u1ea1n x\u00e1c nh\u1eadn mu\u1ed1n tham gia k\u1ebf ho\u1ea1ch h\u00e0nh h\u01b0\u01a1ng n\u00e0y?",
+                  confirmText: "\u0110\u1ed3ng \u00fd",
+                  cancelText: "H\u1ee7y",
+                });
+                if (confirmed) handleJoinInvite();
+              }}
+              disabled={respondingInvite || isOffline}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontWeight: "700", color: COLORS.textPrimary, fontSize: 16 }}>
+                Đồng ý tham gia
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={{
+                width: "100%",
+                paddingVertical: 14,
+                paddingHorizontal: 16,
+                alignItems: "center",
+                opacity: respondingInvite ? 0.6 : 1,
+                borderWidth: 1,
+                borderColor: "#E5E7EB", // Light gray border
+                borderRadius: BORDER_RADIUS.md,
+                backgroundColor: "#FFFFFF", // Explicit background for clarity
+              }}
+              onPress={async () => {
+                const confirmed = await confirm({
+                  type: "danger",
+                  iconName: "close-circle-outline",
+                  title: "T\u1eeb ch\u1ed1i l\u1eddi m\u1eddi",
+                  message: "B\u1ea1n ch\u1eafc ch\u1eafn mu\u1ed1n t\u1eeb ch\u1ed1i l\u1eddi m\u1eddi tham gia k\u1ebf ho\u1ea1ch n\u00e0y? Thao t\u00e1c n\u00e0y kh\u00f4ng th\u1ec3 ho\u00e0n t\u00e1c.",
+                  confirmText: "T\u1eeb ch\u1ed1i",
+                  cancelText: "Quay l\u1ea1i",
+                });
+                if (confirmed) handleRejectInvite();
+              }}
+              disabled={respondingInvite || isOffline}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontWeight: "600", color: COLORS.textSecondary, fontSize: 14 }}>
+                Từ chối lời mời
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {offlineQueueCount > 0 && (
@@ -3116,79 +3215,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   >
                     {t("planner.startJourneyCta", {
                       defaultValue: "Bắt đầu hành hương",
-                    })}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            {(plan.status || "").toLowerCase() === "ongoing" && (
-              <View style={{ gap: SPACING.sm }}>
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation.navigate(
-                      "ActiveJourneyScreen" as never,
-                      {
-                        planId,
-                      } as never,
-                    )
-                  }
-                  activeOpacity={0.85}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: "#1E4D6B",
-                    paddingVertical: 14,
-                    borderRadius: BORDER_RADIUS.lg,
-                  }}
-                >
-                  <Ionicons
-                    name="navigate-circle-outline"
-                    size={22}
-                    color="#fff"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text
-                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
-                  >
-                    {t("planner.openActiveJourneyCta", {
-                      defaultValue: "Vào hành trình thực tế",
-                    })}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleUpdatePlannerStatus("completed")}
-                  disabled={updatingPlanStatus}
-                  activeOpacity={0.85}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: COLORS.success,
-                    paddingVertical: 14,
-                    borderRadius: BORDER_RADIUS.lg,
-                    opacity: updatingPlanStatus ? 0.7 : 1,
-                  }}
-                >
-                  {updatingPlanStatus ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="checkmark-done-outline"
-                      size={20}
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                  )}
-                  <Text
-                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
-                  >
-                    {t("planner.completeJourneyCta", {
-                      defaultValue: "Kết thúc chuyến đi",
                     })}
                   </Text>
                 </TouchableOpacity>
@@ -3575,8 +3601,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           )
         }
         addedCount={Object.values(plan.items_by_day || {}).flat().length}
-        groupPatronConstraint={groupPatronConstraint}
-        disabled={!isPlanOwner}
       />
 
       <SiteEventsModal
@@ -3760,6 +3784,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
         title={plan?.name || "Bản đồ kế hoạch"}
         showUserLocation={true}
+        routeCoordinates={routeCoordinates}
+        routeSegments={routeSegments}
+        routeSummary={routeSummary}
+        routeLoading={routeLoading}
       />
 
       {/* Calendar Sync Modal */}
@@ -3789,9 +3817,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           marginBottom: Math.max(insets.bottom, 12),
         }}
       />
-
-      {/* Confirm Modal (ẩn trong màn người được mời để tránh che UI) */}
-      {!isInvitePendingView ? <ConfirmModal /> : null}
     </View>
   );
 };

@@ -3,6 +3,7 @@ import { CommonActions, useFocusEffect, useScrollToTop } from '@react-navigation
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Dimensions,
     ImageBackground,
@@ -13,16 +14,19 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import { PlanEntity, PlannerMyInvite, TransportationType } from '../../../../types/pilgrim/planner.types';
 import PlanCard, { PlanUI } from '../components/shared/PlanCard';
 import InvitedPlanCard, { InvitedPlanUI } from '../components/shared/InvitedPlanCard';
 
 import { useTranslation } from 'react-i18next';
+import { emailsMatch } from '../utils/planShare.utils';
 
 // ─── Tab enum ────────────────────────────────────────────────
 type PlannerTab = 'my' | 'invited';
@@ -302,7 +306,8 @@ const InvitedEmptyState = ({ t }: { t: any }) => (
 export const PlannerScreen = ({ navigation, route }: any) => {
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { isGuest, exitGuestMode, user } = useAuth();
+    const { isGuest, exitGuestMode, logout, user } = useAuth();
+    const { confirm } = useConfirm();
 
     // ── Tab state ──
     const [activeTab, setActiveTab] = useState<PlannerTab>('my');
@@ -313,6 +318,101 @@ export const PlannerScreen = ({ navigation, route }: any) => {
             setActiveTab(initial);
         }
     }, [route?.params?.initialTab]);
+
+    // Handle Deep Link Token
+    useEffect(() => {
+        const token = route?.params?.token as string | undefined;
+        if (!token) return;
+
+        const processInviteToken = async () => {
+            try {
+                // If guest, alert to login
+                if (isGuest || !user) {
+                    await AsyncStorage.setItem('pending_invite_token', token);
+                    const confirmed = await confirm({
+                        title: t("planner.inviteLoginRequiredTitle", { defaultValue: "Yêu cầu đăng nhập" }),
+                        message: t("planner.inviteLoginRequiredBody", { defaultValue: "Vui lòng đăng nhập để xem và tham gia kế hoạch này." }),
+                        confirmText: t("common.login", { defaultValue: "Đăng nhập" }),
+                        cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+                    });
+                    if (confirmed) {
+                        navigation.dispatch(
+                            CommonActions.reset({
+                                index: 0,
+                                routes: [{ name: "Auth" }],
+                            })
+                        );
+                    }
+                    return;
+                }
+
+                // Fetch invite details to validate email
+                setInvitedLoading(true);
+                const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
+                if (!res.success || !res.data) {
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Lỗi',
+                        text2: 'Lời mời không hợp lệ hoặc đã hết hạn',
+                    });
+                    setInvitedLoading(false);
+                    return;
+                }
+
+                const inviteEmail = res.data.email?.trim() || '';
+                if (inviteEmail && user.email && !emailsMatch(inviteEmail, user.email)) {
+                    const confirmed = await confirm({
+                        type: "warning",
+                        title: t("planner.inviteWrongAccountTitle", { defaultValue: "Sai tài khoản" }),
+                        message: t("planner.inviteWrongAccountBody", {
+                            email: inviteEmail,
+                            defaultValue: `Lời mời gửi tới ${inviteEmail}. Vui lòng đăng nhập đúng email đó.`,
+                        }),
+                        confirmText: t("planner.inviteSwitchAccountCta", { defaultValue: "Đăng xuất" }),
+                        cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+                    });
+                    if (confirmed) {
+                        await AsyncStorage.setItem('pending_invite_token', token);
+                        await logout();
+                        navigation.dispatch(
+                            CommonActions.reset({
+                                index: 0,
+                                routes: [{ name: "Auth" }],
+                            })
+                        );
+                    }
+                    setInvitedLoading(false);
+                    return;
+                }
+
+                // Valid! Open the plan detail immediately
+                setActiveTab('invited');
+                
+                // Clear the token from params so we don't process it again if screen rerenders
+                navigation.setParams({ token: undefined });
+
+                const planner = res.data.planner;
+                if (!planner) return;
+
+                navigation.navigate('PlanDetailScreen', {
+                    planId: planner.id,
+                    inviteToken: token,
+                    inviteStatus: res.data.status,
+                    ownerName: planner.owner?.full_name,
+                    ownerEmail: planner.owner?.email,
+                    depositAmount: planner.deposit_amount,
+                    penaltyPercentage: planner.penalty_percentage,
+                    invitedView: true,
+                });
+            } catch (e) {
+                console.error(e);
+            } finally {
+                setInvitedLoading(false);
+            }
+        };
+
+        void processInviteToken();
+    }, [route?.params?.token, isGuest, user]);
 
     // ── My Plans state ──
     const [plans, setPlans] = useState<PlanUI[]>([]);
@@ -363,7 +463,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
             if (invitesRes && invitesRes.success && inviteRows.length > 0) {
                 const mappedInvites = inviteRows
                     .map(mapMyInviteToInvitedPlanUI)
-                    .filter((v): v is InvitedPlanUI => !!v);
+                    .filter((v: InvitedPlanUI | null): v is InvitedPlanUI => !!v);
                 setInvitedPlans([...mappedInvites, ...memberPlansData]);
             } else {
                 setInvitedPlans(memberPlansData);
@@ -403,6 +503,9 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                         transportation: [normalizePlannerTransport(planner.transportation)],
                         ownerName: planner.owner?.full_name,
                         ownerAvatar: planner.owner?.avatar_url,
+                        ownerEmail: planner.owner?.email,
+                        depositAmount: planner.deposit_amount,
+                        penaltyPercentage: planner.penalty_percentage,
                         inviteStatus: res.data.status,
                         inviteToken: token,
                     };

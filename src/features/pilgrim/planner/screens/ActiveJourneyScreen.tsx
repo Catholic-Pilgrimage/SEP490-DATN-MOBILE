@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, {
+  useCallback,
   useEffect,
   useMemo,
   useRef
@@ -60,12 +61,47 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   }, [plan?.start_date, sortedDays]);
 
   const [selectedDay, setSelectedDay] = React.useState("");
+  const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!planId || !user?.id) return;
+    const fetchProgress = async () => {
+      try {
+        const res = await pilgrimPlannerApi.getPlannerProgress(planId);
+        if (res.success && res.data) {
+          const me = res.data.member_progress.find((m) => String(m.user_id) === String(user.id));
+          if (me?.history) {
+            const ids = me.history.filter(h => h.status === 'checked_in').map(h => h.planner_item_id);
+            setCheckedInIds(new Set(ids));
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    void fetchProgress();
+  }, [planId, user?.id, plan?.items_by_day]);
 
   useEffect(() => {
     if (sortedDays.length > 0 && !selectedDay) {
       setSelectedDay(sortedDays[todayIdx >= 0 ? todayIdx : 0] || "");
     }
   }, [sortedDays, todayIdx, selectedDay]);
+
+  const allItemsFlat = useMemo(() => {
+    if (!plan?.items_by_day) return [];
+    return Object.values(plan.items_by_day).flat();
+  }, [plan?.items_by_day]);
+
+  const isLastItem = useMemo(() => {
+    if (allItemsFlat.length === 0 || !firstItem) return false;
+    return firstItem.id === allItemsFlat[allItemsFlat.length - 1].id;
+  }, [allItemsFlat, firstItem]);
+
+  const onCompleted = useCallback(() => {
+    navigation.replace("PlanDetailScreen", { planId });
+  }, [navigation, planId]);
+
   const {
     checkingInItemId,
     skippingItemId,
@@ -73,7 +109,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     checkIn,
     skipItem,
     markVisited,
-  } = useJourneyExecution(planId, refreshPlan);
+  } = useJourneyExecution(planId, refreshPlan, onCompleted);
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
@@ -247,13 +283,24 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       <View style={[styles.actionsWrapper, { paddingBottom: insets.bottom + 20 }]}>
         {/* Row 1: Check-in (Full Width) */}
         <TouchableOpacity
-          style={styles.checkinFullBtn}
-          disabled={!firstItem || checkingInItemId === firstItem.id}
-          onPress={() => firstItem && checkIn(firstItem)}
+          style={[styles.checkinFullBtn, (!firstItem || checkedInIds.has(firstItem.id)) && { backgroundColor: "#9CA3AF" }]}
+          disabled={!firstItem || checkingInItemId === firstItem?.id || checkedInIds.has(firstItem?.id)}
+          onPress={async () => {
+            if (firstItem) {
+              try {
+                await checkIn(firstItem, isLastItem);
+                setCheckedInIds(prev => new Set(prev).add(firstItem.id));
+              } catch {
+                // Toast error was handled in useJourneyExecution hook
+              }
+            }
+          }}
           activeOpacity={0.82}
         >
           <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.checkinFullText}>Check-in điểm hành hương</Text>
+          <Text style={styles.checkinFullText}>
+            {!firstItem || checkedInIds.has(firstItem?.id) ? "Đã check-in điểm này" : "Check-in điểm hành hương"}
+          </Text>
         </TouchableOpacity>
 
         {/* Row 2: Owner Specific (Skip/Visited) - Only visible to owner */}
@@ -271,7 +318,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <TouchableOpacity
               style={[styles.smallPrimaryBtn, styles.visitedBtn]}
               disabled={!firstItem || markingVisitedItemId === firstItem.id}
-              onPress={() => firstItem && markVisited(firstItem)}
+              onPress={() => firstItem && markVisited(firstItem, isLastItem)}
               activeOpacity={0.82}
             >
               <Ionicons name="flag" size={16} color="#92400E" />
