@@ -40,6 +40,8 @@ import {
   mapMembersToParticipants,
 } from "../../utils/planShare.utils";
 import { scheduleCompleteHeuristic } from "../../utils/plannerFlow.utils";
+import { FriendPickerModal } from "./FriendPickerModal";
+import type { FriendshipListItem } from "../../../../../types/pilgrim";
 
 export interface SharePlanModalProps {
   visible: boolean;
@@ -80,6 +82,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   const [manualLock, setManualLock] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [checklistGuideVisible, setChecklistGuideVisible] = useState(false);
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
 
   useEffect(() => {
     setManualLock(!!plan?.is_locked);
@@ -394,6 +397,48 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     }
   };
 
+  const handleFriendSelect = async (selected: FriendshipListItem[]) => {
+    if (isOffline) {
+      onOfflineRequired();
+      return;
+    }
+
+    setInviting(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const f of selected) {
+      try {
+        const res = await pilgrimPlannerApi.inviteParticipant(planId, {
+          email: f.user.email.toLowerCase(),
+          role: inviteRole,
+        });
+        if (res.success) successCount++;
+        else failCount++;
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    if (successCount > 0) {
+      Toast.show({
+        type: "success",
+        text1: "Gửi lời mời thành công",
+        text2: `Đã mời ${successCount} bạn bè tham gia`,
+      });
+      await loadPanel();
+    }
+
+    if (failCount > 0) {
+      Toast.show({
+        type: "error",
+        text1: "Một số lời mời thất bại",
+        text2: `Có ${failCount} lời mời không thể gửi đi`,
+      });
+    }
+    setInviting(false);
+  };
+
   const removeMemberFromPlan = async (p: PlanParticipant) => {
     if (isOffline) {
       onOfflineRequired();
@@ -604,6 +649,13 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
                   autoCapitalize="none"
                   editable={!isOffline}
                 />
+                <TouchableOpacity
+                  onPress={() => setShowFriendPicker(true)}
+                  style={styles.friendPickerBtn}
+                  disabled={inviting || isOffline}
+                >
+                  <Ionicons name="people-outline" size={24} color={COLORS.primary} />
+                </TouchableOpacity>
               </View>
               <TouchableOpacity
                 style={[
@@ -641,6 +693,16 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
               </TouchableOpacity>
             </View>
           )}
+
+          <FriendPickerModal
+            visible={showFriendPicker}
+            onClose={() => setShowFriendPicker(false)}
+            onSelect={handleFriendSelect}
+            alreadyInvitedEmails={[
+              ...participants.map((p) => (p.userEmail || "").toLowerCase()),
+              ...pendingInvites.map((i) => (i.email || "").toLowerCase()),
+            ]}
+          />
 
           {isPlanOwner && (
             <View
@@ -1257,5 +1319,10 @@ const styles = StyleSheet.create({
   removeMemberBtn: {
     padding: SPACING.sm,
     marginLeft: SPACING.xs,
+  },
+  friendPickerBtn: {
+    padding: SPACING.sm,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

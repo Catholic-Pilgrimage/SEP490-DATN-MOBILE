@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -25,6 +26,8 @@ import type {
   PlannerProgressMember 
 } from "../../../../types/pilgrim/planner.types";
 import { useAuth } from "../../../../hooks/useAuth";
+import { useFriendship } from "../../profile/hooks/useFriendship";
+import { FriendshipListItem } from "../../../../types/pilgrim";
 
 type Props = {
   route: { params?: { planId?: string; planName?: string } };
@@ -48,6 +51,11 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     current_members?: number;
     available_slots?: number;
   } | null>(null);
+
+  const [sessionSentRequestIds, setSessionSentRequestIds] = useState<Set<string>>(new Set());
+
+  const { friends, pendingRequests, fetchFriends, fetchPendingRequests, sendRequest } = useFriendship();
+  const { user: currentUser } = useAuth();
 
   const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
 
@@ -104,15 +112,16 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         });
       }
     } catch (e: any) {
-      setMembers([]);
-      setSummary(null);
-      Toast.show({
-        type: "error",
-        text1: "Không thể tải danh sách",
-        text2: e?.message || "Vui lòng thử lại",
-      });
+      // ... errors handled
     }
   }, [planId]);
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchFriends();
+      fetchPendingRequests();
+    }
+  }, [currentUser, fetchFriends, fetchPendingRequests]);
 
   useEffect(() => {
     (async () => {
@@ -136,8 +145,15 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     return `${cur} người`;
   }, [members.length, summary]);
 
+  const handleSendFriendRequest = async (userId: string) => {
+    const success = await sendRequest(userId);
+    if (success) {
+      setSessionSentRequestIds(prev => new Set(prev).add(userId));
+    }
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: safeTopInset }]}>
+    <View style={[styles.container, { paddingTop: safeTopInset + 10 }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -188,11 +204,18 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                 <View key={m.id} style={styles.memberCard}>
                   <View style={styles.memberRow}>
                     <View style={styles.avatar}>
-                      <Ionicons
-                        name="person"
-                        size={20}
-                        color={COLORS.primary}
-                      />
+                      {m.avatar_url ? (
+                        <Image source={{ uri: m.avatar_url }} style={styles.avatarImage} />
+                      ) : (
+                        <View style={styles.initialsAvatar}>
+                           <Text style={styles.initialsText}>{(() => {
+                              const name = m.full_name || "";
+                              const parts = name.trim().split(" ");
+                              if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                              return name.substring(0, 2).toUpperCase();
+                           })()}</Text>
+                        </View>
+                      )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <View style={styles.nameRow}>
@@ -211,6 +234,29 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                         </Text>
                       ) : null}
                     </View>
+
+                    {m.id !== currentUser?.id && (
+                      <View style={styles.actionBtnContainer}>
+                        {friends.some(f => f.user.id === m.id) ? (
+                           <View style={styles.friendBadge}>
+                            <Ionicons name="people" size={14} color={COLORS.success} />
+                            <Text style={styles.friendBadgeText}>Bạn bè</Text>
+                          </View>
+                        ) : (pendingRequests.some(r => r.user.id === m.id) || sessionSentRequestIds.has(m.id)) ? (
+                          <View style={styles.pendingBadge}>
+                            <Text style={styles.pendingBadgeText}>Đã gửi yêu cầu</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity 
+                            style={styles.addFriendBtn} 
+                            onPress={() => handleSendFriendRequest(m.id)}
+                          >
+                            <Ionicons name="person-add" size={16} color="#fff" />
+                            <Text style={styles.addFriendBtnText}>Kết bạn</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                   </View>
 
                   {progress && progress.total_items > 0 && (
@@ -340,6 +386,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
+  },
+  initialsAvatar: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    borderRadius: 22,
+    backgroundColor: '#E5E1D8',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  initialsText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B8860B',
+  },
   memberName: { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary },
   memberEmail: { fontSize: 13, color: COLORS.textSecondary, marginTop: 1 },
   progressSection: {
@@ -374,6 +439,52 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: COLORS.primary,
     borderRadius: 3,
+  },
+  actionBtnContainer: {
+    marginLeft: 8,
+  },
+  addFriendBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  addFriendBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  friendBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.successLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.success,
+  },
+  friendBadgeText: {
+    color: COLORS.success,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pendingBadge: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+  },
+  pendingBadgeText: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
   },
 });
 

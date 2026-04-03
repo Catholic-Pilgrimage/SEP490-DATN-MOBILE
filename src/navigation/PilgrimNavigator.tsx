@@ -113,6 +113,7 @@ import ProfileScreen from '../features/pilgrim/profile/screens/ProfileScreen';
 import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen';
 import WalletScreen from '../features/pilgrim/profile/screens/WalletScreen';
 import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
+import FriendListScreen from '../features/pilgrim/profile/screens/FriendListScreen';
 
 const ProfileStack = createNativeStackNavigator();
 
@@ -251,6 +252,14 @@ export const PilgrimNavigator = () => {
       <MainStack.Screen
         name="AllSites"
         component={AllSitesScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+          presentation: 'card',
+        }}
+      />
+      <MainStack.Screen
+        name="FriendList"
+        component={FriendListScreen}
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
           presentation: 'card',

@@ -1826,11 +1826,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error("Update item error:", error);
+      const respData = error?.response?.data;
+      const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
+      
+      if (isValidationError) {
+        console.warn("[API] Validation error saving edit:", JSON.stringify(respData));
+      } else {
+        console.error("Save edit serious error:", error);
+      }
+
       Toast.show({
         type: "error",
         text1: t("common.error"),
-        text2: error.message || t("planner.cannotUpdateItem"),
+        text2:
+          respData?.error?.message ||
+          respData?.message ||
+          error.message ||
+          t("planner.cannotUpdateItem"),
       });
     } finally {
       setSavingEdit(false);
@@ -2153,15 +2165,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error("Add item error:", error);
-      console.error(
-        "Add item error response:",
-        JSON.stringify(error?.response?.data),
-      );
+      const respData = error?.response?.data;
+      const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
+      
+      if (isValidationError) {
+        console.warn("[API] Validation error adding item:", JSON.stringify(respData));
+      } else {
+        console.error("Add item serious error:", error);
+      }
+
       const errMsg =
-        error?.response?.data?.error?.message ||
-        error?.response?.data?.message ||
-        error?.response?.data?.error?.details?.[0]?.message ||
+        respData?.error?.message ||
+        respData?.message ||
+        respData?.error?.details?.[0]?.message ||
         error?.message ||
         "Không thể thêm địa điểm";
       const patronErr =
