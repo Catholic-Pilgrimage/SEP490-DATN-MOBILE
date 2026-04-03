@@ -28,7 +28,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING } from "../../../../constants/theme.constants";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
-import notificationApi, {
+import {
+    getNotificationCategory,
+    getNotificationColor,
+    getNotificationIcon,
     Notification,
     NotificationType,
 } from "../../../../services/api/shared/notificationApi";
@@ -165,12 +168,16 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
   const filteredNotifications = useMemo(() => {
     if (activeTab === "all") return notifications;
     return notifications.filter((n) => {
-      const category = notificationApi.getNotificationCategory(n.type);
+      const category = getNotificationCategory(n.type);
       if (activeTab === "schedule")
         return category === "shift" || category === "planner";
       if (activeTab === "system")
         return (
-          category === "account" || category === "content" || category === "sos"
+          category === "account" ||
+          category === "content" ||
+          category === "sos" ||
+          category === "review" ||
+          category === "general"
         );
       return true;
     });
@@ -215,10 +222,10 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
   }, [filteredNotifications]);
 
   const getIconInfo = (type: NotificationType) => {
-    const category = notificationApi.getNotificationCategory(type);
-    let name = "notifications";
-    let color = COLORS.primary;
-    let bg = `${COLORS.primary}15`;
+    const category = getNotificationCategory(type);
+    let name = getNotificationIcon(type);
+    let color = getNotificationColor(type);
+    let bg = `${color}15`;
 
     switch (category) {
       case "shift":
@@ -247,6 +254,16 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         name = "person";
         color = COLORS.primary;
         bg = "rgba(26, 40, 69, 0.12)"; // Soft primary
+        break;
+      case "review":
+        name = "star";
+        color = "#D4AF37";
+        bg = "rgba(212, 175, 55, 0.14)";
+        break;
+      case "general":
+        name = "notifications";
+        color = COLORS.primary;
+        bg = `${COLORS.primary}15`;
         break;
     }
     return { name, color, bg };

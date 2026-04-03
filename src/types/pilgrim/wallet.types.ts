@@ -28,10 +28,13 @@ export interface WalletInfo {
 
 export interface WalletTransaction {
   id: string;
+  wallet_id?: string;
   type?: string;
   amount: number;
   status?: string;
+  code?: string;
   created_at?: string;
+  updated_at?: string;
   /** Mô tả từ BE (nếu có) */
   description?: string;
   reference_type?: string;

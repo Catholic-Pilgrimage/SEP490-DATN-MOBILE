@@ -5,19 +5,19 @@ import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Image,
-  ImageBackground,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    ImageBackground,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GUIDE_COLORS,
-  GUIDE_SPACING,
+    GUIDE_COLORS,
+    GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import { useAuth } from "../../../../contexts/AuthContext";
@@ -27,22 +27,22 @@ import { useNotifications } from "../../../../hooks/useNotifications";
 import { guideReviewApi } from "../../../../services/api/guide";
 import { RecentActivityItem } from "../../../../types/guide";
 import {
-  getFontSize,
-  getSpacing,
-  moderateScale,
-  responsive,
+    getFontSize,
+    getSpacing,
+    moderateScale,
+    responsive,
 } from "../../../../utils/responsive";
 import { NotificationModal } from "../../../pilgrim/explore/components/NotificationModal";
 import {
-  PilgrimInsights,
-  QuickActionsBar,
-  RecentReviews,
+    PilgrimInsights,
+    QuickActionsBar,
+    RecentReviews,
 } from "../components";
 import { getGreetingKey, getHeroHeight, PREMIUM_COLORS } from "../constants";
 import { useDashboardHome } from "../hooks/useDashboardHome";
 import {
-  getActivityDisplayConfig,
-  getActivityStatusConfig,
+    getActivityDisplayConfig,
+    getActivityStatusConfig,
 } from "../utils/activityUtils";
 import { styles } from "./DashboardScreen.styles";
 
@@ -73,7 +73,7 @@ const DashboardScreen: React.FC = () => {
       const response = await guideReviewApi.getReviews({ page: 1, limit: 5 });
 
       if (!response?.success) {
-        throw new Error(response?.message || "Không thể tải đánh giá gần đây.");
+        throw new Error(response?.message || t("guideReviews.loadRecentError", { defaultValue: "Không thể tải đánh giá gần đây." }));
       }
 
       return response.data?.data ?? [];

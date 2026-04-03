@@ -31,7 +31,7 @@ import {
 } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import { useTranslation } from "react-i18next";
+import { useI18n } from "../../../../hooks/useI18n";
 import { guideReviewApi } from "../../../../services/api/guide";
 import { Review } from "../../../../types/guide";
 import { getApiErrorMessage } from "../../../../utils/apiError";
@@ -82,7 +82,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
   focusReviewId,
   autoOpenReply = false,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useI18n();
   const queryClient = useQueryClient();
   const flatListRef = useRef<FlatList<Review>>(null);
   const [replyModalVisible, setReplyModalVisible] = useState(false);
@@ -104,7 +104,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
       });
 
       if (!response?.success) {
-        throw new Error(response?.message || "Không thể tải danh sách đánh giá.");
+        throw new Error(response?.message || t("guideReviews.loadError", { defaultValue: "Không thể tải danh sách đánh giá." }));
       }
 
       return response.data;
@@ -169,20 +169,20 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
       await invalidateReviewQueries();
       Toast.show({
         type: "success",
-        text1: t("common.success"),
+        text1: t("common.success", { defaultValue: "Thành công" }),
         text2:
           response.message ||
           (variables.review.response?.trim()
-            ? "Đã cập nhật phản hồi."
-            : "Đã gửi phản hồi."),
+            ? t("guideReviews.replyUpdated", { defaultValue: "Đã cập nhật phản hồi." })
+            : t("guideReviews.replySent", { defaultValue: "Đã gửi phản hồi." })),
       });
       closeReplyModal();
     },
     onError: (error) => {
       Toast.show({
         type: "error",
-        text1: t("common.error"),
-        text2: getApiErrorMessage(error, "Không thể lưu phản hồi."),
+        text1: t("common.error", { defaultValue: "Lỗi" }),
+        text2: getApiErrorMessage(error, t("guideReviews.replySaveError", { defaultValue: "Không thể lưu phản hồi." })),
       });
     },
   });
@@ -199,16 +199,16 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
       await invalidateReviewQueries();
       Toast.show({
         type: "success",
-        text1: t("common.success"),
-        text2: response.message || "Đã xóa phản hồi.",
+        text1: t("common.success", { defaultValue: "Thành công" }),
+        text2: response.message || t("guideReviews.replyDeleted", { defaultValue: "Đã xóa phản hồi." }),
       });
       closeReplyModal();
     },
     onError: (error) => {
       Toast.show({
         type: "error",
-        text1: t("common.error"),
-        text2: getApiErrorMessage(error, "Không thể xóa phản hồi."),
+        text1: t("common.error", { defaultValue: "Lỗi" }),
+        text2: getApiErrorMessage(error, t("guideReviews.replyDeleteError", { defaultValue: "Không thể xóa phản hồi." })),
       });
     },
   });
@@ -251,7 +251,7 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
       Toast.show({
         type: "info",
         text1: t("common.notice", { defaultValue: "Thông báo" }),
-        text2: "Vui lòng nhập nội dung phản hồi.",
+        text2: t("guideReviews.replyContentRequired", { defaultValue: "Vui lòng nhập nội dung phản hồi." }),
       });
       return;
     }
@@ -268,10 +268,10 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
     const confirmed = await confirm({
       type: "danger",
       iconName: "trash-outline",
-      title: "Xóa phản hồi",
-      message: "Bạn có chắc muốn xóa phản hồi này không?",
-      confirmText: t("common.delete"),
-      cancelText: t("common.cancel"),
+      title: t("guideReviews.deleteReplyTitle", { defaultValue: "Xóa phản hồi" }),
+      message: t("guideReviews.deleteReplyMessage", { defaultValue: "Bạn có chắc muốn xóa phản hồi này không?" }),
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
     if (!confirmed) return;
@@ -283,8 +283,8 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
     const hasResponse = Boolean(item.response?.trim());
     const targetLabel =
       item.targetType === "nearby_place"
-        ? item.nearbyPlaceName || "Địa điểm lân cận"
-        : item.siteName || "Địa điểm chính";
+        ? item.nearbyPlaceName || t("guideReviews.nearbyPlace", { defaultValue: "Địa điểm lân cận" })
+        : item.siteName || t("guideReviews.mainSite", { defaultValue: "Địa điểm chính" });
 
     return (
       <View
@@ -326,7 +326,10 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                       : styles.statusChipTextPending,
                   ]}
                 >
-                  {hasResponse ? "Đã phản hồi" : "Chưa phản hồi"}
+                  {hasResponse 
+                    ? t("guideReviews.replied", { defaultValue: "Đã phản hồi" })
+                    : t("guideReviews.notReplied", { defaultValue: "Chưa phản hồi" })
+                  }
                 </Text>
               </View>
             </View>
@@ -357,7 +360,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                     size={14}
                     color={PREMIUM_COLORS.goldDark}
                   />
-                  <Text style={styles.responseTitle}>Phản hồi của bạn</Text>
+                  <Text style={styles.responseTitle}>
+                    {t("guideReviews.yourReply", { defaultValue: "Phản hồi của bạn" })}
+                  </Text>
                 </View>
                   <TouchableOpacity
                     style={styles.responseEditButton}
@@ -369,7 +374,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                       size={15}
                       color={PREMIUM_COLORS.goldDark}
                     />
-                    <Text style={styles.responseEditButtonText}>Chỉnh sửa</Text>
+                    <Text style={styles.responseEditButtonText}>
+                      {t("guideReviews.edit", { defaultValue: "Chỉnh sửa" })}
+                    </Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.responseText}>{item.response}</Text>
@@ -385,12 +392,14 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                       size={15}
                       color={PREMIUM_COLORS.goldDark}
                     />
-                    <Text style={styles.responseEditButtonText}>Chỉnh sửa</Text>
+                    <Text style={styles.responseEditButtonText}>
+                      {t("guideReviews.edit", { defaultValue: "Chỉnh sửa" })}
+                    </Text>
                   </TouchableOpacity>
                 </View>
                 {item.responseUpdatedAt ? (
                   <Text style={styles.responseTime}>
-                    Cập nhật {formatDateTime(item.responseUpdatedAt)}
+                    {t("guideReviews.updated", { defaultValue: "Cập nhật" })} {formatDateTime(item.responseUpdatedAt)}
                   </Text>
                 ) : null}
               </View>
@@ -425,7 +434,10 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                       : styles.actionButtonTextPrimary,
                   ]}
                 >
-                  {hasResponse ? "Chỉnh sửa phản hồi" : "Phản hồi"}
+                  {hasResponse 
+                    ? t("guideReviews.editReply", { defaultValue: "Chỉnh sửa phản hồi" })
+                    : t("guideReviews.reply", { defaultValue: "Phản hồi" })
+                  }
                 </Text>
               </TouchableOpacity>
             </View>
@@ -452,11 +464,13 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
           size={34}
           color={GUIDE_COLORS.error}
         />
-        <Text style={styles.centerTitle}>Không tải được đánh giá</Text>
+        <Text style={styles.centerTitle}>
+          {t("guideReviews.loadErrorTitle", { defaultValue: "Không tải được đánh giá" })}
+        </Text>
         <Text style={styles.centerText}>
           {reviewsQuery.error instanceof Error
             ? reviewsQuery.error.message
-            : "Vui lòng thử lại sau."}
+            : t("guideReviews.tryAgainLater", { defaultValue: "Vui lòng thử lại sau." })}
         </Text>
         <TouchableOpacity
           style={styles.retryButton}
@@ -496,9 +510,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>{t("reviews.title")}</Text>
+            <Text style={styles.listTitle}>{t("reviews.title", { defaultValue: "Đánh giá" })}</Text>
             <Text style={styles.listSubtitle}>
-              {totalItems} đánh giá đang hiển thị
+              {t("guideReviews.reviewsShowing", { count: totalItems, defaultValue: "{{count}} đánh giá đang hiển thị" })}
             </Text>
           </View>
         }
@@ -509,9 +523,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
               size={40}
               color={GUIDE_COLORS.gray300}
             />
-            <Text style={styles.centerTitle}>{t("reviews.noReviews")}</Text>
+            <Text style={styles.centerTitle}>{t("reviews.noReviews", { defaultValue: "Chưa có đánh giá" })}</Text>
             <Text style={styles.centerText}>
-              Chưa có đánh giá nào cho địa điểm bạn đang quản lý.
+              {t("guideReviews.noReviewsMessage", { defaultValue: "Chưa có đánh giá nào cho địa điểm bạn đang quản lý." })}
             </Text>
           </View>
         }
@@ -547,8 +561,8 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalTitle}>
                     {selectedReview?.response?.trim()
-                      ? "Chỉnh sửa phản hồi"
-                      : "Phản hồi đánh giá"}
+                      ? t("guideReviews.editReplyTitle", { defaultValue: "Chỉnh sửa phản hồi" })
+                      : t("guideReviews.replyReviewTitle", { defaultValue: "Phản hồi đánh giá" })}
                   </Text>
                   <Text style={styles.modalSubtitle} numberOfLines={1}>
                     {selectedReview?.pilgrimName || ""}
@@ -577,8 +591,8 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                 <View style={styles.modalReviewPreview}>
                   <Text style={styles.modalReviewTarget} numberOfLines={1}>
                     {selectedReview.targetType === "nearby_place"
-                      ? selectedReview.nearbyPlaceName || "Địa điểm lân cận"
-                      : selectedReview.siteName || "Địa điểm chính"}
+                      ? selectedReview.nearbyPlaceName || t("guideReviews.nearbyPlace", { defaultValue: "Địa điểm lân cận" })
+                      : selectedReview.siteName || t("guideReviews.mainSite", { defaultValue: "Địa điểm chính" })}
                   </Text>
                   <Text style={styles.modalReviewContent} numberOfLines={4}>
                     {selectedReview.content}
@@ -586,11 +600,13 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                 </View>
               ) : null}
 
-              <Text style={styles.inputLabel}>Nội dung phản hồi</Text>
+              <Text style={styles.inputLabel}>
+                {t("guideReviews.replyContent", { defaultValue: "Nội dung phản hồi" })}
+              </Text>
               <TextInput
                 value={replyText}
                 onChangeText={setReplyText}
-                placeholder="Nhập phản hồi dành cho khách hành hương..."
+                placeholder={t("guideReviews.replyPlaceholder", { defaultValue: "Nhập phản hồi dành cho khách hành hương..." })}
                 placeholderTextColor={GUIDE_COLORS.textMuted}
                 style={styles.replyInput}
                 multiline
@@ -619,7 +635,9 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                           size={16}
                           color={GUIDE_COLORS.error}
                         />
-                        <Text style={styles.deleteButtonText}>Xóa phản hồi</Text>
+                        <Text style={styles.deleteButtonText}>
+                          {t("guideReviews.deleteReply", { defaultValue: "Xóa phản hồi" })}
+                        </Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -642,8 +660,8 @@ const ReviewsTab: React.FC<ReviewsTabProps> = ({
                       />
                       <Text style={styles.submitButtonText}>
                         {selectedReview?.response?.trim()
-                          ? "Cập nhật phản hồi"
-                          : "Gửi phản hồi"}
+                          ? t("guideReviews.updateReply", { defaultValue: "Cập nhật phản hồi" })
+                          : t("guideReviews.sendReply", { defaultValue: "Gửi phản hồi" })}
                       </Text>
                     </>
                     )}

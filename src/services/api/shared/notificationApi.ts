@@ -251,7 +251,12 @@ export const revokePushToken = async (
 /**
  * Check if notification is for Local Guide
  */
-export const isLocalGuideNotification = (type: NotificationType): boolean => {
+const isReviewNotificationType = (type: string): boolean => {
+  const normalized = type.toLowerCase();
+  return normalized.includes("review") || normalized.includes("rating");
+};
+
+export const isLocalGuideNotification = (type: string): boolean => {
   return [
     "local_guide_created",
     "local_guide_disabled",
@@ -266,13 +271,13 @@ export const isLocalGuideNotification = (type: NotificationType): boolean => {
     "schedule_rejected",
     "nearby_place_approved",
     "nearby_place_rejected",
-  ].includes(type);
+  ].includes(type) || isReviewNotificationType(type);
 };
 
 /**
  * Check if notification is for Pilgrim
  */
-export const isPilgrimNotification = (type: NotificationType): boolean => {
+export const isPilgrimNotification = (type: string): boolean => {
   return [
     "planner_invite",
     "planner_joined",
@@ -291,14 +296,14 @@ export const isPilgrimNotification = (type: NotificationType): boolean => {
 /**
  * Check if notification is approval-related
  */
-export const isApprovalNotification = (type: NotificationType): boolean => {
+export const isApprovalNotification = (type: string): boolean => {
   return type.endsWith("_approved") || type.endsWith("_rejected");
 };
 
 /**
  * Check if notification is positive (approved, success)
  */
-export const isPositiveNotification = (type: NotificationType): boolean => {
+export const isPositiveNotification = (type: string): boolean => {
   return [
     "local_guide_created",
     "shift_assigned",
@@ -314,7 +319,7 @@ export const isPositiveNotification = (type: NotificationType): boolean => {
 /**
  * Check if notification is negative (rejected, disabled)
  */
-export const isNegativeNotification = (type: NotificationType): boolean => {
+export const isNegativeNotification = (type: string): boolean => {
   return [
     "local_guide_disabled",
     "local_guide_removed",
@@ -331,8 +336,11 @@ export const isNegativeNotification = (type: NotificationType): boolean => {
  * Get notification category
  */
 export const getNotificationCategory = (
-  type: NotificationType,
-): "account" | "shift" | "content" | "planner" | "sos" => {
+  type: string,
+): "account" | "shift" | "content" | "planner" | "sos" | "review" | "general" => {
+  if (isReviewNotificationType(type)) {
+    return "review";
+  }
   if (
     [
       "local_guide_created",
@@ -363,13 +371,16 @@ export const getNotificationCategory = (
   ) {
     return "planner";
   }
-  return "sos";
+  if (["sos_assigned", "sos_resolved"].includes(type)) {
+    return "sos";
+  }
+  return "general";
 };
 
 /**
  * Get notification icon name (for UI)
  */
-export const getNotificationIcon = (type: NotificationType): string => {
+export const getNotificationIcon = (type: string): string => {
   const category = getNotificationCategory(type);
   switch (category) {
     case "account":
@@ -380,8 +391,12 @@ export const getNotificationIcon = (type: NotificationType): string => {
       return isPositiveNotification(type) ? "checkmark-circle" : "close-circle";
     case "planner":
       return "map";
+    case "review":
+      return "star";
     case "sos":
       return "alert-circle";
+    case "general":
+      return "notifications";
     default:
       return "notifications";
   }
@@ -390,7 +405,10 @@ export const getNotificationIcon = (type: NotificationType): string => {
 /**
  * Get notification color (for UI)
  */
-export const getNotificationColor = (type: NotificationType): string => {
+export const getNotificationColor = (type: string): string => {
+  if (getNotificationCategory(type) === "review") {
+    return "#D4AF37";
+  }
   if (isPositiveNotification(type)) {
     return "#4CAF50"; // Green
   }

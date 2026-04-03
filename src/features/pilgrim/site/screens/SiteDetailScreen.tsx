@@ -2,59 +2,60 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-    KeyboardAvoidingView,
-    Keyboard,
-    Modal,
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
-import { useAuth } from "../../../../contexts/AuthContext";
-import { useFavorites } from "../../../../hooks/useFavorites";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
-import { useConfirm } from "../../../../hooks/useConfirm";
 import {
-    useSiteDetail,
-    useSiteEvents,
-    useSiteMassSchedules,
-    useSiteMedia,
-    useSiteNearbyPlaces,
-    useSiteReviews,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
+} from "../../../../constants/theme.constants";
+import { useAuth } from "../../../../contexts/AuthContext";
+import { useConfirm } from "../../../../hooks/useConfirm";
+import { useFavorites } from "../../../../hooks/useFavorites";
+import { useI18n } from "../../../../hooks/useI18n";
+import {
+  useSiteDetail,
+  useSiteEvents,
+  useSiteMassSchedules,
+  useSiteMedia,
+  useSiteNearbyPlaces,
+  useSiteReviews,
 } from "../../../../hooks/useSites";
 import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import { DayOfWeek } from "../../../../types";
 import { SiteReview } from "../../../../types/pilgrim";
 import { getApiErrorMessage } from "../../../../utils/apiError";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
-} from "../../../../constants/theme.constants";
-import {
-    AddToPlanModal,
-    NearbyPlaceCard,
-    QuickActionButton,
-    SOSModal,
+  AddToPlanModal,
+  NearbyPlaceCard,
+  QuickActionButton,
+  SOSModal,
 } from "../components";
 
 // ============================================
@@ -113,14 +114,16 @@ const getInitials = (name?: string) => {
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 };
 
-const normalizeReviewErrorMessage = (error: unknown) => {
+const normalizeReviewErrorMessage = (error: unknown, t: any) => {
   const message = getApiErrorMessage(
     error,
-    "Không thể lưu đánh giá lúc này.",
+    t("siteDetail.reviewSaveError", { defaultValue: "Không thể lưu đánh giá lúc này." }),
   );
 
   if (/check in at this site before you can leave a review/i.test(message)) {
-    return "Bạn cần check-in tại địa điểm này trước khi để lại đánh giá.";
+    return t("siteDetail.reviewCheckInRequired", { 
+      defaultValue: "Bạn cần check-in tại địa điểm này trước khi để lại đánh giá." 
+    });
   }
 
   return message;
@@ -130,6 +133,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const { siteId } = route.params || {};
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, isGuest } = useAuth();
+  const { t } = useI18n();
   const { confirm, ConfirmModal } = useConfirm();
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -387,7 +391,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const handleSubmitReview = async () => {
     const trimmed = reviewText.trim();
     if (!trimmed) {
-      showReviewToast("info", "Thông báo", "Vui lòng nhập nội dung đánh giá.");
+      showReviewToast("info", t("common.info", { defaultValue: "Thông báo" }), t("siteDetail.reviewContentRequired", { defaultValue: "Vui lòng nhập nội dung đánh giá." }));
       return;
     }
 
@@ -410,9 +414,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
       showReviewToast(
         "success",
-        "Thành công",
+        t("common.success", { defaultValue: "Thành công" }),
         response.message ||
-          (myReview ? "Đã cập nhật đánh giá của bạn." : "Đã gửi đánh giá của bạn."),
+          (myReview ? t("siteDetail.reviewUpdated", { defaultValue: "Đã cập nhật đánh giá của bạn." }) : t("siteDetail.reviewCreated", { defaultValue: "Đã gửi đánh giá của bạn." })),
         false,
       );
 
@@ -423,8 +427,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     } catch (error: any) {
       showReviewToast(
         "error",
-        "Có lỗi xảy ra",
-        normalizeReviewErrorMessage(error),
+        t("common.error", { defaultValue: "Có lỗi xảy ra" }),
+        normalizeReviewErrorMessage(error, t),
         true,
       );
     } finally {
@@ -438,10 +442,10 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     const confirmed = await confirm({
       type: "danger",
       iconName: "trash-outline",
-      title: "Xóa đánh giá",
-      message: "Bạn có chắc muốn xóa đánh giá này không?",
-      confirmText: "Xóa",
-      cancelText: "Hủy",
+      title: t("siteDetail.deleteReviewTitle", { defaultValue: "Xóa đánh giá" }),
+      message: t("siteDetail.deleteReviewMessage", { defaultValue: "Bạn có chắc muốn xóa đánh giá này không?" }),
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
     if (!confirmed) return;
@@ -458,8 +462,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
       showReviewToast(
         "success",
-        "Thành công",
-        response.message || "Đã xóa đánh giá của bạn.",
+        t("common.success", { defaultValue: "Thành công" }),
+        response.message || t("siteDetail.reviewDeleted", { defaultValue: "Đã xóa đánh giá của bạn." }),
         false,
       );
 
@@ -470,8 +474,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     } catch (error: any) {
       showReviewToast(
         "error",
-        "Có lỗi xảy ra",
-        getApiErrorMessage(error, "Không thể xóa đánh giá lúc này."),
+        t("common.error", { defaultValue: "Có lỗi xảy ra" }),
+        getApiErrorMessage(error, t("siteDetail.reviewDeleteError", { defaultValue: "Không thể xóa đánh giá lúc này." })),
         true,
       );
     } finally {
@@ -496,9 +500,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <View style={styles.reviewHeaderBlock}>
-          <Text style={styles.sectionTitle}>Đánh giá</Text>
+          <Text style={styles.sectionTitle}>{t("siteDetail.reviews", { defaultValue: "Đánh giá" })}</Text>
           <Text style={styles.reviewSectionSubtitle}>
-            Cảm nhận thực tế từ khách hành hương
+            {t("siteDetail.reviewsSubtitle", { defaultValue: "Cảm nhận thực tế từ khách hành hương" })}
           </Text>
         </View>
         <TouchableOpacity
@@ -522,7 +526,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 : styles.writeReviewTextPrimary,
             ]}
           >
-            {myReview ? "Chỉnh sửa" : "Viết đánh giá"}
+            {myReview ? t("siteDetail.editReview", { defaultValue: "Chỉnh sửa" }) : t("siteDetail.writeReview", { defaultValue: "Viết đánh giá" })}
           </Text>
         </TouchableOpacity>
       </View>
@@ -533,7 +537,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             {averageRating ? averageRating.toFixed(1) : "0.0"}
           </Text>
           {renderStars(Math.round(averageRating), 18)}
-          <Text style={styles.reviewCountText}>{totalReviews} đánh giá</Text>
+          <Text style={styles.reviewCountText}>{t("siteDetail.reviewCount", { count: totalReviews, defaultValue: "{{count}} đánh giá" })}</Text>
         </View>
 
         <View style={styles.reviewDistribution}>
@@ -565,7 +569,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
       {isLoadingReviews ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Đang tải đánh giá...</Text>
+          <Text style={styles.emptyText}>{t("siteDetail.loadingReviews", { defaultValue: "Đang tải đánh giá..." })}</Text>
         </View>
       ) : displayedReviews.length > 0 ? (
         <View style={styles.reviewList}>
@@ -596,13 +600,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                         </Text>
                         {isOwnReview ? (
                           <View style={styles.myReviewChip}>
-                            <Text style={styles.myReviewChipText}>Của bạn</Text>
+                            <Text style={styles.myReviewChipText}>
+                              {t("siteDetail.yourReviewBadge", { defaultValue: "Của bạn" })}
+                            </Text>
                           </View>
                         ) : null}
                         {review.verifiedVisit ? (
                           <View style={styles.verifiedVisitChip}>
                             <Text style={styles.verifiedVisitChipText}>
-                              Đã ghé thăm
+                              {t("siteDetail.verifiedVisit", { defaultValue: "Đã ghé thăm" })}
                             </Text>
                           </View>
                         ) : null}
@@ -639,18 +645,29 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                         size={14}
                         color={COLORS.primary}
                       />
-                      <Text style={styles.reviewReplyTitle}>
-                        Phản hồi từ hướng dẫn viên
-                      </Text>
+                      <View style={styles.reviewReplyTitleGroup}>
+                        <Text style={styles.reviewReplyTitle}>
+                          {review.reply.replier?.fullName
+                            ? t("siteDetail.replyFrom", { name: review.reply.replier.fullName, defaultValue: "Phản hồi từ {{name}}" })
+                            : t("siteDetail.replyFromGuide", { defaultValue: "Phản hồi từ hướng dẫn viên" })}
+                        </Text>
+                        <View style={styles.reviewReplyBadge}>
+                          <Text style={styles.reviewReplyBadgeText}>
+                            {t("siteDetail.localGuideBadge", { defaultValue: "Hướng dẫn viên địa phương" })}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                     <Text style={styles.reviewReplyContent}>
                       {review.reply.content}
                     </Text>
                     <Text style={styles.reviewReplyMeta}>
-                      {(review.reply.replier?.fullName || "Local Guide") +
-                        (review.reply.createdAt
-                          ? ` • ${formatReviewDate(review.reply.createdAt)}`
-                          : "")}
+                      {review.reply.replier?.fullName
+                        ? formatReviewDate(review.reply.createdAt)
+                        : (review.reply.replier?.fullName || "Local Guide") +
+                          (review.reply.createdAt
+                            ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                            : "")}
                     </Text>
                   </View>
                 ) : null}
@@ -660,14 +677,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
           {totalReviews > displayedReviews.length ? (
             <Text style={styles.moreReviewsText}>
-              +{totalReviews - displayedReviews.length} đánh giá khác sẽ hiển thị ở bước tiếp theo
+              {t("siteDetail.moreReviews", { count: totalReviews - displayedReviews.length, defaultValue: "+{{count}} đánh giá khác sẽ hiển thị ở bước tiếp theo" })}
             </Text>
           ) : null}
         </View>
       ) : (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            Chưa có đánh giá nào cho địa điểm này.
+            {t("siteDetail.noReviews", { defaultValue: "Chưa có đánh giá nào cho địa điểm này." })}
           </Text>
           <TouchableOpacity
             style={styles.emptyReviewCta}
@@ -675,7 +692,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             activeOpacity={0.85}
           >
             <Text style={styles.emptyReviewCtaText}>
-              Viết đánh giá đầu tiên
+              {t("siteDetail.writeFirstReview", { defaultValue: "Viết đánh giá đầu tiên" })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -1123,9 +1140,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.reviewHeaderBlock}>
-                <Text style={styles.sectionTitle}>Đánh giá</Text>
+                <Text style={styles.sectionTitle}>{t("siteDetail.reviews", { defaultValue: "Đánh giá" })}</Text>
                 <Text style={styles.reviewSectionSubtitle}>
-                  Cảm nhận thực tế từ khách hành hương
+                  {t("siteDetail.reviewsSubtitle", { defaultValue: "Cảm nhận thực tế từ khách hành hương" })}
                 </Text>
               </View>
               <TouchableOpacity
@@ -1149,7 +1166,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       : styles.writeReviewTextPrimary,
                   ]}
                 >
-                  {myReview ? "Chỉnh sửa" : "Viết đánh giá"}
+                  {myReview ? t("siteDetail.editReview", { defaultValue: "Chỉnh sửa" }) : t("siteDetail.writeReview", { defaultValue: "Viết đánh giá" })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1161,7 +1178,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 </Text>
                 {renderStars(Math.round(averageRating), 18)}
                 <Text style={styles.reviewCountText}>
-                  {totalReviews} đánh giá
+                  {t("siteDetail.reviewCount", { count: totalReviews, defaultValue: "{{count}} đánh giá" })}
                 </Text>
               </View>
 
@@ -1197,7 +1214,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
             {isLoadingReviews ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Đang tải đánh giá...</Text>
+                <Text style={styles.emptyText}>{t("siteDetail.loadingReviews", { defaultValue: "Đang tải đánh giá..." })}</Text>
               </View>
             ) : displayedReviews.length > 0 ? (
               <View style={styles.reviewList}>
@@ -1229,14 +1246,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                               {isOwnReview ? (
                                 <View style={styles.myReviewChip}>
                                   <Text style={styles.myReviewChipText}>
-                                    Của bạn
+                                    {t("siteDetail.yourReviewBadge", { defaultValue: "Của bạn" })}
                                   </Text>
                                 </View>
                               ) : null}
                               {review.verifiedVisit ? (
                                 <View style={styles.verifiedVisitChip}>
                                   <Text style={styles.verifiedVisitChipText}>
-                                    Đã ghé thăm
+                                    {t("siteDetail.verifiedVisit", { defaultValue: "Đã ghé thăm" })}
                                   </Text>
                                 </View>
                               ) : null}
@@ -1273,18 +1290,29 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                               size={14}
                               color={COLORS.primary}
                             />
-                            <Text style={styles.reviewReplyTitle}>
-                              Phản hồi từ hướng dẫn viên
-                            </Text>
+                            <View style={styles.reviewReplyTitleGroup}>
+                              <Text style={styles.reviewReplyTitle}>
+                                {review.reply.replier?.fullName
+                                  ? t("siteDetail.replyFrom", { name: review.reply.replier.fullName, defaultValue: "Phản hồi từ {{name}}" })
+                                  : t("siteDetail.replyFromGuide", { defaultValue: "Phản hồi từ hướng dẫn viên" })}
+                              </Text>
+                              <View style={styles.reviewReplyBadge}>
+                                <Text style={styles.reviewReplyBadgeText}>
+                                  {t("siteDetail.localGuideBadge", { defaultValue: "Hướng dẫn viên địa phương" })}
+                                </Text>
+                              </View>
+                            </View>
                           </View>
                           <Text style={styles.reviewReplyContent}>
                             {review.reply.content}
                           </Text>
                           <Text style={styles.reviewReplyMeta}>
-                            {(review.reply.replier?.fullName || "Local Guide") +
-                              (review.reply.createdAt
-                                ? ` • ${formatReviewDate(review.reply.createdAt)}`
-                                : "")}
+                            {review.reply.replier?.fullName
+                              ? formatReviewDate(review.reply.createdAt)
+                              : (review.reply.replier?.fullName || "Local Guide") +
+                                (review.reply.createdAt
+                                  ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                                  : "")}
                           </Text>
                         </View>
                       ) : null}
@@ -1294,14 +1322,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
                 {totalReviews > displayedReviews.length ? (
                   <Text style={styles.moreReviewsText}>
-                    +{totalReviews - displayedReviews.length} đánh giá khác sẽ hiển thị ở bước tiếp theo
+                    {t("siteDetail.moreReviews", { count: totalReviews - displayedReviews.length, defaultValue: "+{{count}} đánh giá khác sẽ hiển thị ở bước tiếp theo" })}
                   </Text>
                 ) : null}
               </View>
             ) : (
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>
-                  Chưa có đánh giá nào cho địa điểm này.
+                  {t("siteDetail.noReviews", { defaultValue: "Chưa có đánh giá nào cho địa điểm này." })}
                 </Text>
                 <TouchableOpacity
                   style={styles.emptyReviewCta}
@@ -1309,7 +1337,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                   activeOpacity={0.85}
                 >
                   <Text style={styles.emptyReviewCtaText}>
-                    Viết đánh giá đầu tiên
+                    {t("siteDetail.writeFirstReview", { defaultValue: "Viết đánh giá đầu tiên" })}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1553,7 +1581,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <View style={styles.reviewModalHeader}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.reviewModalTitle}>
-                    {myReview ? "Chỉnh sửa đánh giá" : "Viết đánh giá"}
+                    {myReview ? t("siteDetail.editReviewModalTitle", { defaultValue: "Chỉnh sửa đánh giá" }) : t("siteDetail.reviewModalTitle", { defaultValue: "Viết đánh giá" })}
                   </Text>
                   <Text style={styles.reviewModalSubtitle}>{site.name}</Text>
                 </View>
@@ -1565,7 +1593,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 </TouchableOpacity>
               </View>
 
-              <Text style={styles.reviewInputLabel}>Đánh giá của bạn</Text>
+              <Text style={styles.reviewInputLabel}>{t("siteDetail.yourRating", { defaultValue: "Đánh giá của bạn" })}</Text>
               <View style={styles.reviewInputStarsRow}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <TouchableOpacity
@@ -1583,11 +1611,13 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 ))}
               </View>
 
-              <Text style={styles.reviewInputLabel}>Nội dung đánh giá</Text>
+              <Text style={styles.reviewInputLabel}>{t("siteDetail.reviewContent", { defaultValue: "Nội dung đánh giá" })}</Text>
               <TextInput
                 value={reviewText}
                 onChangeText={setReviewText}
-                placeholder="Chia sẻ cảm nhận của bạn về địa điểm này..."
+                placeholder={t("siteDetail.reviewPlaceholder", { 
+                  defaultValue: "Chia sẻ cảm nhận của bạn về địa điểm này..." 
+                })}
                 placeholderTextColor={COLORS.textTertiary}
                 style={styles.reviewInput}
                 multiline
@@ -1613,7 +1643,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                           size={16}
                           color={COLORS.danger}
                         />
-                        <Text style={styles.reviewDeleteButtonText}>Xóa</Text>
+                        <Text style={styles.reviewDeleteButtonText}>{t("siteDetail.deleteReview", { defaultValue: "Xóa" })}</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -1635,7 +1665,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                         color="#fff"
                       />
                       <Text style={styles.reviewSubmitButtonText}>
-                        {myReview ? "Cập nhật đánh giá" : "Gửi đánh giá"}
+                        {myReview ? t("siteDetail.updateReview", { defaultValue: "Cập nhật đánh giá" }) : t("siteDetail.submitReview", { defaultValue: "Gửi đánh giá" })}
                       </Text>
                     </>
                   )}
@@ -1956,11 +1986,11 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   reviewSummaryCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: "#FFF8E8",
     borderRadius: BORDER_RADIUS.xl,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: "rgba(201, 165, 114, 0.22)",
     ...SHADOWS.small,
   },
   reviewSummaryMain: {
@@ -2002,7 +2032,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 8,
     borderRadius: 999,
-    backgroundColor: COLORS.surface1,
+    backgroundColor: "rgba(201, 165, 114, 0.14)",
     overflow: "hidden",
   },
   reviewDistributionFill: {
@@ -2021,10 +2051,10 @@ const styles = StyleSheet.create({
     gap: SPACING.md,
   },
   reviewCard: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.surface0,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: COLORS.borderLight,
+    borderColor: "rgba(26, 40, 69, 0.06)",
     padding: SPACING.md,
     ...SHADOWS.small,
   },
@@ -2116,21 +2146,39 @@ const styles = StyleSheet.create({
   },
   reviewReplyCard: {
     marginTop: SPACING.md,
-    backgroundColor: COLORS.surface0,
+    backgroundColor: "#FFF9EF",
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.2)",
+    borderColor: "rgba(201, 165, 114, 0.32)",
   },
   reviewReplyHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 6,
     marginBottom: 6,
+  },
+  reviewReplyTitleGroup: {
+    flex: 1,
+    gap: 6,
   },
   reviewReplyTitle: {
     fontSize: TYPOGRAPHY.fontSize.sm,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.primary,
+  },
+  reviewReplyBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(212, 175, 55, 0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.28)",
+  },
+  reviewReplyBadgeText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
     color: COLORS.primary,
   },
   reviewReplyContent: {
