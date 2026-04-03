@@ -16,6 +16,7 @@ import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScre
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
 import PlannerMembersScreen from '../features/pilgrim/planner/screens/PlannerMembersScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
+import PlannerMapScreen from '../features/pilgrim/planner/screens/PlannerMapScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
 
 
@@ -97,6 +98,7 @@ const PlannerStackNavigator = () => (
     <PlannerStack.Screen name="ActiveJourneyScreen" component={ActiveJourneyScreen} />
     <PlannerStack.Screen name="PlanChatScreen" component={PlanChatScreen} />
     <PlannerStack.Screen name="PlannerMembersScreen" component={PlannerMembersScreen} />
+    <PlannerStack.Screen name="PlannerMapScreen" component={PlannerMapScreen} />
     <PlannerStack.Screen
       name="CreatePlanScreen"
       component={CreatePlanScreen}

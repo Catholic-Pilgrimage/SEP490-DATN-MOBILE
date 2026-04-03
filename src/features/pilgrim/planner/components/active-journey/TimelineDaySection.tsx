@@ -35,6 +35,8 @@ type Props = {
   selectedDay: string;
   onSelectDay: (key: string) => void;
   items: any[];
+  /** Called when user taps the "view route" icon on a timeline item */
+  onViewRoute?: (item: any) => void;
 };
 
 export default function TimelineDaySection({
@@ -42,6 +44,7 @@ export default function TimelineDaySection({
   selectedDay,
   onSelectDay,
   items,
+  onViewRoute,
 }: Props) {
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -178,6 +181,18 @@ export default function TimelineDaySection({
                       </Text>
                     )}
                   </View>
+
+                  {/* ROUTE PREVIEW BUTTON */}
+                  {!isVisited && !isSkipped && onViewRoute && item.site?.latitude && (
+                    <TouchableOpacity
+                      style={styles.routePreviewBtn}
+                      onPress={() => onViewRoute(item)}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="navigate-outline" size={18} color={COLORS.holy} />
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
@@ -364,5 +379,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: "italic",
     textAlign: "center",
+  },
+  routePreviewBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.divine,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: "rgba(139, 115, 85, 0.15)",
   },
 });

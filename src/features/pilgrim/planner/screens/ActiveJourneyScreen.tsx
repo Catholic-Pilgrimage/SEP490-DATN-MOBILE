@@ -272,6 +272,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
             items={plan.items_by_day?.[selectedDay] || []}
+            onViewRoute={(item) =>
+              navigation.navigate("PlannerMapScreen", {
+                planId: plan.id,
+                focusItemId: item.id,
+                focusDay: selectedDay,
+              })
+            }
           />
         ) : (
           <View style={styles.timelineEmptyContainer}>
@@ -364,7 +371,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <View style={styles.gridRow}>
             <TouchableOpacity
               style={styles.gridBtn}
-              onPress={() => navigation.navigate("MapFullScreen", { planId: plan.id })}
+              onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id })}
               activeOpacity={0.82}
             >
               <Ionicons name="map-outline" size={20} color="#1A2845" />
