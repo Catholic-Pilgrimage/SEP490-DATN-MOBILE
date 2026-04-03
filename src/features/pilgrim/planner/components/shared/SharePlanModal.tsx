@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { toastConfig } from "../../../../../config/toast.config";
 import { useConfirm } from "../../../../../hooks/useConfirm";
 import {
   BORDER_RADIUS,
@@ -42,6 +43,8 @@ import {
 import { scheduleCompleteHeuristic } from "../../utils/plannerFlow.utils";
 import { FriendPickerModal } from "./FriendPickerModal";
 import type { FriendshipListItem } from "../../../../../types/pilgrim";
+import { useFriendship } from "../../../profile/hooks/useFriendship";
+import { useAuth } from "../../../../../hooks/useAuth";
 
 export interface SharePlanModalProps {
   visible: boolean;
@@ -71,7 +74,8 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   const [participants, setParticipants] = useState<PlanParticipant[]>([]);
   const [pendingInvites, setPendingInvites] = useState<PlanInvite[]>([]);
   const [loading, setLoading] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [emailChips, setEmailChips] = useState<string[]>([]);
+  const [currentEmailText, setCurrentEmailText] = useState("");
   const [inviteRole] = useState<"viewer">("viewer");
   const [inviting, setInviting] = useState(false);
   const [progressByUserId, setProgressByUserId] = useState<
@@ -83,6 +87,15 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [checklistGuideVisible, setChecklistGuideVisible] = useState(false);
   const [showFriendPicker, setShowFriendPicker] = useState(false);
+
+  const { user: currentUser } = useAuth();
+  const { friends, fetchFriends } = useFriendship();
+
+  useEffect(() => {
+    if (visible && currentUser) {
+      fetchFriends();
+    }
+  }, [visible, currentUser]);
 
   useEffect(() => {
     setManualLock(!!plan?.is_locked);
@@ -348,39 +361,62 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
       onOfflineRequired();
       return;
     }
-    if (!inviteEmail.trim()) {
+    const allEmails = [...emailChips];
+    if (currentEmailText.trim()) {
+      allEmails.push(currentEmailText.trim().toLowerCase());
+    }
+    const emails = Array.from(new Set(allEmails.filter(e => e.length > 0)));
+
+    if (emails.length === 0) {
       Toast.show({
         type: "error",
         text1: t("common.error"),
         text2: t("planner.emailRequired", {
-          defaultValue: "Vui lòng nhập email",
+          defaultValue: "Vui lòng nhập ít nhất 1 email",
         }),
       });
       return;
     }
     try {
       setInviting(true);
-      const res = await pilgrimPlannerApi.inviteParticipant(planId, {
-        email: inviteEmail.trim().toLowerCase(),
-        role: inviteRole,
-      });
-      if (res.success) {
+      let successCount = 0;
+      let failCount = 0;
+      let lastErrorMessage = "";
+
+      for (const email of emails) {
+        try {
+          const res = await pilgrimPlannerApi.inviteParticipant(planId, {
+            email,
+            role: inviteRole,
+          });
+          if (res.success) {
+            successCount++;
+          } else {
+            failCount++;
+            lastErrorMessage = res.message || "Lỗi không xác định";
+          }
+        } catch (e: any) {
+          failCount++;
+          lastErrorMessage = getApiErrorMessage(e, t("planner.inviteFailed", { defaultValue: "Lời mời thất bại" }));
+        }
+      }
+
+      if (successCount > 0) {
         Toast.show({
           type: "success",
           text1: t("common.success"),
-          text2: t("planner.inviteSent", {
-            defaultValue: "Đã gửi lời mời",
-          }),
+          text2: `Đã gửi ${successCount} lời mời thành công`,
         });
-        setInviteEmail("");
+        setEmailChips([]);
+        setCurrentEmailText("");
         await loadPanel();
-      } else {
+      }
+
+      if (failCount > 0) {
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2:
-            res.message ||
-            t("planner.inviteFailed", { defaultValue: "Gửi lời mời thất bại" }),
+          text2: emails.length === 1 ? lastErrorMessage : `Có ${failCount} lời mời bị lỗi: ${lastErrorMessage}`,
         });
       }
     } catch (e: unknown) {
@@ -406,6 +442,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     setInviting(true);
     let successCount = 0;
     let failCount = 0;
+    let lastErrorMessage = "";
 
     for (const f of selected) {
       try {
@@ -413,10 +450,15 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
           email: f.user.email.toLowerCase(),
           role: inviteRole,
         });
-        if (res.success) successCount++;
-        else failCount++;
-      } catch (e) {
+        if (res.success) {
+          successCount++;
+        } else {
+          failCount++;
+          lastErrorMessage = res.message || "Lỗi không xác định";
+        }
+      } catch (e: any) {
         failCount++;
+        lastErrorMessage = getApiErrorMessage(e, "Lời mời thất bại");
       }
     }
 
@@ -432,11 +474,73 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     if (failCount > 0) {
       Toast.show({
         type: "error",
-        text1: "Một số lời mời thất bại",
-        text2: `Có ${failCount} lời mời không thể gửi đi`,
+        text1: "Lỗi",
+        text2: selected.length === 1 ? lastErrorMessage : `Có ${failCount} lời mời bị lỗi: ${lastErrorMessage}`,
       });
     }
     setInviting(false);
+  };
+
+  const handleEmailTextChange = (text: string) => {
+    // If user typed a space, comma, or semicolon, we extract emails
+    if (/[,;\s]+/.test(text)) {
+      const parts = text.split(/[,;\s]+/).map(p => p.trim().toLowerCase());
+      const newChips = parts.filter(p => p.length > 0 && p.includes('@'));
+      const invalidOrIncomplete = parts.filter(p => p.length > 0 && !p.includes('@')).join(' ');
+
+      if (newChips.length > 0) {
+        setEmailChips(prev => {
+          const combined = [...prev, ...newChips];
+          return Array.from(new Set(combined)); // unique
+        });
+      }
+      setCurrentEmailText(invalidOrIncomplete);
+    } else {
+      setCurrentEmailText(text);
+    }
+  };
+
+  const handleSelectSuggestedFriend = (friend: FriendshipListItem) => {
+    const friendEmail = friend.user.email.toLowerCase();
+    if (!emailChips.includes(friendEmail)) {
+      setEmailChips(prev => [...prev, friendEmail]);
+    }
+    setCurrentEmailText("");
+  };
+
+  // Filter friends based on current text
+  const getSuggestions = () => {
+    const q = currentEmailText.trim().toLowerCase();
+    if (!q) return [];
+    
+    const alreadyInvited = new Set([
+      ...participants.map((p) => (p.userEmail || "").toLowerCase()),
+      ...pendingInvites.map((i) => (i.email || "").toLowerCase()),
+      ...emailChips
+    ]);
+
+    return friends.filter(f => {
+      if (alreadyInvited.has(f.user.email.toLowerCase())) return false;
+      const name = (f.user.full_name || "").toLowerCase();
+      const email = (f.user.email || "").toLowerCase();
+      return name.includes(q) || email.includes(q);
+    }).slice(0, 4); // show max 4 suggestions
+  };
+
+  const suggestions = getSuggestions();
+
+  const handleEmailSubmit = () => {
+    const txt = currentEmailText.trim().toLowerCase();
+    if (txt) {
+      if (!emailChips.includes(txt)) {
+        setEmailChips(prev => [...prev, txt]);
+      }
+      setCurrentEmailText("");
+    }
+  };
+
+  const removeEmailChip = (emailToRemove: string) => {
+    setEmailChips(prev => prev.filter(e => e !== emailToRemove));
   };
 
   const removeMemberFromPlan = async (p: PlanParticipant) => {
@@ -518,7 +622,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   const showWaitingForOthersPlaceholder =
     !showNoCrewPlaceholder && participantsOtherThanOwner.length === 0;
 
-  const inviteHasEmail = inviteEmail.trim().length > 0;
+  const inviteHasEmail = emailChips.length > 0 || currentEmailText.trim().length > 0;
   const inviteButtonMuted = !inviteHasEmail && !inviting;
 
   const checklistGuideTitle = t("planner.shareModalGroupChecklistTitle", {
@@ -602,7 +706,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
 
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 16) + 32 }]}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         >
@@ -630,32 +734,76 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
                   </TouchableOpacity>
                 ) : null}
               </View>
-              <View style={styles.emailInputWrap}>
-                <Ionicons
-                  name="mail-outline"
-                  size={20}
-                  color={COLORS.textTertiary}
-                  style={styles.emailInputIcon}
-                />
-                <TextInput
-                  style={styles.emailInputInner}
-                  placeholder={t("planner.inviteEmailPlaceholder", {
-                    defaultValue: "Nhập email bạn bè…",
-                  })}
-                  placeholderTextColor={COLORS.textTertiary}
-                  value={inviteEmail}
-                  onChangeText={setInviteEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isOffline}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowFriendPicker(true)}
-                  style={styles.friendPickerBtn}
-                  disabled={inviting || isOffline}
-                >
-                  <Ionicons name="people-outline" size={24} color={COLORS.primary} />
-                </TouchableOpacity>
+              <View style={{ zIndex: 10, position: 'relative' }}>
+                <View style={[styles.emailInputWrap, emailChips.length > 0 && { paddingVertical: 8, height: 'auto' }]}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color={COLORS.textTertiary}
+                    style={styles.emailInputIcon}
+                  />
+                  <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {emailChips.map((chip, index) => (
+                      <View key={`chip-${index}`} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#E0E7FF', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 16, margin: 2, borderWidth: 1, borderColor: '#C7D2FE' }}>
+                        <Text style={{ fontSize: 13, color: '#3730A3', fontWeight: '500' }}>{chip}</Text>
+                        <TouchableOpacity onPress={() => removeEmailChip(chip)} style={{ marginLeft: 4 }}>
+                          <Ionicons name="close-circle" size={16} color="#4F46E5" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                    <TextInput
+                      style={[styles.emailInputInner, emailChips.length > 0 && { minWidth: 120, marginLeft: 4 }]}
+                      placeholder={emailChips.length === 0 ? t("planner.inviteEmailPlaceholder", { defaultValue: "Nhập email hoặc tên bạn bè..." }) : ""}
+                      placeholderTextColor={COLORS.textTertiary}
+                      value={currentEmailText}
+                      onChangeText={handleEmailTextChange}
+                      onSubmitEditing={handleEmailSubmit}
+                      blurOnSubmit={false}
+                      keyboardType="default" // Allow both letters for name and email formatting
+                      autoCapitalize="none"
+                      editable={!isOffline}
+                      returnKeyType="done"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setShowFriendPicker(true)}
+                    style={styles.friendPickerBtn}
+                    disabled={inviting || isOffline}
+                    accessibilityLabel="Mở danh bạ bạn bè"
+                  >
+                    <Ionicons name="person-add-outline" size={26} color={COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Dropdown Suggestions */}
+                {suggestions.length > 0 && (
+                  <View style={styles.suggestionsContainer}>
+                    {suggestions.map((f) => (
+                      <TouchableOpacity
+                        key={f.user.id}
+                        style={styles.suggestionItem}
+                        onPress={() => handleSelectSuggestedFriend(f)}
+                      >
+                        <View style={styles.suggestionAvatarBlock}>
+                          {f.user.avatar_url ? (
+                            <Image source={{ uri: f.user.avatar_url }} style={styles.suggestionAvatar} />
+                          ) : (
+                            <View style={[styles.suggestionAvatar, styles.suggestionAvatarInitials]}>
+                              <Text style={styles.suggestionAvatarText}>
+                                {getInitialsFromFullName(f.user.full_name || "")}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suggestionName} numberOfLines={1}>{f.user.full_name || "Trống"}</Text>
+                          <Text style={styles.suggestionEmail} numberOfLines={1}>{f.user.email}</Text>
+                        </View>
+                        <Ionicons name="add-circle" size={22} color={COLORS.primary} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
               <TouchableOpacity
                 style={[
@@ -1040,7 +1188,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
           </View>
         </Modal>
       </View>
-      <Toast />
+      <Toast config={toastConfig} />
     </Modal>
   );
 };
@@ -1170,7 +1318,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: 12,
-    height: 52,
+    minHeight: 52,
     marginBottom: SPACING.sm,
   },
   emailInputIcon: {
@@ -1219,6 +1367,53 @@ const styles = StyleSheet.create({
   emptyWaitingMuted: {
     color: COLORS.textTertiary,
     opacity: 0.95,
+  },
+  suggestionsContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    position: 'absolute',
+    top: 56, // Just below the input wrap
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    ...SHADOWS.small,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  suggestionAvatarBlock: {
+    marginRight: 10,
+  },
+  suggestionAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  suggestionAvatarInitials: {
+    backgroundColor: '#E5E1D8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  suggestionAvatarText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#B8860B',
+  },
+  suggestionName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+  },
+  suggestionEmail: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   row: {
     flexDirection: "row",

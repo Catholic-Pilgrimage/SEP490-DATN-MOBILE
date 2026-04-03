@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  SafeAreaView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, BORDER_RADIUS, SPACING, SHADOWS } from '../../../../../constants/theme.constants';
 import { useFriendship } from '../../../profile/hooks/useFriendship';
 import { FriendshipListItem } from '../../../../../types/pilgrim';
@@ -30,6 +30,7 @@ export const FriendPickerModal: React.FC<Props> = ({
 }) => {
   const { friends, fetchFriends, loading } = useFriendship();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
@@ -113,7 +114,7 @@ export const FriendPickerModal: React.FC<Props> = ({
             />
           )}
 
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) + 24 }]}>
             <Text style={styles.countText}>{selectedIds.size} đã chọn</Text>
             <TouchableOpacity 
               style={[styles.confirmBtn, selectedIds.size === 0 && styles.disabledBtn]} 
@@ -220,7 +221,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
-    paddingBottom: 30,
   },
   countText: {
     flex: 1,
