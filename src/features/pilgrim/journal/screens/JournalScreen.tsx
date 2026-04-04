@@ -21,12 +21,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
+import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
+import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import { JournalEntry } from '../../../../types/pilgrim/journal.types';
-import { normalizeImageUrls } from '../../../../utils/postgresArrayParser';
+import { normalizeImageUrls, parsePostgresArray } from '../../../../utils/postgresArrayParser';
 
 const { width } = Dimensions.get('window');
 
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
+
+const getJournalPlannerItemIds = (journal: JournalEntry): string[] =>
+    Array.from(new Set([
+        ...parsePostgresArray(journal.planner_item_id),
+        ...parsePostgresArray(journal.planner_item_ids),
+    ]));
 
 // Animated guest card with floating + icon pulse
 const GuestCardAnimated = ({ handleLogin, t }: { handleLogin: () => void; t: any }) => {
@@ -74,8 +82,13 @@ export const JournalScreen = () => {
     const { t } = useTranslation();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(!isGuest);
+    const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
+    const [plannerNamesById, setPlannerNamesById] = useState<Record<string, string>>({});
+    const [plannerItemSiteNamesById, setPlannerItemSiteNamesById] = useState<Record<string, string>>({});
 
     const scrollRef = useRef(null);
+    const requestedSiteIdsRef = useRef(new Set<string>());
+    const requestedPlannerIdsRef = useRef(new Set<string>());
     useScrollToTop(scrollRef);
 
     const fetchJournals = async () => {
@@ -100,6 +113,73 @@ export const JournalScreen = () => {
         }, [isGuest])
     );
 
+    // Resolve site names for journals without site.name
+    useEffect(() => {
+        const missingSiteIds = Array.from(new Set(
+            journals
+                .map(j => j.site?.name ? null : j.site_id)
+                .filter((id): id is string => Boolean(id && !siteNamesById[id] && !requestedSiteIdsRef.current.has(id)))
+        ));
+        if (!missingSiteIds.length) return;
+        missingSiteIds.forEach(id => requestedSiteIdsRef.current.add(id));
+        let cancelled = false;
+        (async () => {
+            const results = await Promise.all(missingSiteIds.map(async id => {
+                try { const r = await pilgrimSiteApi.getSiteDetail(id); return { id, name: r.data?.name || null }; }
+                catch { return { id, name: null }; }
+            }));
+            if (cancelled) return;
+            const next: Record<string, string> = {};
+            results.forEach(({ id, name }) => { if (name) next[id] = name; else requestedSiteIdsRef.current.delete(id); });
+            if (Object.keys(next).length) setSiteNamesById(prev => ({ ...prev, ...next }));
+        })();
+        return () => { cancelled = true; };
+    }, [journals, siteNamesById]);
+
+    // Resolve planner names + planner item site names
+    useEffect(() => {
+        const missingPlannerIds = Array.from(new Set(
+            journals
+                .map(j => {
+                    const itemIds = getJournalPlannerItemIds(j);
+                    const needsName = j.planner_id && !j.planner?.name && !plannerNamesById[j.planner_id];
+                    const needsSite = j.planner_id && itemIds.length > 0 && itemIds.some(id => !plannerItemSiteNamesById[id]);
+                    return (needsName || needsSite) ? j.planner_id : null;
+                })
+                .filter((id): id is string => Boolean(id && !requestedPlannerIdsRef.current.has(id)))
+        ));
+        if (!missingPlannerIds.length) return;
+        missingPlannerIds.forEach(id => requestedPlannerIdsRef.current.add(id));
+        let cancelled = false;
+        (async () => {
+            const results = await Promise.all(missingPlannerIds.map(async plannerId => {
+                try {
+                    const r = await pilgrimPlannerApi.getPlanDetail(plannerId);
+                    const planner = r.data;
+                    const items = planner?.items || Object.values(planner?.items_by_day || {}).flat();
+                    return {
+                        plannerId,
+                        plannerName: planner?.name || null,
+                        itemSiteNames: Object.fromEntries(
+                            (items as any[]).filter(i => i?.id && i.site?.name).map(i => [i.id, i.site.name])
+                        ) as Record<string, string>,
+                    };
+                } catch { return { plannerId, plannerName: null, itemSiteNames: {} }; }
+            }));
+            if (cancelled) return;
+            const nextNames: Record<string, string> = {};
+            const nextItemSites: Record<string, string> = {};
+            results.forEach(({ plannerId, plannerName, itemSiteNames }) => {
+                if (plannerName) nextNames[plannerId] = plannerName;
+                Object.assign(nextItemSites, itemSiteNames);
+                if (!plannerName && Object.keys(itemSiteNames).length === 0) requestedPlannerIdsRef.current.delete(plannerId);
+            });
+            if (Object.keys(nextNames).length) setPlannerNamesById(prev => ({ ...prev, ...nextNames }));
+            if (Object.keys(nextItemSites).length) setPlannerItemSiteNamesById(prev => ({ ...prev, ...nextItemSites }));
+        })();
+        return () => { cancelled = true; };
+    }, [journals, plannerItemSiteNamesById, plannerNamesById]);
+
     const handleLogin = async () => {
         if (isGuest) {
             await exitGuestMode();
@@ -115,7 +195,19 @@ export const JournalScreen = () => {
     const renderItem = ({ item }: { item: JournalEntry }) => {
         const isPrivate = item.privacy === 'private';
         const images = normalizeImageUrls(item.image_url);
-        const avatarUrl = item.author?.avatar_url || user?.avatar || 'https://via.placeholder.com/50';
+        const plannerItemIds = getJournalPlannerItemIds(item);
+
+        // Resolve location: site.name > siteNamesById > plannerItemSiteNames > plannerName
+        const resolvedSiteName = [
+            item.site?.name,
+            item.site_id ? siteNamesById[item.site_id] : undefined,
+            ...plannerItemIds.map(id => plannerItemSiteNamesById[id]),
+        ].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+        const resolvedPlannerName = item.planner?.name || (item.planner_id ? plannerNamesById[item.planner_id] : undefined);
+        const locationLabel = resolvedSiteName || resolvedPlannerName || null;
+
+        const authorName = item.author?.full_name || user?.fullName || 'Pilgrim';
+        const avatarUrl = item.author?.avatar_url || user?.avatar;
 
         return (
             <TouchableOpacity
@@ -129,43 +221,31 @@ export const JournalScreen = () => {
                     </View>
                 )}
 
-                {/* Header: Avatar & Location */}
+                {/* Header: Avatar + Name + Location */}
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarContainer}>
-                        <Image
-                            source={{ uri: avatarUrl }}
-                            style={styles.avatar}
-                        />
+                        {avatarUrl ? (
+                            <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                        ) : (
+                            <View style={[styles.avatar, styles.initialAvatar]}>
+                                <Text style={styles.initialAvatarText}>
+                                    {authorName.trim().charAt(0).toUpperCase()}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                     <View style={styles.headerInfo}>
-                        <View style={styles.locationRow}>
-                            <MaterialIcons name="location-on" size={14} color={COLORS.accent} />
-                            <Text style={styles.locationText} numberOfLines={1}>
-                                {item.site?.name || 'Unknown Location'}
-                            </Text>
-                        </View>
+                        <Text style={styles.authorName} numberOfLines={1}>{authorName}</Text>
+                        {locationLabel && (
+                            <View style={styles.locationRow}>
+                                <MaterialIcons name="location-on" size={12} color={COLORS.accent} />
+                                <Text style={styles.locationText} numberOfLines={2}>
+                                    {locationLabel}
+                                </Text>
+                            </View>
+                        )}
                         <Text style={styles.dateText}>
-                            {new Date(item.created_at).toLocaleDateString()}
-                        </Text>
-                    </View>
-                    <View
-                        style={[
-                            styles.badge,
-                            isPrivate ? styles.badgePrivate : styles.badgePublic,
-                        ]}
-                    >
-                        <MaterialIcons
-                            name={isPrivate ? 'lock' : 'public'}
-                            size={12}
-                            color={isPrivate ? COLORS.textSecondary : COLORS.accentDark}
-                        />
-                        <Text
-                            style={[
-                                styles.badgeText,
-                                isPrivate ? styles.badgeTextPrivate : styles.badgeTextPublic,
-                            ]}
-                        >
-                            {isPrivate ? 'Private' : 'Public'}
+                            {new Date(item.created_at).toLocaleDateString('vi-VN')}
                         </Text>
                     </View>
                 </View>
@@ -405,6 +485,22 @@ const styles = StyleSheet.create({
     dateText: {
         fontSize: 12,
         color: COLORS.textTertiary,
+    },
+    authorName: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: COLORS.textPrimary,
+        marginBottom: 2,
+    },
+    initialAvatar: {
+        backgroundColor: COLORS.accent,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    initialAvatarText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
     },
     badge: {
         flexDirection: 'row',

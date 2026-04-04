@@ -405,6 +405,8 @@ export interface CheckInEntity {
   user_id: string;
   site_id: string;
   checked_in_at: string;
+  /** Trạng thái check-in: 'checked_in' | 'missed' | ... — lọc chỉ lấy 'checked_in' */
+  status?: string;
   note?: string;
   photos?: string[];
   site?: {
