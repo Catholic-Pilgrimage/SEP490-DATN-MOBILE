@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, {
   useCallback,
   useEffect,
@@ -7,6 +8,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -19,12 +21,16 @@ import {
   BORDER_RADIUS,
   COLORS,
   SHADOWS,
-  SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import type { PlanItem } from "../../../../types/pilgrim/planner.types";
+import CheckinPhotoSheet from "../components/active-journey/CheckinPhotoSheet";
+import ItemActionSheet from "../components/active-journey/ItemActionSheet";
+import MarkVisitedModal from "../components/active-journey/MarkVisitedModal";
 import PlanHeader from "../components/active-journey/PlanHeader";
 import TimelineDaySection from "../components/active-journey/TimelineDaySection";
+import { useCheckinPhoto } from "../hooks/useCheckinPhoto";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
 import { SOSRequestModal } from "../components/active-journey/SOSRequestModal";
@@ -64,6 +70,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const [selectedDay, setSelectedDay] = React.useState("");
   const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(new Set());
   const [sosModalVisible, setSosModalVisible] = React.useState(false);
+  const [photoSheetVisible, setPhotoSheetVisible] = React.useState(false);
+
+  // Owner action sheet & mark visited modal state
+  const [actionSheetItem, setActionSheetItem] = React.useState<PlanItem | null>(null);
+  const [markVisitedItem, setMarkVisitedItem] = React.useState<PlanItem | null>(null);
 
   useEffect(() => {
     if (!planId || !user?.id) return;
@@ -107,16 +118,20 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const {
     checkingInItemId,
     skippingItemId,
-    markingVisitedItemId,
     checkIn,
     skipItem,
-    markVisited,
   } = useJourneyExecution(planId, refreshPlan, onCompleted);
+  const { takePhoto, pickFromGallery } = useCheckinPhoto();
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
   );
   const completingRef = useRef(false);
+  const planStatus = useMemo(
+    () => String(plan?.status || "").toLowerCase(),
+    [plan?.status],
+  );
+
   const allStopsHandled = useMemo(() => {
     if (!plan?.items_by_day) return false;
     const items = Object.values(plan.items_by_day).flat();
@@ -133,25 +148,43 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     return items.some((item) => String(item.status || "").toLowerCase() === "visited");
   }, [plan]);
 
+  // Auto-detect completion: navigate away if plan is no longer ongoing
   useEffect(() => {
-    const maybeCompleteJourney = async () => {
-      if (!plan?.id || !isOwner) return;
-      if (String(plan.status || "").toLowerCase() !== "ongoing") return;
-      if (!allStopsHandled) return;
-      
-      // Nếu bỏ qua toàn bộ, backend sẽ tự động "cancelled"
-      if (!hasVisitedStops) {
-        Toast.show({
-          type: "info",
-          text1: "Chuyến đi bị hủy",
-          text2: "Bạn đã bỏ qua tất cả địa điểm trong hành trình",
-        });
-        navigation.replace("PlanDetailScreen", { planId: plan.id });
-        return;
-      }
+    if (!plan?.id) return;
 
-      if (completingRef.current) return;
+    // Case 1: Backend đã tự chuyển sang completed/cancelled → navigate ngay
+    if (planStatus === "completed" || planStatus === "cancelled") {
+      Toast.show({
+        type: planStatus === "completed" ? "success" : "info",
+        text1:
+          planStatus === "completed"
+            ? "Hành trình đã hoàn thành!"
+            : "Hành trình đã bị hủy",
+        text2: "Chuyển về trang chi tiết kế hoạch",
+      });
+      navigation.replace("PlanDetailScreen", { planId: plan.id });
+      return;
+    }
 
+    // Case 2: Tất cả điểm đã được xử lý (visited/skipped) → Owner gọi API complete
+    if (planStatus !== "ongoing" || !allStopsHandled) return;
+
+    if (!isOwner) return; // Member chờ owner xử lý
+
+    if (!hasVisitedStops) {
+      // Skip toàn bộ → backend sẽ tự cancelled
+      Toast.show({
+        type: "info",
+        text1: "Chuyến đi bị hủy",
+        text2: "Tất cả địa điểm đã bị bỏ qua",
+      });
+      navigation.replace("PlanDetailScreen", { planId: plan.id });
+      return;
+    }
+
+    if (completingRef.current) return;
+
+    const completeJourney = async () => {
       try {
         completingRef.current = true;
         const response = await pilgrimPlannerApi.updatePlannerStatus(plan.id, {
@@ -162,23 +195,24 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         }
         Toast.show({
           type: "success",
-          text1: "Đã hoàn thành hành trình",
+          text1: "Đã hoàn thành hành trình!",
           text2: "Chuyển về trang chi tiết kế hoạch",
         });
         navigation.replace("PlanDetailScreen", { planId: plan.id });
       } catch (e: any) {
+        // Có thể backend đã tự complete → refresh lại plan
         Toast.show({
           type: "error",
-          text1: "Không thể chuyển trạng thái hoàn thành",
+          text1: "Không thể chuyển trạng thái",
           text2: e?.message || "Vui lòng thử lại",
         });
+        await refreshPlan();
       } finally {
         completingRef.current = false;
       }
     };
-
-    void maybeCompleteJourney();
-  }, [allStopsHandled, isOwner, navigation, plan]);
+    void completeJourney();
+  }, [planStatus, allStopsHandled, hasVisitedStops, isOwner, navigation, plan?.id, refreshPlan]);
 
   // Hide Bottom Tab Bar
   useEffect(() => {
@@ -191,6 +225,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       });
     };
   }, [navigation]);
+
+  // Determine check-in button state
+  const isAlreadyCheckedIn = firstItem ? checkedInIds.has(firstItem.id) : false;
+  const isCheckInDisabled = !firstItem || checkingInItemId === firstItem?.id || isAlreadyCheckedIn;
+  const nextSiteName = firstItem?.site?.name || "Điểm tiếp theo";
+
+  // Calculate floating CTA height for ScrollView padding (only check-in btn now)
+  const FLOATING_CTA_HEIGHT = 90;
 
   if (loading) {
     return (
@@ -249,145 +291,208 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* BANNER - compact */}
-      <PlanHeader plan={plan} firstItem={firstItem} compact />
+      {/* SCROLLABLE CONTENT */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: FLOATING_CTA_HEIGHT + insets.bottom + 24 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* BANNER */}
+        <PlanHeader plan={plan} firstItem={firstItem} />
 
-      {/* TIMELINE SECTION - flex grow */}
-      <View style={styles.timelineSection}>
-        <View style={styles.timelineHeader}>
-          <Text style={styles.timelineTitle}>Lịch trình chuyến đi</Text>
-        </View>
-
-        {sortedDays.length > 0 ? (
-          <TimelineDaySection
-            days={sortedDays.map((d, idx) => {
-              const date = new Date(plan!.start_date!);
-              date.setDate(date.getDate() + idx);
-              return {
-                key: d,
-                label: date.toISOString().split("T")[0], // Pass YYYY-MM-DD
-                isToday: idx === todayIdx,
-              };
-            })}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-            items={plan.items_by_day?.[selectedDay] || []}
-            onViewRoute={(item) =>
-              navigation.navigate("PlannerMapScreen", {
-                planId: plan.id,
-                focusItemId: item.id,
-                focusDay: selectedDay,
+        {/* TOOLBAR: 4 Quick-Access Buttons */}
+        <View style={styles.toolbar}>
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() =>
+              navigation.navigate("Nhat ky", { 
+                screen: "CreateJournalScreen",
+                params: {
+                  planId: plan.id,
+                  plannerItemId: firstItem?.id,
+                  from: "ActiveJourney"
+                }
               })
             }
-          />
-        ) : (
-          <View style={styles.timelineEmptyContainer}>
-            <Ionicons name="calendar-outline" size={32} color={COLORS.textTertiary} />
-            <Text style={styles.timelineEmpty}>Chưa có lịch trình nào được lưu</Text>
-          </View>
-        )}
-      </View>
+            activeOpacity={0.7}
+          >
+            <View style={styles.toolbarIconBox}>
+              <Ionicons name="book-outline" size={22} color={COLORS.holy} />
+            </View>
+            <Text style={styles.toolbarBtnText}>Nhật ký</Text>
+          </TouchableOpacity>
 
-      {/* ACTION BUTTONS - fixed at bottom, always visible */}
-      <View style={[styles.actionsWrapper, { paddingBottom: insets.bottom + 20 }]}>
-        {/* Row 1: Check-in (Full Width) */}
-        <TouchableOpacity
-          style={[styles.checkinFullBtn, (!firstItem || checkedInIds.has(firstItem.id)) && { backgroundColor: "#9CA3AF" }]}
-          disabled={!firstItem || checkingInItemId === firstItem?.id || checkedInIds.has(firstItem?.id)}
-          onPress={async () => {
-            if (firstItem) {
-              try {
-                await checkIn(firstItem, isLastItem);
-                setCheckedInIds(prev => new Set(prev).add(firstItem.id));
-              } catch {
-                // Toast error was handled in useJourneyExecution hook
-              }
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id })}
+            activeOpacity={0.7}
+          >
+            <View style={styles.toolbarIconBox}>
+              <Ionicons name="map-outline" size={22} color="#1A67C1" />
+            </View>
+            <Text style={styles.toolbarBtnText}>Bản đồ</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() =>
+              navigation.navigate("PlannerMembersScreen", { planId: plan.id })
             }
-          }}
-          activeOpacity={0.82}
-        >
-          <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          <Text style={styles.checkinFullText}>
-            {!firstItem || checkedInIds.has(firstItem?.id) ? "Đã check-in điểm này" : "Check-in điểm hành hương"}
-          </Text>
-        </TouchableOpacity>
+            activeOpacity={0.7}
+          >
+            <View style={styles.toolbarIconBox}>
+              <Ionicons name="people-outline" size={22} color="#8B7355" />
+            </View>
+            <Text style={styles.toolbarBtnText}>Thành viên</Text>
+          </TouchableOpacity>
 
-        {/* Row 2: Owner Specific (Skip/Visited) - Only visible to owner */}
-        {isOwner && (
-          <View style={styles.ownerPrimaryRow}>
-            <TouchableOpacity
-              style={[styles.smallPrimaryBtn, styles.skipBtn]}
-              disabled={!firstItem || skippingItemId === firstItem.id}
-              onPress={() => firstItem && skipItem(firstItem)}
-              activeOpacity={0.82}
-            >
-              <Ionicons name="play-skip-forward" size={16} color="#9A3412" />
-              <Text style={styles.smallPrimaryBtnText}>Bỏ qua</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.smallPrimaryBtn, styles.visitedBtn]}
-              disabled={!firstItem || markingVisitedItemId === firstItem.id}
-              onPress={() => firstItem && markVisited(firstItem, isLastItem)}
-              activeOpacity={0.82}
-            >
-              <Ionicons name="flag" size={16} color="#92400E" />
-              <Text style={styles.smallPrimaryBtnText}>Đã viếng</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.toolbarBtn}
+            onPress={() => setSosModalVisible(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.toolbarIconBox, styles.sosIconBox]}>
+              <Ionicons name="warning" size={22} color="#DC2626" />
+            </View>
+            <Text style={[styles.toolbarBtnText, { color: "#DC2626" }]}>SOS</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* TIMELINE SECTION */}
+        <View style={styles.timelineSection}>
+          <View style={styles.timelineHeader}>
+            <Text style={styles.timelineTitle}>Lịch trình chuyến đi</Text>
           </View>
-        )}
 
-        {/* 2x2 Grid for 4 buttons */}
-        <View style={styles.buttonGrid}>
-          <View style={styles.gridRow}>
-            <TouchableOpacity
-              style={styles.gridBtn}
-              onPress={() =>
-                navigation.navigate("Nhat ky", { 
-                  screen: "CreateJournalScreen",
-                  params: {
-                    planId: plan.id,
-                    plannerItemId: firstItem?.id,
-                    from: "ActiveJourney"
-                  }
+          {sortedDays.length > 0 ? (
+            <TimelineDaySection
+              days={sortedDays.map((d, idx) => {
+                const date = new Date(plan!.start_date!);
+                date.setDate(date.getDate() + idx);
+                return {
+                  key: d,
+                  label: date.toISOString().split("T")[0],
+                  isToday: idx === todayIdx,
+                };
+              })}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+              items={plan.items_by_day?.[selectedDay] || []}
+              isOwner={isOwner}
+              onItemAction={(item) => setActionSheetItem(item)}
+              onViewRoute={(item) =>
+                navigation.navigate("PlannerMapScreen", {
+                  planId: plan.id,
+                  focusItemId: item.id,
+                  focusDay: selectedDay,
                 })
               }
-              activeOpacity={0.82}
-            >
-              <Ionicons name="book-outline" size={20} color="#9A3412" />
-              <Text style={styles.gridBtnText}>Nhật ký</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.gridBtn}
-              onPress={() =>
-                navigation.navigate("PlannerMembersScreen", { planId: plan.id })
-              }
-              activeOpacity={0.82}
-            >
-              <Ionicons name="people-outline" size={20} color="#8B7355" />
-              <Text style={styles.gridBtnText}>Thành viên</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.gridRow}>
-            <TouchableOpacity
-              style={styles.gridBtn}
-              onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id })}
-              activeOpacity={0.82}
-            >
-              <Ionicons name="map-outline" size={20} color="#1A2845" />
-              <Text style={styles.gridBtnText}>Bản đồ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.gridBtn, styles.sosGridBtn]}
-              onPress={() => setSosModalVisible(true)}
-              activeOpacity={0.82}
-            >
-              <Ionicons name="warning" size={20} color="#DC2626" />
-              <Text style={[styles.gridBtnText, { color: "#DC2626" }]}>Cứu trợ SOS</Text>
-            </TouchableOpacity>
-          </View>
+            />
+          ) : (
+            <View style={styles.timelineEmptyContainer}>
+              <Ionicons name="calendar-outline" size={32} color={COLORS.textTertiary} />
+              <Text style={styles.timelineEmpty}>Chưa có lịch trình nào được lưu</Text>
+            </View>
+          )}
         </View>
-      </View>
+      </ScrollView>
+
+      {/* FLOATING BOTTOM CTA - Only Check-in button now */}
+      <LinearGradient
+        colors={['transparent', COLORS.background, COLORS.background]}
+        locations={[0, 0.35, 1]}
+        style={[styles.floatingBottomContainer, { paddingBottom: insets.bottom + 16 }]}
+      >
+        {/* PRIMARY CHECK-IN BUTTON */}
+        <TouchableOpacity
+          style={[
+            styles.stickyCheckinBtn,
+            isAlreadyCheckedIn && styles.stickyCheckinBtnDisabled,
+          ]}
+          disabled={isCheckInDisabled}
+          onPress={() => setPhotoSheetVisible(true)}
+          activeOpacity={0.82}
+        >
+          {checkingInItemId === firstItem?.id ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Ionicons
+                name={isAlreadyCheckedIn ? "checkmark-done-circle" : "location"}
+                size={20}
+                color="#fff"
+              />
+              <Text style={styles.stickyCheckinText} numberOfLines={1}>
+                {isAlreadyCheckedIn
+                  ? "Đã check-in điểm này ✓"
+                  : `Check-in: ${nextSiteName}`}
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* Check-in Photo Picker Sheet */}
+      <CheckinPhotoSheet
+        visible={photoSheetVisible}
+        onClose={() => setPhotoSheetVisible(false)}
+        onCamera={async () => {
+          setPhotoSheetVisible(false);
+          const photo = await takePhoto();
+          if (!photo || !firstItem) return;
+          const success = await checkIn(firstItem, photo.uri);
+          if (success) {
+            setCheckedInIds((prev) => new Set(prev).add(firstItem.id));
+          }
+        }}
+        onGallery={async () => {
+          setPhotoSheetVisible(false);
+          const photo = await pickFromGallery();
+          if (!photo || !firstItem) return;
+          const success = await checkIn(firstItem, photo.uri);
+          if (success) {
+            setCheckedInIds((prev) => new Set(prev).add(firstItem.id));
+          }
+        }}
+      />
+
+      {/* OWNER: Item Action Bottom Sheet */}
+      <ItemActionSheet
+        visible={!!actionSheetItem}
+        onClose={() => setActionSheetItem(null)}
+        item={actionSheetItem}
+        isSkipping={skippingItemId === actionSheetItem?.id}
+        onViewRoute={() => {
+          if (actionSheetItem) {
+            navigation.navigate("PlannerMapScreen", {
+              planId: plan.id,
+              focusItemId: actionSheetItem.id,
+              focusDay: selectedDay,
+            });
+          }
+        }}
+        onMarkVisited={() => {
+          setMarkVisitedItem(actionSheetItem);
+        }}
+        onSkip={() => {
+          if (actionSheetItem) skipItem(actionSheetItem);
+        }}
+      />
+
+      {/* OWNER: Mark Visited Confirmation Modal */}
+      <MarkVisitedModal
+        visible={!!markVisitedItem}
+        onClose={() => setMarkVisitedItem(null)}
+        planId={planId}
+        item={markVisitedItem}
+        isLastItem={
+          markVisitedItem
+            ? markVisitedItem.id === allItemsFlat[allItemsFlat.length - 1]?.id
+            : false
+        }
+        onCompleted={onCompleted}
+        refreshPlan={refreshPlan}
+      />
 
       <SOSRequestModal
         visible={sosModalVisible}
@@ -438,13 +543,49 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
+  // TOOLBAR (Quick-Access Buttons)
+  toolbar: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginHorizontal: 10,
+    marginTop: 12,
+    marginBottom: 4,
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    ...SHADOWS.small,
+  },
+  toolbarBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minWidth: 64,
+  },
+  toolbarIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sosIconBox: {
+    backgroundColor: "#FEF2F2",
+  },
+  toolbarBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+  },
+
   // TIMELINE SECTION
   timelineSection: {
     flex: 1,
     paddingHorizontal: 10,
-    paddingTop: 0,
+    paddingTop: 6,
     paddingBottom: 4,
-    overflow: "hidden",
   },
   timelineHeader: {
     marginBottom: 12,
@@ -466,6 +607,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderLight,
     borderStyle: "dashed",
     gap: 8,
+    minHeight: 200,
   },
   timelineEmpty: {
     color: COLORS.textTertiary,
@@ -473,92 +615,41 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 
-  // ACTION BUTTONS
-  actionsWrapper: {
-    paddingHorizontal: SPACING.md,
-    paddingTop: 10,
-    backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.borderMedium,
-    gap: 10,
+  // FLOATING BOTTOM CTA
+  floatingBottomContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 24,
   },
 
-  // Owner Primary row (Skip/Visited)
-  ownerPrimaryRow: {
+  // Sticky Check-in Button
+  stickyCheckinBtn: {
+    backgroundColor: "#D35400",
     flexDirection: "row",
-    gap: 10,
-  },
-  smallPrimaryBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    height: 54,
+    borderRadius: 27,
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  smallPrimaryBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#9A3412",
-  },
-  skipBtn: {
-    backgroundColor: "#FEE2E2", // Light red/orange
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  visitedBtn: {
-    backgroundColor: "#ECFDF5", // Light green
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
-  },
-
-  // Grid Layout
-  buttonGrid: {
-    gap: 10,
-  },
-  gridRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  gridBtn: {
-    flex: 1,
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderMedium,
-    ...SHADOWS.small,
-  },
-  sosGridBtn: {
-    borderColor: "#FECACA",
-    backgroundColor: "#FEF2F2",
-  },
-  gridBtnText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-
-  // Check-in
-  checkinFullBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     gap: 10,
-    backgroundColor: "#D35400", // Cam hành hương đậm
-    paddingVertical: 14,
-    borderRadius: 30, // Pill shape
-    ...SHADOWS.medium,
+    shadowColor: "#D35400",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  checkinFullText: {
+  stickyCheckinBtnDisabled: {
+    backgroundColor: "#9CA3AF",
+    shadowColor: "#9CA3AF",
+    shadowOpacity: 0.15,
+  },
+  stickyCheckinText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#fff",
     letterSpacing: 0.5,
+    maxWidth: "75%",
   },
 });
