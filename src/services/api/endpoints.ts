@@ -139,6 +139,14 @@ export const PILGRIM_ENDPOINTS = {
     CANCEL: (id: string) => `${API_BASE}/sos/${id}`,
   },
 
+  // Friendship - Social relations
+  FRIENDSHIP: {
+    LIST: `${API_BASE}/friendships`,
+    REQUEST: `${API_BASE}/friendships/request`,
+    RESPOND: (id: string) => `${API_BASE}/friendships/${id}/respond`,
+    REMOVE: (friendId: string) => `${API_BASE}/friendships/${friendId}`,
+  },
+
   // Journal - Spiritual journals
   JOURNAL: {
     LIST: `${API_BASE}/journals`,

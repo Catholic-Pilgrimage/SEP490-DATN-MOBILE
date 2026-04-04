@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "../../../../../config/toast.config";
@@ -56,6 +57,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     selectedSiteId,
     onConfirmAdd,
   } = props;
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -64,7 +66,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 20) }]}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{t("planner.setTime")}</Text>
           <TouchableOpacity onPress={onClose}>
@@ -72,7 +74,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 16) + 20 }}>
           <Text style={styles.timeInputLabel}>
             {t("planner.addLocationDay")} {selectedDay}
           </Text>

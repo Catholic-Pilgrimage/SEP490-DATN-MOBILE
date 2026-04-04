@@ -27,6 +27,7 @@ import PlanHeader from "../components/active-journey/PlanHeader";
 import TimelineDaySection from "../components/active-journey/TimelineDaySection";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
+import { SOSRequestModal } from "../components/active-journey/SOSRequestModal";
 
 type Props = {
   route: { params?: { planId?: string } };
@@ -62,6 +63,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
   const [selectedDay, setSelectedDay] = React.useState("");
   const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(new Set());
+  const [sosModalVisible, setSosModalVisible] = React.useState(false);
 
   useEffect(() => {
     if (!planId || !user?.id) return;
@@ -270,6 +272,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
             items={plan.items_by_day?.[selectedDay] || []}
+            onViewRoute={(item) =>
+              navigation.navigate("PlannerMapScreen", {
+                planId: plan.id,
+                focusItemId: item.id,
+                focusDay: selectedDay,
+              })
+            }
           />
         ) : (
           <View style={styles.timelineEmptyContainer}>
@@ -333,7 +342,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <TouchableOpacity
               style={styles.gridBtn}
               onPress={() =>
-                navigation.getParent()?.navigate("Nhat ky", { screen: "CreateJournalScreen" })
+                navigation.navigate("Nhat ky", { 
+                  screen: "CreateJournalScreen",
+                  params: {
+                    planId: plan.id,
+                    plannerItemId: firstItem?.id,
+                    from: "ActiveJourney"
+                  }
+                })
               }
               activeOpacity={0.82}
             >
@@ -355,7 +371,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <View style={styles.gridRow}>
             <TouchableOpacity
               style={styles.gridBtn}
-              onPress={() => navigation.navigate("MapFullScreen", { planId: plan.id })}
+              onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id })}
               activeOpacity={0.82}
             >
               <Ionicons name="map-outline" size={20} color="#1A2845" />
@@ -363,7 +379,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.gridBtn, styles.sosGridBtn]}
-              onPress={() => navigation.navigate("SOSList")}
+              onPress={() => setSosModalVisible(true)}
               activeOpacity={0.82}
             >
               <Ionicons name="warning" size={20} color="#DC2626" />
@@ -372,6 +388,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           </View>
         </View>
       </View>
+
+      <SOSRequestModal
+        visible={sosModalVisible}
+        onClose={() => setSosModalVisible(false)}
+        planId={planId}
+        siteId={firstItem?.site?.id}
+        siteName={firstItem?.site?.name}
+      />
     </View>
   );
 }

@@ -16,6 +16,7 @@ import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScre
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
 import PlannerMembersScreen from '../features/pilgrim/planner/screens/PlannerMembersScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
+import PlannerMapScreen from '../features/pilgrim/planner/screens/PlannerMapScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
 
 
@@ -97,6 +98,7 @@ const PlannerStackNavigator = () => (
     <PlannerStack.Screen name="ActiveJourneyScreen" component={ActiveJourneyScreen} />
     <PlannerStack.Screen name="PlanChatScreen" component={PlanChatScreen} />
     <PlannerStack.Screen name="PlannerMembersScreen" component={PlannerMembersScreen} />
+    <PlannerStack.Screen name="PlannerMapScreen" component={PlannerMapScreen} />
     <PlannerStack.Screen
       name="CreatePlanScreen"
       component={CreatePlanScreen}
@@ -113,6 +115,7 @@ import ProfileScreen from '../features/pilgrim/profile/screens/ProfileScreen';
 import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen';
 import WalletScreen from '../features/pilgrim/profile/screens/WalletScreen';
 import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
+import FriendListScreen from '../features/pilgrim/profile/screens/FriendListScreen';
 
 const ProfileStack = createNativeStackNavigator();
 
@@ -251,6 +254,14 @@ export const PilgrimNavigator = () => {
       <MainStack.Screen
         name="AllSites"
         component={AllSitesScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+          presentation: 'card',
+        }}
+      />
+      <MainStack.Screen
+        name="FriendList"
+        component={FriendListScreen}
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
           presentation: 'card',

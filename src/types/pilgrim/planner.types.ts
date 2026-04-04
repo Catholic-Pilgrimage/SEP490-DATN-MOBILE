@@ -74,6 +74,7 @@ export interface PlanParticipant {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userAvatar?: string;
   role: "owner" | "editor" | "viewer";
   joinedAt: string;

@@ -30,6 +30,7 @@ export function mapMembersToParticipants(
       id: m.id,
       userId: m.id,
       userName: m.full_name || m.email || "—",
+      userEmail: m.email,
       userAvatar: m.avatar_url,
       role: "viewer" as const,
       joinedAt: m.joined_at || "",

@@ -7,7 +7,7 @@ import {
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +33,7 @@ import { useFavorites } from "../../../../hooks/useFavorites";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useUserQuery } from "../../../../hooks/useUserQuery";
+import { useFriendship } from "../hooks/useFriendship";
 import offlinePlannerService from "../../../../services/offline/offlinePlannerService";
 import { NotificationModal } from "../../explore/components/NotificationModal";
 
@@ -165,6 +166,13 @@ const ProfileScreen = () => {
 
   const { unreadCount } = useNotifications();
   const { favoriteIds } = useFavorites();
+  const { pendingRequests, fetchPendingRequests } = useFriendship();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      void fetchPendingRequests();
+    }
+  }, [isAuthenticated, fetchPendingRequests]);
 
   const formatBytes = (value: number) => {
     if (value <= 0) {
@@ -261,6 +269,13 @@ const ProfileScreen = () => {
       route: "Wallet",
     },
     {
+      icon: "people-outline",
+      label: "Bạn bè",
+      requireAuth: true,
+      route: "FriendList",
+      showBadge: pendingRequests.length > 0 ? pendingRequests.length.toString() : undefined,
+    },
+    {
       icon: "hand-left-outline",
       label: t("profile.menu.sosHistory"),
       requireAuth: true,
@@ -319,6 +334,7 @@ const ProfileScreen = () => {
       item.route === "OfflineDownloads" ||
       item.route === "SOSHistory" ||
       item.route === "Wallet" ||
+      item.route === "FriendList" ||
       item.route === "Settings" ||
       item.route === "VerificationRequest"
     ) {
@@ -329,8 +345,8 @@ const ProfileScreen = () => {
   };
 
   // Nhóm: tài khoản + ví + SOS + offline → cài đặt & lịch sử
-  const accountItems = menuItems.slice(0, 6);
-  const settingsItems = menuItems.slice(6);
+  const accountItems = menuItems.slice(0, 7);
+  const settingsItems = menuItems.slice(7);
 
   return (
     <ImageBackground
