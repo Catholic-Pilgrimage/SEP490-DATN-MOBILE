@@ -956,6 +956,8 @@
     "narrativeErrorGeneric": "Something went wrong. Try again.",
     "narrativePickAudioError": "Could not pick a file.",
     "narrativePlayError": "Could not play audio.",
+    "narrativeDemoPlay": "Preview this voice",
+    "narrativeDemoPause": "Stop preview",
     "narrativeExpand": "Expand narration",
     "narrativeCollapse": "Collapse",
     "narrativeTabTts": "🤖 AI voice",

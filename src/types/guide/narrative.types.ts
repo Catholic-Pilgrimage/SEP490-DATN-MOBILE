@@ -22,6 +22,8 @@ export interface TtsVoiceOption {
   region: string;
   language: string;
   quality: string;
+  /** URL file âm thanh demo để nghe thử giọng (VBee cung cấp). */
+  demo?: string;
 }
 
 export interface GetTtsVoicesParams {

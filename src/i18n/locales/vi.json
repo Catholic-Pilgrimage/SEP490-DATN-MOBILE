@@ -957,6 +957,8 @@
     "narrativeErrorGeneric": "Không thực hiện được. Thử lại sau.",
     "narrativePickAudioError": "Không chọn được file.",
     "narrativePlayError": "Không phát được âm thanh.",
+    "narrativeDemoPlay": "Nghe thử giọng này",
+    "narrativeDemoPause": "Dừng phát thử",
     "narrativeExpand": "Mở rộng thuyết minh",
     "narrativeCollapse": "Thu gọn",
     "narrativeTabTts": "🤖 AI tạo giọng",
