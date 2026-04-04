@@ -261,6 +261,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  travelSegment: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    marginLeft: 26,
+  },
+  verticalDashedLine: {
+    position: "absolute",
+    left: 0,
+    top: -10,
+    bottom: -10,
+    width: 2,
+    borderLeftWidth: 2,
+    borderColor: "#D1D5DB",
+    borderStyle: "dashed",
+    zIndex: -1,
+  },
+  travelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 14,
+    gap: 6,
+  },
+  travelText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
   /**
    * Outer card shell: shadow + rounded rect (no overflow:hidden here — avoids clipped shadow
    * looking like a second rectangle under the rounded corners).

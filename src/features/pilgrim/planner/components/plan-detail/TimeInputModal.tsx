@@ -15,6 +15,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "../../../../../config/toast.config";
+import type { ScheduleInsight, SuggestedArrival } from "../../utils/siteScheduleHelper";
+import { formatMinutesVi } from "../../utils/siteScheduleHelper";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface TimeInputModalProps {
   visible: boolean;
@@ -36,53 +40,31 @@ interface TimeInputModalProps {
   selectedSiteId: string;
   onConfirmAdd: () => void;
 
-  // ────── NEW: Smart travel info props ──────
-  /** Name of the previous site in the itinerary (for context) */
+  // ── Travel context ──
   previousSiteName?: string;
-  /** Estimated departure time from previous site: estimated_time + rest_duration (format HH:MM) */
   departureTimeFromPrev?: string;
-  /** Travel time from previous site in minutes (from VietMap API) */
   travelMinutes?: number;
-  /** Distance from previous site in km */
   travelDistanceKm?: number;
-  /** Name of the new site being added */
+  fastestArrival?: string;
   newSiteName?: string;
-  /** If the new site has an event, its start_time (format HH:MM) */
+
+  // ── Schedule context ──
+  openTime?: string;
+  closeTime?: string;
+  massTimesForDay?: string[];
   eventStartTime?: string;
-  /** Event name (if applicable) */
   eventName?: string;
+
+  // ── Smart insight (pre-computed) ──
+  insight?: ScheduleInsight | null;
+  suggestedTime?: SuggestedArrival | null;
+  onApplySuggestedTime?: () => void;
+
+  // ── Cross-day flag ──
+  isCrossDayTravel?: boolean;
 }
 
-/** Add minutes to HH:MM and return new HH:MM + days overflow */
-const addMinutesToTime = (
-  timeStr: string,
-  minutes: number
-): { time: string; daysAdded: number } => {
-  const [h, m] = timeStr.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  const daysAdded = Math.floor(total / (24 * 60));
-  const newH = Math.floor(total / 60) % 24;
-  const newM = total % 60;
-  return {
-    time: `${newH.toString().padStart(2, "0")}:${newM.toString().padStart(2, "0")}`,
-    daysAdded,
-  };
-};
-
-/** Compare two HH:MM strings. Returns negative if a < b */
-const compareTime = (a: string, b: string): number => {
-  const [ah, am] = a.split(":").map(Number);
-  const [bh, bm] = b.split(":").map(Number);
-  return ah * 60 + am - (bh * 60 + bm);
-};
-
-/** Format minutes to Vietnamese duration */
-const fmtMinutes = (min: number): string => {
-  if (min < 60) return `${min} phút`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m === 0 ? `${h} giờ` : `${h} giờ ${m} phút`;
-};
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function TimeInputModal(props: TimeInputModalProps) {
   const {
@@ -104,58 +86,34 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     addingItem,
     selectedSiteId,
     onConfirmAdd,
-    // New props
     previousSiteName,
     departureTimeFromPrev,
     travelMinutes,
     travelDistanceKm,
+    fastestArrival,
     newSiteName,
+    openTime,
+    closeTime,
+    massTimesForDay = [],
     eventStartTime,
     eventName,
+    insight,
+    suggestedTime,
+    onApplySuggestedTime,
+    isCrossDayTravel,
   } = props;
   const insets = useSafeAreaInsets();
 
-  // ────── SMART TRAVEL SUMMARY ──────
-  const travelSummary = useMemo(() => {
-    if (!departureTimeFromPrev || !travelMinutes || travelMinutes <= 0)
-      return null;
+  const hasTravelInfo = !!(departureTimeFromPrev && travelMinutes && travelMinutes > 0);
 
-    // Thời gian dự kiến đến (không buffer)
-    const arrivalRaw = addMinutesToTime(departureTimeFromPrev, travelMinutes);
-    // Thời gian dự kiến đến + 30 phút buffer
-    const BUFFER_MINUTES = 30;
-    const arrivalWithBuffer = addMinutesToTime(
-      departureTimeFromPrev,
-      travelMinutes + BUFFER_MINUTES
-    );
-    // Thời gian dự kiến rời khỏi điểm mới = đến + restDuration
-    const departNewSite = addMinutesToTime(
-      arrivalWithBuffer.time,
-      restDuration
-    );
+  // Show suggested time button only if suggestion differs from current
+  const showSuggestButton = useMemo(() => {
+    if (!suggestedTime || !onApplySuggestedTime) return false;
+    return suggestedTime.time !== estimatedTime && suggestedTime.priority !== 'default';
+  }, [suggestedTime, estimatedTime, onApplySuggestedTime]);
 
-    // Check trễ lễ / sự kiện
-    let lateWarning: string | null = null;
-    if (eventStartTime) {
-      const diff = compareTime(arrivalWithBuffer.time, eventStartTime);
-      if (diff > 0) {
-        lateWarning = `⚠️ Bạn sẽ đến muộn ${fmtMinutes(diff)} so với giờ lễ/sự kiện (${eventStartTime}). Hãy xuất phát sớm hơn hoặc giảm thời gian nghỉ tại điểm trước.`;
-      } else if (diff > -15) {
-        // Arrive less than 15 minutes before event
-        lateWarning = `⏰ Bạn sẽ đến chỉ trước giờ lễ ${Math.abs(diff)} phút. Nên chuẩn bị sớm hơn để tìm chỗ ngồi.`;
-      }
-    }
-
-    return {
-      departureTime: departureTimeFromPrev,
-      arrivalTime: arrivalRaw.time,
-      arrivalTimeWithBuffer: arrivalWithBuffer.time,
-      bufferMinutes: BUFFER_MINUTES,
-      departNewSiteTime: departNewSite.time,
-      crossDay: arrivalWithBuffer.daysAdded > 0,
-      lateWarning,
-    };
-  }, [departureTimeFromPrev, travelMinutes, restDuration, eventStartTime]);
+  // ── Confirm blocked when insight says time is physically impossible ──
+  const isConfirmBlocked = insight?.isBlocking === true;
 
   return (
     <Modal
@@ -180,7 +138,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             Vui lòng chọn giờ dự kiến và thời gian nghỉ (tối thiểu 1 giờ).
           </Text>
 
-          {/* ── ROUTE INFO (DISTANCE/TIME) ── */}
+          {/* ── ROUTE INFO ── */}
           {calculatingRoute ? (
             <View style={styles.routeInfoContainer}>
               <ActivityIndicator size="small" color={COLORS.textPrimary} />
@@ -193,89 +151,95 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             </View>
           ) : null}
 
-          {/* ── SMART TRAVEL BREAKDOWN ── */}
-          {travelSummary && !calculatingRoute && (
+          {/* ── SITE SCHEDULE INFO ── */}
+          {!calculatingRoute && (openTime || closeTime || massTimesForDay.length > 0) && (
+            <SiteScheduleCard
+              openTime={openTime}
+              closeTime={closeTime}
+              massTimesForDay={massTimesForDay}
+              eventStartTime={eventStartTime}
+              eventName={eventName}
+            />
+          )}
+
+          {/* ── TRAVEL TIMELINE + INSIGHT ── */}
+          {!calculatingRoute && (hasTravelInfo || insight) && (
             <View style={localStyles.travelCard}>
               <Text style={localStyles.travelCardTitle}>
-                <Ionicons name="time-outline" size={14} color="#8B7355" /> Lịch trình di chuyển
+                <Ionicons name="map-outline" size={14} color="#8B7355" /> Di chuyển & Lịch trình
               </Text>
 
-              {/* Previous site → Departure */}
-              <View style={localStyles.travelRow}>
-                <View style={[localStyles.travelDot, { backgroundColor: "#6B7280" }]} />
-                <View style={localStyles.travelRowContent}>
-                  <Text style={localStyles.travelRowLabel}>
-                    Rời {previousSiteName || "điểm trước"}
-                  </Text>
-                  <Text style={localStyles.travelRowTime}>
-                    {travelSummary.departureTime}
-                  </Text>
-                </View>
-              </View>
+              {hasTravelInfo && (
+                <>
+                  <TimelineRow
+                    label={`Rời ${previousSiteName || "điểm trước"}`}
+                    time={departureTimeFromPrev!}
+                    dotColor="#6B7280"
+                  />
+                  <View style={localStyles.travelLine}>
+                    <Text style={localStyles.travelLineText}>
+                      🚗 Di chuyển {formatMinutesVi(travelMinutes!)}
+                      {travelDistanceKm
+                        ? ` • ${travelDistanceKm < 1 ? `${Math.round(travelDistanceKm * 1000)} m` : `${travelDistanceKm.toFixed(1)} km`}`
+                        : ""}
+                    </Text>
+                  </View>
+                  <TimelineRow
+                    label="Nhanh nhất có thể đến"
+                    time={fastestArrival || "—"}
+                    dotColor="#D97706"
+                    dotBorderColor="rgba(217, 119, 6, 0.3)"
+                  />
+                </>
+              )}
 
-              {/* Travel line */}
-              <View style={localStyles.travelLine}>
-                <Text style={localStyles.travelLineText}>
-                  🚗 Di chuyển {fmtMinutes(travelMinutes!)}
-                  {travelDistanceKm
-                    ? ` • ${travelDistanceKm < 1 ? `${Math.round(travelDistanceKm * 1000)} m` : `${travelDistanceKm.toFixed(1)} km`}`
-                    : ""}
-                </Text>
-              </View>
-
-              {/* Arrival (raw) */}
-              <View style={localStyles.travelRow}>
-                <View style={[localStyles.travelDot, { backgroundColor: "#D97706" }]} />
-                <View style={localStyles.travelRowContent}>
-                  <Text style={localStyles.travelRowLabel}>
-                    Dự kiến đến {newSiteName || "điểm mới"}
-                  </Text>
-                  <Text style={localStyles.travelRowTime}>
-                    {travelSummary.arrivalTime}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Buffer info */}
-              <View style={localStyles.bufferBadge}>
-                <Ionicons name="shield-checkmark-outline" size={14} color="#059669" />
-                <Text style={localStyles.bufferText}>
-                  + {travelSummary.bufferMinutes} phút dự phòng → Nên đến trước{" "}
-                  <Text style={localStyles.bufferTime}>
-                    {travelSummary.arrivalTimeWithBuffer}
-                  </Text>
-                </Text>
-              </View>
-
-              {/* Cross-day warning */}
-              {travelSummary.crossDay && (
-                <View style={localStyles.warningBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={localStyles.warningText}>
-                    Thời gian di chuyển vượt qua ngày hiện tại!
+              {/* ── INSIGHT BOX ── */}
+              {insight && (
+                <View
+                  style={[
+                    localStyles.insightBox,
+                    {
+                      backgroundColor: insight.bgColor,
+                      borderColor: insight.color,
+                      marginTop: hasTravelInfo ? 12 : 6,
+                    },
+                  ]}
+                >
+                  <View style={localStyles.insightHeader}>
+                    <Ionicons name={insight.iconName as any} size={16} color={insight.color} />
+                    <Text style={[localStyles.insightTitle, { color: insight.color }]}>
+                      {insight.title}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[
+                      localStyles.insightMessage,
+                      { color: insight.type === "error" || insight.type === "event_late" ? "#991B1B" : "#374151" },
+                    ]}
+                  >
+                    {insight.message}
                   </Text>
                 </View>
               )}
 
-              {/* Event late warning */}
-              {travelSummary.lateWarning && (
-                <View style={localStyles.warningBox}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={localStyles.warningText}>
-                    {travelSummary.lateWarning}
-                  </Text>
-                </View>
-              )}
-
-              {/* Event time info */}
-              {eventStartTime && !travelSummary.lateWarning && (
-                <View style={localStyles.eventInfoBox}>
-                  <Ionicons name="calendar-outline" size={14} color="#1D4ED8" />
-                  <Text style={localStyles.eventInfoText}>
-                    {eventName ? `${eventName}: ` : "Giờ lễ/sự kiện: "}
-                    {eventStartTime} — Bạn sẽ đến đúng giờ ✓
-                  </Text>
-                </View>
+              {/* ── SUGGEST TIME BUTTON ── */}
+              {showSuggestButton && suggestedTime && (
+                <TouchableOpacity
+                  style={localStyles.suggestButton}
+                  onPress={onApplySuggestedTime}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="sparkles" size={16} color="#1D4ED8" />
+                  <View style={localStyles.suggestButtonContent}>
+                    <Text style={localStyles.suggestButtonText}>
+                      Đặt giờ gợi ý: {suggestedTime.time}
+                    </Text>
+                    <Text style={localStyles.suggestButtonReason} numberOfLines={1}>
+                      {suggestedTime.reason}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color="#1D4ED8" />
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -289,6 +253,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             </View>
           ) : null}
 
+          {/* ── TIME PICKER ── */}
           <View style={styles.timeInputContainer}>
             <Text style={styles.timeInputFieldLabel}>Giờ dự kiến</Text>
             <TouchableOpacity style={styles.timePickerButton} onPress={openTimePicker}>
@@ -298,6 +263,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             </TouchableOpacity>
           </View>
 
+          {/* ── REST DURATION ── */}
           <View style={styles.timeInputContainer}>
             <Text style={styles.timeInputFieldLabel}>Thời gian nghỉ</Text>
             <Text style={styles.durationValueText}>{formatDuration(restDuration)}</Text>
@@ -318,6 +284,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             </View>
           </View>
 
+          {/* ── NOTE ── */}
           <View style={styles.noteInputContainer}>
             <Text style={styles.timeInputFieldLabel}>{t("planner.noteOptional")}</Text>
             <TextInput
@@ -332,19 +299,31 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             />
           </View>
 
+          {/* ── CONFIRM BUTTON ── */}
           <TouchableOpacity
-            style={[styles.confirmButton, addingItem && styles.saveTimeButtonDisabled]}
+            style={[
+              styles.confirmButton,
+              (addingItem || isConfirmBlocked) && styles.saveTimeButtonDisabled,
+              isConfirmBlocked && { opacity: 0.5 },
+            ]}
             onPress={onConfirmAdd}
-            disabled={addingItem || !selectedSiteId}
+            disabled={addingItem || !selectedSiteId || isConfirmBlocked}
           >
             {addingItem ? (
               <ActivityIndicator color={COLORS.textPrimary} />
+            ) : isConfirmBlocked ? (
+              <Text style={[styles.confirmButtonText, { color: COLORS.textTertiary }]}>
+                Chọn giờ khác để tiếp tục
+              </Text>
             ) : (
               <Text style={styles.confirmButtonText}>{t("planner.addToItinerary")}</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+        <View
+          style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }}
+          pointerEvents="box-none"
+        >
           <Toast config={toastConfig} />
         </View>
       </View>
@@ -352,8 +331,116 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   );
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+/** Compact card showing site opening hours, mass times, events */
+function SiteScheduleCard(props: {
+  openTime?: string;
+  closeTime?: string;
+  massTimesForDay: string[];
+  eventStartTime?: string;
+  eventName?: string;
+}) {
+  const { openTime, closeTime, massTimesForDay, eventStartTime, eventName } = props;
+
+  return (
+    <View style={localStyles.scheduleCard}>
+      <View style={localStyles.scheduleCardHeader}>
+        <Ionicons name="information-circle" size={16} color="#1D4ED8" />
+        <Text style={localStyles.scheduleCardTitle}>Thông tin địa điểm</Text>
+      </View>
+
+      {(openTime || closeTime) && (
+        <View style={localStyles.scheduleRow}>
+          <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
+          <Text style={localStyles.scheduleRowText}>
+            Giờ mở cửa: {openTime || "—"} – {closeTime || "—"}
+          </Text>
+        </View>
+      )}
+
+      {massTimesForDay.length > 0 && (
+        <View style={localStyles.scheduleRow}>
+          <Ionicons name="calendar-outline" size={14} color="#8B5CF6" />
+          <Text style={localStyles.scheduleRowText}>
+            Thánh Lễ hôm nay: {massTimesForDay.join(", ")}
+          </Text>
+        </View>
+      )}
+
+      {eventStartTime && (
+        <View style={localStyles.scheduleRow}>
+          <Ionicons name="star" size={14} color="#D97706" />
+          <Text style={[localStyles.scheduleRowText, { fontWeight: "700", color: "#92400E" }]}>
+            {eventName || "Sự kiện"} lúc {eventStartTime}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** A single row in the travel timeline */
+function TimelineRow(props: {
+  label: string;
+  time: string;
+  dotColor: string;
+  dotBorderColor?: string;
+}) {
+  return (
+    <View style={localStyles.travelRow}>
+      <View
+        style={[
+          localStyles.travelDot,
+          { backgroundColor: props.dotColor, borderColor: props.dotBorderColor || "#fff" },
+        ]}
+      />
+      <View style={localStyles.travelRowContent}>
+        <Text style={localStyles.travelRowLabel}>{props.label}</Text>
+        <Text style={localStyles.travelRowTime}>{props.time}</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const localStyles = StyleSheet.create({
-  // ── SMART TRAVEL CARD ──
+  // ── Schedule Card ──
+  scheduleCard: {
+    backgroundColor: "rgba(29, 78, 216, 0.05)",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(29, 78, 216, 0.15)",
+    gap: 6,
+  },
+  scheduleCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  scheduleCardTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  scheduleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 2,
+  },
+  scheduleRowText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "500",
+    flex: 1,
+  },
+
+  // ── Travel Card ──
   travelCard: {
     backgroundColor: "#FFFBEB",
     borderRadius: 16,
@@ -422,62 +509,55 @@ const localStyles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Buffer badge
-  bufferBadge: {
+  // Insight Box
+  insightBox: {
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    padding: 12,
+    marginTop: 8,
+  },
+  insightHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(5, 150, 105, 0.08)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginTop: 4,
+    marginBottom: 6,
   },
-  bufferText: {
-    fontSize: 12,
-    color: "#065F46",
-    fontWeight: "500",
-    flex: 1,
-  },
-  bufferTime: {
-    fontWeight: "800",
-    color: "#059669",
-  },
-
-  // Warnings
-  warningBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    backgroundColor: "#FEF2F2",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#FECACA",
-  },
-  warningText: {
-    fontSize: 12,
+  insightTitle: {
+    fontSize: 13,
+    fontWeight: "700",
     color: "#991B1B",
-    fontWeight: "600",
-    flex: 1,
+  },
+  insightMessage: {
+    fontSize: 13,
+    color: "#374151",
     lineHeight: 18,
   },
 
-  // Event on-time info
-  eventInfoBox: {
+  // Suggest Button
+  suggestButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(29, 78, 216, 0.06)",
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "rgba(29, 78, 216, 0.08)",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(29, 78, 216, 0.2)",
   },
-  eventInfoText: {
-    fontSize: 12,
-    color: "#1D4ED8",
-    fontWeight: "500",
+  suggestButtonContent: {
     flex: 1,
+  },
+  suggestButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  suggestButtonReason: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
   },
 });
