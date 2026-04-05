@@ -9,29 +9,29 @@
  * - SOS badge logic
  */
 
-import {
-  ActiveShiftInfo,
-  EventItem,
-  MassSchedule,
-  MediaItem,
-  RecentActivityItem,
-  RecentActivityType,
-  SiteScheduleShift,
-  SOSInfo,
-  SOSRequest,
-  TodayOverviewItem,
-} from '../../../../types/guide';
 import type { GuideNearbyPlace } from '../../../../services/api/guide/nearbyPlacesApi';
 import {
-  compareDatesDesc,
-  compareTimeStrings,
-  formatTimeDisplay,
-  getCurrentDayOfWeek,
-  getCurrentTimeInMinutes,
-  getTodayDateString,
-  isCurrentTimeInRange,
-  isTodayInDays,
-  parseTimeToMinutes,
+    ActiveShiftInfo,
+    EventItem,
+    MassSchedule,
+    MediaItem,
+    RecentActivityItem,
+    RecentActivityType,
+    SiteScheduleShift,
+    SOSInfo,
+    SOSRequest,
+    TodayOverviewItem,
+} from '../../../../types/guide';
+import {
+    compareDatesDesc,
+    compareTimeStrings,
+    formatTimeDisplay,
+    getCurrentDayOfWeek,
+    getCurrentTimeInMinutes,
+    getTodayDateString,
+    isCurrentTimeInRange,
+    isTodayInDays,
+    parseTimeToMinutes,
 } from '../../../../utils/dateUtils';
 
 // ============================================
@@ -190,10 +190,11 @@ export const getTodayOverview = (
 
       const isPast = scheduleMinutes !== null && currentMinutes > scheduleMinutes + 30;
 
+      const defaultTitle = `Lịch lễ ${formatTimeDisplay(schedule.time)}`;
       items.push({
         id: schedule.id,
         type: 'schedule',
-        title: schedule.note || `Lịch lễ ${formatTimeDisplay(schedule.time)}`, // Use note as title
+        title: schedule.note || defaultTitle, // Use note as title
         description: undefined,
         time: schedule.time,
         displayTime: formatTimeDisplay(schedule.time),
@@ -258,12 +259,12 @@ export const getSOSInfo = (
 /**
  * Map media item to recent activity format
  */
-const mapMediaToActivity = (media: MediaItem): RecentActivityItem => ({
+const mapMediaToActivity = (media: MediaItem, t?: (key: string) => string): RecentActivityItem => ({
   id: media.id,
   type: 'media' as RecentActivityType,
   title: media.caption || 'Media',
-  metaLabel: getMediaMetaLabel(media),
-  statusLabel: getActivityStatusLabel(media.status),
+  metaLabel: getMediaMetaLabel(media, t),
+  statusLabel: getActivityStatusLabel(media.status, t),
   statusTone: getActivityStatusTone(media.status),
   thumbnail: media.type === 'image' ? media.url : null,
   created_at: media.created_at,
@@ -274,25 +275,35 @@ const mapMediaToActivity = (media: MediaItem): RecentActivityItem => ({
 /**
  * Get content label for media item
  */
-const getMediaMetaLabel = (media: MediaItem): string => {
-  const typeLabels: Record<string, string> = {
-    image: 'Hình ảnh',
-    video: 'Video',
-    model_3d: 'Mô hình 3D',
+const getMediaMetaLabel = (media: MediaItem, t?: (key: string) => string): string => {
+  if (!t) {
+    // Fallback to Vietnamese if no translation function provided
+    const typeLabels: Record<string, string> = {
+      image: 'Hình ảnh',
+      video: 'Video',
+      model_3d: 'Mô hình 3D',
+    };
+    return typeLabels[media.type] || media.type;
+  }
+
+  const typeKeys: Record<string, string> = {
+    image: 'common.mediaTypeImage',
+    video: 'common.mediaTypeVideo',
+    model_3d: 'common.mediaType3D',
   };
 
-  return typeLabels[media.type] || media.type;
+  return typeKeys[media.type] ? t(typeKeys[media.type]) : media.type;
 };
 
 /**
  * Map event item to recent activity format
  */
-const mapEventToActivity = (event: EventItem): RecentActivityItem => ({
+const mapEventToActivity = (event: EventItem, t?: (key: string) => string): RecentActivityItem => ({
   id: event.id,
   type: 'event' as RecentActivityType,
   title: event.name,
-  metaLabel: getEventMetaLabel(),
-  statusLabel: getActivityStatusLabel(event.status),
+  metaLabel: getEventMetaLabel(t),
+  statusLabel: getActivityStatusLabel(event.status, t),
   statusTone: getActivityStatusTone(event.status),
   thumbnail: event.banner_url,
   created_at: event.created_at,
@@ -303,17 +314,19 @@ const mapEventToActivity = (event: EventItem): RecentActivityItem => ({
 /**
  * Get content label for event item
  */
-const getEventMetaLabel = (): string => 'Sự kiện';
+const getEventMetaLabel = (t?: (key: string) => string): string => {
+  return t ? t('common.eventLabel') : 'Sự kiện';
+};
 
 /**
  * Map nearby place to RecentActivityItem
  */
-const mapNearbyPlaceToActivity = (place: GuideNearbyPlace): RecentActivityItem => ({
+const mapNearbyPlaceToActivity = (place: GuideNearbyPlace, t?: (key: string) => string): RecentActivityItem => ({
   id: place.id,
   type: 'nearby_place' as RecentActivityType,
   title: place.name,
-  metaLabel: getNearbyPlaceMetaLabel(place),
-  statusLabel: getActivityStatusLabel(place.status),
+  metaLabel: getNearbyPlaceMetaLabel(place, t),
+  statusLabel: getActivityStatusLabel(place.status, t),
   statusTone: getActivityStatusTone(place.status),
   thumbnail: null,
   created_at: place.created_at,
@@ -321,14 +334,24 @@ const mapNearbyPlaceToActivity = (place: GuideNearbyPlace): RecentActivityItem =
   originalData: place,
 });
 
-const getNearbyPlaceMetaLabel = (place: GuideNearbyPlace): string => {
-  const categoryLabels: Record<string, string> = {
-    food: 'Ăn uống',
-    accommodation: 'Lưu trú',
-    medical: 'Y tế',
+const getNearbyPlaceMetaLabel = (place: GuideNearbyPlace, t?: (key: string) => string): string => {
+  if (!t) {
+    // Fallback to Vietnamese if no translation function provided
+    const categoryLabels: Record<string, string> = {
+      food: 'Ăn uống',
+      accommodation: 'Lưu trú',
+      medical: 'Y tế',
+    };
+    return categoryLabels[place.category] || 'Địa điểm';
+  }
+
+  const categoryKeys: Record<string, string> = {
+    food: 'common.categoryFood',
+    accommodation: 'common.categoryAccommodation',
+    medical: 'common.categoryMedical',
   };
-  const cat = categoryLabels[place.category] || 'Địa điểm';
-  return cat;
+
+  return categoryKeys[place.category] ? t(categoryKeys[place.category]) : t('common.categoryLocation');
 };
 
 const getActivityStatusTone = (
@@ -340,14 +363,24 @@ const getActivityStatusTone = (
   return null;
 };
 
-const getActivityStatusLabel = (status?: string): string | undefined => {
-  const statusLabels: Record<string, string> = {
-    pending: 'Chờ duyệt',
-    approved: 'Đã duyệt',
-    rejected: 'Từ chối',
+const getActivityStatusLabel = (status?: string, t?: (key: string) => string): string | undefined => {
+  if (!t) {
+    // Fallback to Vietnamese if no translation function provided
+    const statusLabels: Record<string, string> = {
+      pending: 'Chờ duyệt',
+      approved: 'Đã duyệt',
+      rejected: 'Từ chối',
+    };
+    return status ? statusLabels[status] : undefined;
+  }
+
+  const statusKeys: Record<string, string> = {
+    pending: 'common.statusPending',
+    approved: 'common.statusApproved',
+    rejected: 'common.statusRejected',
   };
 
-  return status ? statusLabels[status] : undefined;
+  return status ? t(statusKeys[status]) : undefined;
 };
 
 /**
@@ -364,24 +397,25 @@ export const getRecentActivity = (
   eventItems: EventItem[] | undefined | null,
   limit = 5,
   nearbyPlaceItems?: GuideNearbyPlace[] | undefined | null,
+  t?: (key: string) => string,
 ): RecentActivityItem[] => {
   const activities: RecentActivityItem[] = [];
 
   if (mediaItems && Array.isArray(mediaItems)) {
     mediaItems.forEach((media) => {
-      activities.push(mapMediaToActivity(media));
+      activities.push(mapMediaToActivity(media, t));
     });
   }
 
   if (eventItems && Array.isArray(eventItems)) {
     eventItems.forEach((event) => {
-      activities.push(mapEventToActivity(event));
+      activities.push(mapEventToActivity(event, t));
     });
   }
 
   if (nearbyPlaceItems && Array.isArray(nearbyPlaceItems)) {
     nearbyPlaceItems.forEach((place) => {
-      activities.push(mapNearbyPlaceToActivity(place));
+      activities.push(mapNearbyPlaceToActivity(place, t));
     });
   }
 

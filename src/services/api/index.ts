@@ -5,7 +5,7 @@
 // Core
 export { default as apiClient } from './apiClient';
 export {
-    AUTH_ENDPOINTS, ENDPOINTS, GUIDE_ENDPOINTS, PILGRIM_ENDPOINTS, SHARED_ENDPOINTS, USER_ENDPOINTS, default as endpoints
+    AI_ENDPOINTS, AUTH_ENDPOINTS, ENDPOINTS, GUIDE_ENDPOINTS, PILGRIM_ENDPOINTS, SHARED_ENDPOINTS, USER_ENDPOINTS, default as endpoints
 } from './endpoints';
 
 // Shared APIs

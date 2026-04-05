@@ -7,6 +7,7 @@ import { Platform, StyleSheet } from "react-native";
 import {
     GUIDE_BORDER_RADIUS,
     GUIDE_COLORS,
+    GUIDE_SHADOWS,
     GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import {
@@ -616,6 +617,280 @@ export const styles = StyleSheet.create({
   emptyStateText: {
     color: GUIDE_COLORS.gray400,
     textAlign: "center",
+  },
+
+  // AI Summary Modal
+  aiSummaryOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.45)",
+    justifyContent: "center",
+    paddingHorizontal: getSpacing(GUIDE_SPACING.lg),
+  },
+  aiSummaryBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  aiSummaryModal: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderRadius: GUIDE_BORDER_RADIUS.xl,
+    padding: getSpacing(GUIDE_SPACING.lg),
+    maxHeight: "72%",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 24,
+      },
+      android: {
+        elevation: 12,
+      },
+    }),
+  },
+  aiSummaryHandle: {
+    width: moderateScale(56, 0.3),
+    height: moderateScale(5, 0.3),
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: "rgba(196, 168, 130, 0.9)",
+    alignSelf: "center",
+    marginBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  aiSummaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: getSpacing(GUIDE_SPACING.md),
+    marginBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  aiSummaryTitleRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: getSpacing(GUIDE_SPACING.sm),
+  },
+  aiSummaryHeaderIcon: {
+    width: moderateScale(44, 0.3),
+    height: moderateScale(44, 0.3),
+    borderRadius: moderateScale(22, 0.3),
+    backgroundColor: "rgba(236, 182, 19, 0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.26)",
+  },
+  aiSummaryTitleWrap: {
+    flex: 1,
+  },
+  aiSummaryEyebrow: {
+    fontSize: getFontSize(10),
+    fontWeight: "700",
+    letterSpacing: 1.1,
+    textTransform: "uppercase",
+    color: GUIDE_COLORS.creamMuted,
+    marginBottom: moderateScale(2, 0.3),
+  },
+  aiSummaryTitle: {
+    fontSize: getFontSize(20),
+    fontWeight: "800",
+    color: PREMIUM_COLORS.charcoal,
+  },
+  aiSummaryCloseButton: {
+    width: moderateScale(36, 0.3),
+    height: moderateScale(36, 0.3),
+    borderRadius: moderateScale(18, 0.3),
+    backgroundColor: "#FFF8E6",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.14)",
+  },
+  aiSummaryScroll: {
+    maxHeight: moderateScale(360, 0.3),
+    minHeight: 0,
+  },
+  aiSummaryScrollContent: {
+    gap: getSpacing(GUIDE_SPACING.md),
+    paddingBottom: getSpacing(GUIDE_SPACING.md),
+  },
+  aiSummaryInfoCard: {
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: getSpacing(GUIDE_SPACING.md),
+    gap: getSpacing(GUIDE_SPACING.xs),
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.24)",
+    borderLeftWidth: 4,
+    borderLeftColor: PREMIUM_COLORS.gold,
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  aiSummaryInfoTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: getSpacing(GUIDE_SPACING.sm),
+  },
+  aiSummaryInfoIcon: {
+    width: moderateScale(36, 0.3),
+    height: moderateScale(36, 0.3),
+    borderRadius: moderateScale(18, 0.3),
+    backgroundColor: "rgba(255, 255, 255, 0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiSummaryInfoContent: {
+    flex: 1,
+    gap: getSpacing(GUIDE_SPACING.xs),
+  },
+  aiSummaryInfoText: {
+    fontSize: getFontSize(14),
+    lineHeight: getFontSize(22),
+    color: GUIDE_COLORS.textSecondary,
+    textAlign: "left",
+  },
+  aiSummaryInfoTitle: {
+    color: PREMIUM_COLORS.charcoal,
+    fontWeight: "700",
+  },
+  aiSummaryChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: getSpacing(GUIDE_SPACING.sm),
+    marginTop: getSpacing(GUIDE_SPACING.sm),
+  },
+  aiSummaryChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: moderateScale(6, 0.3),
+    paddingLeft: moderateScale(6, 0.3),
+    paddingRight: getSpacing(GUIDE_SPACING.sm),
+    paddingVertical: moderateScale(6, 0.3),
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: "rgba(255, 255, 255, 0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.16)",
+    ...GUIDE_SHADOWS.sm,
+  },
+  aiSummaryChipIconWrap: {
+    width: moderateScale(22, 0.3),
+    height: moderateScale(22, 0.3),
+    borderRadius: moderateScale(11, 0.3),
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  aiSummaryChipText: {
+    fontSize: getFontSize(12),
+    fontWeight: "700",
+    color: GUIDE_COLORS.primaryDark,
+  },
+  aiSummarySectionCard: {
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: getSpacing(GUIDE_SPACING.md),
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.14)",
+    borderLeftWidth: 4,
+    borderLeftColor: PREMIUM_COLORS.gold,
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.09,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  aiSummaryOverviewCard: {
+    borderColor: "rgba(236, 182, 19, 0.24)",
+    borderLeftColor: PREMIUM_COLORS.goldDark,
+  },
+  aiSummarySectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: getSpacing(GUIDE_SPACING.sm),
+    marginBottom: getSpacing(GUIDE_SPACING.sm),
+  },
+  aiSummarySectionIconWrap: {
+    width: moderateScale(32, 0.3),
+    height: moderateScale(32, 0.3),
+    borderRadius: moderateScale(16, 0.3),
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+  },
+  aiSummaryOverviewIconWrap: {
+    backgroundColor: "rgba(236, 182, 19, 0.16)",
+  },
+  aiSummarySectionTitle: {
+    fontSize: getFontSize(15),
+    fontWeight: "800",
+    color: GUIDE_COLORS.primaryDark,
+  },
+  aiSummarySectionBody: {
+    fontSize: getFontSize(14),
+    lineHeight: getFontSize(22),
+    color: GUIDE_COLORS.textSecondary,
+  },
+  aiSummaryBulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: getSpacing(GUIDE_SPACING.sm),
+  },
+  aiSummaryBullet: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: PREMIUM_COLORS.gold,
+    marginTop: moderateScale(8, 0.3),
+  },
+  aiSummaryBulletText: {
+    flex: 1,
+    fontSize: getFontSize(14),
+    lineHeight: getFontSize(22),
+    color: GUIDE_COLORS.textSecondary,
+  },
+  aiSummaryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: getSpacing(GUIDE_SPACING.xs),
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    paddingVertical: getSpacing(GUIDE_SPACING.md),
+  },
+  aiSummaryActionGradient: {
+    marginTop: getSpacing(GUIDE_SPACING.md),
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: PREMIUM_COLORS.goldDark,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.16,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  aiSummaryActionText: {
+    fontSize: getFontSize(15),
+    fontWeight: "700",
+    color: "#3D2000",
   },
 
   // Bottom spacing

@@ -11,43 +11,43 @@
  * - Pull to refresh
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    ActivityIndicator,
+    FlatList,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GUIDE_COLORS,
-  GUIDE_SPACING,
+    GUIDE_COLORS,
+    GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import {
-  DayOfWeek,
-  MassSchedule,
-  MassScheduleStatus,
+    DayOfWeek,
+    MassSchedule,
+    MassScheduleStatus,
 } from "../../../../types/guide";
 import { PREMIUM_COLORS, STATUS_COLORS } from "../constants";
 import { useMassSchedule } from "../hooks/useMassSchedule";
 import type { FilterItem } from "./FilterBottomSheet";
 import { FilterBottomSheet, FilterTrigger } from "./FilterBottomSheet";
 import {
-  getFabScrollBottomInset,
-  GUIDE_FAB_SIZE,
-  GuideFabButton,
+    getFabScrollBottomInset,
+    GUIDE_FAB_SIZE,
+    GuideFabButton,
 } from "./GuideFabButton";
 import { styles } from "./SchedulesTab.styles";
 import { StatusBadge } from "./StatusBadge";
@@ -482,7 +482,9 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
       }
     }
 
-    if (formData.note && formData.note.length > 500) {
+    if (!formData.note || !formData.note.trim()) {
+      newErrors.note = t("schedulesTab.errorNoteRequired");
+    } else if (formData.note.length > 500) {
       newErrors.note = t("schedulesTab.errorNoteMax");
     }
 
@@ -672,7 +674,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 {/* Note input — sát footer hơn (formGroupLast) */}
                 <View style={[styles.formGroup, styles.formGroupLast]}>
                   <Text style={styles.formLabel}>
-                    {t("schedulesTab.formNoteLabel")}
+                    {t("schedulesTab.formNoteLabel")}{" "}
+                    <Text style={styles.required}>*</Text>
                   </Text>
                   <View
                     style={[styles.inputContainer, styles.textAreaContainer]}

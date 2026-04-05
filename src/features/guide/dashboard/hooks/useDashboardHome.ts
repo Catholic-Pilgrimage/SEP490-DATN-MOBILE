@@ -17,6 +17,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
+import { useI18n } from '../../../../hooks/useI18n';
 import { dashboardHomeApi, guideEventApi, guideMediaApi, guideNearbyPlacesApi, guideSiteApi, massScheduleApi } from '../../../../services/api/guide';
 import {
   DashboardHomeData,
@@ -87,6 +88,7 @@ export interface UseDashboardHomeResult {
 export const useDashboardHome = (): UseDashboardHomeResult => {
   const queryClient = useQueryClient();
   const weekStart = getWeekStartDate();
+  const { t } = useI18n();
 
   // Queries
   const overviewQuery = useQuery({
@@ -251,8 +253,9 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
       recentActivityQuery.data?.events || [],
       5,
       recentActivityQuery.data?.nearbyPlaces || [],
+      t,
     );
-  }, [recentActivityQuery.data]);
+  }, [recentActivityQuery.data, t]);
 
   // Pending badges
   const pendingBadges = useMemo<PendingBadges>(

@@ -2,13 +2,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  Animated,
-  Dimensions,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Dimensions,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { SACRED_COLORS, SACRED_RADIUS, SACRED_SPACING } from "../../../../constants/sacred-theme.constants";
@@ -125,6 +125,7 @@ const SOSBanner: React.FC<{
   onPress: () => void;
   badgeCount?: number;
 }> = ({ action, onPress, badgeCount }) => {
+  const { t } = useI18n();
   const { scaleValue, handlePressIn, handlePressOut } = usePressAnimation({
     scale: 0.97,
   });
@@ -154,7 +155,7 @@ const SOSBanner: React.FC<{
         {/* Center: Label & description */}
         <View style={styles.sosTextContainer}>
           <Text style={styles.sosTitle}>{action.label}</Text>
-          <Text style={styles.sosSubtitle}>Nhấn để xem danh sách SOS</Text>
+          <Text style={styles.sosSubtitle}>{t("quickActions.sosSubtitle", { defaultValue: "Nhấn để xem danh sách SOS" })}</Text>
         </View>
 
         {/* Right: Badge + Arrow */}
