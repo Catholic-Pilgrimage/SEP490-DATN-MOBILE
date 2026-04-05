@@ -147,7 +147,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const restoreAuthState = async () => {
       try {
-        const guestMode = await secureStorage.getItem(AUTH_STORAGE_KEYS.IS_GUEST);
+        const guestMode = await secureStorage.getItem(
+          AUTH_STORAGE_KEYS.IS_GUEST,
+        );
         if (guestMode === "true") {
           setIsGuest(true);
           setOfflineStorageScopeUserId(null);
@@ -212,12 +214,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsGuest(false);
       setOfflineStorageScopeUserId(user.id);
       await networkService.setStorageScope(user.id);
+
+      // Ensure push token is registered before entering authenticated screens
+      // to avoid race conditions where backend sends notifications too early.
+      await registerPushToken();
+
       dispatch({
         type: "AUTH_SUCCESS",
         payload: { user, accessToken, refreshToken },
       });
-
-      await registerPushToken();
     },
     [registerPushToken],
   );
@@ -229,7 +234,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const response = await authApi.login(credentials);
         if (!response.success || !response.data) {
-          throw new Error(response.error?.message || response.message || "Login failed.");
+          throw new Error(
+            response.error?.message || response.message || "Login failed.",
+          );
         }
 
         const { accessToken, refreshToken } = response.data;
@@ -252,7 +259,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (!response.success || !response.data) {
         throw new Error(
-          response.error?.message || response.message || "Google sign-in failed.",
+          response.error?.message ||
+            response.message ||
+            "Google sign-in failed.",
         );
       }
 
@@ -279,12 +288,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await authApi.register(data);
       if (!response.success) {
-        throw new Error(response.error?.message || response.message || "Register failed.");
+        throw new Error(
+          response.error?.message || response.message || "Register failed.",
+        );
       }
 
       dispatch({ type: "AUTH_SET_LOADING", payload: false });
     } catch (error: any) {
-      const errorMessage = error.message || "Register failed. Please try again.";
+      const errorMessage =
+        error.message || "Register failed. Please try again.";
       dispatch({ type: "AUTH_ERROR", payload: errorMessage });
       throw error;
     }
