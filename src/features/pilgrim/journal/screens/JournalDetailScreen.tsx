@@ -3,8 +3,8 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-    Alert,
     Animated,
     Dimensions,
     Image,
@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import { useAuth } from '../../../../hooks/useAuth';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
@@ -46,6 +47,8 @@ export default function JournalDetailScreen() {
     const route = useRoute<any>();
     const { journalId } = route.params || {};
     const insets = useSafeAreaInsets();
+    const { t } = useTranslation();
+    const { confirm: showConfirm } = useConfirm();
     const { user } = useAuth();
 
     const [journal, setJournal] = useState<JournalEntry | null>(null);
@@ -132,26 +135,62 @@ export default function JournalDetailScreen() {
     }, [journal]);
 
     /* ─── Actions ─── */
-    const askDelete = () => hideMenu(() =>
-        Alert.alert('Xóa nhật ký', 'Bạn có chắc muốn xóa?', [
-            { text: 'Hủy', style: 'cancel' },
-            {
-                text: 'Xóa', style: 'destructive', onPress: async () => {
-                    try {
-                        const r = await pilgrimJournalApi.deleteJournal(journalId);
-                        if (r.success) { Alert.alert('Đã xóa'); navigation.goBack(); }
-                        else Alert.alert('Lỗi', 'Không thể xóa');
-                    } catch { Alert.alert('Lỗi', 'Không thể xóa'); }
+    const askDelete = () => hideMenu(async () => {
+        const isConfirmed = await showConfirm({
+            type: 'danger',
+            title: t('journal.deleteConfirmTitle'),
+            message: t('journal.deleteConfirmMessage'),
+            confirmText: t('journal.deleteJournal'),
+            cancelText: t('common.cancel'),
+        });
+
+        if (isConfirmed) {
+            try {
+                const r = await pilgrimJournalApi.deleteJournal(journalId);
+                if (r.success) {
+                    await showConfirm({
+                        type: 'success',
+                        title: t('common.success'),
+                        message: t('journal.deleteSuccess'),
+                        showCancel: false,
+                    });
+                    navigation.goBack();
+                } else {
+                    await showConfirm({
+                        type: 'danger',
+                        title: t('common.error'),
+                        message: t('journal.deleteError'),
+                        showCancel: false,
+                    });
                 }
-            },
-        ])
-    );
+            } catch {
+                await showConfirm({
+                    type: 'danger',
+                    title: t('common.error'),
+                    message: t('journal.deleteError'),
+                    showCancel: false,
+                });
+            }
+        }
+    });
 
     const doShare = () => hideMenu(async () => {
         try {
             await pilgrimJournalApi.shareJournal(journalId);
-            Alert.alert('Đã chia sẻ!', 'Nhật ký đã được chia sẻ ra cộng đồng.');
-        } catch (e: any) { Alert.alert('Lỗi', e?.message || 'Không thể chia sẻ'); }
+            await showConfirm({
+                type: 'success',
+                title: t('journal.shareSuccess'),
+                message: t('journal.shareSuccessMessage'),
+                showCancel: false,
+            });
+        } catch (e: any) {
+            await showConfirm({
+                type: 'danger',
+                title: t('common.error'),
+                message: e?.message || t('journal.shareError'),
+                showCancel: false,
+            });
+        }
     });
 
     /* ─── Audio ─── */
@@ -172,7 +211,14 @@ export default function JournalDetailScreen() {
                 }
             );
             setSound(s); setPlaying(true);
-        } catch { Alert.alert('Không thể phát audio'); }
+        } catch {
+            await showConfirm({
+                type: 'danger',
+                title: t('common.error'),
+                message: t('journal.audioPlayError'),
+                showCancel: false,
+            });
+        }
     };
     useEffect(() => () => { sound?.unloadAsync().catch(() => {}); }, [sound]);
 
@@ -180,8 +226,8 @@ export default function JournalDetailScreen() {
         const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
         return `${m}:${s.toString().padStart(2, '0')}`;
     };
-    const fmtDate = (d: string) => new Date(d).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short', year: 'numeric' });
-    const fmtTime = (d: string) => new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const fmtDate = (d: string) => new Date(d).toLocaleDateString(t('common.locale', { defaultValue: 'vi-VN' }), { day: 'numeric', month: 'short', year: 'numeric' });
+    const fmtTime = (d: string) => new Date(d).toLocaleTimeString(t('common.locale', { defaultValue: 'vi-VN' }), { hour: '2-digit', minute: '2-digit' });
 
     /* ─── Guards ─── */
     if (loading) {
@@ -189,7 +235,7 @@ export default function JournalDetailScreen() {
             <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={s.root} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <View style={[s.center, { paddingTop: insets.top + 80 }]}>
-                    <Text style={{ color: COLORS.textSecondary }}>Đang tải...</Text>
+                    <Text style={{ color: COLORS.textSecondary }}>{t('journal.loading')}</Text>
                 </View>
             </ImageBackground>
         );
@@ -199,9 +245,9 @@ export default function JournalDetailScreen() {
             <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={s.root} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <View style={[s.center, { paddingTop: insets.top + 80 }]}>
-                    <Text style={{ marginBottom: 16, color: COLORS.textPrimary }}>Không tìm thấy nhật ký</Text>
+                    <Text style={{ marginBottom: 16, color: COLORS.textPrimary }}>{t('journal.notFound')}</Text>
                     <TouchableOpacity onPress={() => navigation.goBack()}>
-                        <Text style={{ color: COLORS.accent, fontWeight: '600' }}>← Quay lại</Text>
+                        <Text style={{ color: COLORS.accent, fontWeight: '600' }}>← {t('journal.back')}</Text>
                     </TouchableOpacity>
                 </View>
             </ImageBackground>
@@ -210,13 +256,13 @@ export default function JournalDetailScreen() {
 
     const images = normalizeImageUrls(journal.image_url);
     const coverUri = images.length > 0 ? images[0] : null;
-    const authorName = journal.author?.full_name || user?.fullName || 'Pilgrim';
+    const authorName = journal.author?.full_name || user?.fullName || t('journal.pilgrimRole');
     const avatarUri = journal.author?.avatar_url || user?.avatar;
     const audioProgress = audioDuration > 0 ? audioPos / audioDuration : 0;
     const mediaCount = [
-        images.length > 0 && `📷 Ảnh (${images.length})`,
-        journal.video_url && '🎥 Video (1)',
-        journal.audio_url && '🎧 Audio (1)',
+        images.length > 0 && `📷 ${t('journal.imagesLabel')} (${images.length})`,
+        journal.video_url && `🎥 ${t('journal.videoLabel')} (1)`,
+        journal.audio_url && `🎧 ${t('journal.audioLabel')} (1)`,
     ].filter(Boolean).join('  ·  ');
 
     return (
@@ -228,7 +274,7 @@ export default function JournalDetailScreen() {
                 <View style={[s.header, { paddingTop: insets.top + 10 }]}>
                     <TouchableOpacity style={s.headerBtn} onPress={() => navigation.goBack()}>
                         <MaterialIcons name="arrow-back" size={22} color={COLORS.textPrimary} />
-                        <Text style={s.headerBtnLabel}>Quay lại</Text>
+                        <Text style={s.headerBtnLabel}>{t('journal.back')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.headerIconBtn} onPress={showMenu}>
                         <MaterialIcons name="more-horiz" size={22} color={COLORS.textPrimary} />
@@ -248,7 +294,7 @@ export default function JournalDetailScreen() {
                         <View style={s.locationSection}>
                             <MaterialIcons name="location-on" size={16} color={COLORS.accent} style={{ marginTop: 1 }} />
                             <View style={{ flex: 1 }}>
-                                <Text style={s.locationName} numberOfLines={2}>{siteName || 'Không xác định'}</Text>
+                                <Text style={s.locationName} numberOfLines={2}>{siteName || t('journal.unknownLocation')}</Text>
                                 {siteSubtitle && (
                                     <Text style={s.locationSub}>{siteSubtitle}</Text>
                                 )}
@@ -279,7 +325,7 @@ export default function JournalDetailScreen() {
                                     )}
                                     <View>
                                         <Text style={s.authorName}>{authorName}</Text>
-                                        <Text style={s.authorRole}>+ Pilgrim</Text>
+                                        <Text style={s.authorRole}>{t('journal.pilgrimRole')}</Text>
                                     </View>
                                 </View>
                                 <View style={{ alignItems: 'flex-end' }}>
@@ -301,7 +347,7 @@ export default function JournalDetailScreen() {
                             {/* NỘI DUNG */}
                             <View style={s.sectionLabelRow}>
                                 <MaterialIcons name="menu-book" size={14} color={COLORS.accent} />
-                                <Text style={s.sectionLabel}>NỘI DUNG</Text>
+                                <Text style={s.sectionLabel}>{t('journal.contentLabel')}</Text>
                             </View>
                             <Text style={s.content}>{journal.content}</Text>
 
@@ -311,19 +357,19 @@ export default function JournalDetailScreen() {
                                     {images.length > 0 && (
                                         <View style={s.mediaPill}>
                                             <MaterialIcons name="photo-camera" size={12} color={COLORS.accent} />
-                                            <Text style={s.mediaPillText}>Ảnh ({images.length})</Text>
+                                            <Text style={s.mediaPillText}>{t('journal.imagesLabel')} ({images.length})</Text>
                                         </View>
                                     )}
                                     {journal.video_url && (
                                         <View style={s.mediaPill}>
                                             <MaterialIcons name="videocam" size={12} color={COLORS.accent} />
-                                            <Text style={s.mediaPillText}>Video (1)</Text>
+                                            <Text style={s.mediaPillText}>{t('journal.videoLabel')} (1)</Text>
                                         </View>
                                     )}
                                     {journal.audio_url && (
                                         <View style={s.mediaPill}>
                                             <MaterialIcons name="headset" size={12} color={COLORS.accent} />
-                                            <Text style={s.mediaPillText}>Audio (1)</Text>
+                                            <Text style={s.mediaPillText}>{t('journal.audioLabel')} (1)</Text>
                                         </View>
                                     )}
                                 </View>
@@ -335,7 +381,7 @@ export default function JournalDetailScreen() {
                                     <View style={s.mediaDivider} />
                                     <View style={s.sectionLabelRow}>
                                         <MaterialIcons name="photo-camera" size={14} color={COLORS.accent} />
-                                        <Text style={s.sectionLabel}>HÌNH ẢNH</Text>
+                                        <Text style={s.sectionLabel}>{t('journal.imagesLabel')}</Text>
                                     </View>
                                     <View style={s.imageGrid}>
                                         {images.map((uri, idx) => (
@@ -359,7 +405,7 @@ export default function JournalDetailScreen() {
                                     <View style={s.mediaDivider} />
                                     <View style={s.sectionLabelRow}>
                                         <MaterialIcons name="videocam" size={14} color={COLORS.accent} />
-                                        <Text style={s.sectionLabel}>VIDEO</Text>
+                                        <Text style={s.sectionLabel}>{t('journal.videoLabel')}</Text>
                                     </View>
                                     <View style={s.videoPreviewCard}>
                                         <VideoView
@@ -379,7 +425,7 @@ export default function JournalDetailScreen() {
                                     <View style={s.mediaDivider} />
                                     <View style={s.sectionLabelRow}>
                                         <MaterialIcons name="headset" size={14} color={COLORS.accent} />
-                                        <Text style={s.sectionLabel}>AUDIO</Text>
+                                        <Text style={s.sectionLabel}>{t('journal.audioLabel')}</Text>
                                     </View>
                                     <View style={s.audioPlayer}>
                                         <TouchableOpacity
@@ -415,7 +461,7 @@ export default function JournalDetailScreen() {
                 <Animated.View style={[s.actionSheet, { transform: [{ translateY: slideAnim }] }]}>
                     <View style={s.sheetHandle} />
                     <View style={s.sheetHeader}>
-                        <Text style={s.sheetTitle}>Nhật ký</Text>
+                        <Text style={s.sheetTitle}>{t('journal.menuTitle')}</Text>
                         {journal?.title && (
                             <Text style={s.sheetSubtitle} numberOfLines={2}>"{journal.title}"</Text>
                         )}
@@ -423,19 +469,19 @@ export default function JournalDetailScreen() {
                     <View style={s.sheetDivider} />
                     <TouchableOpacity style={s.sheetAction} onPress={() => hideMenu(() => navigation.navigate('CreateJournalScreen', { journalId }))}>
                         <View style={s.sheetActionIcon}><MaterialIcons name="edit" size={20} color={COLORS.textPrimary} /></View>
-                        <Text style={s.sheetActionLabel}>Chỉnh sửa nhật ký</Text>
+                        <Text style={s.sheetActionLabel}>{t('journal.editJournal')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.sheetAction} onPress={doShare}>
                         <View style={s.sheetActionIcon}><MaterialIcons name="public" size={20} color={COLORS.textPrimary} /></View>
-                        <Text style={s.sheetActionLabel}>Chia sẻ ra cộng đồng</Text>
+                        <Text style={s.sheetActionLabel}>{t('journal.shareJournal')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.sheetAction} onPress={askDelete}>
                         <View style={[s.sheetActionIcon, s.sheetIconDanger]}><MaterialIcons name="delete-outline" size={20} color={COLORS.danger} /></View>
-                        <Text style={[s.sheetActionLabel, { color: COLORS.danger }]}>Xóa nhật ký</Text>
+                        <Text style={[s.sheetActionLabel, { color: COLORS.danger }]}>{t('journal.deleteJournal')}</Text>
                     </TouchableOpacity>
                     <View style={s.sheetDivider} />
                     <TouchableOpacity style={s.sheetCancel} onPress={() => hideMenu()}>
-                        <Text style={s.sheetCancelText}>Hủy</Text>
+                        <Text style={s.sheetCancelText}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
                 </Animated.View>
             </Modal>

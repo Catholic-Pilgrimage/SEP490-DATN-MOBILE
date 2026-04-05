@@ -3,6 +3,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Alert,
@@ -22,6 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaPickerModal } from '../../../../components/common/MediaPickerModal';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import { CheckInEntity, PlanEntity } from '../../../../types/pilgrim/planner.types';
@@ -53,6 +55,8 @@ const buildLocationFromCheckIns = (checkIns: CheckInEntity[]) =>
     ).join(', ');
 
 export default function CreateJournalScreen() {
+    const { t } = useTranslation();
+    const { confirm } = useConfirm();
     const navigation = useNavigation<any>();
     const route = useRoute<any>();
     const { journalId, plannerItemId: paramPlannerItemId } = route.params || {};
@@ -121,7 +125,7 @@ export default function CreateJournalScreen() {
             ? completedPlanners.find((planner) => planner.id === pendingEditSelection.plannerId) ||
               ({
                   id: pendingEditSelection.plannerId,
-                  name: pendingEditSelection.plannerName || 'Kế hoạch hành hương',
+                  name: pendingEditSelection.plannerName || t('journal.genericPlanName'),
                   user_id: '',
                   number_of_people: 0,
                   transportation: '',
@@ -349,10 +353,13 @@ export default function CreateJournalScreen() {
             const permission = await Audio.requestPermissionsAsync();
             console.log('Audio permission:', permission);
             if (!permission.granted) {
-                Alert.alert(
-                    'Quyền truy cập',
-                    'Cần quyền truy cập microphone để ghi âm. Vui lòng cấp quyền trong cài đặt.'
-                );
+                await confirm({
+                    type: 'warning',
+                    iconName: 'mic-outline',
+                    title: t('journal.micPermissionTitle'),
+                    message: t('journal.micPermissionMessage'),
+                    showCancel: false,
+                });
                 return;
             }
 
@@ -391,7 +398,12 @@ export default function CreateJournalScreen() {
             });
         } catch (error) {
             console.error('Failed to start recording:', error);
-            Alert.alert('Lỗi', 'Không thể bắt đầu ghi âm. Vui lòng thử lại.');
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: t('journal.audioStartError'),
+                showCancel: false,
+            });
         }
     };
 
@@ -421,7 +433,12 @@ export default function CreateJournalScreen() {
             setIsRecording(false);
 
             if (uri) {
-                Alert.alert('Thành công', 'Đã lưu ghi âm. Nhấn nút play để nghe lại.');
+                await confirm({
+                    type: 'success',
+                    title: t('common.success'),
+                    message: t('journal.audioSaveSuccess'),
+                    showCancel: false,
+                });
             }
 
             // Reset audio mode
@@ -432,7 +449,12 @@ export default function CreateJournalScreen() {
             console.error('Failed to stop recording:', error);
             setRecording(undefined);
             setIsRecording(false);
-            Alert.alert('Lỗi', 'Không thể dừng ghi âm.');
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: t('journal.audioStopError', { defaultValue: 'Could not stop recording.' }),
+                showCancel: false,
+            });
         }
     };
 
@@ -488,35 +510,38 @@ export default function CreateJournalScreen() {
         } catch (error) {
             console.error('Failed to play audio:', error);
             setIsPlaying(false);
-            Alert.alert('Lỗi', 'Không thể phát âm thanh. Vui lòng thử ghi âm lại.');
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: t('journal.audioPlayError'),
+                showCancel: false,
+            });
         }
     };
 
-    const handleDeleteAudio = () => {
-        Alert.alert(
-            'Xóa ghi âm',
-            'Bạn có chắc muốn xóa ghi âm này?',
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Xóa',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            if (sound) {
-                                await sound.unloadAsync();
-                                setSound(undefined);
-                            }
-                        } catch (error) {
-                            console.error('Failed to unload sound:', error);
-                        }
-                        setRecordingUri(undefined);
-                        setRecordingDuration(0);
-                        setIsPlaying(false);
-                    },
-                },
-            ]
-        );
+    const handleDeleteAudio = async () => {
+        const confirmed = await confirm({
+            type: 'danger',
+            iconName: 'trash-outline',
+            title: t('journal.deleteAudioTitle'),
+            message: t('journal.deleteAudioMessage'),
+            confirmText: t('common.delete'),
+            cancelText: t('common.cancel'),
+        });
+
+        if (confirmed) {
+            try {
+                if (sound) {
+                    await sound.unloadAsync();
+                    setSound(undefined);
+                }
+            } catch (error) {
+                console.error('Failed to unload sound:', error);
+            }
+            setRecordingUri(undefined);
+            setRecordingDuration(0);
+            setIsPlaying(false);
+        }
     };
 
     // Cleanup on unmount
@@ -585,7 +610,12 @@ export default function CreateJournalScreen() {
             }
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Failed to load journal details');
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: t('journal.loadError'),
+                showCancel: false,
+            });
             navigation.goBack();
         } finally {
             setInitialLoading(false);
@@ -594,13 +624,23 @@ export default function CreateJournalScreen() {
 
     const handleSave = async (privacy: 'private' | 'public') => {
         if (!title.trim() || !content.trim()) {
-            Alert.alert('Thiếu thông tin', 'Vui lòng nhập tiêu đề và nội dung');
+            await confirm({
+                type: 'warning',
+                title: t('journal.missingInfo'),
+                message: t('journal.missingTitleContent'),
+                showCancel: false,
+            });
             return;
         }
 
         // Validate: phải chọn ít nhất 1 điểm check-in khi tạo mới
         if (!journalId && selectedPlannerItemIds.length === 0) {
-            Alert.alert('Yêu cầu check-in trước', 'Vui lòng chọn ít nhất một địa điểm bạn đã check-in.');
+            await confirm({
+                type: 'warning',
+                title: t('journal.checkInRequired'),
+                message: t('journal.checkInRequiredMessage'),
+                showCancel: false,
+            });
             return;
         }
 
@@ -614,7 +654,12 @@ export default function CreateJournalScreen() {
                 const imageUris = selectedImages.map(img => img.uri);
 
                 if (plannerItemIds.length === 0) {
-                    Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một địa điểm đã check-in');
+                    await confirm({
+                        type: 'danger',
+                        title: t('journal.genericError'),
+                        message: t('journal.checkInRequiredMessage'),
+                        showCancel: false,
+                    });
                     return;
                 }
 
@@ -639,18 +684,25 @@ export default function CreateJournalScreen() {
                     }
                 }
 
-                Alert.alert(
-                    "Thành công", 
-                    `Đã cập nhật nhật ký${
-                        privacy === 'public' ? ' và chia sẻ ra cộng đồng' : ''
-                    }${
-                        imageUris.length > 0 ? ` (+${imageUris.length} ảnh mới)` : ''
-                    }${recordingUri ? ' với audio' : ''}`
-                );
+                await confirm({
+                    type: 'success',
+                    title: t('common.success'), 
+                    message: t('journal.saveSuccessUpdate', {
+                        shareMsg: privacy === 'public' ? t('journal.shareMsg') : '',
+                        imagesMsg: imageUris.length > 0 ? t('journal.imagesMsg', { count: imageUris.length }) : '',
+                        audioMsg: recordingUri ? t('journal.audioMsg') : ''
+                    }),
+                    showCancel: false,
+                });
             } else {
                 // CREATE - ít nhất 1 planner_item_id là required
                 if (plannerItemIds.length === 0) {
-                    Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một địa điểm đã check-in');
+                    await confirm({
+                        type: 'danger',
+                        title: t('journal.genericError'),
+                        message: t('journal.checkInRequiredMessage'),
+                        showCancel: false,
+                    });
                     return;
                 }
 
@@ -677,19 +729,26 @@ export default function CreateJournalScreen() {
                     }
                 }
 
-                Alert.alert(
-                    privacy === 'public' ? "Đã đăng cộng đồng" : "Đã tạo", 
-                    `Đã tạo nhật ký tâm linh${
-                        privacy === 'public' ? ' và chia sẻ bài viết' : ''
-                    }${
-                        imageUris.length > 0 ? ` với ${imageUris.length} ảnh` : ''
-                    }${recordingUri ? ' và ghi âm' : ''}`
-                );
+                await confirm({
+                    type: 'success',
+                    title: privacy === 'public' ? t('journal.postPublic') : t('journal.savePrivate'), 
+                    message: t('journal.saveSuccessCreate', {
+                        shareMsg: privacy === 'public' ? t('journal.shareMsg') : '',
+                        imagesMsg: imageUris.length > 0 ? t('journal.imagesMsgCreate', { count: imageUris.length }) : '',
+                        audioMsg: recordingUri ? t('journal.audioMsgCreate') : ''
+                    }),
+                    showCancel: false,
+                });
             }
             navigation.goBack();
         } catch (error: any) {
             console.error(error);
-            Alert.alert("Lỗi", error?.message || "Không thể lưu nhật ký");
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: error?.message || t('journal.saveError', { defaultValue: 'Could not save journal' }),
+                showCancel: false,
+            });
         } finally {
             setLoading(false);
         }
@@ -722,7 +781,7 @@ export default function CreateJournalScreen() {
                     <MaterialIcons name="arrow-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>{journalId ? 'Cập nhật nhật ký' : 'Viết nhật ký tâm linh'}</Text>
+                <Text style={styles.headerTitle}>{journalId ? t('journal.updateTitle') : t('journal.createTitle')}</Text>
 
                 <TouchableOpacity style={styles.iconButton}>
                     <MaterialIcons name="bookmark-border" size={24} color={COLORS.accent} />
@@ -741,16 +800,16 @@ export default function CreateJournalScreen() {
                     <View style={styles.section}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                             <MaterialIcons name="route" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
-                            <Text style={styles.label}>Bước 1: Chọn kế hoạch</Text>
+                            <Text style={styles.label}>{t('journal.step1')}</Text>
                             <View style={styles.completedBadge}>
-                                <Text style={styles.completedBadgeText}>Đã hoàn thành</Text>
+                                <Text style={styles.completedBadgeText}>{t('journal.completed')}</Text>
                             </View>
                         </View>
 
                         {plannerLoading ? (
                             <ActivityIndicator size="small" color={COLORS.accent} style={{ marginVertical: 8 }} />
                         ) : completedPlanners.length === 0 ? (
-                            <Text style={styles.emptyHint}>Chưa có kế hoạch nào hoàn thành</Text>
+                            <Text style={styles.emptyHint}>{t('journal.noCompletedPlans')}</Text>
                         ) : (
                             <View style={styles.chipWrapContainer}>
                                 {completedPlanners.map((planner) => (
@@ -783,20 +842,20 @@ export default function CreateJournalScreen() {
                     <View style={styles.section}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                             <MaterialIcons name="location-on" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
-                            <Text style={styles.label}>Bước 2: Chọn địa điểm</Text>
+                            <Text style={styles.label}>{t('journal.step2')}</Text>
                         </View>
 
                         <View style={styles.locationInput}>
                             <MaterialIcons name="location-on" size={20} color={COLORS.textSecondary} style={styles.locationIcon} />
                             <Text style={[styles.locationPlaceholder, location ? { color: COLORS.textPrimary } : {}]}>
-                                {location || (selectedPlanner ? 'Chọn điểm đã check-in bên dưới' : 'Vui lòng chọn kế hoạch trước')}
+                                {location || (selectedPlanner ? t('journal.selectCheckInBelow') : t('journal.selectPlanFirst'))}
                             </Text>
                         </View>
 
                         <Text style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 8, marginBottom: 4 }}>
                             {selectedPlanner
-                                ? `Điểm đã check-in trong "${selectedPlanner.name}":`
-                                : 'Chọn kế hoạch ở bước 1 để xem các điểm đã check-in'}
+                                ? t('journal.checkInsIn', { name: selectedPlanner.name })
+                                : t('journal.selectPlanToSeeCheckIns')}
                         </Text>
 
                         {/* Chips check-in - chỉ hiện sau khi chọn planner */}
@@ -824,15 +883,15 @@ export default function CreateJournalScreen() {
                                                     styles.chipText,
                                                     selectedPlannerItemIds.includes(checkIn.planner_item_id) && { color: COLORS.white }
                                                 ]}>
-                                                    {checkIn.site?.name || 'Địa điểm'}
+                                                    {checkIn.site?.name || t('journal.genericLocationName')}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))
                                     ) : (
                                         <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', padding: 10 }}>
                                             {selectedPlanner
-                                                ? 'Bạn chưa check-in điểm nào trong kế hoạch này'
-                                                : 'Không có địa điểm đã check-in'}
+                                                ? t('journal.noCheckInsInPlan')
+                                                : t('journal.noCheckInLocations')}
                                         </Text>
                                     )}
                                 </View>
@@ -844,7 +903,7 @@ export default function CreateJournalScreen() {
                     <View style={styles.editorContainer}>
                         <TextInput
                             style={styles.titleInput}
-                            placeholder="Tiêu đề suy niệm..."
+                            placeholder={t('journal.titlePlaceholder')}
                             placeholderTextColor="rgba(138, 128, 96, 0.5)"
                             value={title}
                             onChangeText={setTitle}
@@ -874,7 +933,7 @@ export default function CreateJournalScreen() {
 
                         <TextInput
                             style={styles.multilineInput}
-                            placeholder="Bạn cảm nhận gì trong giây phút này..."
+                            placeholder={t('journal.contentPlaceholder')}
                             placeholderTextColor="rgba(138, 128, 96, 0.4)"
                             multiline
                             textAlignVertical="top"
@@ -886,11 +945,11 @@ export default function CreateJournalScreen() {
                     {/* Media Strip */}
                     <View style={styles.section}>
                         <View style={styles.mediaHeader}>
-                            <Text style={styles.label}>Hình ảnh & Video</Text>
+                            <Text style={styles.label}>{t('journal.mediaHeader')}</Text>
                             <Text style={{ fontSize: 12, color: COLORS.textTertiary }}>
                                 {displayImages.length + selectedVideos.length > 0
-                                    ? `${displayImages.length} ảnh${selectedVideos.length > 0 ? ', 1 video' : ''}`
-                                    : 'Tối đa 10 ảnh + 1 video'}
+                                    ? t('journal.mediaCount_photos', { count: displayImages.length }) + (selectedVideos.length > 0 ? t('journal.mediaCount_video') : '')
+                                    : t('journal.mediaLimit')}
                             </Text>
                         </View>
 
@@ -901,7 +960,7 @@ export default function CreateJournalScreen() {
                                 onPress={() => setMediaPickerVisible(true)}
                             >
                                 <MaterialIcons name="add-circle-outline" size={28} color={COLORS.accent} />
-                                <Text style={styles.addMediaText}>Thêm</Text>
+                                <Text style={styles.addMediaText}>{t('journal.add')}</Text>
                             </TouchableOpacity>
 
                             {/* Thumbnails ảnh */}
@@ -947,12 +1006,12 @@ export default function CreateJournalScreen() {
                     {/* Audio Recording Section */}
                     {(isRecording || recordingUri) && (
                         <View style={styles.section}>
-                            <Text style={styles.label}>Ghi âm</Text>
+                            <Text style={styles.label}>{t('journal.audioHeader')}</Text>
                             {isRecording ? (
                                 <View style={styles.recordingIndicator}>
                                     <View style={styles.recordingDot} />
                                     <Text style={styles.recordingText}>
-                                        Đang ghi âm... {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
+                                        {t('journal.recording')} {Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}
                                     </Text>
                                     <TouchableOpacity 
                                         style={styles.stopRecordingBtn}
@@ -977,13 +1036,13 @@ export default function CreateJournalScreen() {
                                         />
                                     </TouchableOpacity>
                                     <View style={styles.audioInfo}>
-                                        <Text style={styles.audioTitle}>Ghi âm của bạn</Text>
+                                        <Text style={styles.audioTitle}>{t('journal.yourRecording')}</Text>
                                         <Text style={[
                                             styles.audioDuration,
                                             isPlaying && styles.audioDurationActive
                                         ]}>
                                             {isPlaying 
-                                                ? "Đang phát..." 
+                                                ? t('journal.playing')
                                                 : recordingDuration > 0 
                                                     ? `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, '0')}`
                                                     : '0:00'
@@ -1029,7 +1088,7 @@ export default function CreateJournalScreen() {
                 mediaTypes={['images', 'videos']}
                 allowsMultipleSelection={true}
                 selectionLimit={10}
-                title="Thêm ảnh/video vào nhật ký"
+                title={t('journal.addMediaTitle')}
             />
 
             {/* Fixed Footer */}
@@ -1040,7 +1099,7 @@ export default function CreateJournalScreen() {
                         onPress={() => handleSave('private')}
                         disabled={loading}
                     >
-                        <Text style={styles.btnSecondaryText}>{loading ? "Đang lưu..." : "Lưu riêng tư"}</Text>
+                        <Text style={styles.btnSecondaryText}>{loading ? t('journal.saving') : t('journal.savePrivate')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -1048,7 +1107,7 @@ export default function CreateJournalScreen() {
                         onPress={() => handleSave('public')}
                         disabled={loading}
                     >
-                        <Text style={styles.btnPrimaryText}>{loading ? "Đang đăng..." : "Đăng công khai"}</Text>
+                        <Text style={styles.btnPrimaryText}>{loading ? t('journal.posting') : t('journal.postPublic')}</Text>
                     </TouchableOpacity>
                 </View>
             </View>

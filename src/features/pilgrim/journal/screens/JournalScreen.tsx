@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -21,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
@@ -81,6 +81,7 @@ export const JournalScreen = () => {
     const insets = useSafeAreaInsets();
     const { isGuest, exitGuestMode, user } = useAuth();
     const { t } = useTranslation();
+    const { confirm: showConfirm } = useConfirm();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(!isGuest);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
@@ -109,13 +110,23 @@ export const JournalScreen = () => {
     const handleRestore = async (id: string) => {
         try {
             await pilgrimJournalApi.restoreJournal(id);
-            Alert.alert("Thành công", "Nhật ký đã được khôi phục.");
+            await showConfirm({
+                type: 'success',
+                title: t('common.success'),
+                message: t('journal.restoreSuccess'),
+                showCancel: false,
+            });
             // Refresh after restore
             await fetchJournals();
         } catch (error: any) {
             console.error('Restore failed:', error);
-            const errorMsg = error?.response?.data?.error?.message || error?.message || "Không thể khôi phục nhật ký";
-            Alert.alert("Lỗi khôi phục", errorMsg);
+            const errorMsg = error?.response?.data?.error?.message || error?.message || t('journal.restoreError');
+            await showConfirm({
+                type: 'danger',
+                title: t('journal.restoreErrorTitle'),
+                message: errorMsg,
+                showCancel: false,
+            });
         }
     };
 
@@ -221,7 +232,7 @@ export const JournalScreen = () => {
         const resolvedPlannerName = item.planner?.name || (item.planner_id ? plannerNamesById[item.planner_id] : undefined);
         const locationLabel = resolvedSiteName || resolvedPlannerName || null;
 
-        const authorName = item.author?.full_name || user?.fullName || 'Pilgrim';
+        const authorName = item.author?.full_name || user?.fullName || t('journal.pilgrimRole');
         const avatarUrl = item.author?.avatar_url || user?.avatar;
 
         return (
@@ -240,7 +251,7 @@ export const JournalScreen = () => {
                 {isInactive && (
                     <View style={styles.inactiveBanner}>
                         <MaterialIcons name="delete-outline" size={14} color="#fff" />
-                        <Text style={styles.inactiveBannerText}>Đã xoá</Text>
+                        <Text style={styles.inactiveBannerText}>{t('journal.deleted')}</Text>
                     </View>
                 )}
 
@@ -268,7 +279,7 @@ export const JournalScreen = () => {
                             </View>
                         )}
                         <Text style={styles.dateText}>
-                            {new Date(item.created_at).toLocaleDateString('vi-VN')}
+                            {new Date(item.created_at).toLocaleDateString(t('common.locale', { defaultValue: 'vi-VN' }))}
                         </Text>
                     </View>
                 </View>
@@ -318,7 +329,7 @@ export const JournalScreen = () => {
                         onPress={() => handleRestore(item.id)}
                     >
                         <MaterialIcons name="restore" size={16} color="#fff" />
-                        <Text style={styles.restoreButtonText}>Khôi phục nhật ký</Text>
+                        <Text style={styles.restoreButtonText}>{t('journal.restore')}</Text>
                     </TouchableOpacity>
                 ) : (
                     !isPrivate && (
@@ -334,7 +345,7 @@ export const JournalScreen = () => {
                                 </TouchableOpacity>
                             </View>
                             <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
-                                <Text style={styles.readMoreText}>Read More</Text>
+                                <Text style={styles.readMoreText}>{t('journal.readMore')}</Text>
                             </TouchableOpacity>
                         </View>
                     )
@@ -361,10 +372,10 @@ export const JournalScreen = () => {
                     </View>
 
                     {/* Tagline - New addition to match Planner */}
-                    <Text style={styles.headerTagline}>HÀNH TRÌNH ĐỨC TIN</Text>
+                    <Text style={styles.headerTagline}>{t('journal.tagline')}</Text>
 
                     {/* Main Title */}
-                    <Text style={styles.headerTitle}>Nhật ký Tâm linh</Text>
+                    <Text style={styles.headerTitle}>{t('journal.screenTitle')}</Text>
 
                     {/* Yellow Line Decoration */}
                     <View style={styles.headerDecoration} />
@@ -388,7 +399,7 @@ export const JournalScreen = () => {
                     ListFooterComponent={<View style={{ height: 100 }} />}
                     ListEmptyComponent={
                         <View style={{ alignItems: 'center', marginTop: 50 }}>
-                            <Text style={{ color: COLORS.textSecondary }}>Chưa có nhật ký nào</Text>
+                            <Text style={{ color: COLORS.textSecondary }}>{t('journal.emptyList')}</Text>
                         </View>
                     }
                 />
@@ -408,7 +419,7 @@ export const JournalScreen = () => {
                         end={{ x: 1, y: 1 }}
                     >
                         <MaterialIcons name="edit" size={24} color={COLORS.white} />
-                        <Text style={styles.fabText}>Viết nhật ký</Text>
+                        <Text style={styles.fabText}>{t('journal.writeJournal')}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             )}
