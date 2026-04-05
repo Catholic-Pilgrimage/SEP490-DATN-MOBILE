@@ -423,6 +423,7 @@ const PlaceCard: React.FC<{
             </Text>
           </View>
         )}
+
       </View>
     </TouchableOpacity>
   );

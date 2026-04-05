@@ -34,6 +34,11 @@ import {
   updateModelNarrative,
 } from "../../../../services/api/guide/narrativeApi";
 import type { MediaItem, MediaNarrativeStatus, TtsVoiceOption } from "../../../../types/guide";
+import {
+  formatGuideReviewDateTime,
+  getGuideReviewerEmail,
+  getGuideReviewerName,
+} from "../../utils/reviewTracking";
 import { PREMIUM_COLORS } from "../constants";
 
 const AUDIO_MIME = [
@@ -86,7 +91,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
   bottomInset,
   onRefreshModels,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { confirm, ConfirmModal } = useConfirm();
   const { height: windowH } = useWindowDimensions();
   const queryClient = useQueryClient();
@@ -130,6 +135,16 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
 
   const narrativeStatus = media.narrative_status ?? null;
   const canEdit = narrativeStatus !== "approved";
+  const reviewLocale = i18n.language?.startsWith("en") ? "en-US" : "vi-VN";
+  const narrativeReviewerName = getGuideReviewerName(
+    media.narrativeReviewer,
+    media.narrative_reviewed_by,
+  );
+  const narrativeReviewerEmail = getGuideReviewerEmail(media.narrativeReviewer);
+  const narrativeReviewedAtLabel = formatGuideReviewDateTime(
+    media.narrative_reviewed_at,
+    reviewLocale,
+  );
   const canDelete = narrativeStatus != null && narrativeStatus !== "approved";
 
   const expandedMaxHeight = Math.min(384, Math.round(windowH * 0.52));
@@ -599,6 +614,64 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
             </Text>
           ) : null}
 
+          {narrativeStatus !== "pending" &&
+          (narrativeReviewerName || narrativeReviewerEmail || narrativeReviewedAtLabel) ? (
+            <View style={styles.reviewMetaBox}>
+              <View style={styles.reviewMetaHeader}>
+                <MaterialIcons
+                  name="verified-user"
+                  size={15}
+                  color={PREMIUM_COLORS.gold}
+                />
+                <Text style={styles.reviewMetaTitle}>{t("reviewTracking.title")}</Text>
+              </View>
+              {narrativeReviewerName ? (
+                <Text style={styles.reviewMetaText}>
+                  <Text style={styles.reviewMetaLabel}>{t("reviewTracking.reviewer")}: </Text>
+                  {narrativeReviewerName}
+                </Text>
+              ) : null}
+              {narrativeReviewerEmail ? (
+                <Text style={styles.reviewMetaHint}>{narrativeReviewerEmail}</Text>
+              ) : null}
+              {narrativeReviewedAtLabel ? (
+                <Text style={styles.reviewMetaText}>
+                  <Text style={styles.reviewMetaLabel}>{t("reviewTracking.reviewedAt")}: </Text>
+                  {narrativeReviewedAtLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
+          {false && narrativeStatus !== "pending" &&
+          (narrativeReviewerName || narrativeReviewerEmail || narrativeReviewedAtLabel) ? (
+            <View style={styles.reviewMetaBox}>
+              <View style={styles.reviewMetaHeader}>
+                <MaterialIcons
+                  name="verified-user"
+                  size={15}
+                  color={PREMIUM_COLORS.gold}
+                />
+                <Text style={styles.reviewMetaTitle}>Thông tin kiểm duyệt</Text>
+              </View>
+              {narrativeReviewerName ? (
+                <Text style={styles.reviewMetaText}>
+                  <Text style={styles.reviewMetaLabel}>Người kiểm duyệt: </Text>
+                  {narrativeReviewerName}
+                </Text>
+              ) : null}
+              {narrativeReviewerEmail ? (
+                <Text style={styles.reviewMetaHint}>{narrativeReviewerEmail}</Text>
+              ) : null}
+              {narrativeReviewedAtLabel ? (
+                <Text style={styles.reviewMetaText}>
+                  <Text style={styles.reviewMetaLabel}>Thời gian xử lý: </Text>
+                  {narrativeReviewedAtLabel}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+
           {!canEdit && narrativeStatus === "approved" && media.narration_text ? (
             <Text style={styles.readOnlyScript}>{media.narration_text}</Text>
           ) : null}
@@ -902,6 +975,38 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#fca5a5",
     marginBottom: 10,
+  },
+  reviewMetaBox: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+    marginBottom: 12,
+  },
+  reviewMetaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  reviewMetaTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#F8E7B2",
+  },
+  reviewMetaLabel: {
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.92)",
+  },
+  reviewMetaText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: "rgba(255,255,255,0.82)",
+  },
+  reviewMetaHint: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.55)",
   },
   segmentRow: {
     flexDirection: "row",

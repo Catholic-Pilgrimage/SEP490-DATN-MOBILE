@@ -37,6 +37,15 @@
     "categoryMedical": "Y tế",
     "categoryLocation": "Địa điểm"
   },
+  "reviewTracking": {
+    "title": "Thông tin kiểm duyệt",
+    "detailsTitle": "Chi tiết xét duyệt",
+    "reviewer": "Người kiểm duyệt",
+    "reviewedAt": "Thời gian xử lý",
+    "managerFallback": "Quản lý",
+    "changeNote": "Ghi chú thay đổi",
+    "rejectionReason": "Lý do từ chối"
+  },
   "auth": {
     "login": "Đăng nhập",
     "logout": "Đăng xuất",

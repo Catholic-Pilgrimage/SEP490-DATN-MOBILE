@@ -37,6 +37,15 @@
     "categoryMedical": "Medical",
     "categoryLocation": "Location"
   },
+  "reviewTracking": {
+    "title": "Review information",
+    "detailsTitle": "Review details",
+    "reviewer": "Reviewed by",
+    "reviewedAt": "Reviewed at",
+    "managerFallback": "Manager",
+    "changeNote": "Change note",
+    "rejectionReason": "Rejection reason"
+  },
   "auth": {
     "login": "Login",
     "logout": "Logout",

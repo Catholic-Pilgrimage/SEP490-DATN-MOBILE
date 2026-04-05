@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
@@ -12,7 +13,14 @@ import {
   GUIDE_TYPOGRAPHY,
 } from '../../../../constants/guide.constants';
 import { getShiftSubmissionDetail } from '../../../../services/api/guide';
+import type { GuideReviewerInfo } from '../../../../types/guide/review-tracking.types';
 import { Shift, ShiftSubmission } from '../../../../types/guide/shiftSubmission.types';
+import {
+  formatGuideReviewDateTime,
+  getGuideReviewerName,
+  isUuidLike,
+  pickFirstNonEmpty,
+} from '../../utils/reviewTracking';
 
 interface ShiftSubmissionDetailModalProps {
   visible: boolean;
@@ -22,13 +30,7 @@ interface ShiftSubmissionDetailModalProps {
   onCancel: (id: string) => void;
 }
 
-type ApproverShape = {
-  full_name?: string | null;
-  fullName?: string | null;
-  name?: string | null;
-  display_name?: string | null;
-  displayName?: string | null;
-};
+type ApproverShape = GuideReviewerInfo;
 
 type ShiftSubmissionDetailLike = ShiftSubmission & {
   approved_by_name?: string | null;
@@ -38,6 +40,7 @@ type ShiftSubmissionDetailLike = ShiftSubmission & {
   approved_by_user?: ApproverShape | null;
   approver?: ApproverShape | null;
   approvedBy?: ApproverShape | null;
+  reviewer?: ApproverShape | null;
 };
 
 const STATUS_CONFIG: Record<
@@ -82,13 +85,6 @@ const STATUS_CONFIG: Record<
 };
 
 const DAY_LABELS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
-
-const isUuidLike = (value?: string | null) =>
-  !!value &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-const pickFirstNonEmpty = (...values: (string | null | undefined)[]) =>
-  values.find((value) => !!value?.trim())?.trim() ?? null;
 
 const formatShortDate = (dateString?: string | null) => {
   if (!dateString) return null;
@@ -148,6 +144,7 @@ const getRegistrationDateLabel = (submission: ShiftSubmissionDetailLike) => {
 
 const getApproverName = (submission: ShiftSubmissionDetailLike) => {
   const resolvedName = pickFirstNonEmpty(
+    getGuideReviewerName(submission.reviewer, submission.reviewed_by),
     submission.approved_by_name,
     submission.approved_by_full_name,
     submission.approver_name,
@@ -170,6 +167,7 @@ const getApproverName = (submission: ShiftSubmissionDetailLike) => {
   );
 
   if (resolvedName) return resolvedName;
+  if (submission.reviewed_by && !isUuidLike(submission.reviewed_by)) return submission.reviewed_by;
   if (submission.approved_by && !isUuidLike(submission.approved_by)) return submission.approved_by;
 
   return null;
@@ -182,6 +180,8 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
   onEdit,
   onCancel,
 }) => {
+  const { t, i18n } = useTranslation();
+  const reviewLocale = i18n.language?.startsWith('en') ? 'en-US' : 'vi-VN';
   const submissionId = submission?.id ?? '';
 
   const { data: detailResponse } = useQuery({
@@ -212,7 +212,15 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
     effectiveSubmission.code || effectiveSubmission.id.slice(0, 8).toUpperCase();
   const registrationDateLabel = getRegistrationDateLabel(effectiveSubmission);
   const approverName = getApproverName(effectiveSubmission);
-  const approvedAtLabel = formatDateTime(effectiveSubmission.approved_at) || 'Chưa có dữ liệu';
+  const approvedAtLabel =
+    formatGuideReviewDateTime(
+      effectiveSubmission.reviewed_at ?? effectiveSubmission.approved_at,
+    ) || 'Chưa có dữ liệu';
+  const localizedApprovedAtLabel =
+    formatGuideReviewDateTime(
+      effectiveSubmission.reviewed_at ?? effectiveSubmission.approved_at,
+      reviewLocale,
+    ) || t('common.noData');
   const sortedShifts = [...(effectiveSubmission.shifts ?? [])].sort((a, b) =>
     a.day_of_week === b.day_of_week
       ? a.start_time.localeCompare(b.start_time)
@@ -303,35 +311,76 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
             {(effectiveSubmission.change_reason ||
               effectiveSubmission.rejection_reason ||
               approverName ||
+              effectiveSubmission.reviewed_at ||
               effectiveSubmission.approved_at) && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>{t('reviewTracking.detailsTitle')}</Text>
+
+                {approverName ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{t('reviewTracking.reviewer')}:</Text>
+                    <Text style={styles.detailValue}>{approverName}</Text>
+                  </View>
+                ) : null}
+
+                {effectiveSubmission?.reviewed_at || effectiveSubmission?.approved_at ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{t('reviewTracking.reviewedAt')}:</Text>
+                    <Text style={styles.detailValue}>{localizedApprovedAtLabel}</Text>
+                  </View>
+                ) : null}
+
+                {effectiveSubmission?.change_reason ? (
+                  <View style={styles.noteBox}>
+                    <Text style={styles.noteTitle}>{t('reviewTracking.changeNote')}:</Text>
+                    <Text style={styles.noteContent}>{effectiveSubmission?.change_reason}</Text>
+                  </View>
+                ) : null}
+
+                {effectiveSubmission?.rejection_reason ? (
+                  <View style={[styles.noteBox, styles.errorBox]}>
+                    <Text style={[styles.noteTitle, styles.errorTitle]}>
+                      {t('reviewTracking.rejectionReason')}:
+                    </Text>
+                    <Text style={styles.noteContent}>{effectiveSubmission?.rejection_reason}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
+
+            {false && (effectiveSubmission?.change_reason ||
+              effectiveSubmission?.rejection_reason ||
+              approverName ||
+              effectiveSubmission?.reviewed_at ||
+              effectiveSubmission?.approved_at) && (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Chi tiết xét duyệt</Text>
 
                 {approverName ? (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Người duyệt:</Text>
+                    <Text style={styles.detailLabel}>Người kiểm duyệt:</Text>
                     <Text style={styles.detailValue}>{approverName}</Text>
                   </View>
                 ) : null}
 
-                {effectiveSubmission.approved_at ? (
+                {effectiveSubmission?.reviewed_at || effectiveSubmission?.approved_at ? (
                   <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Thời gian:</Text>
+                    <Text style={styles.detailLabel}>Thời gian xử lý:</Text>
                     <Text style={styles.detailValue}>{approvedAtLabel}</Text>
                   </View>
                 ) : null}
 
-                {effectiveSubmission.change_reason ? (
+                {effectiveSubmission?.change_reason ? (
                   <View style={styles.noteBox}>
                     <Text style={styles.noteTitle}>Ghi chú thay đổi:</Text>
-                    <Text style={styles.noteContent}>{effectiveSubmission.change_reason}</Text>
+                    <Text style={styles.noteContent}>{effectiveSubmission?.change_reason}</Text>
                   </View>
                 ) : null}
 
-                {effectiveSubmission.rejection_reason ? (
+                {effectiveSubmission?.rejection_reason ? (
                   <View style={[styles.noteBox, styles.errorBox]}>
                     <Text style={[styles.noteTitle, styles.errorTitle]}>Lý do từ chối:</Text>
-                    <Text style={styles.noteContent}>{effectiveSubmission.rejection_reason}</Text>
+                    <Text style={styles.noteContent}>{effectiveSubmission?.rejection_reason}</Text>
                   </View>
                 ) : null}
               </View>

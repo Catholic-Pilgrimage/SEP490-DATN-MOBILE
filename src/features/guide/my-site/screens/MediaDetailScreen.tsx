@@ -60,6 +60,7 @@ import {
 import { MediaLightbox } from "../components/MediaLightbox";
 import { Model3dFullscreenModal } from "../components/Model3dFullscreenModal";
 import { ModelViewerWebView } from "../components/ModelViewerWebView";
+import ReviewTrackingInfo from "../../components/ReviewTrackingInfo";
 import { SiteModels3dEntryButton } from "../components/SiteModels3dEntryButton";
 import { StatusBadge } from "../components/StatusBadge";
 import { YoutubeEmbedWebView } from "../components/YoutubeEmbedWebView";
@@ -667,6 +668,13 @@ export const MediaDetailScreen: React.FC = () => {
                   </Text>
                 </View>
               )}
+
+            <ReviewTrackingInfo
+              reviewer={displayMedia.mediaReviewer}
+              reviewedBy={displayMedia.reviewed_by}
+              reviewedAt={displayMedia.reviewed_at}
+              showEmail
+            />
 
             {/* Caption Section */}
             <View style={styles.captionSection}>

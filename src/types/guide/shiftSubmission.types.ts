@@ -3,6 +3,8 @@
  * Type definitions for Local Guide Shift Submission feature
  */
 
+import type { GuideReviewerInfo } from "./review-tracking.types";
+
 // ============================================
 // ENUMS / UNION TYPES
 // ============================================
@@ -24,11 +26,7 @@ export interface Shift {
     created_at: string;
 }
 
-export interface ShiftSubmissionApprover {
-    id: string;
-    full_name: string;
-    email?: string | null;
-}
+export interface ShiftSubmissionApprover extends GuideReviewerInfo {}
 
 export interface ShiftSubmission {
     id: string;
@@ -42,6 +40,9 @@ export interface ShiftSubmission {
     status: ShiftSubmissionStatus;
     total_shifts: number;
     rejection_reason: string | null;
+    reviewed_by?: string | null;
+    reviewed_at?: string | null;
+    reviewer?: ShiftSubmissionApprover | null;
     approved_by: string | null;
     approved_at: string | null;
     is_active: boolean;

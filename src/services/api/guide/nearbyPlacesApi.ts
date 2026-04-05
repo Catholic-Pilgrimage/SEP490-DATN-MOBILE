@@ -11,6 +11,7 @@
 
 import { ApiResponse } from "../../../types/api.types";
 import { NearbyPlaceCategory } from "../../../types/common.types";
+import type { GuideReviewerInfo } from "../../../types/guide/review-tracking.types";
 import apiClient from "../apiClient";
 import { GUIDE_ENDPOINTS } from "../endpoints";
 
@@ -35,6 +36,7 @@ export interface GuideNearbyPlace {
   rejection_reason?: string;
   reviewed_by?: string;
   reviewed_at?: string;
+  reviewer?: GuideReviewerInfo | null;
   created_at: string;
 }
 

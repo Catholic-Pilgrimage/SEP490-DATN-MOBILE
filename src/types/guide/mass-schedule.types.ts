@@ -10,6 +10,8 @@
  * - PATCH  /api/local-guide/schedules/:id/restore - Restore schedule
  */
 
+import type { GuideReviewerInfo } from "./review-tracking.types";
+
 // ============================================
 // ENUMS / UNION TYPES
 // ============================================
@@ -48,6 +50,9 @@ export interface MassSchedule {
   note: string | null;             // Optional note (max 500 chars)
   status: MassScheduleStatus;
   rejection_reason: string | null; // Reason if rejected
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  scheduleReviewer?: GuideReviewerInfo | null;
   is_active: boolean;              // Soft delete flag
   created_by: string;              // User ID who created
   created_at: string;              // ISO DateTime

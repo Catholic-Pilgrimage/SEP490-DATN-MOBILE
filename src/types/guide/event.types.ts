@@ -9,6 +9,8 @@
  * - DELETE /api/local-guide/events/:id    - Delete event (soft)
  */
 
+import type { GuideReviewerInfo } from "./review-tracking.types";
+
 // ============================================
 // ENUMS / UNION TYPES
 // ============================================
@@ -41,6 +43,9 @@ export interface EventItem {
   banner_url: string | null;
   status: EventStatus;
   rejection_reason: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  eventReviewer?: GuideReviewerInfo | null;
   is_active: boolean;
   created_by: string;
   created_at: string;

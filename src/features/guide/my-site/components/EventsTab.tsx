@@ -325,6 +325,7 @@ const EventCard: React.FC<EventCardProps> = React.memo(
                 </Text>
               </View>
             )}
+
           </View>
 
           {/* Thumbnail Column with Container */}

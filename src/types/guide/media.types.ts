@@ -3,6 +3,8 @@
  * Type definitions for Local Guide Media feature
  */
 
+import type { GuideReviewerInfo } from "./review-tracking.types";
+
 // ============================================
 // ENUMS / UNION TYPES
 // ============================================
@@ -48,6 +50,9 @@ export interface MediaItem {
   caption: string;
   status: MediaStatus;
   rejection_reason: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  mediaReviewer?: GuideReviewerInfo | null;
   is_active: boolean;
   created_by: string;
   created_at: string;
@@ -58,6 +63,9 @@ export interface MediaItem {
   audio_url?: string | null;
   narrative_status?: MediaNarrativeStatus | null;
   narrative_rejection_reason?: string | null;
+  narrative_reviewed_by?: string | null;
+  narrative_reviewed_at?: string | null;
+  narrativeReviewer?: GuideReviewerInfo | null;
 }
 
 /**

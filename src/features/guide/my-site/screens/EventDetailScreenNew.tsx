@@ -42,6 +42,7 @@ import {
 import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import { AISparkles } from "../../../../components/ui/AISparkles";
+import ReviewTrackingInfo from "../../components/ReviewTrackingInfo";
 import { GUIDE_COLORS } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
@@ -1446,6 +1447,13 @@ export const EventDetailScreen: React.FC = () => {
           </View>
         </View>
       )}
+
+      <ReviewTrackingInfo
+        reviewer={passedEvent?.eventReviewer}
+        reviewedBy={passedEvent?.reviewed_by}
+        reviewedAt={passedEvent?.reviewed_at}
+        showEmail
+      />
 
       {/* Banner Image */}
       <View style={styles.bannerSection}>

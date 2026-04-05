@@ -33,6 +33,9 @@ export * from "./schedule.types";
 // Interaction types (messages, reviews)
 export * from "./interaction.types";
 
+// Review tracking types (reviewed_by, reviewed_at, reviewer)
+export * from "./review-tracking.types";
+
 // News types
 export * from "./news.types";
 
