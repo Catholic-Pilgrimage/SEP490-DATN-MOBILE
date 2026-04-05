@@ -16,6 +16,7 @@ import {
   GetJournalsResponse,
   JournalEntry,
 } from "../../../types/pilgrim";
+import { getAudioUploadMeta } from "../../../utils/audioUpload";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
 
@@ -81,11 +82,11 @@ export const createJournal = async (
   }
 
   if (data.audio) {
-    const fileType = data.audio.split('.').pop() || 'm4a';
+    const { extension, mimeType } = getAudioUploadMeta(data.audio);
     formData.append("audio", {
       uri: Platform.OS === 'ios' ? data.audio.replace('file://', '') : data.audio,
-      type: `audio/${fileType}`,
-      name: `audio.${fileType}`,
+      type: mimeType,
+      name: `audio.${extension}`,
     } as any);
   }
 
@@ -144,11 +145,11 @@ export const updateJournal = async (
   }
 
   if (data.audio) {
-    const fileType = data.audio.split('.').pop() || 'm4a';
+    const { extension, mimeType } = getAudioUploadMeta(data.audio);
     formData.append("audio", {
       uri: Platform.OS === 'ios' ? data.audio.replace('file://', '') : data.audio,
-      type: `audio/${fileType}`,
-      name: `audio.${fileType}`,
+      type: mimeType,
+      name: `audio.${extension}`,
     } as any);
   }
 

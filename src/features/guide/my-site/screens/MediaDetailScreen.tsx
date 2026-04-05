@@ -115,7 +115,7 @@ const LocalVideoPlayer = ({ url, style }: { url: string; style: any }) => {
     <VideoView
       style={style}
       player={player}
-      allowsFullscreen={false}
+      fullscreenOptions={{ enable: false }}
       allowsPictureInPicture
       contentFit="contain"
     />

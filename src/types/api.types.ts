@@ -40,6 +40,7 @@ export interface PaginatedResponse<T> {
   message: string;
   data?: {
     items: T[];
+    posts?: T[];
     pagination: Pagination;
   };
   error?: ApiError;

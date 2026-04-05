@@ -24,8 +24,16 @@ import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useDeletePost, useLikePost, usePosts } from '../../../../hooks/usePosts';
-import { pilgrimSiteApi } from '../../../../services/api/pilgrim';
+import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
+import {
+    getFeedPostLocationName,
+    getFeedPostPlannerId,
+    getFeedPostPlannerItemIds,
+    getFeedPostPlannerLocationName,
+    getFeedPostSiteId,
+} from '../../../../utils/feedPostLocation';
+import { resolveJournalLocationName } from '../../../../utils/journalLocation';
 import { CreatePostBar } from '../components/CreatePostBar';
 import PostActionSheet from '../components/PostActionSheet';
 import ReportPostModal from '../components/ReportPostModal';
@@ -206,9 +214,14 @@ const FeedItemHeader = ({
                         <Text style={styles.initialAvatarText}>{user.name.charAt(0).toUpperCase()}</Text>
                     </View>
                 )}
-                <View>
+                <View style={styles.userMeta}>
                     <View style={styles.userNameRow}>
-                        <Text style={[styles.userName, isHighlightedGuide && styles.userNameGuide]}>{user.name}</Text>
+                        <Text
+                            style={[styles.userName, isHighlightedGuide && styles.userNameGuide]}
+                            numberOfLines={1}
+                        >
+                            {user.name}
+                        </Text>
                         {isHighlightedGuide ? (
                             <View style={styles.guideBadge}>
                                 <MaterialIcons name="verified" size={12} color={COLORS.white} />
@@ -223,11 +236,8 @@ const FeedItemHeader = ({
                         {location ? (
                             <View style={styles.locationRow}>
                                 <MaterialIcons name="location-on" size={14} color={COLORS.danger} />
-                                <Text style={styles.locationText}>
-                                    {t('community.locatedAt', { defaultValue: 'At' })}{' '}
-                                    <Text style={styles.locationName}>
-                                        {location}
-                                    </Text>
+                                <Text style={styles.locationText} numberOfLines={1} ellipsizeMode="tail">
+                                    {location}
                                 </Text>
                             </View>
                         ) : null}
@@ -300,13 +310,13 @@ const FeedItemComponent = ({
     onPress,
     onCommentPress,
     onMorePress,
-    siteName,
+    fallbackLocationName,
 }: {
     item: FeedPost;
     onPress: () => void;
     onCommentPress?: () => void;
     onMorePress?: (post: FeedPost) => void;
-    siteName?: string;
+    fallbackLocationName?: string;
 }) => {
     const { t } = useTranslation();
     const { user: currentUser } = useAuth();
@@ -317,13 +327,13 @@ const FeedItemComponent = ({
         name: item.author.full_name || t('community.anonymousUser', { defaultValue: 'Anonymous user' }),
         avatar: item.author.avatar_url,
     };
-    const postLocation = item.site?.name || siteName;
+    const postLocation = getFeedPostLocationName(item, fallbackLocationName);
 
     if (item.image_urls && item.image_urls.length > 0) {
         return (
             <TouchableOpacity activeOpacity={0.8} onPress={onPress}>
                 <FeedCard>
-                    <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}> 
+                    <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}>
                         <FeedItemHeader
                             user={postAuthor}
                             time={item.created_at}
@@ -343,7 +353,7 @@ const FeedItemComponent = ({
                         <Image source={{ uri: item.image_urls[0] }} style={styles.feedImage} />
                     </View>
 
-                    <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}> 
+                    <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}>
                         <FeedItemActions
                             stats={{ prayers: item.likes_count, comments: displayCommentsCount }}
                             postId={item.id}
@@ -392,7 +402,12 @@ export default function CommunityScreen() {
     const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
     const [reportPostId, setReportPostId] = useState<string | null>(null);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
+    const [journalLocationNamesById, setJournalLocationNamesById] = useState<Record<string, string>>({});
+    const [plannerNamesById, setPlannerNamesById] = useState<Record<string, string>>({});
+    const [plannerItemSiteNamesById, setPlannerItemSiteNamesById] = useState<Record<string, string>>({});
+    const requestedJournalIdsRef = useRef<Set<string>>(new Set());
     const requestedSiteIdsRef = useRef<Set<string>>(new Set());
+    const requestedPlannerIdsRef = useRef<Set<string>>(new Set());
 
     const dateString = new Date().toLocaleDateString(getDateLocale(i18n.language), {
         weekday: 'long',
@@ -454,7 +469,9 @@ export default function CommunityScreen() {
         const missingSiteIds = Array.from(
             new Set(
                 posts
-                    .map((post) => post.site?.name ? null : post.site_id)
+                    .map((post) =>
+                        getFeedPostLocationName(post) ? null : getFeedPostSiteId(post),
+                    )
                     .filter((siteId): siteId is string =>
                         Boolean(
                             siteId &&
@@ -518,6 +535,197 @@ export default function CommunityScreen() {
             cancelled = true;
         };
     }, [posts, siteNamesById]);
+
+    useEffect(() => {
+        const missingPlannerIds = Array.from(
+            new Set(
+                posts
+                    .map((post) => {
+                        const plannerId = getFeedPostPlannerId(post);
+                        const plannerItemIds = getFeedPostPlannerItemIds(post);
+                        const siteId = getFeedPostSiteId(post);
+                        const hasResolvedLocation = Boolean(getFeedPostLocationName(post));
+                        const hasResolvedSiteLookup = Boolean(siteId && siteNamesById[siteId]);
+                        const needsPlannerName =
+                            plannerId && !plannerNamesById[plannerId];
+                        const needsPlannerSites =
+                            plannerId &&
+                            plannerItemIds.length > 0 &&
+                            plannerItemIds.some((itemId) => !plannerItemSiteNamesById[itemId]);
+
+                        if (
+                            hasResolvedLocation ||
+                            hasResolvedSiteLookup ||
+                            !plannerId ||
+                            (!needsPlannerName && !needsPlannerSites)
+                        ) {
+                            return null;
+                        }
+
+                        return requestedPlannerIdsRef.current.has(plannerId)
+                            ? null
+                            : plannerId;
+                    })
+                    .filter((plannerId): plannerId is string => Boolean(plannerId)),
+            ),
+        );
+
+        if (!missingPlannerIds.length) {
+            return;
+        }
+
+        missingPlannerIds.forEach((plannerId) => requestedPlannerIdsRef.current.add(plannerId));
+
+        let cancelled = false;
+
+        (async () => {
+            const results = await Promise.all(
+                missingPlannerIds.map(async (plannerId) => {
+                    try {
+                        const response = await pilgrimPlannerApi.getPlanDetail(plannerId);
+                        const planner = response.data;
+                        const items = planner?.items || Object.values(planner?.items_by_day || {}).flat();
+
+                        return {
+                            plannerId,
+                            plannerName: planner?.name || null,
+                            itemSiteNames: Object.fromEntries(
+                                (items as any[])
+                                    .filter((item) => item?.id && item.site?.name)
+                                    .map((item) => [item.id, item.site.name]),
+                            ) as Record<string, string>,
+                        };
+                    } catch {
+                        return {
+                            plannerId,
+                            plannerName: null,
+                            itemSiteNames: {},
+                        };
+                    }
+                }),
+            );
+
+            if (cancelled) {
+                return;
+            }
+
+            const nextPlannerNames: Record<string, string> = {};
+            const nextPlannerItemSiteNames: Record<string, string> = {};
+
+            results.forEach(({ plannerId, plannerName, itemSiteNames }) => {
+                if (plannerName) {
+                    nextPlannerNames[plannerId] = plannerName;
+                }
+
+                Object.assign(nextPlannerItemSiteNames, itemSiteNames);
+
+                if (!plannerName && Object.keys(itemSiteNames).length === 0) {
+                    requestedPlannerIdsRef.current.delete(plannerId);
+                }
+            });
+
+            if (Object.keys(nextPlannerNames).length > 0) {
+                setPlannerNamesById((prev) => ({
+                    ...prev,
+                    ...nextPlannerNames,
+                }));
+            }
+
+            if (Object.keys(nextPlannerItemSiteNames).length > 0) {
+                setPlannerItemSiteNamesById((prev) => ({
+                    ...prev,
+                    ...nextPlannerItemSiteNames,
+                }));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [plannerItemSiteNamesById, plannerNamesById, posts, siteNamesById]);
+
+    useEffect(() => {
+        const missingJournalIds = Array.from(
+            new Set(
+                posts
+                    .map((post) => {
+                        const siteId = getFeedPostSiteId(post);
+                        const plannerLocationName = getFeedPostPlannerLocationName(post, plannerItemSiteNamesById);
+                        const plannerId = getFeedPostPlannerId(post);
+                        const fallbackLocationName =
+                            getFeedPostLocationName(post) ||
+                            (siteId ? siteNamesById[siteId] : undefined) ||
+                            plannerLocationName ||
+                            (plannerId ? plannerNamesById[plannerId] : undefined);
+
+                        if (
+                            fallbackLocationName ||
+                            !post.journal_id ||
+                            journalLocationNamesById[post.journal_id] ||
+                            requestedJournalIdsRef.current.has(post.journal_id)
+                        ) {
+                            return null;
+                        }
+
+                        return post.journal_id;
+                    })
+                    .filter((journalId): journalId is string => Boolean(journalId)),
+            ),
+        );
+
+        if (!missingJournalIds.length) {
+            return;
+        }
+
+        missingJournalIds.forEach((journalId) => requestedJournalIdsRef.current.add(journalId));
+
+        let cancelled = false;
+
+        (async () => {
+            const results = await Promise.all(
+                missingJournalIds.map(async (journalId) => {
+                    try {
+                        const response = await pilgrimJournalApi.getJournalDetail(journalId);
+                        return {
+                            journalId,
+                            locationName: await resolveJournalLocationName(response.data),
+                        };
+                    } catch {
+                        return {
+                            journalId,
+                            locationName: undefined,
+                        };
+                    }
+                }),
+            );
+
+            if (cancelled) {
+                return;
+            }
+
+            const nextJournalLocations: Record<string, string> = {};
+
+            results.forEach(({ journalId, locationName }) => {
+                if (locationName) {
+                    nextJournalLocations[journalId] = locationName;
+                    return;
+                }
+
+                requestedJournalIdsRef.current.delete(journalId);
+            });
+
+            if (Object.keys(nextJournalLocations).length > 0) {
+                setJournalLocationNamesById((prev) => ({
+                    ...prev,
+                    ...nextJournalLocations,
+                }));
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [journalLocationNamesById, plannerItemSiteNamesById, plannerNamesById, posts, siteNamesById]);
 
     const handleEditPost = React.useCallback(() => {
         if (!activePostAction) return;
@@ -583,15 +791,26 @@ export default function CommunityScreen() {
         setActivePostAction(null);
     }, [activePostAction]);
 
-    const renderItem = ({ item }: { item: FeedPost }) => (
-        <FeedItemComponent
-            item={item}
-            onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-            onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
-            onMorePress={setActivePostAction}
-            siteName={item.site_id ? siteNamesById[item.site_id] : undefined}
-        />
-    );
+    const renderItem = ({ item }: { item: FeedPost }) => {
+        const siteId = getFeedPostSiteId(item);
+        const plannerLocationName = getFeedPostPlannerLocationName(item, plannerItemSiteNamesById);
+        const plannerId = getFeedPostPlannerId(item);
+        const fallbackLocationName =
+            (siteId ? siteNamesById[siteId] : undefined) ||
+            plannerLocationName ||
+            (plannerId ? plannerNamesById[plannerId] : undefined) ||
+            (item.journal_id ? journalLocationNamesById[item.journal_id] : undefined);
+
+        return (
+            <FeedItemComponent
+                item={item}
+                onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
+                onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
+                onMorePress={setActivePostAction}
+                fallbackLocationName={fallbackLocationName}
+            />
+        );
+    };
 
     return (
         <ImageBackground
@@ -610,7 +829,7 @@ export default function CommunityScreen() {
                 style={StyleSheet.absoluteFillObject}
             />
 
-            <View style={[styles.headerContainer, { paddingTop: insets.top }]}> 
+            <View style={[styles.headerContainer, { paddingTop: insets.top }]}>
                 <View style={styles.headerContent}>
                     <View>
                         <Text style={styles.headerDate}>{dateString}</Text>
@@ -878,12 +1097,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: SPACING.sm,
+        flex: 1,
+        minWidth: 0,
+    },
+    userMeta: {
+        flex: 1,
+        minWidth: 0,
     },
     userNameRow: {
         flexDirection: 'row',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: 8,
+        minWidth: 0,
     },
     avatar: {
         width: 40,
@@ -938,16 +1164,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 4,
+        minWidth: 0,
     },
     locationText: {
-        color: COLORS.textSecondary,
-        fontSize: 13,
-        fontWeight: '500',
-        marginLeft: 4,
-    },
-    locationName: {
-        fontWeight: '700',
+        flex: 1,
         color: COLORS.primary,
+        fontSize: 12,
+        fontWeight: '700',
+        marginLeft: 4,
+        minWidth: 0,
     },
     textBody: {
         marginBottom: SPACING.md,
