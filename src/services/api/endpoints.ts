@@ -103,6 +103,7 @@ export const PILGRIM_ENDPOINTS = {
       `${API_BASE}/planners/${id}/members/${memberId}`,
     PARTICIPANTS: (id: string) => `${API_BASE}/planners/${id}/participants`,
     ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
+    CLEAR_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items`,
     DELETE_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}`,
     UPDATE_ITEM: (planId: string, itemId: string) =>

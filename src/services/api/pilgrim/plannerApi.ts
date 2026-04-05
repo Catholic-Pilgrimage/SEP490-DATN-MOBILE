@@ -332,6 +332,15 @@ export const updatePlanItem = async (
   return response.data;
 };
 
+export const clearPlanItems = async (
+  planId: string,
+): Promise<ApiResponse<void>> => {
+  const response = await apiClient.delete<ApiResponse<void>>(
+    PILGRIM_ENDPOINTS.PLANNER.CLEAR_ITEMS(planId),
+  );
+  return response.data;
+};
+
 export const deletePlanItem = async (
   planId: string,
   itemId: string,
@@ -548,6 +557,7 @@ const pilgrimPlannerApi = {
   getPlanMembers,
   removePlanMember,
   addPlanItem,
+  clearPlanItems,
   updatePlanItem,
   reorderPlannerItems,
   deletePlanItem,
