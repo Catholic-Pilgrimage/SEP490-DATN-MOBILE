@@ -24,6 +24,7 @@ import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useDeletePost, useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
 import {
@@ -397,6 +398,7 @@ export default function CommunityScreen() {
     const insets = useSafeAreaInsets();
     const { t, i18n } = useTranslation();
     const { user, isAuthenticated, isGuest, exitGuestMode } = useAuth();
+    const { confirm } = useConfirm();
     const isGuideViewer = user?.role === 'local_guide';
     const requiresLogin = !isAuthenticated || isGuest;
     const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
@@ -738,52 +740,46 @@ export default function CommunityScreen() {
         });
     }, [activePostAction, navigation]);
 
-    const handleDeletePost = React.useCallback(() => {
+    const handleDeletePost = React.useCallback(async () => {
         if (!activePostAction) return;
 
         const targetPost = activePostAction;
         setActivePostAction(null);
 
-        Alert.alert(
-            t('postDetail.deletePost', { defaultValue: 'Delete post' }),
-            t('postDetail.deletePostMessage', {
+        const confirmed = await confirm({
+            title: t('postDetail.deletePost', { defaultValue: 'Delete post' }),
+            message: t('postDetail.deletePostMessage', {
                 defaultValue: 'Are you sure you want to delete this post?',
             }),
-            [
-                {
-                    text: t('common.cancel', { defaultValue: 'Cancel' }),
-                    style: 'cancel',
+            confirmText: t('common.delete', { defaultValue: 'Delete' }),
+            cancelText: t('common.cancel', { defaultValue: 'Cancel' }),
+            type: 'danger',
+        });
+
+        if (confirmed) {
+            deletePostMutation.mutate(targetPost.id, {
+                onSuccess: () => {
+                    Toast.show({
+                        type: 'success',
+                        text1: t('common.success', { defaultValue: 'Success' }),
+                        text2: t('postDetail.deletePostSuccess', {
+                            defaultValue: 'Post deleted.',
+                        }),
+                    });
                 },
-                {
-                    text: t('common.delete', { defaultValue: 'Delete' }),
-                    style: 'destructive',
-                    onPress: () => {
-                        deletePostMutation.mutate(targetPost.id, {
-                            onSuccess: () => {
-                                Toast.show({
-                                    type: 'success',
-                                    text1: t('common.success', { defaultValue: 'Success' }),
-                                    text2: t('postDetail.deletePostSuccess', {
-                                        defaultValue: 'Post deleted.',
-                                    }),
-                                });
-                            },
-                            onError: (error: any) => {
-                                Toast.show({
-                                    type: 'error',
-                                    text1: t('common.error', { defaultValue: 'Error' }),
-                                    text2:
-                                        t('postDetail.deletePostError', {
-                                            defaultValue: 'Unable to delete post.',
-                                        }) + (error?.message ? ` ${error.message}` : ''),
-                                });
-                            },
-                        });
-                    },
+                onError: (error: any) => {
+                    Toast.show({
+                        type: 'error',
+                        text1: t('common.error', { defaultValue: 'Error' }),
+                        text2:
+                            t('postDetail.deletePostError', {
+                                defaultValue: 'Unable to delete post.',
+                            }) + (error?.message ? ` ${error.message}` : ''),
+                    });
                 },
-            ],
-        );
-    }, [activePostAction, deletePostMutation, t]);
+            });
+        }
+    }, [activePostAction, confirm, deletePostMutation, t]);
 
     const handleReportPost = React.useCallback(() => {
         if (!activePostAction) return;
@@ -844,7 +840,7 @@ export default function CommunityScreen() {
                             <View style={[styles.profileImage, styles.initialAvatar]}>
                                 <Text style={styles.initialAvatarText}>
                                     {(() => {
-                                        const name = user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Pilgrim' });
+                                        const name = user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Người hành hương' });
                                         const parts = name.trim().split(' ');
                                         if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
                                         return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
@@ -889,7 +885,7 @@ export default function CommunityScreen() {
                             <View style={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.md }}>
                                 <CreatePostBar
                                     avatar={user?.avatar}
-                                    name={user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Pilgrim' })}
+                                    name={user?.fullName || t('profile.defaultPilgrim', { defaultValue: 'Người hành hương' })}
                                     onPress={() => {
                                         navigation.navigate('CreatePost');
                                     }}

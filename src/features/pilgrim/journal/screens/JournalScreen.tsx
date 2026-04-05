@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useConfirm } from '../../../../hooks/useConfirm';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
@@ -80,6 +81,7 @@ export const JournalScreen = () => {
     const insets = useSafeAreaInsets();
     const { isGuest, exitGuestMode, user } = useAuth();
     const { t } = useTranslation();
+    const { confirm: showConfirm } = useConfirm();
     const [journals, setJournals] = useState<JournalEntry[]>([]);
     const [loading, setLoading] = useState(!isGuest);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
@@ -94,7 +96,7 @@ export const JournalScreen = () => {
     const fetchJournals = async () => {
         try {
             setLoading(true);
-            const response = await pilgrimJournalApi.getMyJournals();
+            const response = await pilgrimJournalApi.getMyJournals({ is_active: 'all' } as any);
             if (response.data && response.data.journals) {
                 setJournals(response.data.journals);
             }
@@ -102,6 +104,29 @@ export const JournalScreen = () => {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRestore = async (id: string) => {
+        try {
+            await pilgrimJournalApi.restoreJournal(id);
+            await showConfirm({
+                type: 'success',
+                title: t('common.success'),
+                message: t('journal.restoreSuccess'),
+                showCancel: false,
+            });
+            // Refresh after restore
+            await fetchJournals();
+        } catch (error: any) {
+            console.error('Restore failed:', error);
+            const errorMsg = error?.response?.data?.error?.message || error?.message || t('journal.restoreError');
+            await showConfirm({
+                type: 'danger',
+                title: t('journal.restoreErrorTitle'),
+                message: errorMsg,
+                showCancel: false,
+            });
         }
     };
 
@@ -194,6 +219,7 @@ export const JournalScreen = () => {
 
     const renderItem = ({ item }: { item: JournalEntry }) => {
         const isPrivate = item.privacy === 'private';
+        const isInactive = (item as any).is_active === false;
         const images = normalizeImageUrls(item.image_url);
         const plannerItemIds = getJournalPlannerItemIds(item);
 
@@ -206,18 +232,26 @@ export const JournalScreen = () => {
         const resolvedPlannerName = item.planner?.name || (item.planner_id ? plannerNamesById[item.planner_id] : undefined);
         const locationLabel = resolvedSiteName || resolvedPlannerName || null;
 
-        const authorName = item.author?.full_name || user?.fullName || 'Pilgrim';
+        const authorName = item.author?.full_name || user?.fullName || t('journal.pilgrimRole');
         const avatarUrl = item.author?.avatar_url || user?.avatar;
 
         return (
             <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}
-                style={[styles.card, isPrivate && styles.cardPrivate]}
+                activeOpacity={isInactive ? 1 : 0.9}
+                onPress={() => !isInactive && navigation.navigate('JournalDetailScreen', { journalId: item.id })}
+                style={[styles.card, isPrivate && styles.cardPrivate, isInactive && styles.cardInactive]}
             >
                 {isPrivate && (
                     <View style={styles.privateDecor}>
                         <MaterialIcons name="lock" size={180} color="rgba(0,0,0,0.02)" />
+                    </View>
+                )}
+
+                {/* Inactive banner */}
+                {isInactive && (
+                    <View style={styles.inactiveBanner}>
+                        <MaterialIcons name="delete-outline" size={14} color="#fff" />
+                        <Text style={styles.inactiveBannerText}>{t('journal.deleted')}</Text>
                     </View>
                 )}
 
@@ -245,24 +279,35 @@ export const JournalScreen = () => {
                             </View>
                         )}
                         <Text style={styles.dateText}>
-                            {new Date(item.created_at).toLocaleDateString('vi-VN')}
+                            {new Date(item.created_at).toLocaleDateString(t('common.locale', { defaultValue: 'vi-VN' }))}
                         </Text>
                     </View>
                 </View>
 
                 {/* Content */}
                 <View style={styles.contentContainer}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardBody} numberOfLines={3}>
+                    <Text style={[styles.cardTitle, isInactive && styles.textFaded]}>{item.title}</Text>
+                    <Text style={[styles.cardBody, isInactive && styles.textFaded]} numberOfLines={3}>
                         {item.content}
                     </Text>
                 </View>
 
                 {/* Images Grid */}
-                {images.length > 0 && (
-                    <View style={styles.imageGrid}>
+                {(images.length > 0 || item.video_url) && (
+                    <View style={[styles.imageGrid, isInactive && { opacity: 0.4 }]}>
                         <View style={styles.mainImageContainer}>
-                            <Image source={{ uri: images[0] }} style={styles.mainImage} />
+                            {images.length > 0 ? (
+                                <Image source={{ uri: images[0] }} style={styles.mainImage} />
+                            ) : (
+                                <View style={[styles.mainImage, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                                    <MaterialIcons name="videocam" size={40} color={COLORS.accent} />
+                                </View>
+                            )}
+                            {item.video_url && (
+                                <View style={styles.videoOverlay}>
+                                    <MaterialIcons name="play-circle-filled" size={40} color="rgba(255,255,255,0.9)" />
+                                </View>
+                            )}
                         </View>
                         {images.length > 1 && (
                             <View style={styles.sideImagesContainer}>
@@ -276,23 +321,34 @@ export const JournalScreen = () => {
                     </View>
                 )}
 
-                {/* Footer Actions */}
-                {!isPrivate && (
-                    <View style={styles.cardFooter}>
-                        <View style={styles.socialActions}>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <MaterialIcons name="favorite-border" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>0</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>0</Text>
+                {/* Restore button for inactive */}
+                {isInactive ? (
+                    <TouchableOpacity
+                        style={styles.restoreButton}
+                        activeOpacity={0.8}
+                        onPress={() => handleRestore(item.id)}
+                    >
+                        <MaterialIcons name="restore" size={16} color="#fff" />
+                        <Text style={styles.restoreButtonText}>{t('journal.restore')}</Text>
+                    </TouchableOpacity>
+                ) : (
+                    !isPrivate && (
+                        <View style={styles.cardFooter}>
+                            <View style={styles.socialActions}>
+                                <TouchableOpacity style={styles.actionButton}>
+                                    <MaterialIcons name="favorite-border" size={20} color={COLORS.textSecondary} />
+                                    <Text style={styles.actionText}>0</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionButton}>
+                                    <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
+                                    <Text style={styles.actionText}>0</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
+                                <Text style={styles.readMoreText}>{t('journal.readMore')}</Text>
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
-                            <Text style={styles.readMoreText}>Read More</Text>
-                        </TouchableOpacity>
-                    </View>
+                    )
                 )}
             </TouchableOpacity>
         );
@@ -316,10 +372,10 @@ export const JournalScreen = () => {
                     </View>
 
                     {/* Tagline - New addition to match Planner */}
-                    <Text style={styles.headerTagline}>HÀNH TRÌNH ĐỨC TIN</Text>
+                    <Text style={styles.headerTagline}>{t('journal.tagline')}</Text>
 
                     {/* Main Title */}
-                    <Text style={styles.headerTitle}>Nhật ký Tâm linh</Text>
+                    <Text style={styles.headerTitle}>{t('journal.screenTitle')}</Text>
 
                     {/* Yellow Line Decoration */}
                     <View style={styles.headerDecoration} />
@@ -343,7 +399,7 @@ export const JournalScreen = () => {
                     ListFooterComponent={<View style={{ height: 100 }} />}
                     ListEmptyComponent={
                         <View style={{ alignItems: 'center', marginTop: 50 }}>
-                            <Text style={{ color: COLORS.textSecondary }}>Chưa có nhật ký nào</Text>
+                            <Text style={{ color: COLORS.textSecondary }}>{t('journal.emptyList')}</Text>
                         </View>
                     }
                 />
@@ -363,7 +419,7 @@ export const JournalScreen = () => {
                         end={{ x: 1, y: 1 }}
                     >
                         <MaterialIcons name="edit" size={24} color={COLORS.white} />
-                        <Text style={styles.fabText}>Viết nhật ký</Text>
+                        <Text style={styles.fabText}>{t('journal.writeJournal')}</Text>
                     </LinearGradient>
                 </TouchableOpacity>
             )}
@@ -568,6 +624,15 @@ const styles = StyleSheet.create({
     },
     mainImageContainer: {
         flex: 1,
+        position: 'relative',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    videoOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     mainImage: {
         width: '100%',
@@ -682,5 +747,47 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         fontWeight: '700',
         fontSize: 16,
-    }
+    },
+    cardInactive: {
+        opacity: 0.6,
+        borderColor: 'rgba(200,50,50,0.15)',
+        borderWidth: 1,
+    },
+    inactiveBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#c0392b',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 12,
+    },
+    inactiveBannerText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    textFaded: {
+        color: COLORS.textTertiary,
+    },
+    restoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        backgroundColor: '#27ae60',
+        borderRadius: 20,
+    },
+    restoreButtonText: {
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: 14,
+    },
 });
