@@ -1435,7 +1435,12 @@
     "audioSaveSuccess": "Voice record saved. Press play button to listen.",
     "loadError": "Could not load journal details",
     "genericLocationName": "Location",
-    "genericPlanName": "Pilgrimage Plan"
+    "genericPlanName": "Pilgrimage Plan",
+    "addAudioSource": "Choose Audio Source",
+    "recordNow": "Record Now",
+    "recordNowDesc": "Use microphone to record directly",
+    "uploadAudioFile": "Upload Audio File",
+    "uploadAudioFileDesc": "Choose an existing audio file from your device"
   },
   "mediaPicker": {
     "title": "Choose Action",

@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +23,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MediaPickerModal } from '../../../../components/common/MediaPickerModal';
-import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
+import { AudioPickerModal } from '../../../../components/common/AudioPickerModal';
+import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useConfirm } from '../../../../hooks/useConfirm';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
@@ -73,6 +75,7 @@ export default function CreateJournalScreen() {
     const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
     const [selectedVideos, setSelectedVideos] = useState<ImagePicker.ImagePickerAsset[]>([]);
     const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
+    const [isAudioPickerVisible, setAudioPickerVisible] = useState(false);
     const [mediaType, setMediaType] = useState<'images' | 'videos'>('images');
 
     // Audio Recording State
@@ -346,7 +349,47 @@ export default function CreateJournalScreen() {
         }
     };
 
-    const handleRecordAudio = async () => {
+    const handleAddAudio = async () => {
+        if (isRecording) {
+            await handleStopRecording();
+            return;
+        }
+
+        setAudioPickerVisible(true);
+    };
+
+    const handlePickAudio = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: 'audio/*',
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets.length > 0) {
+                const asset = result.assets[0];
+                setRecordingUri(asset.uri);
+                setRecordingDuration(0); // Optional: we could try to get duration using expo-av
+                
+                await confirm({
+                    type: 'info',
+                    iconName: 'checkmark-circle-outline',
+                    title: t('common.success'),
+                    message: t('journal.audioSaveSuccess'),
+                    showCancel: false,
+                });
+            }
+        } catch (error) {
+            console.error('Failed to pick audio:', error);
+            await confirm({
+                type: 'danger',
+                title: t('journal.genericError'),
+                message: t('journal.audioStartError'),
+                showCancel: false,
+            });
+        }
+    };
+
+    const startRecording = async () => {
         try {
             console.log('Starting audio recording...');
             // Request permissions
@@ -434,7 +477,8 @@ export default function CreateJournalScreen() {
 
             if (uri) {
                 await confirm({
-                    type: 'success',
+                    type: 'info',
+                    iconName: 'checkmark-circle-outline',
                     title: t('common.success'),
                     message: t('journal.audioSaveSuccess'),
                     showCancel: false,
@@ -685,7 +729,8 @@ export default function CreateJournalScreen() {
                 }
 
                 await confirm({
-                    type: 'success',
+                    type: 'info',
+                    iconName: 'checkmark-circle-outline',
                     title: t('common.success'), 
                     message: t('journal.saveSuccessUpdate', {
                         shareMsg: privacy === 'public' ? t('journal.shareMsg') : '',
@@ -730,7 +775,8 @@ export default function CreateJournalScreen() {
                 }
 
                 await confirm({
-                    type: 'success',
+                    type: 'info',
+                    iconName: 'checkmark-circle-outline',
                     title: privacy === 'public' ? t('journal.postPublic') : t('journal.savePrivate'), 
                     message: t('journal.saveSuccessCreate', {
                         shareMsg: privacy === 'public' ? t('journal.shareMsg') : '',
@@ -914,7 +960,7 @@ export default function CreateJournalScreen() {
                         <View style={styles.toolbar}>
                             <TouchableOpacity 
                                 style={[styles.toolbarBtn, styles.micBtnMini]}
-                                onPress={handleRecordAudio}
+                                onPress={handleAddAudio}
                             >
                                 <MaterialIcons 
                                     name={isRecording ? "stop" : "mic"} 
@@ -1070,7 +1116,7 @@ export default function CreateJournalScreen() {
                         isRecording && styles.floatingMicBtnRecording
                     ]} 
                     activeOpacity={0.9}
-                    onPress={handleRecordAudio}
+                    onPress={handleAddAudio}
                 >
                     <MaterialIcons 
                         name={isRecording ? "stop" : "mic"} 
@@ -1080,7 +1126,6 @@ export default function CreateJournalScreen() {
                 </TouchableOpacity>
             </View>
 
-            {/* Media Picker Modal */}
             <MediaPickerModal
                 visible={isMediaPickerVisible}
                 onClose={() => setMediaPickerVisible(false)}
@@ -1089,6 +1134,13 @@ export default function CreateJournalScreen() {
                 allowsMultipleSelection={true}
                 selectionLimit={10}
                 title={t('journal.addMediaTitle')}
+            />
+
+            <AudioPickerModal
+                visible={isAudioPickerVisible}
+                onClose={() => setAudioPickerVisible(false)}
+                onRecordNow={startRecording}
+                onUploadFile={handlePickAudio}
             />
 
             {/* Fixed Footer */}

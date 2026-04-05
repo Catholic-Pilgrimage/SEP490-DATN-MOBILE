@@ -1530,7 +1530,12 @@
     "audioStartError": "Không thể bắt đầu ghi âm. Vui lòng thử lại.",
     "audioSaveSuccess": "Đã lưu ghi âm. Nhấn nút play để nghe lại.",
     "loadError": "Không thể tải thông tin nhật ký",
-    "genericLocationName": "Địa điểm"
+    "genericLocationName": "Địa điểm",
+    "addAudioSource": "Chọn nguồn âm thanh",
+    "recordNow": "Ghi âm ngay",
+    "recordNowDesc": "Sử dụng microphone để thu âm trực tiếp",
+    "uploadAudioFile": "Tải lên tệp âm thanh",
+    "uploadAudioFileDesc": "Chọn tệp âm thanh có sẵn từ thiết bị"
   },
   "mediaPicker": {
     "title": "Chọn thao tác",
