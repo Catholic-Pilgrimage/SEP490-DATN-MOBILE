@@ -63,12 +63,6 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
         Toast.show({
           type: 'success',
           text1: 'Đã gửi yêu cầu',
-          text2: 'Lời mời kết bạn đã được gửi đi', // Matching user's screenshot text (wait, user's screenshot says "Lời mời kết bạn đã được gửi đi" in a toast? That's weird for SOS, maybe they just want a success message)
-        });
-        // Correcting to SOS context based on common sense
-        Toast.show({
-          type: 'success',
-          text1: 'Đã gửi yêu cầu',
           text2: 'Ban quản lý đã nhận được thông tin cứu trợ của bạn.',
         });
         onClose();

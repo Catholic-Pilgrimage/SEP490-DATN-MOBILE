@@ -121,6 +121,11 @@ export default function MarkVisitedModal({
       setStats({ checked_in: checkedCount, missed: missedCount });
     } catch {
       setMembers([]);
+      Toast.show({
+        type: "error",
+        text1: "Không thể tải danh sách",
+        text2: "Không thể lấy thông tin check-in thành viên",
+      });
     } finally {
       setLoading(false);
     }
@@ -229,7 +234,11 @@ export default function MarkVisitedModal({
           return;
         }
       } catch {
-        // probably not all items done
+        Toast.show({
+          type: "info",
+          text1: "Chưa thể kết thúc hành trình",
+          text2: "Có thể còn điểm chưa xử lý. Vui lòng thử lại.",
+        });
       }
     }
     await refreshPlan();

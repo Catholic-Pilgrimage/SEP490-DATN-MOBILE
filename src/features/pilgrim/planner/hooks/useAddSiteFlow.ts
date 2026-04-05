@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import Toast from 'react-native-toast-message';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import vietmapService from '../../../../services/map/vietmapService';
 import type { SiteEvent } from '../../../../types/pilgrim';
@@ -317,8 +318,12 @@ export function useAddSiteFlow(params: {
           calculatingRoute: false,
           showTimeInputModal: true,
         }));
-      } catch (error) {
-        console.error('Add site flow failed:', error);
+      } catch (error: any) {
+        Toast.show({
+          type: 'error',
+          text1: 'Không thể tải thông tin địa điểm',
+          text2: error?.message || 'Vui lòng thử lại',
+        });
         if (flowId !== flowIdRef.current) return;
         setState(prev => ({
           ...prev,

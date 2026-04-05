@@ -652,6 +652,16 @@ class OfflinePlannerService {
     return updated ? mapOfflineDataToPlanEntity(updated) : null;
   }
 
+  async clearPlannerItems(plannerId: string): Promise<PlanEntity | null> {
+    const updated = await this.mutatePlannerData(plannerId, (draft) => {
+      draft.items = [];
+      draft.planner.total_days = 1;
+      draft.downloaded_at = new Date().toISOString();
+    });
+
+    return updated ? mapOfflineDataToPlanEntity(updated) : null;
+  }
+
   /**
    * Check if planner is available offline
    */

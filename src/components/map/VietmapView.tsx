@@ -13,6 +13,7 @@ import Mapbox, {
   RasterLayer,
   RasterSource,
   ShapeSource,
+  UserLocation,
 } from "@rnmapbox/maps";
 import React, {
   forwardRef,
@@ -88,6 +89,9 @@ export interface VietmapViewProps {
   
   tapRelocatesPin?: boolean;
 
+  /** Callback khi vị trí người dùng cập nhật (real-time tracking) */
+  onUserLocationUpdate?: (location: { latitude: number; longitude: number }) => void;
+
   /**
    * Route coordinates to draw as a polyline on the map.
    * Each entry is [longitude, latitude] (GeoJSON order).
@@ -107,6 +111,7 @@ export interface VietmapViewProps {
 
 export interface VietmapViewRef {
   flyTo: (latitude: number, longitude: number, zoom?: number) => void;
+  fitBounds: (ne: [number, number], sw: [number, number], padding?: number) => void;
   addPin: (pin: MapPin) => void;
   removePin: (pinId: string) => void;
   clearPins: () => void;
@@ -151,6 +156,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
       cardBottomOffset = 0,
       showInfoCards = true,
       tapRelocatesPin = false,
+      onUserLocationUpdate,
       routeCoordinates,
       routeSegments,
     },
@@ -320,6 +326,10 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
             cameraRef.current.flyTo([longitude, latitude], 600);
           }
         },
+        fitBounds: (ne: [number, number], sw: [number, number], padding = 80) => {
+          if (!cameraRef.current) return;
+          cameraRef.current.fitBounds(ne, sw, padding, 800);
+        },
         addPin: (pin: MapPin) => {
           setLocalPins((prev) => {
             const filtered = prev.filter((p) => p.id !== pin.id);
@@ -385,11 +395,27 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
           />
 
           {showUserLocation && (
-            <LocationPuck
-              puckBearingEnabled
-              puckBearing="heading"
-              pulsing={{ isEnabled: true, color: COLORS.info, radius: 50 }}
-            />
+            <>
+              <LocationPuck
+                puckBearingEnabled
+                puckBearing="heading"
+                pulsing={{ isEnabled: true, color: COLORS.info, radius: 50 }}
+              />
+              {onUserLocationUpdate && (
+                <UserLocation
+                  visible={false}
+                  onUpdate={(loc) => {
+                    if (loc?.coords) {
+                      onUserLocationUpdate({
+                        latitude: loc.coords.latitude,
+                        longitude: loc.coords.longitude,
+                      });
+                    }
+                  }}
+                  minDisplacement={50}
+                />
+              )}
+            </>
           )}
 
           {/* Route polyline rendering */}
@@ -410,9 +436,9 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                     <LineLayer
                       id={`route-line-bg-${idx}`}
                       style={{
-                        lineColor: '#000000',
-                        lineWidth: 7,
-                        lineOpacity: 0.15,
+                        lineColor: '#FFFFFF',
+                        lineWidth: 9,
+                        lineOpacity: 0.85,
                         lineJoin: 'round',
                         lineCap: 'round',
                       }}
@@ -421,7 +447,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                       id={`route-line-${idx}`}
                       style={{
                         lineColor: segColor,
-                        lineWidth: 4,
+                        lineWidth: 5,
                         lineJoin: 'round',
                         lineCap: 'round',
                       }}
@@ -465,38 +491,46 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                 })()
               : null}
 
-          {localPins.map((pin) => (
-            <PointAnnotation
-              key={pin.id}
-              id={pin.id}
-              coordinate={[pin.longitude, pin.latitude]}
-              anchor={{ x: 0.5, y: 0.5 }}
-              onSelected={() => {
-                if (tapRelocatesPin) {
-                  onMapPress?.({
-                    latitude: pin.latitude,
-                    longitude: pin.longitude,
-                  });
-                  return;
-                }
-                handleMarkerPress(pin);
-              }}
-            >
-              <View
-                style={[
-                  styles.markerContainer,
-                  { backgroundColor: pin.color || COLORS.accent },
-                  selectedPin?.id === pin.id && styles.markerContainerSelected,
-                ]}
+          {localPins.map((pin) => {
+            const isNumeric = pin.icon && /^\d+$/.test(pin.icon);
+            const isSelected = selectedPin?.id === pin.id;
+            return (
+              <PointAnnotation
+                key={pin.id}
+                id={pin.id}
+                coordinate={[pin.longitude, pin.latitude]}
+                anchor={{ x: 0.5, y: 0.5 }}
+                onSelected={() => {
+                  if (tapRelocatesPin) {
+                    onMapPress?.({
+                      latitude: pin.latitude,
+                      longitude: pin.longitude,
+                    });
+                    return;
+                  }
+                  handleMarkerPress(pin);
+                }}
               >
-                <PinGlyph
-                  color={COLORS.white}
-                  selected={selectedPin?.id === pin.id}
-                  size={selectedPin?.id === pin.id ? 30 : 28}
-                />
-              </View>
-            </PointAnnotation>
-          ))}
+                <View
+                  style={[
+                    styles.markerContainer,
+                    { backgroundColor: pin.color || COLORS.accent },
+                    isSelected && styles.markerContainerSelected,
+                  ]}
+                >
+                  {isNumeric ? (
+                    <Text style={styles.markerNumber}>{pin.icon}</Text>
+                  ) : (
+                    <PinGlyph
+                      color={COLORS.white}
+                      selected={isSelected}
+                      size={isSelected ? 30 : 28}
+                    />
+                  )}
+                </View>
+              </PointAnnotation>
+            );
+          })}
         </MapView>
 
         {showInfoCards && selectedPin && (
@@ -615,21 +649,30 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
   },
   markerContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: COLORS.white,
     ...SHADOWS.large,
   },
   markerContainerSelected: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     borderColor: COLORS.white,
     borderWidth: 3,
     ...SHADOWS.large,
     elevation: 8,
     shadowOpacity: 0.5,
+  },
+  markerNumber: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   pinCard: {
     position: "absolute",

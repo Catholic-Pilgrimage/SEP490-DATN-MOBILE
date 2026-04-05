@@ -90,6 +90,8 @@ export default function JourneyMembersPanel({
     } catch {
       setMembers([]);
       setProgressByUserId({});
+      // Silent for member panel — it's a non-critical auxiliary section.
+      // The empty state already shows "Chưa có dữ liệu thành viên."
     } finally {
       setLoading(false);
     }

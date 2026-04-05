@@ -324,7 +324,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
           <TouchableOpacity
             style={styles.toolbarBtn}
-            onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id })}
+            onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id, itemsByDay: plan.items_by_day })}
             activeOpacity={0.7}
           >
             <View style={styles.toolbarIconBox}>
@@ -385,6 +385,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                   planId: plan.id,
                   focusItemId: item.id,
                   focusDay: selectedDay,
+                  itemsByDay: plan.items_by_day,
                 })
               }
             />
@@ -468,6 +469,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               planId: plan.id,
               focusItemId: actionSheetItem.id,
               focusDay: selectedDay,
+              itemsByDay: plan.items_by_day,
             });
           }
         }}

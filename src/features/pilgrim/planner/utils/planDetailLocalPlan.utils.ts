@@ -269,3 +269,12 @@ export const applyLocalDeleteItem = (
 
   return buildPlanFromItemsByDay(currentPlan, itemsByDay);
 };
+
+export const applyLocalClearAllItems = (currentPlan: PlanEntity): PlanEntity => {
+  return {
+    ...currentPlan,
+    items: [],
+    items_by_day: {},
+  };
+};
+

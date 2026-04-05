@@ -112,8 +112,8 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     return suggestedTime.time !== estimatedTime && suggestedTime.priority !== 'default';
   }, [suggestedTime, estimatedTime, onApplySuggestedTime]);
 
-  // ── Confirm blocked when insight says time is physically impossible ──
-  const isConfirmBlocked = insight?.isBlocking === true;
+  // ── Confirm blocked when insight says time is physically impossible or cross-day travel ──
+  const isConfirmBlocked = insight?.isBlocking === true || !!crossDayWarning;
 
   return (
     <Modal
@@ -130,7 +130,10 @@ export default function TimeInputModal(props: TimeInputModalProps) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 16) + 20 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        >
           <Text style={styles.timeInputLabel}>
             {t("planner.addLocationDay")} {selectedDay}
           </Text>
@@ -214,10 +217,48 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                   <Text
                     style={[
                       localStyles.insightMessage,
-                      { color: insight.type === "error" || insight.type === "event_late" ? "#991B1B" : "#374151" },
+                      {
+                        color:
+                          insight.type === "error" ||
+                          insight.type === "event_late"
+                            ? "#991B1B"
+                            : "#374151",
+                      },
                     ]}
                   >
                     {insight.message}
+                  </Text>
+                </View>
+              )}
+
+              {/* ── CROSS-DAY WARNING BOX ── */}
+              {crossDayWarning && (
+                <View
+                  style={[
+                    localStyles.insightBox,
+                    {
+                      backgroundColor: "#FEF2F2",
+                      borderColor: "#FECACA",
+                      marginTop: hasTravelInfo || insight ? 12 : 6,
+                    },
+                  ]}
+                >
+                  <View style={localStyles.insightHeader}>
+                    <Ionicons
+                      name="warning-outline"
+                      size={16}
+                      color="#991B1B"
+                    />
+                    <Text
+                      style={[localStyles.insightTitle, { color: "#991B1B" }]}
+                    >
+                      Cảnh báo hành trình
+                    </Text>
+                  </View>
+                  <Text
+                    style={[localStyles.insightMessage, { color: "#991B1B" }]}
+                  >
+                    {crossDayWarning}
                   </Text>
                 </View>
               )}
@@ -244,51 +285,94 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             </View>
           )}
 
-          {crossDayWarning ? (
-            <View style={[styles.routeInfoContainer, { backgroundColor: "#E8F5E9" }]}>
-              <Ionicons name="information-circle-outline" size={20} color="#4CAF50" />
-              <Text style={[styles.routeInfoText, { color: "#4CAF50" }]}>
-                {crossDayWarning}
-              </Text>
-            </View>
-          ) : null}
 
           {/* ── TIME PICKER ── */}
-          <View style={styles.timeInputContainer}>
-            <Text style={styles.timeInputFieldLabel}>Giờ dự kiến</Text>
-            <TouchableOpacity style={styles.timePickerButton} onPress={openTimePicker}>
-              <Ionicons name="time-outline" size={24} color={COLORS.primary} />
-              <Text style={styles.timePickerButtonText}>{estimatedTime}</Text>
-              <Ionicons name="chevron-down" size={20} color={COLORS.textSecondary} />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 20,
+            }}
+          >
+            <Text style={[styles.timeInputFieldLabel, { marginBottom: 0 }]}>
+              Giờ dự kiến
+            </Text>
+            <TouchableOpacity
+              style={localStyles.compactTimePickerBtn}
+              onPress={openTimePicker}
+            >
+              <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+              <Text style={localStyles.compactTimeText}>{estimatedTime}</Text>
+              <Ionicons
+                name="chevron-down"
+                size={16}
+                color={COLORS.textSecondary}
+              />
             </TouchableOpacity>
           </View>
 
           {/* ── REST DURATION ── */}
-          <View style={styles.timeInputContainer}>
-            <Text style={styles.timeInputFieldLabel}>Thời gian nghỉ</Text>
-            <Text style={styles.durationValueText}>{formatDuration(restDuration)}</Text>
-            <Slider
-              style={styles.slider}
-              minimumValue={60}
-              maximumValue={240}
-              step={15}
-              value={restDuration}
-              onValueChange={setRestDuration}
-              minimumTrackTintColor={COLORS.primary}
-              maximumTrackTintColor={COLORS.border}
-              thumbTintColor={COLORS.accent}
-            />
-            <View style={styles.sliderLabels}>
-              <Text style={styles.sliderLabelText}>1 giờ</Text>
-              <Text style={styles.sliderLabelText}>4 giờ</Text>
+          <View style={[styles.timeInputContainer, { marginBottom: 20 }]}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text style={[styles.timeInputFieldLabel, { marginBottom: 0 }]}>
+                Thời gian nghỉ tại điểm
+              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <TouchableOpacity
+                  onPress={() =>
+                    setRestDuration(Math.max(60, restDuration - 15))
+                  }
+                  disabled={restDuration <= 60}
+                  style={[
+                    localStyles.stepperBtn,
+                    restDuration <= 60 && { opacity: 0.4 },
+                  ]}
+                >
+                  <Ionicons name="remove" size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "700",
+                    color: COLORS.primary,
+                    minWidth: 65,
+                    textAlign: "center",
+                  }}
+                >
+                  {formatDuration(restDuration)}
+                </Text>
+                <TouchableOpacity
+                  onPress={() =>
+                    setRestDuration(Math.min(240, restDuration + 15))
+                  }
+                  disabled={restDuration >= 240}
+                  style={[
+                    localStyles.stepperBtn,
+                    restDuration >= 240 && { opacity: 0.4 },
+                  ]}
+                >
+                  <Ionicons name="add" size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
 
           {/* ── NOTE ── */}
           <View style={styles.noteInputContainer}>
-            <Text style={styles.timeInputFieldLabel}>{t("planner.noteOptional")}</Text>
+            <Text style={styles.timeInputFieldLabel}>
+              {t("planner.noteOptional")}
+            </Text>
             <TextInput
-              style={styles.noteInput}
+              style={[styles.noteInput, { minHeight: 60 }]}
               placeholder={t("planner.notePlaceholder")}
               placeholderTextColor={COLORS.textTertiary}
               value={note}
@@ -298,28 +382,43 @@ export default function TimeInputModal(props: TimeInputModalProps) {
               textAlignVertical="top"
             />
           </View>
+        </ScrollView>
 
-          {/* ── CONFIRM BUTTON ── */}
+        {/* ── CONFIRM BUTTON (STICKY BOTTOM) ── */}
+        <View
+          style={[
+            localStyles.stickyFooter,
+            { paddingBottom: Math.max(insets.bottom, 16) },
+          ]}
+        >
           <TouchableOpacity
             style={[
               styles.confirmButton,
               (addingItem || isConfirmBlocked) && styles.saveTimeButtonDisabled,
               isConfirmBlocked && { opacity: 0.5 },
+              { marginTop: 0 }
             ]}
             onPress={onConfirmAdd}
             disabled={addingItem || !selectedSiteId || isConfirmBlocked}
           >
             {addingItem ? (
-              <ActivityIndicator color={COLORS.textPrimary} />
+              <ActivityIndicator color={COLORS.white} />
             ) : isConfirmBlocked ? (
-              <Text style={[styles.confirmButtonText, { color: COLORS.textTertiary }]}>
+              <Text
+                style={[
+                  styles.confirmButtonText,
+                  { color: "rgba(255,255,255,0.7)" },
+                ]}
+              >
                 Chọn giờ khác để tiếp tục
               </Text>
             ) : (
-              <Text style={styles.confirmButtonText}>{t("planner.addToItinerary")}</Text>
+              <Text style={[styles.confirmButtonText, { color: COLORS.white }]}>
+                {t("planner.addToItinerary")}
+              </Text>
             )}
           </TouchableOpacity>
-        </ScrollView>
+        </View>
         <View
           style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }}
           pointerEvents="box-none"
@@ -444,12 +543,12 @@ const localStyles = StyleSheet.create({
   travelCard: {
     backgroundColor: "#FFFBEB",
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
     marginTop: 12,
     marginBottom: 4,
     borderWidth: 1,
     borderColor: "rgba(217, 119, 6, 0.2)",
-    gap: 8,
+    gap: 6,
   },
   travelCardTitle: {
     fontSize: 13,
@@ -462,7 +561,7 @@ const localStyles = StyleSheet.create({
   travelRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 6,
   },
   travelDot: {
     width: 10,
@@ -515,7 +614,7 @@ const localStyles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FECACA",
-    padding: 12,
+    padding: 10,
     marginTop: 8,
   },
   insightHeader: {
@@ -559,5 +658,40 @@ const localStyles = StyleSheet.create({
     fontSize: 11,
     color: "#6B7280",
     marginTop: 2,
+  },
+  
+  // ── New Styles ──
+  compactTimePickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    borderRadius: 8,
+    gap: 8,
+  },
+  compactTimeText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.primary,
+  },
+  stepperBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(29, 78, 216, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(29, 78, 216, 0.2)",
+  },
+  stickyFooter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
 });

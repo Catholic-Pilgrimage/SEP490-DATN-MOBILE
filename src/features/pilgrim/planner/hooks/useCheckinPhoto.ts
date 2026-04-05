@@ -1,6 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
 import { Alert, Linking, Platform } from "react-native";
+import Toast from "react-native-toast-message";
 
 export type CheckinPhotoResult = {
   uri: string;
@@ -70,6 +71,11 @@ export const useCheckinPhoto = () => {
       const asset = result.assets[0];
       return { uri: asset.uri, width: asset.width, height: asset.height };
     } catch {
+      Toast.show({
+        type: "error",
+        text1: "Không thể mở Camera",
+        text2: "Vui lòng thử lại hoặc chọn ảnh từ thư viện",
+      });
       return null;
     } finally {
       setPicking(false);
@@ -95,6 +101,11 @@ export const useCheckinPhoto = () => {
       const asset = result.assets[0];
       return { uri: asset.uri, width: asset.width, height: asset.height };
     } catch {
+      Toast.show({
+        type: "error",
+        text1: "Không thể mở Thư viện ảnh",
+        text2: "Vui lòng thử lại hoặc chụp ảnh mới",
+      });
       return null;
     } finally {
       setPicking(false);
