@@ -469,9 +469,40 @@ export const checkInPlanItem = async (
   itemId: string,
   data: CheckInItemRequest,
 ): Promise<ApiResponse<CheckInItemResponse>> => {
+  const formData = new FormData();
+
+  // Photo file (required by BE)
+  const uriParts = data.photoUri.split(".");
+  const fileExt = uriParts[uriParts.length - 1] || "jpg";
+  formData.append("photo", {
+    uri: data.photoUri,
+    name: `checkin_${Date.now()}.${fileExt}`,
+    type: `image/${fileExt === "png" ? "png" : "jpeg"}`,
+  } as any);
+
+  // Coordinates
+  if (data.latitude !== undefined) {
+    formData.append("latitude", String(data.latitude));
+  }
+  if (data.longitude !== undefined) {
+    formData.append("longitude", String(data.longitude));
+  }
+  if (data.checkin_latitude !== undefined) {
+    formData.append("checkin_latitude", String(data.checkin_latitude));
+  }
+  if (data.checkin_longitude !== undefined) {
+    formData.append("checkin_longitude", String(data.checkin_longitude));
+  }
+
+  // Optional note
+  if (data.note) {
+    formData.append("note", data.note);
+  }
+
   const response = await apiClient.post<ApiResponse<CheckInItemResponse>>(
     PILGRIM_ENDPOINTS.PLANNER.CHECKIN_ITEM(planId, itemId),
-    data,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } },
   );
   return response.data;
 };

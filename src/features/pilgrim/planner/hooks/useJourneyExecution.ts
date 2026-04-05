@@ -22,8 +22,8 @@ export const useJourneyExecution = (
   const { confirm } = useConfirm();
 
   const checkIn = useCallback(
-    async (item: PlanItem, isLastItem?: boolean) => {
-      if (!item.id) return;
+    async (item: PlanItem, photoUri: string): Promise<boolean> => {
+      if (!item.id) return false;
       try {
         setCheckingInItemId(item.id);
         const location = await locationService.getCurrentLocation();
@@ -36,6 +36,7 @@ export const useJourneyExecution = (
               planner_item_id: item.id,
               latitude: location.latitude,
               longitude: location.longitude,
+              photoUri,
             },
           });
           Toast.show({
@@ -43,7 +44,7 @@ export const useJourneyExecution = (
             text1: "Đã lưu check-in offline",
             text2: item.site.name,
           });
-          return;
+          return true;
         }
         const response = await pilgrimPlannerApi.checkInPlanItem(
           planId,
@@ -51,6 +52,7 @@ export const useJourneyExecution = (
           {
             latitude: location.latitude,
             longitude: location.longitude,
+            photoUri,
           },
         );
         if (!response.success) {
@@ -61,37 +63,21 @@ export const useJourneyExecution = (
           text1: "Check-in thành công",
           text2: item.site.name,
         });
-        
-        // Auto-complete check for last item
-        if (isLastItem) {
-          try {
-            const compRes = await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "completed" });
-            if (compRes.success) {
-              Toast.show({
-                type: "success",
-                text1: "Hành trình đã kết thúc!",
-                text2: "Tất cả thành viên đã check-in điểm cuối.",
-              });
-              onCompleted?.();
-              return;
-            }
-          } catch (e) {
-            // Probably not everyone checked in yet, stay in active journey
-          }
-        }
 
         await refreshPlan();
+        return true;
       } catch (e: any) {
         Toast.show({
           type: "error",
           text1: "Check-in thất bại",
           text2: e?.message || "Vui lòng thử lại",
         });
+        return false;
       } finally {
         setCheckingInItemId(null);
       }
     },
-    [planId, refreshPlan, onCompleted],
+    [planId, refreshPlan],
   );
 
   const skipItem = useCallback(

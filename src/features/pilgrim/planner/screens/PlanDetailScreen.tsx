@@ -82,6 +82,7 @@ import TimeInputModal from "../components/plan-detail/TimeInputModal";
 import { PlannerTransactionsModal } from "../components/shared/PlannerTransactionsModal";
 import { SharePlanModal } from "../components/shared/SharePlanModal";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
+import { useAddSiteFlow } from "../hooks/useAddSiteFlow";
 import {
   MAX_DEPOSIT_VND,
   parsePenaltyPercent,
@@ -226,28 +227,34 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [addingItem, setAddingItem] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  // Time input state for all sites
-  const [showTimeInputModal, setShowTimeInputModal] = useState(false);
-  const [selectedSiteId, setSelectedSiteId] = useState<string>("");
-  const [estimatedTime, setEstimatedTime] = useState("10:00"); // HH:MM format
-  const [restDuration, setRestDuration] = useState(120); // Minutes as number
+  // Time picker state (shared)
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
-  const [calculatingRoute, setCalculatingRoute] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<string>("");
-  const [travelTimeMinutes, setTravelTimeMinutes] = useState<
-    number | undefined
-  >(undefined);
-  const [note, setNote] = useState("");
+
+  // ── Add Site Flow (hook) ──
+  const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
+
+  // Legacy aliases for backward compat (edit flows, addItemToItinerary, etc.)
+  const showTimeInputModal = addSiteFlow.showTimeInputModal;
+  const selectedSiteId = addSiteFlow.selectedSiteId;
+  const estimatedTime = addSiteFlow.estimatedTime;
+  const setEstimatedTime = addSiteFlow.setEstimatedTime;
+  const restDuration = addSiteFlow.restDuration;
+  const setRestDuration = addSiteFlow.setRestDuration;
+  const note = addSiteFlow.note;
+  const setNote = addSiteFlow.setNote;
+  const calculatingRoute = addSiteFlow.calculatingRoute;
+  const routeInfo = addSiteFlow.routeInfo;
+  const travelTimeMinutes = addSiteFlow.travelTimeMinutes;
+  const crossDayWarning = addSiteFlow.crossDayWarning;
+  const crossDaysAdded = addSiteFlow.crossDaysAdded;
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharingToCommunity, setSharingToCommunity] = useState(false);
   const [showTransactionsModal, setShowTransactionsModal] = useState(false);
   const [updatingPlanStatus, setUpdatingPlanStatus] = useState(false);
 
-  // Cross-day auto-push states
-  const [crossDayWarning, setCrossDayWarning] = useState<string | null>(null);
-  const [crossDaysAdded, setCrossDaysAdded] = useState<number>(0);
+  // Cross-day auto-push states are now managed by addSiteFlow hook
 
   // Edit Item State
   const [showEditItemModal, setShowEditItemModal] = useState(false);
@@ -1923,105 +1930,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const getDateForDay = (startDateStr: string, dayNumber: number): string =>
     getDateForDayRaw(startDateStr, dayNumber);
 
-  const startAddItemFlow = async (siteId: string, eventId?: string) => {
-    setSelectedSiteId(siteId);
-    setSelectedEventId(eventId || null);
-    setCalculatingRoute(true);
-    setRouteInfo("");
-    setCrossDayWarning(null);
-    setCrossDaysAdded(0);
-
-    setTravelTimeMinutes(undefined);
-
-    // Check if there are previous sites in the day
-    const itemsForDay = plan?.items_by_day?.[selectedDay.toString()] || [];
-
-    if (itemsForDay.length > 0) {
-      try {
-        // Get the last site's ID
-        const lastItem = itemsForDay[itemsForDay.length - 1];
-        const lastSiteId = lastItem.site_id || lastItem.site?.id;
-
-        // Fetch both site details to get accurate coordinates
-        const [lastSiteDetail, newSiteDetail] = await Promise.all([
-          lastSiteId ? pilgrimSiteApi.getSiteDetail(lastSiteId) : null,
-          pilgrimSiteApi.getSiteDetail(siteId),
-        ]);
-
-        const lastSite = lastSiteDetail?.data;
-        const newSite = newSiteDetail?.data;
-
-        // If both sites have coordinates, calculate route
-        if (
-          lastSite?.latitude &&
-          lastSite?.longitude &&
-          newSite?.latitude &&
-          newSite?.longitude
-        ) {
-          const routeResult = await vietmapService.calculateRoute(
-            {
-              latitude: lastSite.latitude,
-              longitude: lastSite.longitude,
-            },
-            {
-              latitude: newSite.latitude,
-              longitude: newSite.longitude,
-            },
-          );
-
-          // Calculate arrival time based on last site's departure time + previous rest duration + travel time
-          const lastSiteTime = lastItem.estimated_time || "10:00";
-          const previousRestMinutes = parseDurationToMinutes(
-            lastItem.rest_duration,
-          );
-
-          const arrivalResult = vietmapService.calculateArrivalTime(
-            lastSiteTime,
-            previousRestMinutes + routeResult.durationMinutes,
-          );
-
-          setTravelTimeMinutes(routeResult.durationMinutes);
-          setEstimatedTime(arrivalResult.time);
-
-          const distanceDisplay =
-            routeResult.distance < 1000
-              ? `${Math.round(routeResult.distance)} m`
-              : `${routeResult.distanceKm.toFixed(1)} km`;
-
-          setRouteInfo(
-            `Khoảng cách: ${distanceDisplay} • Thời gian di chuyển: ${routeResult.durationText}`,
-          );
-
-          if (arrivalResult.daysAdded > 0) {
-            setCrossDaysAdded(arrivalResult.daysAdded);
-            setCrossDayWarning(
-              `Thời gian di chuyển vượt qua ngày hiện tại. Vui lòng chọn ngày khác cho địa điểm này.`,
-            );
-          }
-        } else {
-          // No coordinates available, use default
-          setEstimatedTime("10:00");
-          setRouteInfo("Không có tọa độ để tính toán lộ trình");
-        }
-      } catch (error) {
-        console.error("Route calculation failed:", error);
-        // Fallback to default time
-        setEstimatedTime("10:00");
-        setRouteInfo("Không thể tính toán lộ trình");
-      }
-    } else {
-      // First site of the day, use default
-      setEstimatedTime("10:00");
-      setRouteInfo("Địa điểm đầu tiên trong ngày");
-    }
-
-    setCalculatingRoute(false);
-    setShowTimeInputModal(true);
-  };
-
   const handleAddItem = async (siteId: string, eventId?: string) => {
-    await startAddItemFlow(siteId, eventId);
+    setSelectedEventId(eventId || null);
+    await addSiteFlow.startFlow(siteId, eventId);
   };
+
 
   const addItemToItinerary = async (siteId: string) => {
     if (crossDaysAdded > 0) {
@@ -2111,7 +2024,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             }),
         );
 
-        setShowTimeInputModal(false);
+        addSiteFlow.closeTimeModal();
         setNote("");
         Toast.show({
           type: "success",
@@ -2153,7 +2066,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 })
             : undefined,
         );
-        setShowTimeInputModal(false);
+        addSiteFlow.closeTimeModal();
         setNote("");
         loadPlan();
       } else {
@@ -3513,19 +3426,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                       return (
                         <View key={item.id || index}>
                           {index > 0 && typeof travelMinutes === "number" && (
-                            <View style={styles.travelInfoRow}>
-                              <Ionicons
-                                name="car-outline"
-                                size={13}
-                                color="#8B6F3D"
-                              />
-                              <Text style={styles.travelInfoText}>
-                                Di chuyển{" "}
-                                {Math.max(1, Math.round(travelMinutes))} phút
-                                {typeof travelDistanceKm === "number"
-                                  ? ` • ${travelDistanceKm.toFixed(1)} km`
-                                  : ""}
-                              </Text>
+                            <View style={styles.travelSegment}>
+                              <View style={styles.verticalDashedLine} />
+                              <View style={styles.travelBadge}>
+                                <Ionicons name="car" size={14} color="#6B7280" />
+                                <Text style={styles.travelText}>
+                                  Di chuyển {Math.max(1, Math.round(travelMinutes))} phút
+                                  {typeof travelDistanceKm === "number"
+                                    ? ` (${travelDistanceKm.toFixed(1)} km)`
+                                    : ""}
+                                </Text>
+                              </View>
                             </View>
                           )}
                           {timelineRow}
@@ -3651,7 +3562,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
       <TimeInputModal
         visible={showTimeInputModal}
-        onClose={() => setShowTimeInputModal(false)}
+        onClose={addSiteFlow.closeTimeModal}
         t={t}
         styles={styles}
         selectedDay={selectedDay}
@@ -3668,6 +3579,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         addingItem={addingItem}
         selectedSiteId={selectedSiteId}
         onConfirmAdd={() => addItemToItinerary(selectedSiteId!)}
+        {...(addSiteFlow.travelData || {})}
+        insight={addSiteFlow.insight}
+        suggestedTime={addSiteFlow.suggestedTime}
+        onApplySuggestedTime={() => {
+          if (addSiteFlow.suggestedTime) {
+            addSiteFlow.setEstimatedTime(addSiteFlow.suggestedTime.time);
+          }
+        }}
       />
 
       <EditItemModal
