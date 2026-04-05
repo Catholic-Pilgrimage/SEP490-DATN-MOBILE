@@ -156,6 +156,7 @@ export const PILGRIM_ENDPOINTS = {
     UPDATE: (id: string) => `${API_BASE}/journals/${id}`,
     DELETE: (id: string) => `${API_BASE}/journals/${id}`,
     SHARE: (id: string) => `${API_BASE}/journals/${id}/share`,
+    RESTORE: (id: string) => `${API_BASE}/journals/${id}/restore`,
   },
 
   // Community - Social features for pilgrims

@@ -321,11 +321,14 @@ export default function CreateJournalScreen() {
     };
 
     const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
-        if (!result.canceled) {
-            if (mediaType === 'images') {
-                setSelectedImages((prev) => [...prev, ...result.assets].slice(0, 10));
-            } else {
-                setSelectedVideos([result.assets[0]]);
+        if (!result.canceled && result.assets.length > 0) {
+            const images = result.assets.filter(a => a.type !== 'video');
+            const videos = result.assets.filter(a => a.type === 'video');
+            if (images.length > 0) {
+                setSelectedImages((prev) => [...prev, ...images].slice(0, 10));
+            }
+            if (videos.length > 0) {
+                setSelectedVideos([videos[0]]);
             }
         }
         setMediaPickerVisible(false);
@@ -615,7 +618,7 @@ export default function CreateJournalScreen() {
                     return;
                 }
 
-                await pilgrimJournalApi.updateJournal(journalId, {
+                const res = await pilgrimJournalApi.updateJournal(journalId, {
                     title,
                     content,
                     planner_item_ids: plannerItemIds,
@@ -625,9 +628,22 @@ export default function CreateJournalScreen() {
                     video: selectedVideos[0]?.uri || undefined,
                     audio: recordingUri,
                 });
+
+                // Tự động share ra cộng đồng nếu chọn Public
+                if (privacy === 'public' && res.data?.id) {
+                    try {
+                        await pilgrimJournalApi.shareJournal(res.data.id);
+                    } catch (shareError) {
+                        console.error('Auto-share failed:', shareError);
+                        // Vẫn cho qua vì journal đã update thành công
+                    }
+                }
+
                 Alert.alert(
                     "Thành công", 
                     `Đã cập nhật nhật ký${
+                        privacy === 'public' ? ' và chia sẻ ra cộng đồng' : ''
+                    }${
                         imageUris.length > 0 ? ` (+${imageUris.length} ảnh mới)` : ''
                     }${recordingUri ? ' với audio' : ''}`
                 );
@@ -641,7 +657,7 @@ export default function CreateJournalScreen() {
                 // Prepare image URIs
                 const imageUris = selectedImages.map(img => img.uri);
 
-                await pilgrimJournalApi.createJournal({
+                const res = await pilgrimJournalApi.createJournal({
                     title: title.trim(),
                     content: content.trim(),
                     planner_item_ids: plannerItemIds,
@@ -651,9 +667,21 @@ export default function CreateJournalScreen() {
                     video: selectedVideos[0]?.uri || undefined,
                     audio: recordingUri,
                 });
+
+                // Tự động share ra cộng đồng nếu chọn Public
+                if (privacy === 'public' && res.data?.id) {
+                    try {
+                        await pilgrimJournalApi.shareJournal(res.data.id);
+                    } catch (shareError) {
+                        console.error('Auto-share failed:', shareError);
+                    }
+                }
+
                 Alert.alert(
-                    "Đã tạo", 
+                    privacy === 'public' ? "Đã đăng cộng đồng" : "Đã tạo", 
                     `Đã tạo nhật ký tâm linh${
+                        privacy === 'public' ? ' và chia sẻ bài viết' : ''
+                    }${
                         imageUris.length > 0 ? ` với ${imageUris.length} ảnh` : ''
                     }${recordingUri ? ' và ghi âm' : ''}`
                 );
@@ -825,20 +853,6 @@ export default function CreateJournalScreen() {
                         <View style={styles.divider} />
 
                         <View style={styles.toolbar}>
-                            <View style={styles.toolbarGroup}>
-                                <TouchableOpacity style={styles.toolbarBtn}>
-                                    <MaterialIcons name="format-bold" size={20} color={COLORS.textSecondary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.toolbarBtn}>
-                                    <MaterialIcons name="format-italic" size={20} color={COLORS.textSecondary} />
-                                </TouchableOpacity>
-                                <TouchableOpacity style={styles.toolbarBtn}>
-                                    <MaterialIcons name="format-list-bulleted" size={20} color={COLORS.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.toolbarDivider} />
-
                             <TouchableOpacity 
                                 style={[styles.toolbarBtn, styles.micBtnMini]}
                                 onPress={handleRecordAudio}
@@ -852,7 +866,7 @@ export default function CreateJournalScreen() {
 
                             <TouchableOpacity 
                                 style={[styles.toolbarBtn, { marginLeft: 'auto' }]}
-                                onPress={() => handlePickMedia('images')}
+                                onPress={() => setMediaPickerVisible(true)}
                             >
                                 <MaterialIcons name="add-photo-alternate" size={20} color={COLORS.textSecondary} />
                             </TouchableOpacity>
@@ -881,20 +895,10 @@ export default function CreateJournalScreen() {
                         </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-                            {/* Nút thêm (ActionSheet) */}
+                            {/* Nút thêm (MediaPickerModal) */}
                             <TouchableOpacity
                                 style={styles.addMediaBtn}
-                                onPress={() => {
-                                    Alert.alert(
-                                        'Thêm phương tiện',
-                                        'Chọn loại tệp muốn thêm',
-                                        [
-                                            { text: '📷  Chọn ảnh', onPress: () => handlePickMedia('images') },
-                                            { text: '🎬  Chọn video', onPress: () => handlePickMedia('videos') },
-                                            { text: 'Huỷ', style: 'cancel' },
-                                        ]
-                                    );
-                                }}
+                                onPress={() => setMediaPickerVisible(true)}
                             >
                                 <MaterialIcons name="add-circle-outline" size={28} color={COLORS.accent} />
                                 <Text style={styles.addMediaText}>Thêm</Text>
@@ -1022,10 +1026,10 @@ export default function CreateJournalScreen() {
                 visible={isMediaPickerVisible}
                 onClose={() => setMediaPickerVisible(false)}
                 onMediaPicked={handleMediaPicked}
-                mediaTypes={mediaType}
+                mediaTypes={['images', 'videos']}
                 allowsMultipleSelection={true}
                 selectionLimit={10}
-                title={mediaType === 'images' ? 'Thêm ảnh' : 'Thêm video'}
+                title="Thêm ảnh/video vào nhật ký"
             />
 
             {/* Fixed Footer */}

@@ -29,6 +29,7 @@ import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import { JournalEntry } from '../../../../types/pilgrim/journal.types';
 import { normalizeImageUrls, parsePostgresArray } from '../../../../utils/postgresArrayParser';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const { width } = Dimensions.get('window');
 const CARD_W = width - SPACING.lg * 2;
@@ -61,6 +62,10 @@ export default function JournalDetailScreen() {
     // Action sheet
     const [menuVisible, setMenuVisible] = useState(false);
     const slideAnim = React.useRef(new Animated.Value(400)).current;
+
+    const videoPlayer = useVideoPlayer(journal?.video_url || '', (player) => {
+        player.loop = true;
+    });
 
     const showMenu = () => {
         setMenuVisible(true);
@@ -348,20 +353,23 @@ export default function JournalDetailScreen() {
                                 </>
                             )}
 
-                            {/* Video (no images to use as thumb) */}
-                            {journal.video_url && images.length === 0 && (
+                            {/* Video Section */}
+                            {journal.video_url && (
                                 <>
                                     <View style={s.mediaDivider} />
                                     <View style={s.sectionLabelRow}>
                                         <MaterialIcons name="videocam" size={14} color={COLORS.accent} />
                                         <Text style={s.sectionLabel}>VIDEO</Text>
                                     </View>
-                                    <TouchableOpacity style={s.videoCard} activeOpacity={0.85}>
-                                        <LinearGradient colors={['#1a2a3a', '#2c4060']} style={StyleSheet.absoluteFill} />
-                                        <View style={s.videoPlayBtn}>
-                                            <MaterialIcons name="play-arrow" size={32} color="#fff" />
-                                        </View>
-                                    </TouchableOpacity>
+                                    <View style={s.videoPreviewCard}>
+                                        <VideoView
+                                            style={s.videoPlayer}
+                                            player={videoPlayer}
+                                            allowsFullscreen
+                                            allowsPictureInPicture
+                                            nativeControls
+                                        />
+                                    </View>
                                 </>
                             )}
 
@@ -574,6 +582,20 @@ const s = StyleSheet.create({
         backgroundColor: COLORS.accent, marginLeft: -6, ...SHADOWS.subtle,
     },
 
+    /* Video */
+    videoPreviewCard: {
+        width: '100%',
+        height: 220,
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+        ...SHADOWS.small,
+        marginBottom: 8,
+    },
+    videoPlayer: {
+        width: '100%',
+        height: '100%',
+    },
     /* Action Sheet */
     backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
     actionSheet: {

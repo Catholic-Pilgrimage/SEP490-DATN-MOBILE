@@ -190,6 +190,16 @@ export const shareJournal = async (id: string): Promise<ApiResponse<any>> => {
   return response.data;
 };
 
+/**
+ * Restore a soft-deleted journal (patch is_active back to true)
+ */
+export const restoreJournal = async (id: string): Promise<ApiResponse<JournalEntry>> => {
+  const response = await apiClient.patch<ApiResponse<JournalEntry>>(
+    PILGRIM_ENDPOINTS.JOURNAL.RESTORE(id),
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -201,6 +211,7 @@ const pilgrimJournalApi = {
   getJournalDetail,
   updateJournal,
   shareJournal,
+  restoreJournal,
 };
 
 export default pilgrimJournalApi;

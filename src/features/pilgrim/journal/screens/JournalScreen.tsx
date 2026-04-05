@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -94,7 +95,7 @@ export const JournalScreen = () => {
     const fetchJournals = async () => {
         try {
             setLoading(true);
-            const response = await pilgrimJournalApi.getMyJournals();
+            const response = await pilgrimJournalApi.getMyJournals({ is_active: 'all' } as any);
             if (response.data && response.data.journals) {
                 setJournals(response.data.journals);
             }
@@ -102,6 +103,19 @@ export const JournalScreen = () => {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRestore = async (id: string) => {
+        try {
+            await pilgrimJournalApi.restoreJournal(id);
+            Alert.alert("Thành công", "Nhật ký đã được khôi phục.");
+            // Refresh after restore
+            await fetchJournals();
+        } catch (error: any) {
+            console.error('Restore failed:', error);
+            const errorMsg = error?.response?.data?.error?.message || error?.message || "Không thể khôi phục nhật ký";
+            Alert.alert("Lỗi khôi phục", errorMsg);
         }
     };
 
@@ -194,6 +208,7 @@ export const JournalScreen = () => {
 
     const renderItem = ({ item }: { item: JournalEntry }) => {
         const isPrivate = item.privacy === 'private';
+        const isInactive = (item as any).is_active === false;
         const images = normalizeImageUrls(item.image_url);
         const plannerItemIds = getJournalPlannerItemIds(item);
 
@@ -211,13 +226,21 @@ export const JournalScreen = () => {
 
         return (
             <TouchableOpacity
-                activeOpacity={0.9}
-                onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}
-                style={[styles.card, isPrivate && styles.cardPrivate]}
+                activeOpacity={isInactive ? 1 : 0.9}
+                onPress={() => !isInactive && navigation.navigate('JournalDetailScreen', { journalId: item.id })}
+                style={[styles.card, isPrivate && styles.cardPrivate, isInactive && styles.cardInactive]}
             >
                 {isPrivate && (
                     <View style={styles.privateDecor}>
                         <MaterialIcons name="lock" size={180} color="rgba(0,0,0,0.02)" />
+                    </View>
+                )}
+
+                {/* Inactive banner */}
+                {isInactive && (
+                    <View style={styles.inactiveBanner}>
+                        <MaterialIcons name="delete-outline" size={14} color="#fff" />
+                        <Text style={styles.inactiveBannerText}>Đã xoá</Text>
                     </View>
                 )}
 
@@ -252,17 +275,28 @@ export const JournalScreen = () => {
 
                 {/* Content */}
                 <View style={styles.contentContainer}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    <Text style={styles.cardBody} numberOfLines={3}>
+                    <Text style={[styles.cardTitle, isInactive && styles.textFaded]}>{item.title}</Text>
+                    <Text style={[styles.cardBody, isInactive && styles.textFaded]} numberOfLines={3}>
                         {item.content}
                     </Text>
                 </View>
 
                 {/* Images Grid */}
-                {images.length > 0 && (
-                    <View style={styles.imageGrid}>
+                {(images.length > 0 || item.video_url) && (
+                    <View style={[styles.imageGrid, isInactive && { opacity: 0.4 }]}>
                         <View style={styles.mainImageContainer}>
-                            <Image source={{ uri: images[0] }} style={styles.mainImage} />
+                            {images.length > 0 ? (
+                                <Image source={{ uri: images[0] }} style={styles.mainImage} />
+                            ) : (
+                                <View style={[styles.mainImage, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                                    <MaterialIcons name="videocam" size={40} color={COLORS.accent} />
+                                </View>
+                            )}
+                            {item.video_url && (
+                                <View style={styles.videoOverlay}>
+                                    <MaterialIcons name="play-circle-filled" size={40} color="rgba(255,255,255,0.9)" />
+                                </View>
+                            )}
                         </View>
                         {images.length > 1 && (
                             <View style={styles.sideImagesContainer}>
@@ -276,23 +310,34 @@ export const JournalScreen = () => {
                     </View>
                 )}
 
-                {/* Footer Actions */}
-                {!isPrivate && (
-                    <View style={styles.cardFooter}>
-                        <View style={styles.socialActions}>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <MaterialIcons name="favorite-border" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>0</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionButton}>
-                                <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
-                                <Text style={styles.actionText}>0</Text>
+                {/* Restore button for inactive */}
+                {isInactive ? (
+                    <TouchableOpacity
+                        style={styles.restoreButton}
+                        activeOpacity={0.8}
+                        onPress={() => handleRestore(item.id)}
+                    >
+                        <MaterialIcons name="restore" size={16} color="#fff" />
+                        <Text style={styles.restoreButtonText}>Khôi phục nhật ký</Text>
+                    </TouchableOpacity>
+                ) : (
+                    !isPrivate && (
+                        <View style={styles.cardFooter}>
+                            <View style={styles.socialActions}>
+                                <TouchableOpacity style={styles.actionButton}>
+                                    <MaterialIcons name="favorite-border" size={20} color={COLORS.textSecondary} />
+                                    <Text style={styles.actionText}>0</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.actionButton}>
+                                    <MaterialIcons name="chat-bubble-outline" size={20} color={COLORS.textSecondary} />
+                                    <Text style={styles.actionText}>0</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
+                                <Text style={styles.readMoreText}>Read More</Text>
                             </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => navigation.navigate('JournalDetailScreen', { journalId: item.id })}>
-                            <Text style={styles.readMoreText}>Read More</Text>
-                        </TouchableOpacity>
-                    </View>
+                    )
                 )}
             </TouchableOpacity>
         );
@@ -568,6 +613,15 @@ const styles = StyleSheet.create({
     },
     mainImageContainer: {
         flex: 1,
+        position: 'relative',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    videoOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     mainImage: {
         width: '100%',
@@ -682,5 +736,47 @@ const styles = StyleSheet.create({
         color: COLORS.white,
         fontWeight: '700',
         fontSize: 16,
-    }
+    },
+    cardInactive: {
+        opacity: 0.6,
+        borderColor: 'rgba(200,50,50,0.15)',
+        borderWidth: 1,
+    },
+    inactiveBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#c0392b',
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 8,
+        alignSelf: 'flex-start',
+        marginBottom: 12,
+    },
+    inactiveBannerText: {
+        color: '#fff',
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    textFaded: {
+        color: COLORS.textTertiary,
+    },
+    restoreButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        backgroundColor: '#27ae60',
+        borderRadius: 20,
+    },
+    restoreButtonText: {
+        color: '#fff',
+        fontWeight: '700',
+        fontSize: 14,
+    },
 });
