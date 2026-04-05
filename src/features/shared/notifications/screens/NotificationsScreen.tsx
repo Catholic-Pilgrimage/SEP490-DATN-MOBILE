@@ -12,7 +12,6 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import React, { useMemo } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Platform,
     SectionList,
     StatusBar,
@@ -27,6 +26,7 @@ import {
 } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING } from "../../../../constants/theme.constants";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import {
@@ -44,6 +44,7 @@ dayjs.locale("vi");
 const NotificationsScreen = ({ navigation }: any) => {
   const insets = useSafeAreaInsets();
   const { t } = useI18n();
+  const { confirmChoice } = useConfirm();
   const {
     notifications,
     unreadCount,
@@ -215,6 +216,24 @@ const NotificationsScreen = ({ navigation }: any) => {
     </View>
   );
 
+  const handleOpenDeleteConfirm = async () => {
+    const action = await confirmChoice({
+      type: "danger",
+      iconName: "trash-bin-outline",
+      title: t("notificationScreen.deleteConfirmTitle"),
+      message: t("notificationScreen.deleteConfirmMessage"),
+      cancelText: t("common.cancel"),
+      secondaryText: t("notificationScreen.deleteRead"),
+      confirmText: t("notificationScreen.deleteAll"),
+    });
+
+    if (action === "secondary") {
+      deleteReadNotifications();
+    } else if (action === "confirm") {
+      deleteAllNotifications();
+    }
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#FFFBF0" }}>
       <View
@@ -255,24 +274,7 @@ const NotificationsScreen = ({ navigation }: any) => {
             )}
             {notifications.length > 0 && (
               <TouchableOpacity
-                onPress={() => {
-                  Alert.alert(
-                    t("notificationScreen.deleteConfirmTitle"),
-                    t("notificationScreen.deleteConfirmMessage"),
-                    [
-                      { text: t("common.cancel"), style: "cancel" },
-                      {
-                        text: t("notificationScreen.deleteRead"),
-                        onPress: deleteReadNotifications,
-                      },
-                      {
-                        text: t("notificationScreen.deleteAll"),
-                        style: "destructive",
-                        onPress: deleteAllNotifications,
-                      },
-                    ],
-                  );
-                }}
+                onPress={handleOpenDeleteConfirm}
                 style={styles.actionButton}
               >
                 <Ionicons

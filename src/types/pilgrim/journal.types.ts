@@ -153,6 +153,19 @@ export interface PrayerSuggestionResult {
   prayer?: string;
   suggested_prayer?: string;
   suggestion?: string;
+  prayer_text?: string;
+  prayer_type?: string;
+  context?: {
+    site_name?: string;
+    planner_name?: string;
+    detected_mood?: string;
+    detected_theme?: string;
+  };
+  suggestions?: string[];
+  metadata?: {
+    generated_by?: string;
+    language?: string;
+  };
   [key: string]: unknown;
 }
 

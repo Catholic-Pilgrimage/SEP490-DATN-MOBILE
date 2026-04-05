@@ -7,40 +7,43 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { AudioPickerModal } from "../../../../components/common/AudioPickerModal";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
+import { AISparkles } from "../../../../components/ui/AISparkles";
 import {
-    COLORS,
-    SHADOWS,
-    SPACING
+  COLORS,
+  SHADOWS,
+  SPACING
 } from "../../../../constants/theme.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import pilgrimJournalApi from "../../../../services/api/pilgrim/journalApi";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import { PrayerSuggestionResult } from "../../../../types/pilgrim";
 import {
-    CheckInEntity,
-    PlanEntity,
+  CheckInEntity,
+  PlanEntity,
 } from "../../../../types/pilgrim/planner.types";
 import {
-    normalizeImageUrls,
-    parsePostgresArray,
+  normalizeImageUrls,
+  parsePostgresArray,
 } from "../../../../utils/postgresArrayParser";
 
 const { width } = Dimensions.get("window");
@@ -73,6 +76,38 @@ const buildLocationFromCheckIns = (checkIns: CheckInEntity[]) =>
       checkIns.map((checkIn) => checkIn.site?.name || "").filter(Boolean),
     ),
   ).join(", ");
+
+const getCheckInSiteImage = (checkIn?: CheckInEntity | null) =>
+  checkIn?.site?.cover_image || checkIn?.site?.image || undefined;
+
+const extractPrayerText = (result: PrayerSuggestionResult | null) => {
+  if (!result) return "";
+
+  const candidates = [
+    result.prayer,
+    result.suggested_prayer,
+    result.suggestion,
+    result.prayer_text,
+  ];
+
+  return candidates.find(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  ) || "";
+};
+
+const appendPrayerToJournalContent = (
+  currentContent: string,
+  prayerText: string,
+) => {
+  const trimmedPrayer = prayerText.trim();
+  if (!trimmedPrayer) return currentContent;
+
+  const trimmedContent = currentContent.trim();
+  if (!trimmedContent) return trimmedPrayer;
+  if (trimmedContent.includes(trimmedPrayer)) return currentContent;
+
+  return `${trimmedContent}\n\n${trimmedPrayer}`;
+};
 
 export default function CreateJournalScreen() {
   const { t } = useTranslation();
@@ -148,6 +183,14 @@ export default function CreateJournalScreen() {
     string[]
   >(paramPlannerItemId ? [paramPlannerItemId] : []);
   const [location, setLocation] = useState("");
+  const [plannerModalVisible, setPlannerModalVisible] = useState(false);
+  const [prayerMood, setPrayerMood] = useState("");
+  const [prayerIntention, setPrayerIntention] = useState("");
+  const [prayerLoading, setPrayerLoading] = useState(false);
+  const [prayerResult, setPrayerResult] = useState<PrayerSuggestionResult | null>(
+    null,
+  );
+  const [prayerError, setPrayerError] = useState<string | null>(null);
   const [pendingEditSelection, setPendingEditSelection] = useState<{
     plannerId?: string;
     plannerName?: string;
@@ -156,11 +199,25 @@ export default function CreateJournalScreen() {
   } | null>(null);
   const [editSelectionInitialized, setEditSelectionInitialized] =
     useState(false);
+  const prayerSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPrayerSlowTimer = () => {
+    if (prayerSlowTimerRef.current) {
+      clearTimeout(prayerSlowTimerRef.current);
+      prayerSlowTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     setPendingEditSelection(null);
     setEditSelectionInitialized(false);
   }, [journalId]);
+
+  useEffect(() => {
+    return () => {
+      clearPrayerSlowTimer();
+    };
+  }, []);
 
   const resetDraftMediaState = () => {
     if (sound) {
@@ -415,6 +472,23 @@ export default function CreateJournalScreen() {
         */
   };
 
+  const handleChoosePlanner = async (planner: PlanEntity) => {
+    setPlannerModalVisible(false);
+    await handleSelectPlanner(planner);
+  };
+
+  const getPlannerCheckInCount = (plannerId: string) =>
+    dedupeCheckInsByPlannerItem(
+      allCheckIns.filter((checkIn) => checkIn.planner?.id === plannerId),
+    ).length;
+
+  const selectedLocationCheckIns = filteredCheckIns.filter((checkIn) =>
+    selectedPlannerItemIds.includes(checkIn.planner_item_id),
+  );
+  const locationPreviewCheckIn =
+    selectedLocationCheckIns[0] || filteredCheckIns[0] || null;
+  const locationPreviewImage = getCheckInSiteImage(locationPreviewCheckIn);
+
   /** Toggle chọn / bỏ chọn điểm check-in */
   const handleSelectLocation = (checkIn: CheckInEntity) => {
     if (!checkIn.site) return;
@@ -435,6 +509,101 @@ export default function CreateJournalScreen() {
           .join(", "),
       );
       return next;
+    });
+  };
+
+  const handleSuggestPrayer = async () => {
+    const plannerItemId =
+      selectedPlannerItemIds.length === 1 ? selectedPlannerItemIds[0] : undefined;
+    const plannerId =
+      plannerItemId === undefined
+        ? selectedPlanner?.id || pendingEditSelection?.plannerId
+        : undefined;
+    const currentText = content.trim();
+    const mood = prayerMood.trim();
+    const intention = prayerIntention.trim();
+
+    if (!plannerItemId && !plannerId) {
+      await confirm({
+        type: "warning",
+        title: t("journal.aiPrayerMissingPlanTitle"),
+        message: t("journal.aiPrayerMissingPlanMessage"),
+        showCancel: false,
+      });
+      return;
+    }
+
+    if (!currentText && !mood && !intention) {
+      await confirm({
+        type: "warning",
+        title: t("journal.aiPrayerMissingPromptTitle"),
+        message: t("journal.aiPrayerMissingPromptMessage"),
+        showCancel: false,
+      });
+      return;
+    }
+
+    clearPrayerSlowTimer();
+    setPrayerLoading(true);
+    setPrayerError(null);
+
+    prayerSlowTimerRef.current = setTimeout(() => {
+      Toast.show({
+        type: "info",
+        text1: t("journal.aiPrayerTitle"),
+        text2: t("journal.aiPrayerSlowResponse"),
+        position: "top",
+      });
+    }, 10000);
+
+    try {
+      const response = await pilgrimJournalApi.suggestPrayer({
+        planner_item_id: plannerItemId,
+        planner_id: plannerId,
+        current_text: currentText || undefined,
+        mood: mood || undefined,
+        intention: intention || undefined,
+      });
+
+      const nextResult = response.data ?? null;
+      const nextPrayerText = extractPrayerText(nextResult);
+
+      if (!response.success || !nextResult || !nextPrayerText) {
+        throw new Error(
+          response.message || t("journal.aiPrayerError"),
+        );
+      }
+
+      setPrayerResult(nextResult);
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        t("journal.aiPrayerError");
+
+      setPrayerError(message);
+      Toast.show({
+        type: "error",
+        text1: t("journal.genericError"),
+        text2: message,
+        position: "top",
+      });
+    } finally {
+      clearPrayerSlowTimer();
+      setPrayerLoading(false);
+    }
+  };
+
+  const handleInsertPrayer = () => {
+    const prayerText = extractPrayerText(prayerResult);
+    if (!prayerText) return;
+
+    setContent((prev) => appendPrayerToJournalContent(prev, prayerText));
+    Toast.show({
+      type: "success",
+      text1: t("common.success"),
+      text2: t("journal.aiPrayerInserted"),
+      position: "top",
     });
   };
 
@@ -1029,11 +1198,15 @@ export default function CreateJournalScreen() {
   ];
   const currentVideoUri = selectedVideos[0]?.uri || existingVideoUrl || null;
   const hasCurrentVideo = Boolean(currentVideoUri);
+  const generatedPrayerText = extractPrayerText(prayerResult);
+  const prayerContext = prayerResult?.context;
+  const prayerSuggestions = prayerResult?.suggestions ?? [];
+  const scrollBottomPadding = SPACING.lg;
 
   if (initialLoading) {
     return (
       <ImageBackground
-        source={require("../../../../../assets/images/bg3.jpg")}
+        source={require("../../../../../assets/images/journal-bg.png")}
         style={[
           styles.container,
           { justifyContent: "center", alignItems: "center" },
@@ -1048,7 +1221,7 @@ export default function CreateJournalScreen() {
 
   return (
     <ImageBackground
-      source={require("../../../../../assets/images/bg3.jpg")}
+      source={require("../../../../../assets/images/journal-bg.png")}
       style={styles.container}
       resizeMode="cover"
     >
@@ -1090,11 +1263,165 @@ export default function CreateJournalScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={[styles.contentJSON, { paddingBottom: 150 }]} // Padding for footer
+          contentContainerStyle={[
+            styles.contentJSON,
+            { paddingBottom: scrollBottomPadding },
+          ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* ── STEP 1: Chọn kế hoạch hành hương đã hoàn thành (planner_id) ── */}
-          <View style={styles.section}>
+          <View style={[styles.section, styles.plannerSection]}>
+            <View style={styles.stepHeroHeader}>
+              <View style={styles.stepHeroTitleWrap}>
+                <View style={styles.stepHeroIconWrap}>
+                  <MaterialIcons name="route" size={18} color={COLORS.accent} />
+                </View>
+                <View style={styles.stepHeroTextWrap}>
+                  <Text style={styles.label}>{t("journal.step1")}</Text>
+                  <Text style={styles.stepHeroSubtitle}>
+                    {t("journal.step1Subtitle")}
+                  </Text>
+                </View>
+              </View>
+
+              {!plannerLoading && completedPlanners.length > 0 && (
+                <View style={styles.stepHeroCountChip}>
+                  <Text style={styles.stepHeroCountText}>
+                    {t("journal.plannerCount", { count: completedPlanners.length })}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {plannerLoading ? (
+              <View style={styles.selectedPlannerLoadingCard}>
+                <ActivityIndicator size="small" color={COLORS.accent} />
+                <Text style={styles.selectedPlannerLoadingText}>
+                  {t("common.loading")}
+                </Text>
+              </View>
+            ) : completedPlanners.length === 0 ? (
+              <View style={styles.plannerEmptyCard}>
+                <View style={styles.plannerEmptyIconWrap}>
+                  <MaterialIcons name="route" size={24} color={COLORS.accent} />
+                </View>
+                <Text style={styles.plannerEmptyTitle}>
+                  {t("journal.noCompletedPlans")}
+                </Text>
+                <Text style={styles.plannerEmptySubtitle}>
+                  {t("journal.plannerPickerEmptySubtitle")}
+                </Text>
+              </View>
+            ) : selectedPlanner ? (
+              <TouchableOpacity
+                style={styles.selectedPlannerCard}
+                onPress={() => setPlannerModalVisible(true)}
+                activeOpacity={0.9}
+              >
+                <View style={styles.selectedPlannerSimpleCard}>
+                  <View style={styles.selectedPlannerSimpleHeader}>
+                    <View style={styles.selectedPlannerMain}>
+                      <View style={styles.selectedPlannerIcon}>
+                        <MaterialIcons
+                          name="route"
+                          size={20}
+                          color={COLORS.accent}
+                        />
+                      </View>
+                      <View style={styles.selectedPlannerTextWrap}>
+                        <View style={styles.selectedPlannerLabelRow}>
+                          <Text style={styles.selectedPlannerCaption}>
+                            {t("journal.selectedPlanLabel")}
+                          </Text>
+                          <View style={styles.selectedPlannerTopBadge}>
+                            <MaterialIcons
+                              name="auto-awesome"
+                              size={12}
+                              color={COLORS.accent}
+                            />
+                            <Text style={styles.selectedPlannerTopBadgeText}>
+                              {t("journal.plannerContextLabel")}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.selectedPlannerName}>
+                          {selectedPlanner.name}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.selectedPlannerActionChip}>
+                      <Text style={styles.selectedPlannerActionText}>
+                        {t("journal.changePlan")}
+                      </Text>
+                      <MaterialIcons
+                        name="chevron-right"
+                        size={18}
+                        color={COLORS.accent}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.selectedPlannerMetaRow}>
+                    <View style={styles.completedBadge}>
+                      <Text style={styles.completedBadgeText}>
+                        {t("journal.completed")}
+                      </Text>
+                    </View>
+
+                    {filteredCheckIns.length > 0 && (
+                      <View style={styles.selectedPlannerMetaChip}>
+                        <MaterialIcons
+                          name="place"
+                          size={14}
+                          color={COLORS.textSecondary}
+                        />
+                        <Text style={styles.selectedPlannerMetaText}>
+                          {t("journal.availableCheckIns", {
+                            count: filteredCheckIns.length,
+                          })}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.selectedPlannerContextRow}>
+                    <Text style={styles.selectedPlannerContextText}>
+                      {t("journal.plannerReadyHint")}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.plannerEmptyCard}
+                onPress={() => setPlannerModalVisible(true)}
+                activeOpacity={0.9}
+              >
+                <View style={styles.plannerEmptyIconWrap}>
+                  <MaterialIcons name="route" size={24} color={COLORS.accent} />
+                </View>
+                <Text style={styles.plannerEmptyTitle}>
+                  {t("journal.plannerPickerEmptyTitle")}
+                </Text>
+                <Text style={styles.plannerEmptySubtitle}>
+                  {t("journal.plannerPickerEmptySubtitle")}
+                </Text>
+                <View style={styles.pickPlannerButton}>
+                  <Text style={styles.pickPlannerButtonText}>
+                    {t("journal.choosePlan")}
+                  </Text>
+                  <MaterialIcons
+                    name="arrow-forward"
+                    size={18}
+                    color={COLORS.textPrimary}
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.legacyPlannerHidden}>
             <View
               style={{
                 flexDirection: "row",
@@ -1164,58 +1491,235 @@ export default function CreateJournalScreen() {
                 ))}
               </View>
             )}
+            </View>
           </View>
 
           {/* ── STEP 2: Chọn điểm check-in của kế hoạch đó (planner_item_id) ── */}
-          <View style={styles.section}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 6,
-              }}
-            >
-              <MaterialIcons
-                name="location-on"
-                size={16}
-                color={COLORS.accent}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={styles.label}>{t("journal.step2")}</Text>
+          <View style={[styles.section, styles.locationSection]}>
+            <View style={styles.stepHeroHeader}>
+              <View style={styles.stepHeroTitleWrap}>
+                <View style={styles.stepHeroIconWrap}>
+                  <MaterialIcons
+                    name="location-on"
+                    size={18}
+                    color={COLORS.accent}
+                  />
+                </View>
+                <View style={styles.stepHeroTextWrap}>
+                  <Text style={styles.label}>{t("journal.step2")}</Text>
+                  <Text style={styles.stepHeroSubtitle}>
+                    {t("journal.step2Subtitle")}
+                  </Text>
+                </View>
+              </View>
+
+              {(selectedPlanner || journalId) && !checkInLoading && (
+                <View style={styles.stepHeroCountChip}>
+                  <Text style={styles.stepHeroCountText}>
+                    {selectedPlannerItemIds.length > 0
+                      ? t("journal.selectedCheckInCount", {
+                          count: selectedPlannerItemIds.length,
+                        })
+                      : t("journal.availableCheckInCount", {
+                          count: filteredCheckIns.length,
+                        })}
+                  </Text>
+                </View>
+              )}
             </View>
 
-            <View style={styles.locationInput}>
-              <MaterialIcons
-                name="location-on"
-                size={20}
-                color={COLORS.textSecondary}
-                style={styles.locationIcon}
-              />
-              <Text
-                style={[
-                  styles.locationPlaceholder,
-                  location ? { color: COLORS.textPrimary } : {},
-                ]}
-              >
-                {location ||
-                  (selectedPlanner
-                    ? t("journal.selectCheckInBelow")
-                    : t("journal.selectPlanFirst"))}
-              </Text>
+            <View style={styles.selectedLocationCard}>
+              <View style={styles.selectedLocationHeader}>
+                {locationPreviewImage ? (
+                  <Image
+                    source={{ uri: locationPreviewImage }}
+                    style={styles.selectedLocationImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.selectedLocationIcon}>
+                    <MaterialIcons
+                      name="place"
+                      size={20}
+                      color={COLORS.accent}
+                    />
+                  </View>
+                )}
+                <View style={styles.selectedLocationTextWrap}>
+                  <Text style={styles.selectedLocationLabel}>
+                    {t("journal.locationContextLabel")}
+                  </Text>
+                  <Text style={styles.selectedLocationValue}>
+                    {location ||
+                      (selectedPlanner
+                        ? t("journal.selectCheckInBelow")
+                        : t("journal.selectPlanFirst"))}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.selectedLocationMetaRow}>
+                {selectedPlanner && (
+                  <View style={styles.selectedLocationMetaChip}>
+                    <MaterialIcons
+                      name="route"
+                      size={14}
+                      color={COLORS.textSecondary}
+                    />
+                    <Text style={styles.selectedLocationMetaText}>
+                      {selectedPlanner.name}
+                    </Text>
+                  </View>
+                )}
+
+                {selectedPlannerItemIds.length > 0 && (
+                  <View style={styles.selectedLocationMetaChip}>
+                    <MaterialIcons
+                      name="check-circle"
+                      size={14}
+                      color={COLORS.accent}
+                    />
+                    <Text style={styles.selectedLocationMetaText}>
+                      {t("journal.selectedCheckInCount", {
+                        count: selectedPlannerItemIds.length,
+                      })}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.selectedLocationHintBox}>
+                <Text style={styles.selectedLocationHintText}>
+                  {selectedPlanner
+                    ? t("journal.locationContextHint")
+                    : t("journal.selectPlanToSeeCheckIns")}
+                </Text>
+              </View>
             </View>
 
-            <Text
-              style={{
-                fontSize: 12,
-                color: COLORS.textTertiary,
-                marginTop: 8,
-                marginBottom: 4,
-              }}
-            >
+            <Text style={styles.locationListLabel}>
               {selectedPlanner
                 ? t("journal.checkInsIn", { name: selectedPlanner.name })
                 : t("journal.selectPlanToSeeCheckIns")}
             </Text>
+            {(selectedPlanner || journalId) &&
+              (checkInLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.accent}
+                  style={{ marginVertical: 10 }}
+                />
+              ) : filteredCheckIns.length > 0 ? (
+                <View style={styles.locationOptionList}>
+                  {filteredCheckIns.map((checkIn: CheckInEntity, index: number) => {
+                    const isSelected = selectedPlannerItemIds.includes(
+                      checkIn.planner_item_id,
+                    );
+                    const siteImage = getCheckInSiteImage(checkIn);
+
+                    return (
+                      <TouchableOpacity
+                        key={`location-card-${checkIn.id || index}`}
+                        style={[
+                          styles.locationOptionCard,
+                          isSelected && styles.locationOptionCardSelected,
+                        ]}
+                        onPress={() => handleSelectLocation(checkIn)}
+                        activeOpacity={0.9}
+                      >
+                        {siteImage ? (
+                          <Image
+                            source={{ uri: siteImage }}
+                            style={[
+                              styles.locationOptionImage,
+                              isSelected && styles.locationOptionImageSelected,
+                            ]}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.locationOptionIconWrap,
+                              isSelected && styles.locationOptionIconWrapSelected,
+                            ]}
+                          >
+                            <MaterialIcons
+                              name={isSelected ? "check-circle" : "place"}
+                              size={20}
+                              color={isSelected ? COLORS.white : COLORS.accent}
+                            />
+                          </View>
+                        )}
+
+                        <View style={styles.locationOptionTextWrap}>
+                          <View style={styles.locationOptionTitleRow}>
+                            <Text
+                              style={[
+                                styles.locationOptionName,
+                                isSelected && styles.locationOptionNameSelected,
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {checkIn.site?.name || t("journal.genericLocationName")}
+                            </Text>
+
+                            {isSelected && (
+                              <View style={styles.locationOptionSelectedBadge}>
+                                <Text style={styles.locationOptionSelectedBadgeText}>
+                                  {t("journal.completed")}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text
+                            style={[
+                              styles.locationOptionCaption,
+                              isSelected && styles.locationOptionCaptionSelected,
+                            ]}
+                          >
+                            {isSelected
+                              ? t("journal.locationSelectedHint")
+                              : t("journal.selectCheckInBelow")}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.locationOptionTrailing,
+                            isSelected && styles.locationOptionTrailingSelected,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={
+                              isSelected
+                                ? "check-circle"
+                                : "radio-button-unchecked"
+                            }
+                            size={22}
+                            color={
+                              isSelected ? COLORS.accent : COLORS.textTertiary
+                            }
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.locationEmptyCard}>
+                  <Text style={styles.locationEmptyTitle}>
+                    {selectedPlanner
+                      ? t("journal.noCheckInsInPlan")
+                      : t("journal.noCheckInLocations")}
+                  </Text>
+                  <Text style={styles.locationEmptySubtitle}>
+                    {selectedPlanner
+                      ? t("journal.locationContextHint")
+                      : t("journal.selectPlanToSeeCheckIns")}
+                  </Text>
+                </View>
+              ))}
+            <View style={styles.legacyPlannerHidden}>
 
             {/* Chips check-in - chỉ hiện sau khi chọn planner */}
             {(selectedPlanner || journalId) &&
@@ -1289,6 +1793,166 @@ export default function CreateJournalScreen() {
                   )}
                 </View>
               ))}
+            </View>
+          </View>
+
+          <View style={styles.aiPrayerCard}>
+            <View style={styles.aiPrayerHeader}>
+              <View style={styles.aiPrayerIconWrap}>
+                <AISparkles size={20} color={COLORS.accent} isAnimating={!prayerLoading} />
+              </View>
+              <View style={styles.aiPrayerHeaderContent}>
+                <Text style={styles.aiPrayerTitle}>
+                  {t("journal.aiPrayerTitle")}
+                </Text>
+                <Text style={styles.aiPrayerSubtitle}>
+                  {t("journal.aiPrayerSubtitle")}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.aiPrayerFields}>
+              <View style={styles.aiPrayerField}>
+                <Text style={styles.aiPrayerFieldLabel}>
+                  {t("journal.aiPrayerMoodLabel")}
+                </Text>
+                <TextInput
+                  style={styles.aiPrayerInput}
+                  placeholder={t("journal.aiPrayerMoodPlaceholder")}
+                  placeholderTextColor="rgba(138, 127, 97, 0.55)"
+                  value={prayerMood}
+                  onChangeText={setPrayerMood}
+                />
+              </View>
+
+              <View style={styles.aiPrayerField}>
+                <Text style={styles.aiPrayerFieldLabel}>
+                  {t("journal.aiPrayerIntentionLabel")}
+                </Text>
+                <TextInput
+                  style={styles.aiPrayerInput}
+                  placeholder={t("journal.aiPrayerIntentionPlaceholder")}
+                  placeholderTextColor="rgba(138, 127, 97, 0.55)"
+                  value={prayerIntention}
+                  onChangeText={setPrayerIntention}
+                />
+              </View>
+            </View>
+
+            {prayerLoading && (
+              <View style={styles.aiPrayerLoadingBox}>
+                <ActivityIndicator size="small" color={COLORS.accent} />
+                <View style={styles.aiPrayerLoadingTextWrap}>
+                  <Text style={styles.aiPrayerLoadingTitle}>
+                    {t("journal.aiPrayerLoadingTitle")}
+                  </Text>
+                  <Text style={styles.aiPrayerLoadingHint}>
+                    {t("journal.aiPrayerLoadingHint")}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {!prayerLoading && prayerError && (
+              <View style={styles.aiPrayerErrorBox}>
+                <MaterialIcons name="error-outline" size={18} color={COLORS.danger} />
+                <Text style={styles.aiPrayerErrorText}>{prayerError}</Text>
+              </View>
+            )}
+
+            {!prayerLoading && generatedPrayerText ? (
+              <View style={styles.aiPrayerResultCard}>
+                <Text style={styles.aiPrayerResultTitle}>
+                  {t("journal.aiPrayerResultTitle")}
+                </Text>
+                <Text style={styles.aiPrayerResultText}>{generatedPrayerText}</Text>
+
+                {(prayerContext?.detected_mood ||
+                  prayerContext?.detected_theme ||
+                  prayerResult?.prayer_type) && (
+                  <View style={styles.aiPrayerMetaWrap}>
+                    {prayerContext?.detected_mood ? (
+                      <View style={styles.aiPrayerMetaChip}>
+                        <Text style={styles.aiPrayerMetaLabel}>
+                          {t("journal.aiPrayerContextMood")}
+                        </Text>
+                        <Text style={styles.aiPrayerMetaValue}>
+                          {prayerContext.detected_mood}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {prayerContext?.detected_theme ? (
+                      <View style={styles.aiPrayerMetaChip}>
+                        <Text style={styles.aiPrayerMetaLabel}>
+                          {t("journal.aiPrayerContextTheme")}
+                        </Text>
+                        <Text style={styles.aiPrayerMetaValue}>
+                          {prayerContext.detected_theme}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {prayerResult?.prayer_type ? (
+                      <View style={styles.aiPrayerMetaChip}>
+                        <Text style={styles.aiPrayerMetaLabel}>
+                          {t("journal.aiPrayerContextType")}
+                        </Text>
+                        <Text style={styles.aiPrayerMetaValue}>
+                          {prayerResult.prayer_type}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                )}
+
+                {prayerSuggestions.length > 0 && (
+                  <View style={styles.aiPrayerSuggestionsBlock}>
+                    <Text style={styles.aiPrayerSuggestionsTitle}>
+                      {t("journal.aiPrayerSuggestionsLabel")}
+                    </Text>
+                    {prayerSuggestions.slice(0, 3).map((item, index) => (
+                      <View key={`${item}-${index}`} style={styles.aiPrayerSuggestionItem}>
+                        <View style={styles.aiPrayerSuggestionDot} />
+                        <Text style={styles.aiPrayerSuggestionText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <TouchableOpacity
+                  style={styles.aiPrayerApplyButton}
+                  onPress={handleInsertPrayer}
+                  activeOpacity={0.88}
+                >
+                  <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
+                  <Text style={styles.aiPrayerApplyButtonText}>
+                    {t("journal.aiPrayerInsert")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[
+                styles.aiPrayerGenerateButton,
+                prayerLoading && styles.aiPrayerGenerateButtonDisabled,
+              ]}
+              onPress={handleSuggestPrayer}
+              disabled={prayerLoading}
+              activeOpacity={0.9}
+            >
+              {prayerLoading ? (
+                <ActivityIndicator size="small" color={COLORS.textPrimary} />
+              ) : (
+                <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
+              )}
+              <Text style={styles.aiPrayerGenerateButtonText}>
+                {generatedPrayerText
+                  ? t("journal.aiPrayerRegenerate")
+                  : t("journal.aiPrayerGenerate")}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Reflection Editor */}
@@ -1541,26 +2205,49 @@ export default function CreateJournalScreen() {
               ) : null}
             </View>
           )}
+
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 24 }]}>
+            <View style={styles.actionCard}>
+              <TouchableOpacity
+                style={[
+                  styles.actionCardMicButton,
+                  isRecording && styles.actionCardMicButtonRecording,
+                ]}
+                activeOpacity={0.9}
+                onPress={handleAddAudio}
+              >
+                <MaterialIcons
+                  name={isRecording ? "stop" : "mic"}
+                  size={32}
+                  color={isRecording ? "#fff" : COLORS.textPrimary}
+                />
+              </TouchableOpacity>
+
+              <View style={styles.footerContent}>
+                <TouchableOpacity
+                  style={styles.btnSecondary}
+                  onPress={() => handleSave("private")}
+                  disabled={loading}
+                >
+                  <Text style={styles.btnSecondaryText}>
+                    {loading ? t("journal.saving") : t("journal.savePrivate")}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnPrimary}
+                  onPress={() => handleSave("public")}
+                  disabled={loading}
+                >
+                  <Text style={styles.btnPrimaryText}>
+                    {loading ? t("journal.posting") : t("journal.postPublic")}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Floating Mic Button */}
-      <View style={styles.floatingMicContainer} pointerEvents="box-none">
-        <TouchableOpacity
-          style={[
-            styles.floatingMicBtn,
-            isRecording && styles.floatingMicBtnRecording,
-          ]}
-          activeOpacity={0.9}
-          onPress={handleAddAudio}
-        >
-          <MaterialIcons
-            name={isRecording ? "stop" : "mic"}
-            size={32}
-            color={isRecording ? "#fff" : COLORS.textPrimary}
-          />
-        </TouchableOpacity>
-      </View>
 
       <MediaPickerModal
         visible={isMediaPickerVisible}
@@ -1578,6 +2265,160 @@ export default function CreateJournalScreen() {
         onRecordNow={startRecording}
         onUploadFile={handlePickAudio}
       />
+
+      <Modal
+        visible={plannerModalVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPlannerModalVisible(false)}
+      >
+        <View style={styles.plannerModalOverlay}>
+          <TouchableWithoutFeedback onPress={() => setPlannerModalVisible(false)}>
+            <View style={styles.plannerModalBackdrop} />
+          </TouchableWithoutFeedback>
+
+          <SafeAreaView edges={["bottom"]} style={styles.plannerModalSafeArea}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  styles.plannerModalSheet,
+                  { paddingBottom: SPACING.lg },
+                ]}
+              >
+                <View style={styles.plannerModalHandleWrap}>
+                  <View style={styles.plannerModalHandle} />
+                </View>
+
+                <View style={styles.plannerModalHeader}>
+                  <View style={styles.plannerModalTitleWrap}>
+                    <Text style={styles.plannerModalTitle}>
+                      {t("journal.plannerPickerTitle")}
+                    </Text>
+                    <Text style={styles.plannerModalSubtitle}>
+                      {t("journal.plannerPickerSubtitle")}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.plannerModalCloseButton}
+                    onPress={() => setPlannerModalVisible(false)}
+                  >
+                    <MaterialIcons
+                      name="close"
+                      size={22}
+                      color={COLORS.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={styles.plannerModalList}
+                  contentContainerStyle={styles.plannerModalListContent}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {completedPlanners.map((planner) => {
+                    const isSelected = selectedPlanner?.id === planner.id;
+                    const plannerCheckInCount = getPlannerCheckInCount(planner.id);
+
+                    return (
+                      <TouchableOpacity
+                        key={planner.id}
+                        style={[
+                          styles.plannerOptionCard,
+                          isSelected && styles.plannerOptionCardSelected,
+                        ]}
+                        activeOpacity={0.9}
+                        onPress={() => handleChoosePlanner(planner)}
+                      >
+                        <View
+                          style={[
+                            styles.plannerOptionIconWrap,
+                            isSelected && styles.plannerOptionIconWrapSelected,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={isSelected ? "check-circle" : "route"}
+                            size={22}
+                            color={isSelected ? COLORS.white : COLORS.accent}
+                          />
+                        </View>
+
+                        <View style={styles.plannerOptionTextWrap}>
+                          <Text
+                            style={[
+                              styles.plannerOptionName,
+                              isSelected && styles.plannerOptionNameSelected,
+                            ]}
+                          >
+                            {planner.name}
+                          </Text>
+                          <View style={styles.plannerOptionMetaRow}>
+                            <View style={styles.plannerOptionStatusChip}>
+                              <Text
+                                style={[
+                                  styles.plannerOptionCaption,
+                                  isSelected && styles.plannerOptionCaptionSelected,
+                                ]}
+                              >
+                                {t("journal.completed")}
+                              </Text>
+                            </View>
+
+                            {plannerCheckInCount > 0 && (
+                              <View
+                                style={[
+                                  styles.plannerOptionCountChip,
+                                  isSelected &&
+                                    styles.plannerOptionCountChipSelected,
+                                ]}
+                              >
+                                <MaterialIcons
+                                  name="place"
+                                  size={12}
+                                  color={
+                                    isSelected
+                                      ? COLORS.accent
+                                      : COLORS.textSecondary
+                                  }
+                                />
+                                <Text style={styles.plannerOptionCountText}>
+                                  {t("journal.availableCheckIns", {
+                                    count: plannerCheckInCount,
+                                  })}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+
+                        <View
+                          style={[
+                            styles.plannerOptionTrailing,
+                            isSelected && styles.plannerOptionTrailingSelected,
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={
+                              isSelected
+                                ? "radio-button-checked"
+                                : "chevron-right"
+                            }
+                            size={22}
+                            color={
+                              isSelected ? COLORS.accent : COLORS.textTertiary
+                            }
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </SafeAreaView>
+        </View>
+      </Modal>
 
       {/* Media Preview Modal */}
       <Modal
@@ -1613,30 +2454,6 @@ export default function CreateJournalScreen() {
         </View>
       </Modal>
 
-      {/* Fixed Footer */}
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.footerContent}>
-          <TouchableOpacity
-            style={styles.btnSecondary}
-            onPress={() => handleSave("private")}
-            disabled={loading}
-          >
-            <Text style={styles.btnSecondaryText}>
-              {loading ? t("journal.saving") : t("journal.savePrivate")}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.btnPrimary}
-            onPress={() => handleSave("public")}
-            disabled={loading}
-          >
-            <Text style={styles.btnPrimaryText}>
-              {loading ? t("journal.posting") : t("journal.postPublic")}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
     </ImageBackground>
   );
 }
@@ -1644,7 +2461,7 @@ export default function CreateJournalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background, // Cream/beige from theme
+    backgroundColor: COLORS.background,
   },
   header: {
     flexDirection: "row",
@@ -1677,14 +2494,473 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   section: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  plannerSection: {
+    backgroundColor: "rgba(255, 252, 245, 0.85)",
+    borderRadius: 20,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.12)",
+    overflow: "hidden",
+    ...SHADOWS.subtle,
   },
   label: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+    marginBottom: 10,
+    marginLeft: 0,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  stepHeroHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  stepHeroTitleWrap: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+  },
+  stepHeroIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  stepHeroTextWrap: {
+    flex: 1,
+  },
+  stepHeroSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.textSecondary,
+    marginLeft: 4,
+  },
+  stepHeroCountChip: {
+    backgroundColor: "rgba(236, 182, 19, 0.1)",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
+  },
+  stepHeroCountText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.accent,
+  },
+  selectedPlannerLoadingCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: SPACING.sm,
+    minHeight: 96,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 250, 241, 0.9)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.14)",
+  },
+  selectedPlannerLoadingText: {
+    fontSize: 13,
     fontWeight: "600",
     color: COLORS.textSecondary,
-    marginBottom: 8,
-    marginLeft: 4,
+  },
+  selectedPlannerCard: {
+    borderRadius: 24,
+    ...SHADOWS.small,
+  },
+  selectedPlannerSimpleCard: {
+    borderRadius: 24,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.2)",
+    backgroundColor: "rgba(255, 249, 235, 0.98)",
+  },
+  selectedPlannerSimpleHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: SPACING.sm,
+  },
+  selectedPlannerLabelRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  selectedPlannerTopBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
+  },
+  selectedPlannerTopBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.accent,
+    textTransform: "uppercase",
+  },
+  selectedPlannerMain: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    flex: 1,
+  },
+  selectedPlannerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  selectedPlannerTextWrap: {
+    flex: 1,
+  },
+  selectedPlannerCaption: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textTertiary,
+    textTransform: "uppercase",
+  },
+  selectedPlannerName: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    fontFamily: FontDisplay,
+  },
+  selectedPlannerActionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: COLORS.white,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  selectedPlannerActionText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.accent,
+  },
+  selectedPlannerMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  selectedPlannerMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: COLORS.white,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  selectedPlannerMetaText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  selectedPlannerContextRow: {
+    marginTop: SPACING.md,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.74)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.12)",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  selectedPlannerContextText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+  },
+  plannerEmptyCard: {
+    alignItems: "center",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xl,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.14)",
+    backgroundColor: "rgba(255, 251, 243, 0.9)",
+    ...SHADOWS.subtle,
+  },
+  plannerEmptyIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
+  },
+  plannerEmptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+    fontFamily: FontDisplay,
+    textAlign: "center",
+  },
+  plannerEmptySubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    maxWidth: 320,
+  },
+  pickPlannerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: SPACING.md,
+    backgroundColor: COLORS.accent,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    ...SHADOWS.subtle,
+  },
+  pickPlannerButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  legacyPlannerHidden: {
+    display: "none",
+  },
+  locationSection: {
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.12)",
+  },
+  selectedLocationCard: {
+    borderRadius: 22,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.16)",
+    backgroundColor: "rgba(255, 250, 239, 0.98)",
+    ...SHADOWS.subtle,
+  },
+  selectedLocationHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  selectedLocationIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  selectedLocationImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    marginRight: SPACING.sm,
+    backgroundColor: COLORS.borderLight,
+  },
+  selectedLocationTextWrap: {
+    flex: 1,
+  },
+  selectedLocationLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textTertiary,
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
+  selectedLocationValue: {
+    fontSize: 19,
+    lineHeight: 28,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    fontFamily: FontDisplay,
+  },
+  selectedLocationMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  selectedLocationMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  selectedLocationMetaText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  selectedLocationHintBox: {
+    marginTop: SPACING.md,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.76)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.12)",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+  },
+  selectedLocationHintText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+  },
+  locationListLabel: {
+    fontSize: 12,
+    color: COLORS.textTertiary,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  locationOptionList: {
+    gap: SPACING.sm,
+  },
+  locationOptionCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: SPACING.md,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    ...SHADOWS.subtle,
+  },
+  locationOptionCardSelected: {
+    backgroundColor: "#FFF6DE",
+    borderColor: "rgba(236, 182, 19, 0.28)",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  locationOptionIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    marginRight: SPACING.md,
+  },
+  locationOptionImage: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    marginRight: SPACING.md,
+    backgroundColor: COLORS.borderLight,
+  },
+  locationOptionImageSelected: {
+    borderWidth: 2,
+    borderColor: "rgba(236, 182, 19, 0.35)",
+  },
+  locationOptionIconWrapSelected: {
+    backgroundColor: COLORS.accent,
+  },
+  locationOptionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  locationOptionTitleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: SPACING.sm,
+    marginBottom: 4,
+  },
+  locationOptionName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    flex: 1,
+    lineHeight: 22,
+  },
+  locationOptionNameSelected: {
+    color: COLORS.textPrimary,
+  },
+  locationOptionSelectedBadge: {
+    borderRadius: 999,
+    backgroundColor: "rgba(76, 175, 80, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(76, 175, 80, 0.18)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  locationOptionSelectedBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.success,
+  },
+  locationOptionCaption: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  locationOptionCaptionSelected: {
+    color: COLORS.accent,
+  },
+  locationOptionTrailing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    marginLeft: SPACING.sm,
+    alignSelf: "center",
+  },
+  locationOptionTrailingSelected: {
+    backgroundColor: "#FFFBEF",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.2)",
+  },
+  locationEmptyCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.12)",
+    backgroundColor: "rgba(255, 250, 239, 0.86)",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.lg,
+  },
+  locationEmptyTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 6,
+  },
+  locationEmptySubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
   },
   locationInput: {
     flexDirection: "row",
@@ -1737,6 +3013,217 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     color: COLORS.textSecondary,
     flexShrink: 1,
+  },
+  aiPrayerCard: {
+    backgroundColor: "rgba(255, 252, 245, 0.96)",
+    borderRadius: 24,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.22)",
+    ...SHADOWS.small,
+  },
+  aiPrayerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: SPACING.md,
+  },
+  aiPrayerIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.sm,
+  },
+  aiPrayerHeaderContent: {
+    flex: 1,
+  },
+  aiPrayerTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+    fontFamily: FontDisplay,
+  },
+  aiPrayerSubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+  },
+  aiPrayerFields: {
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  aiPrayerField: {
+    gap: 6,
+  },
+  aiPrayerFieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+    marginLeft: 4,
+  },
+  aiPrayerInput: {
+    backgroundColor: COLORS.surface0,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  aiPrayerLoadingBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(236, 182, 19, 0.08)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  aiPrayerLoadingTextWrap: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+  },
+  aiPrayerLoadingTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  aiPrayerLoadingHint: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: COLORS.textSecondary,
+  },
+  aiPrayerErrorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.dangerLight,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(220, 76, 76, 0.16)",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
+    marginBottom: SPACING.md,
+  },
+  aiPrayerErrorText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: COLORS.danger,
+    marginLeft: SPACING.xs,
+  },
+  aiPrayerResultCard: {
+    backgroundColor: COLORS.surface0,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.15)",
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.subtle,
+  },
+  aiPrayerResultTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  aiPrayerResultText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: COLORS.textPrimary,
+  },
+  aiPrayerMetaWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.sm,
+    marginTop: SPACING.md,
+  },
+  aiPrayerMetaChip: {
+    backgroundColor: "rgba(236, 182, 19, 0.08)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.16)",
+  },
+  aiPrayerMetaLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: COLORS.textTertiary,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  aiPrayerMetaValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  aiPrayerSuggestionsBlock: {
+    marginTop: SPACING.md,
+    gap: SPACING.xs,
+  },
+  aiPrayerSuggestionsTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+  },
+  aiPrayerSuggestionItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  aiPrayerSuggestionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.accent,
+    marginTop: 7,
+    marginRight: 8,
+  },
+  aiPrayerSuggestionText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+  },
+  aiPrayerApplyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: COLORS.accentLight,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.md,
+    marginTop: SPACING.md,
+  },
+  aiPrayerApplyButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  aiPrayerGenerateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 18,
+    paddingVertical: 14,
+    backgroundColor: COLORS.accent,
+    ...SHADOWS.subtle,
+  },
+  aiPrayerGenerateButtonDisabled: {
+    opacity: 0.7,
+  },
+  aiPrayerGenerateButtonText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
   },
   editorContainer: {
     backgroundColor: COLORS.surface0,
@@ -1852,48 +3339,45 @@ const styles = StyleSheet.create({
     alignItems: "center",
     zIndex: 10,
   },
-  floatingMicContainer: {
-    position: "absolute",
-    bottom: 110, // Adjusted to sit above footer
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 40,
+  footer: {
+    marginTop: SPACING.lg,
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    backgroundColor: "transparent",
   },
-  floatingMicBtn: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  actionCard: {
+    maxWidth: 500,
+    width: "100%",
+    alignSelf: "center",
+    backgroundColor: "transparent",
+    paddingHorizontal: 0,
+    paddingTop: 0,
+    paddingBottom: 8,
+  },
+  actionCardMicButton: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: COLORS.accent,
     justifyContent: "center",
     alignItems: "center",
+    alignSelf: "center",
+    marginTop: 0,
+    marginBottom: 12,
     ...SHADOWS.medium,
     shadowColor: COLORS.accent,
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.35,
     borderWidth: 4,
     borderColor: COLORS.surface0,
   },
-  floatingMicBtnRecording: {
+  actionCardMicButtonRecording: {
     backgroundColor: "#FF0000",
     shadowColor: "#FF0000",
-  },
-  footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 16,
-    paddingHorizontal: 16,
   },
   footerContent: {
     flexDirection: "row",
     gap: 16,
-    maxWidth: 500,
     width: "100%",
-    alignSelf: "center",
   },
   btnSecondary: {
     flex: 1,
@@ -1923,6 +3407,175 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: COLORS.textPrimary, // Or White depending on contrast, Mockup has dark text
+  },
+  plannerModalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlayDark,
+    justifyContent: "flex-end",
+  },
+  plannerModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  plannerModalSafeArea: {
+    justifyContent: "flex-end",
+  },
+  plannerModalSheet: {
+    backgroundColor: "rgba(255, 251, 243, 0.98)",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: SPACING.xs,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.14)",
+    ...SHADOWS.large,
+  },
+  plannerModalHandleWrap: {
+    alignItems: "center",
+    paddingVertical: SPACING.md,
+  },
+  plannerModalHandle: {
+    width: 42,
+    height: 5,
+    borderRadius: 999,
+    backgroundColor: COLORS.borderMedium,
+  },
+  plannerModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.sm,
+    gap: SPACING.md,
+  },
+  plannerModalTitleWrap: {
+    flex: 1,
+  },
+  plannerModalTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    fontFamily: FontDisplay,
+    marginBottom: 4,
+  },
+  plannerModalSubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+  },
+  plannerModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.backgroundSoft,
+  },
+  plannerModalList: {
+    maxHeight: 460,
+  },
+  plannerModalListContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  plannerOptionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: SPACING.md,
+    borderRadius: 20,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    ...SHADOWS.subtle,
+  },
+  plannerOptionCardSelected: {
+    backgroundColor: "#FFF6DE",
+    borderColor: "rgba(236, 182, 19, 0.28)",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
+  },
+  plannerOptionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(236, 182, 19, 0.12)",
+    marginRight: SPACING.md,
+  },
+  plannerOptionIconWrapSelected: {
+    backgroundColor: COLORS.accent,
+  },
+  plannerOptionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  plannerOptionName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  plannerOptionNameSelected: {
+    color: COLORS.textPrimary,
+  },
+  plannerOptionCaption: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "600",
+  },
+  plannerOptionCaptionSelected: {
+    color: COLORS.accent,
+  },
+  plannerOptionMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
+  plannerOptionStatusChip: {
+    borderRadius: 999,
+    backgroundColor: "rgba(236, 182, 19, 0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  plannerOptionCountChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.06)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  plannerOptionCountChipSelected: {
+    backgroundColor: "#FFFBEF",
+    borderColor: "rgba(236, 182, 19, 0.18)",
+  },
+  plannerOptionCountText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  plannerOptionTrailing: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    marginLeft: SPACING.sm,
+  },
+  plannerOptionTrailingSelected: {
+    backgroundColor: "#FFFBEF",
+    borderWidth: 1,
+    borderColor: "rgba(236, 182, 19, 0.18)",
   },
   // Audio Recording Styles
   recordingIndicator: {

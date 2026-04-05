@@ -260,8 +260,7 @@ export const styles = StyleSheet.create({
     flex: 0,
     alignSelf: "stretch",
     width: "100%",
-    minHeight: 100,
-    maxHeight: 220,
+    minHeight: 120,
     textAlignVertical: "top",
   },
   inputDisabled: {

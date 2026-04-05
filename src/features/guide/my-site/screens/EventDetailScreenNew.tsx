@@ -27,11 +27,13 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   StatusBar,
   Text,
   TextInput,
+  TextInputContentSizeChangeEventData,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -43,7 +45,7 @@ import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import { AISparkles } from "../../../../components/ui/AISparkles";
 import ReviewTrackingInfo from "../../components/ReviewTrackingInfo";
-import { GUIDE_COLORS } from "../../../../constants/guide.constants";
+import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
@@ -240,68 +242,90 @@ const InputField: React.FC<InputFieldProps> = ({
   editable = true,
   maxLength,
   error,
-}) => (
-  <View style={styles.fieldContainer}>
-    <View style={styles.labelRow}>
-      <Text style={styles.label}>{label}</Text>
-      {required && <Text style={styles.required}> *</Text>}
-    </View>
-    <View
-      style={[
-        styles.inputContainer,
-        multiline && styles.inputContainerMultiline,
-        !editable && styles.inputDisabled,
-        !!error && styles.inputError,
-      ]}
-    >
-      {/* Icon only for single-line inputs (not textarea) */}
-      {icon && !multiline && (
-        <MaterialIcons
-          name={icon}
-          size={20}
-          color={
-            error
-              ? GUIDE_COLORS.error
-              : editable
-                ? GUIDE_COLORS.primary
-                : GUIDE_COLORS.gray400
-          }
-          style={styles.inputIcon}
-        />
-      )}
-      <TextInput
-        style={[
-          styles.input,
-          multiline && styles.inputMultiline,
-          icon && !multiline && styles.inputWithIcon,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={GUIDE_COLORS.gray400}
-        multiline={multiline}
-        numberOfLines={numberOfLines}
-        textAlignVertical={multiline ? "top" : "center"}
-        editable={editable}
-        maxLength={maxLength}
-        scrollEnabled={multiline}
-      />
-    </View>
-    {/* Inline error message */}
-    {error ? (
-      <View style={styles.errorRow}>
-        <MaterialIcons name="error-outline" size={14} color={GUIDE_COLORS.error} />
-        <Text style={styles.errorText}>{error}</Text>
+}) => {
+  const multilineMinHeight = 120;
+  const [multilineHeight, setMultilineHeight] = useState(multilineMinHeight);
+
+  const handleContentSizeChange = (
+    event: NativeSyntheticEvent<TextInputContentSizeChangeEventData>,
+  ) => {
+    if (!multiline) return;
+
+    const nextHeight = Math.max(
+      multilineMinHeight,
+      Math.ceil(event.nativeEvent.contentSize.height) + GUIDE_SPACING.sm,
+    );
+
+    setMultilineHeight((prev) =>
+      Math.abs(prev - nextHeight) > 4 ? nextHeight : prev,
+    );
+  };
+
+  return (
+    <View style={styles.fieldContainer}>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        {required && <Text style={styles.required}> *</Text>}
       </View>
-    ) : (
-      maxLength && (
-        <Text style={styles.charCount}>
-          {value.length}/{maxLength}
-        </Text>
-      )
-    )}
-  </View>
-);
+      <View
+        style={[
+          styles.inputContainer,
+          multiline && styles.inputContainerMultiline,
+          !editable && styles.inputDisabled,
+          !!error && styles.inputError,
+        ]}
+      >
+        {/* Icon only for single-line inputs (not textarea) */}
+        {icon && !multiline && (
+          <MaterialIcons
+            name={icon}
+            size={20}
+            color={
+              error
+                ? GUIDE_COLORS.error
+                : editable
+                  ? GUIDE_COLORS.primary
+                  : GUIDE_COLORS.gray400
+            }
+            style={styles.inputIcon}
+          />
+        )}
+        <TextInput
+          style={[
+            styles.input,
+            multiline && styles.inputMultiline,
+            multiline && { height: multilineHeight },
+            icon && !multiline && styles.inputWithIcon,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          onContentSizeChange={handleContentSizeChange}
+          placeholder={placeholder}
+          placeholderTextColor={GUIDE_COLORS.gray400}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          textAlignVertical={multiline ? "top" : "center"}
+          editable={editable}
+          maxLength={maxLength}
+          scrollEnabled={false}
+        />
+      </View>
+      {/* Inline error message */}
+      {error ? (
+        <View style={styles.errorRow}>
+          <MaterialIcons name="error-outline" size={14} color={GUIDE_COLORS.error} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : (
+        maxLength && (
+          <Text style={styles.charCount}>
+            {value.length}/{maxLength}
+          </Text>
+        )
+      )}
+    </View>
+  );
+};
 
 // ============================================
 // CATEGORY PICKER (DROPDOWN)

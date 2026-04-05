@@ -13,7 +13,7 @@ import {
     View,
 } from "react-native";
 
-export type ConfirmModalType = "danger" | "warning" | "info";
+export type ConfirmModalType = "danger" | "warning" | "info" | "success";
 export type ConfirmModalIconName = keyof typeof Ionicons.glyphMap;
 
 interface ConfirmModalProps {
@@ -24,9 +24,11 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
+  secondaryText?: string;
   showCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  onSecondary?: () => void;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -37,9 +39,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
   confirmText,
   cancelText,
+  secondaryText,
   showCancel = true,
   onConfirm,
   onCancel,
+  onSecondary,
 }) => {
   const { t } = useTranslation();
   
@@ -155,6 +159,33 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     ]).start(() => onConfirm());
   };
 
+  const handleSecondary = () => {
+    if (!onSecondary) return;
+
+    Animated.parallel([
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardScale, {
+        toValue: 0.3,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateY, {
+        toValue: 80,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onSecondary());
+  };
+
   const getIconConfig = () => {
     if (iconName) {
       return {
@@ -168,6 +199,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         return { name: "trash-outline" as const, color: "#EF4444" };
       case "warning":
         return { name: "warning-outline" as const, color: "#F59E0B" };
+      case "success":
+        return { name: "checkmark-circle-outline" as const, color: "#10B981" };
       case "info":
         return {
           name: "information-circle-outline" as const,
@@ -184,6 +217,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         return "#EF4444";
       case "warning":
         return "#F59E0B";
+      case "success":
+        return "#10B981";
       case "info":
         return "#3B82F6";
       default:
@@ -197,6 +232,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     confirmText ?? t("common.confirm", { defaultValue: "Confirm" });
   const resolvedCancelText =
     cancelText ?? t("common.cancel", { defaultValue: "Cancel" });
+  const hasSecondaryAction = Boolean(secondaryText && onSecondary);
 
   return (
     <Modal
@@ -241,10 +277,19 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 <Text style={styles.title}>{title}</Text>
                 <Text style={styles.message}>{message}</Text>
 
-                <View style={styles.buttonContainer}>
+                <View
+                  style={[
+                    styles.buttonContainer,
+                    hasSecondaryAction && styles.buttonContainerStacked,
+                  ]}
+                >
                   {showCancel && (
                     <TouchableOpacity
-                      style={[styles.button, styles.cancelButton]}
+                      style={[
+                        styles.button,
+                        styles.cancelButton,
+                        hasSecondaryAction && styles.fullWidthButton,
+                      ]}
                       onPress={handleClose}
                       activeOpacity={0.8}
                     >
@@ -254,10 +299,28 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                     </TouchableOpacity>
                   )}
 
+                  {hasSecondaryAction && (
+                    <TouchableOpacity
+                      style={[
+                        styles.button,
+                        styles.secondaryButton,
+                        styles.fullWidthButton,
+                      ]}
+                      onPress={handleSecondary}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.secondaryButtonText}>
+                        {secondaryText}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   <TouchableOpacity
                     style={[
                       styles.button,
-                      !showCancel && styles.singleButton,
+                      (!showCancel || hasSecondaryAction) &&
+                        styles.fullWidthButton,
+                      !showCancel && !hasSecondaryAction && styles.singleButton,
                       { backgroundColor: buttonColor },
                     ]}
                     onPress={handleConfirm}
@@ -322,6 +385,9 @@ const styles = StyleSheet.create({
     gap: 12,
     width: "100%",
   },
+  buttonContainerStacked: {
+    flexDirection: "column",
+  },
   button: {
     flex: 1,
     paddingVertical: 12,
@@ -337,8 +403,22 @@ const styles = StyleSheet.create({
     flex: 0,
     width: "100%",
   },
+  fullWidthButton: {
+    flex: 0,
+    width: "100%",
+  },
   cancelButtonText: {
     color: "#6B7280",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  secondaryButton: {
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.24)",
+  },
+  secondaryButtonText: {
+    color: "#D97706",
     fontSize: 16,
     fontWeight: "600",
   },

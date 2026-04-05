@@ -3,7 +3,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import {
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,9 +10,13 @@ import {
   View,
 } from "react-native";
 import {
+  BORDER_RADIUS,
   COLORS,
   SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../constants/theme.constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export interface AudioPickerModalProps {
   visible: boolean;
@@ -31,6 +34,7 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
   title,
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -38,11 +42,17 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.container}>
+            <View
+              style={[
+                styles.container,
+                { paddingBottom: Math.max(insets.bottom, SPACING.lg) },
+              ]}
+            >
               {/* Handle Bar */}
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
@@ -78,13 +88,13 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
                   <View
                     style={[
                       styles.iconContainer,
-                      { backgroundColor: "rgba(255, 152, 0, 0.12)" },
+                      { backgroundColor: "rgba(236, 182, 19, 0.12)" },
                     ]}
                   >
                     <MaterialIcons
                       name="mic-none"
                       size={28}
-                      color="#FF9800"
+                      color={COLORS.accent}
                     />
                   </View>
                   <View style={styles.textContainer}>
@@ -114,13 +124,13 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
                   <View
                     style={[
                       styles.iconContainer,
-                      { backgroundColor: "rgba(76, 175, 80, 0.12)" },
+                      { backgroundColor: COLORS.successLight },
                     ]}
                   >
                     <MaterialIcons
                       name="file-upload"
                       size={28}
-                      color="#4CAF50"
+                      color={COLORS.success}
                     />
                   </View>
                   <View style={styles.textContainer}>
@@ -149,32 +159,32 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    backgroundColor: COLORS.overlayDark,
     justifyContent: "flex-end",
   },
   container: {
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    borderTopLeftRadius: BORDER_RADIUS.xl,
+    borderTopRightRadius: BORDER_RADIUS.xl,
+    paddingTop: SPACING.xs,
     ...SHADOWS.large,
   },
   handleBarContainer: {
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: SPACING.md,
   },
   handleBar: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#E0E0E0",
+    width: 40,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: COLORS.borderMedium,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    marginBottom: 16,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.sm,
   },
   titleContainer: {
     flexDirection: "row",
@@ -184,49 +194,51 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#212121",
-    letterSpacing: -0.3,
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: "bold",
+    color: COLORS.textPrimary,
   },
   closeButton: {
-    padding: 6,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 20,
+    padding: SPACING.xs,
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: BORDER_RADIUS.full,
   },
   optionsContainer: {
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    paddingTop: SPACING.sm,
+    gap: SPACING.md,
   },
   option: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: SPACING.md,
     backgroundColor: COLORS.white,
-    borderRadius: 20,
+    borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: "#F0F0F0",
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
   },
   iconContainer: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: BORDER_RADIUS.md,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    marginRight: SPACING.md,
   },
   textContainer: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: 16,
+    fontSize: TYPOGRAPHY.fontSize.md,
     fontWeight: "600",
-    color: "#212121",
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   optionDesc: {
-    fontSize: 13,
-    color: "#757575",
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
     lineHeight: 18,
   },
 });

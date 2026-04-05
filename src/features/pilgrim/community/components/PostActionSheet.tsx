@@ -14,6 +14,7 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface PostActionSheetProps {
   busy?: boolean;
@@ -38,6 +39,7 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
   onReport,
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   if (!visible) return null;
 
@@ -56,7 +58,12 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
           onPress={onClose}
         />
 
-        <View style={styles.sheet}>
+        <View
+          style={[
+            styles.sheet,
+            { paddingBottom: Math.max(insets.bottom, SPACING.lg) },
+          ]}
+        >
           <View style={styles.handle} />
           <Text style={styles.title}>
             {t("postDetail.postActions", { defaultValue: "Post actions" })}

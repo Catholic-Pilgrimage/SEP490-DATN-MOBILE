@@ -20,8 +20,15 @@ export interface ConfirmOptions {
   showCancel?: boolean;
 }
 
+export interface ConfirmChoiceOptions extends ConfirmOptions {
+  secondaryText?: string;
+}
+
+export type ConfirmChoiceResult = "confirm" | "cancel" | "secondary";
+
 interface ConfirmContextType {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
+  confirmChoice: (opts: ConfirmChoiceOptions) => Promise<ConfirmChoiceResult>;
 }
 
 const ConfirmContext = createContext<ConfirmContextType | null>(null);
@@ -29,23 +36,23 @@ const ConfirmContext = createContext<ConfirmContextType | null>(null);
 export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
-  const [options, setOptions] = useState<ConfirmOptions>({
+  const [options, setOptions] = useState<ConfirmChoiceOptions>({
     title: "",
     message: "",
   });
-  const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const resolverRef = useRef<((result: ConfirmChoiceResult) => void) | null>(null);
 
-  const resolveConfirm = (confirmed: boolean) => {
+  const resolveConfirm = (result: ConfirmChoiceResult) => {
     const resolver = resolverRef.current;
     resolverRef.current = null;
     setVisible(false);
-    resolver?.(confirmed);
+    resolver?.(result);
   };
 
-  const confirm = (opts: ConfirmOptions): Promise<boolean> => {
+  const confirmChoice = (opts: ConfirmChoiceOptions): Promise<ConfirmChoiceResult> => {
     return new Promise((resolve) => {
       if (resolverRef.current) {
-        resolverRef.current(false);
+        resolverRef.current("cancel");
       }
 
       resolverRef.current = resolve;
@@ -64,11 +71,17 @@ export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children })
     });
   };
 
-  const handleCancel = () => resolveConfirm(false);
-  const handleConfirm = () => resolveConfirm(true);
+  const confirm = async (opts: ConfirmOptions): Promise<boolean> => {
+    const result = await confirmChoice(opts);
+    return result === "confirm";
+  };
+
+  const handleCancel = () => resolveConfirm("cancel");
+  const handleConfirm = () => resolveConfirm("confirm");
+  const handleSecondary = () => resolveConfirm("secondary");
 
   return (
-    <ConfirmContext.Provider value={{ confirm }}>
+    <ConfirmContext.Provider value={{ confirm, confirmChoice }}>
       {children}
       <ConfirmModal
         visible={visible}
@@ -78,9 +91,11 @@ export const ConfirmProvider: React.FC<{ children: ReactNode }> = ({ children })
         message={options.message}
         confirmText={options.confirmText}
         cancelText={options.cancelText}
+        secondaryText={options.secondaryText}
         showCancel={options.showCancel}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+        onSecondary={handleSecondary}
       />
     </ConfirmContext.Provider>
   );
@@ -94,10 +109,14 @@ export const useConfirm = () => {
   }
 
   const confirm = context?.confirm || (async () => false);
+  const confirmChoice =
+    context?.confirmChoice ||
+    (async () => "cancel" as ConfirmChoiceResult);
 
   // Return empty component for backwards compatibility with screens that still render it
   return {
     confirm,
+    confirmChoice,
     ConfirmModal: () => null,
   };
 };

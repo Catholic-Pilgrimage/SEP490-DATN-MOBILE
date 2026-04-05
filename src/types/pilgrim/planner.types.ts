@@ -413,6 +413,7 @@ export interface CheckInEntity {
     id: string;
     name: string;
     image?: string;
+    cover_image?: string;
     address?: string;
   };
   planner?: {
