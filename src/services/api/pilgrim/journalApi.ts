@@ -5,10 +5,12 @@
  * Endpoints:
  * - GET    /api/journals/me   - List my journals
  * - POST   /api/journals      - Create journal
+ * - POST   /api/ai/suggest-prayer - Suggest prayer for spiritual journal
  * - DELETE /api/journals/:id  - Delete journal
  */
 
 import { Platform } from "react-native";
+import { suggestPrayer as suggestPrayerAI } from "../../ai";
 import { ApiResponse } from "../../../types/api.types";
 import {
   CreateJournalRequest,
@@ -16,6 +18,8 @@ import {
   GetJournalsResponse,
   JournalEntry,
   UpdateJournalRequest,
+  PrayerSuggestionResult,
+  SuggestPrayerRequest,
 } from "../../../types/pilgrim";
 import { getAudioUploadMeta } from "../../../utils/audioUpload";
 import apiClient from "../apiClient";
@@ -53,6 +57,30 @@ export const getMyJournals = async (
     { params },
   );
   return response.data;
+};
+
+/**
+ * Suggest a prayer while the pilgrim is writing a spiritual journal.
+ *
+ * Backward-compatible wrapper around the shared AI service.
+ */
+export const suggestPrayer = async (
+  data: SuggestPrayerRequest,
+): Promise<ApiResponse<PrayerSuggestionResult>> => {
+  const response = await suggestPrayerAI(data);
+
+  return {
+    success: response.success,
+    message: response.message ?? "",
+    data: response.data
+      ? {
+          ...response.data,
+          prayer: response.data.prayer_text,
+          suggested_prayer: response.data.prayer_text,
+          suggestion: response.data.prayer_text,
+        }
+      : undefined,
+  };
 };
 
 /**
@@ -225,6 +253,7 @@ export const restoreJournal = async (id: string): Promise<ApiResponse<JournalEnt
 
 const pilgrimJournalApi = {
   getMyJournals,
+  suggestPrayer,
   createJournal,
   deleteJournal,
   getJournalDetail,

@@ -7,51 +7,94 @@ import { MaterialIcons } from "@expo/vector-icons";
 
 export interface CategoryItem {
   value: string;
-  label: string;
+  labelKey: string; // i18n key instead of hardcoded label
 }
 
 export interface CategoryGroup {
-  groupLabel: string;
+  groupLabelKey: string; // i18n key instead of hardcoded label
   icon: keyof typeof MaterialIcons.glyphMap;
   items: CategoryItem[];
 }
 
-export const EVENT_CATEGORY_GROUPS: CategoryGroup[] = [
+type TranslateFunction = (key: string, options?: { defaultValue?: string }) => string;
+
+export const getEventCategoryGroups = (t: TranslateFunction): CategoryGroup[] => [
   {
-    groupLabel: "Phụng vụ & Bí tích",
+    groupLabelKey: "eventCategories.groupLiturgy",
     icon: "church",
     items: [
-      { value: "solemn_feast", label: "Lễ Trọng / Tuần Thánh" },
-      { value: "sacrament_mass", label: "Thánh Lễ Bí tích" },
-      { value: "procession", label: "Rước kiệu / Cung nghinh" },
-      { value: "adoration", label: "Chầu lượt / Tuần chầu" },
+      { value: "solemn_feast", labelKey: "eventCategories.solemnFeast" },
+      { value: "sacrament_mass", labelKey: "eventCategories.sacramentMass" },
+      { value: "procession", labelKey: "eventCategories.procession" },
+      { value: "adoration", labelKey: "eventCategories.adoration" },
     ],
   },
   {
-    groupLabel: "Cộng đoàn & Lễ hội",
+    groupLabelKey: "eventCategories.groupCommunity",
     icon: "groups",
     items: [
-      { value: "patron_feast", label: "Lễ Bổn mạng" },
-      { value: "festival", label: "Hội chợ / Lễ hội" },
-      { value: "performance", label: "Văn nghệ / Thánh ca" },
-      { value: "sports", label: "Đại hội / Hội thao" },
+      { value: "patron_feast", labelKey: "eventCategories.patronFeast" },
+      { value: "festival", labelKey: "eventCategories.festival" },
+      { value: "performance", labelKey: "eventCategories.performance" },
+      { value: "sports", labelKey: "eventCategories.sports" },
     ],
   },
   {
-    groupLabel: "Đào tạo & Tâm linh",
+    groupLabelKey: "eventCategories.groupFormation",
     icon: "auto-stories",
     items: [
-      { value: "retreat", label: "Tĩnh tâm" },
-      { value: "camp", label: "Sa mạc / Cắm trại" },
-      { value: "course", label: "Khóa học / Giáo lý" },
+      { value: "retreat", labelKey: "eventCategories.retreat" },
+      { value: "camp", labelKey: "eventCategories.camp" },
+      { value: "course", labelKey: "eventCategories.course" },
     ],
   },
   {
-    groupLabel: "Bác ái & Ngoại vụ",
+    groupLabelKey: "eventCategories.groupCharity",
     icon: "volunteer-activism",
     items: [
-      { value: "pilgrimage", label: "Hành hương" },
-      { value: "charity", label: "Bác ái / Từ thiện" },
+      { value: "pilgrimage", labelKey: "eventCategories.pilgrimage" },
+      { value: "charity", labelKey: "eventCategories.charity" },
+    ],
+  },
+];
+
+// Legacy constant for backward compatibility (uses Vietnamese as fallback)
+export const EVENT_CATEGORY_GROUPS: CategoryGroup[] = [
+  {
+    groupLabelKey: "Phụng vụ & Bí tích",
+    icon: "church",
+    items: [
+      { value: "solemn_feast", labelKey: "Lễ Trọng / Tuần Thánh" },
+      { value: "sacrament_mass", labelKey: "Thánh Lễ Bí tích" },
+      { value: "procession", labelKey: "Rước kiệu / Cung nghinh" },
+      { value: "adoration", labelKey: "Chầu lượt / Tuần chầu" },
+    ],
+  },
+  {
+    groupLabelKey: "Cộng đoàn & Lễ hội",
+    icon: "groups",
+    items: [
+      { value: "patron_feast", labelKey: "Lễ Bổn mạng" },
+      { value: "festival", labelKey: "Hội chợ / Lễ hội" },
+      { value: "performance", labelKey: "Văn nghệ / Thánh ca" },
+      { value: "sports", labelKey: "Đại hội / Hội thao" },
+    ],
+  },
+  {
+    groupLabelKey: "Đào tạo & Tâm linh",
+    icon: "auto-stories",
+    items: [
+      { value: "retreat", labelKey: "Tĩnh tâm" },
+      { value: "camp", labelKey: "Sa mạc / Cắm trại" },
+      { value: "course", labelKey: "Khóa học / Giáo lý" },
+    ],
+  },
+  {
+    groupLabelKey: "Bác ái & Ngoại vụ",
+    icon: "volunteer-activism",
+    items: [
+      { value: "pilgrimage", labelKey: "Hành hương" },
+      { value: "charity", labelKey: "Bác ái / Từ thiện" },
     ],
   },
 ];
@@ -84,10 +127,20 @@ export const DEFAULT_EVENT_GRADIENT: GradientTheme = {
 
 export const findCategoryByValue = (
   value: string,
-): { item: CategoryItem; group: CategoryGroup } | null => {
-  for (const group of EVENT_CATEGORY_GROUPS) {
+  t?: TranslateFunction,
+): { item: CategoryItem; group: CategoryGroup; label: string; groupLabel: string } | null => {
+  const groups = t ? getEventCategoryGroups(t) : EVENT_CATEGORY_GROUPS;
+  
+  for (const group of groups) {
     const item = group.items.find((i) => i.value === value);
-    if (item) return { item, group };
+    if (item) {
+      return {
+        item,
+        group,
+        label: t ? t(item.labelKey) : item.labelKey,
+        groupLabel: t ? t(group.groupLabelKey) : group.groupLabelKey,
+      };
+    }
   }
   return null;
 };
@@ -119,7 +172,7 @@ export const parseEventCategoryAndDescription = (input: {
     const tagLabel = match[1];
     let catValue = "";
     for (const group of EVENT_CATEGORY_GROUPS) {
-      const found = group.items.find((i) => i.label === tagLabel);
+      const found = group.items.find((i) => i.labelKey === tagLabel);
       if (found) {
         catValue = found.value;
         break;
@@ -145,7 +198,7 @@ export const resolveEventCategorySlug = (
   if (match) {
     const label = match[1];
     const fromLabel = EVENT_CATEGORY_GROUPS.flatMap((g) => g.items).find(
-      (i) => i.label === label,
+      (i) => i.labelKey === label,
     );
     return fromLabel?.value ?? null;
   }
@@ -153,14 +206,17 @@ export const resolveEventCategorySlug = (
 };
 
 /** Nhãn hiển thị (tiếng Việt) hoặc slug nếu không khớp danh sách. */
-export const getEventCategoryLabel = (event: {
-  category?: string | null;
-  description?: string | null;
-}): string | null => {
+export const getEventCategoryLabel = (
+  event: {
+    category?: string | null;
+    description?: string | null;
+  },
+  t?: TranslateFunction,
+): string | null => {
   const slug = resolveEventCategorySlug(event);
   if (!slug) return null;
-  const found = findCategoryByValue(slug);
-  return found?.item.label ?? slug;
+  const found = findCategoryByValue(slug, t);
+  return found?.label ?? slug;
 };
 
 /** Thumbnail gradient: prefer API slug, then legacy [label] in description. */
@@ -176,7 +232,7 @@ export const getCategoryGradientForList = (
   if (match) {
     const label = match[1];
     const fromLabel = EVENT_CATEGORY_GROUPS.flatMap((g) => g.items).find(
-      (i) => i.label === label,
+      (i) => i.labelKey === label,
     );
     if (fromLabel?.value && CATEGORY_GROUP_GRADIENTS[fromLabel.value]) {
       return CATEGORY_GROUP_GRADIENTS[fromLabel.value];

@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
+  ActivityIndicator,
   Image,
   Platform,
   ScrollView,
@@ -15,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { AISparkles } from "../../../../components/ui/AISparkles";
 import {
   GUIDE_BORDER_RADIUS,
   GUIDE_COLORS,
@@ -49,6 +51,7 @@ interface RecentReviewsProps {
   onReply?: (reviewId: string) => void;
   onViewAll?: () => void;
   onAISummary?: () => void;
+  isAISummaryLoading?: boolean;
 }
 
 // Star Rating Component
@@ -135,6 +138,7 @@ export const RecentReviews: React.FC<RecentReviewsProps> = ({
   onReply,
   onViewAll,
   onAISummary,
+  isAISummaryLoading = false,
 }) => {
   const { t } = useI18n();
 
@@ -149,14 +153,22 @@ export const RecentReviews: React.FC<RecentReviewsProps> = ({
         <View style={styles.headerActions}>
           {/* AI Summary Button */}
           {onAISummary && (
-            <TouchableOpacity style={styles.aiButton} onPress={onAISummary}>
+            <TouchableOpacity
+              style={[styles.aiButton, isAISummaryLoading && styles.aiButtonDisabled]}
+              onPress={onAISummary}
+              disabled={isAISummaryLoading}
+            >
               <LinearGradient
                 colors={[PREMIUM_COLORS.aiPurple, PREMIUM_COLORS.aiPurpleDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.aiButtonGradient}
               >
-                <Text style={styles.aiIcon}>✨</Text>
+                {isAISummaryLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <AISparkles size={14} color="#FFF" isAnimating={!isAISummaryLoading} />
+                )}
                 <Text style={styles.aiButtonText}>{t("reviews.aiSummary")}</Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -228,15 +240,15 @@ const styles = StyleSheet.create({
     borderRadius: GUIDE_BORDER_RADIUS.full,
     overflow: "hidden",
   },
+  aiButtonDisabled: {
+    opacity: 0.75,
+  },
   aiButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 4,
-  },
-  aiIcon: {
-    fontSize: 14,
   },
   aiButtonText: {
     fontSize: getFontSize(11),

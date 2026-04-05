@@ -133,6 +133,30 @@ export interface UpdateJournalRequest extends Partial<CreateJournalRequest> {
 }
 
 /**
+ * AI prayer suggestion request
+ * Backend requires exactly one of `planner_item_id` or `planner_id`,
+ * and at least one of `current_text`, `mood`, `intention`.
+ */
+export interface SuggestPrayerRequest {
+  planner_item_id?: string;
+  planner_id?: string;
+  current_text?: string;
+  mood?: string;
+  intention?: string;
+}
+
+/**
+ * AI prayer suggestion response payload.
+ * Kept flexible until the journal UI is wired and the exact backend shape is finalized.
+ */
+export interface PrayerSuggestionResult {
+  prayer?: string;
+  suggested_prayer?: string;
+  suggestion?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Get journals params
  */
 export interface GetJournalsParams {

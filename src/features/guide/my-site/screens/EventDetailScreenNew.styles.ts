@@ -436,6 +436,300 @@ export const styles = StyleSheet.create({
   },
 
   // ============================================
+  // AI ASSIST
+  // ============================================
+  aiAssistCard: {
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.primary + '30', // 30% opacity
+    padding: GUIDE_SPACING.md + 2,
+    marginBottom: GUIDE_SPACING.lg + 4,
+    gap: GUIDE_SPACING.md,
+    ...GUIDE_SHADOWS.md,
+  },
+  aiAssistContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: GUIDE_SPACING.sm,
+  },
+  aiAssistIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aiAssistTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  aiAssistTitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamInk,
+  },
+  aiAssistSubtitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
+    lineHeight: 20,
+  },
+  aiAssistLoadingBox: {
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    padding: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.xs,
+  },
+  aiAssistLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+  },
+  aiAssistLoadingTitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamInk,
+  },
+  aiAssistLoadingDescription: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
+    lineHeight: 20,
+  },
+  aiAssistRetryBox: {
+    backgroundColor: "#FFF8EC",
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.18)",
+    padding: GUIDE_SPACING.md,
+    gap: GUIDE_SPACING.sm,
+  },
+  aiAssistRetryContent: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: GUIDE_SPACING.xs,
+  },
+  aiAssistRetryText: {
+    flex: 1,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    lineHeight: 20,
+    color: GUIDE_COLORS.creamLabel,
+  },
+  aiAssistRetryButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: GUIDE_SPACING.md,
+    paddingVertical: GUIDE_SPACING.xs + 2,
+    borderRadius: GUIDE_BORDER_RADIUS.full,
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+  },
+  aiAssistRetryButtonText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: GUIDE_COLORS.primaryDark,
+  },
+  aiAssistButton: {
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    overflow: 'hidden',
+  },
+  aiAssistButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: GUIDE_SPACING.xs,
+    paddingVertical: GUIDE_SPACING.sm + 2,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+  },
+  aiAssistButtonGradientDisabled: {
+    opacity: 0.72,
+  },
+  aiAssistButtonText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#3D2000",
+  },
+
+  // ============================================
+  // AI SUGGESTION MODAL
+  // ============================================
+  aiModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  aiModalSafeArea: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  aiModalSheet: {
+    backgroundColor: GUIDE_COLORS.creamBg,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.xl,
+    maxHeight: "82%",
+  },
+  aiModalHandle: {
+    alignSelf: "center",
+    width: 44,
+    height: 4,
+    borderRadius: 999,
+    backgroundColor: GUIDE_COLORS.gray300,
+    marginBottom: GUIDE_SPACING.md,
+  },
+  aiModalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: GUIDE_SPACING.sm,
+    marginBottom: GUIDE_SPACING.md,
+  },
+  aiModalHeaderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  aiModalHeaderTextWrap: {
+    flex: 1,
+    gap: 4,
+  },
+  aiModalTitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeLG,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamInk,
+  },
+  aiModalSubtitle: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
+    lineHeight: 20,
+  },
+  aiModalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  aiSuggestionList: {
+    flexGrow: 0,
+  },
+  aiSuggestionListContent: {
+    gap: GUIDE_SPACING.md,
+    paddingBottom: GUIDE_SPACING.sm,
+  },
+  aiSuggestionCard: {
+    backgroundColor: GUIDE_COLORS.creamElevated,
+    borderRadius: GUIDE_BORDER_RADIUS.lg,
+    padding: GUIDE_SPACING.md,
+    borderWidth: 1.5,
+    borderColor: GUIDE_COLORS.creamBorder,
+    gap: GUIDE_SPACING.sm,
+    ...GUIDE_SHADOWS.sm,
+    overflow: 'hidden',
+  },
+  aiSuggestionGradientBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  aiSuggestionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: GUIDE_SPACING.sm,
+    marginBottom: GUIDE_SPACING.xs,
+  },
+  aiSuggestionIndexBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: GUIDE_SPACING.xs,
+  },
+  aiSuggestionIndexText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.primaryDark,
+  },
+  aiSuggestionHeaderLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: GUIDE_SPACING.sm,
+  },
+  aiSuggestionName: {
+    flex: 1,
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.creamInk,
+  },
+  aiSuggestionCategoryBadge: {
+    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: GUIDE_BORDER_RADIUS.sm,
+    backgroundColor: GUIDE_COLORS.primaryMuted,
+  },
+  aiSuggestionCategoryText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.primaryDark,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+  },
+  aiSuggestionChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: GUIDE_SPACING.xs,
+    marginBottom: GUIDE_SPACING.xs,
+  },
+  aiSuggestionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: GUIDE_SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: GUIDE_BORDER_RADIUS.sm,
+    backgroundColor: GUIDE_COLORS.creamPanel,
+    borderWidth: 1,
+    borderColor: GUIDE_COLORS.creamBorder,
+  },
+  aiSuggestionChipText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
+    color: GUIDE_COLORS.creamLabel,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
+  },
+  aiSuggestionDescription: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    color: GUIDE_COLORS.creamMuted,
+    lineHeight: 18,
+  },
+  aiSuggestionApplyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: GUIDE_SPACING.xs,
+    paddingTop: GUIDE_SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: GUIDE_COLORS.creamBorder,
+  },
+  aiSuggestionApplyText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightBold,
+    color: GUIDE_COLORS.primary,
+  },
+
+  // ============================================
   // ACTION BUTTONS
   // ============================================
   actionButtons: {

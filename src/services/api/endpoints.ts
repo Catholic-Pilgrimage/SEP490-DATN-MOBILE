@@ -8,6 +8,18 @@
 const API_BASE = "/api";
 
 /**
+ * Shared AI endpoints
+ * Used by both Local Guide and Pilgrim features.
+ */
+export const AI_ENDPOINTS = {
+  SUGGEST_ROUTE: `${API_BASE}/ai/suggest-route`,
+  GENERATE_ARTICLE: `${API_BASE}/ai/generate-article`,
+  SUMMARIZE_REVIEWS: `${API_BASE}/ai/summarize-reviews`,
+  SUGGEST_EVENTS: `${API_BASE}/ai/suggest-events`,
+  SUGGEST_PRAYER: `${API_BASE}/ai/suggest-prayer`,
+} as const;
+
+/**
  * Authentication endpoints
  * Used by both Pilgrim and Local Guide roles
  */
@@ -158,6 +170,11 @@ export const PILGRIM_ENDPOINTS = {
     DELETE: (id: string) => `${API_BASE}/journals/${id}`,
     SHARE: (id: string) => `${API_BASE}/journals/${id}/share`,
     RESTORE: (id: string) => `${API_BASE}/journals/${id}/restore`,
+  },
+
+  // Pilgrim AI - Journal support tools
+  AI: {
+    SUGGEST_PRAYER: AI_ENDPOINTS.SUGGEST_PRAYER,
   },
 
   // Community - Social features for pilgrims
@@ -351,12 +368,7 @@ export const GUIDE_ENDPOINTS = {
   },
 
   // AI Tools - Content generation
-  AI_TOOLS: {
-    GENERATE_DESCRIPTION: `${API_BASE}/guide/ai/generate-description`,
-    IMPROVE_CONTENT: `${API_BASE}/guide/ai/improve-content`,
-    TRANSLATE: `${API_BASE}/guide/ai/translate`,
-    SUGGEST_TAGS: `${API_BASE}/guide/ai/suggest-tags`,
-  },
+  AI_TOOLS: AI_ENDPOINTS,
 
   // Support
   SUPPORT: {

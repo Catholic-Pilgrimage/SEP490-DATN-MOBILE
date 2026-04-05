@@ -17,14 +17,16 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import * as Haptics from "expo-haptics";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StatusBar,
@@ -33,11 +35,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
+import { AISparkles } from "../../../../components/ui/AISparkles";
 import { GUIDE_COLORS } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
+import { useI18n } from "../../../../hooks/useI18n";
 import { MySiteStackParamList } from "../../../../navigation/MySiteNavigator";
+import {
+  EventSuggestion,
+  SuggestEventsResponse,
+  suggestEvents,
+} from "../../../../services/ai";
 import {
   createEvent,
   deleteEvent,
@@ -55,30 +68,68 @@ import { StatusBadge } from "../components/StatusBadge";
 import {
   CATEGORY_GROUP_GRADIENTS,
   DEFAULT_EVENT_GRADIENT as DEFAULT_GRADIENT,
-  EVENT_CATEGORY_GROUPS,
   findCategoryByValue,
+  getEventCategoryGroups,
   parseEventCategoryAndDescription,
 } from "../utils/eventCategoryUi";
 import { styles } from "./EventDetailScreenNew.styles";
 
 type EventDetailRouteProp = RouteProp<MySiteStackParamList, "EventDetail">;
 
-const STATUS_LABELS: Record<EventStatus, string> = {
-  pending: "Chờ duyệt",
-  approved: "Đã duyệt",
-  rejected: "Từ chối",
-};
+const getStatusLabels = (t: (key: string) => string): Record<EventStatus, string> => ({
+  pending: t("eventDetail.statusPending"),
+  approved: t("eventDetail.statusApproved"),
+  rejected: t("eventDetail.statusRejected"),
+});
 
 // ============================================
 // CONSTANTS
 // ============================================
 
 /** Form step definitions for multi-step form */
-const FORM_STEPS = [
-  { key: "basic", label: "Thông tin cơ bản", icon: "info" as const },
-  { key: "datetime", label: "Thời gian", icon: "schedule" as const },
-  { key: "location", label: "Địa điểm & Ảnh bìa", icon: "place" as const },
+const getFormSteps = (t: (key: string) => string) => [
+  { key: "basic", label: t("eventDetail.step1Label"), icon: "info" as const },
+  { key: "datetime", label: t("eventDetail.step2Label"), icon: "schedule" as const },
+  { key: "location", label: t("eventDetail.step3Label"), icon: "place" as const },
 ];
+
+const AI_EVENT_CATEGORY_MAP: Record<string, string> = {
+  mass: "sacrament_mass",
+  feast: "solemn_feast",
+  procession: "procession",
+  adoration: "adoration",
+  retreat: "retreat",
+  pilgrimage: "pilgrimage",
+  charity: "charity",
+  cultural: "festival",
+  other: "",
+};
+
+const parseLocalDate = (dateString: string): Date => {
+  const [year, month, day] = dateString.split("-").map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const formatSuggestionTime = (time?: string) => time?.slice(0, 5) || "";
+const AI_SUGGESTION_SLOW_THRESHOLD_MS = 10000;
+
+const normalizeSuggestionCategory = (category?: string) => {
+  if (!category) return "";
+  const normalized = category.trim();
+  return AI_EVENT_CATEGORY_MAP[normalized] ?? normalized;
+};
+
+const buildSuggestionDescription = (suggestion: EventSuggestion) => {
+  const baseDescription = suggestion.description?.trim() || "";
+  const relevance = suggestion.relevance?.trim() || "";
+
+  if (!baseDescription) return relevance;
+  if (!relevance || baseDescription.includes(relevance)) {
+    return baseDescription;
+  }
+
+  return `${baseDescription}\n\nTheo mùa phụng vụ: ${relevance}`;
+};
 
 // ============================================
 // STEP INDICATOR
@@ -87,7 +138,7 @@ const FORM_STEPS = [
 interface StepIndicatorProps {
   currentStep: number;
   totalSteps: number;
-  steps: typeof FORM_STEPS;
+  steps: ReturnType<typeof getFormSteps>;
 }
 
 const StepIndicator: React.FC<StepIndicatorProps> = ({
@@ -272,11 +323,13 @@ const CategoryPicker: React.FC<CategoryPickerProps> = ({
   editable = true,
   error,
 }) => {
+  const { t } = useI18n();
   const [showOptions, setShowOptions] = useState(false);
 
   // Resolve display label from grouped data
-  const found = value ? findCategoryByValue(value) : null;
-  const selectedLabel = found ? found.item.label : "Chọn loại sự kiện";
+  const found = value ? findCategoryByValue(value, t) : null;
+  const selectedLabel = found ? found.label : t("eventDetail.categoryPlaceholder");
+  const EVENT_CATEGORY_GROUPS = useMemo(() => getEventCategoryGroups(t), [t]);
 
   return (
     <View style={styles.fieldContainer}>
@@ -313,7 +366,7 @@ const CategoryPicker: React.FC<CategoryPickerProps> = ({
             !value && styles.placeholder,
           ]}
         >
-          {value ? selectedLabel : "Chọn loại sự kiện"}
+          {value ? selectedLabel : t("eventDetail.categoryPlaceholder")}
         </Text>
         <MaterialIcons
           name={showOptions ? "keyboard-arrow-up" : "keyboard-arrow-down"}
@@ -336,7 +389,7 @@ const CategoryPicker: React.FC<CategoryPickerProps> = ({
           showsVerticalScrollIndicator={true}
         >
           {EVENT_CATEGORY_GROUPS.map((group) => (
-            <View key={group.groupLabel}>
+            <View key={group.groupLabelKey}>
               {/* Group Header — non-clickable */}
               <View style={styles.dropdownGroupHeader}>
                 <MaterialIcons
@@ -345,7 +398,7 @@ const CategoryPicker: React.FC<CategoryPickerProps> = ({
                   color={GUIDE_COLORS.textSecondary}
                 />
                 <Text style={styles.dropdownGroupLabel}>
-                  {group.groupLabel}
+                  {t(group.groupLabelKey)}
                 </Text>
               </View>
               {/* Group Items */}
@@ -368,7 +421,7 @@ const CategoryPicker: React.FC<CategoryPickerProps> = ({
                       value === item.value && styles.dropdownItemTextActive,
                     ]}
                   >
-                    {item.label}
+                    {t(item.labelKey)}
                   </Text>
                   {value === item.value && (
                     <MaterialIcons
@@ -505,11 +558,16 @@ const DateTimeField: React.FC<DateTimeFieldProps> = ({
 // ============================================
 
 export const EventDetailScreen: React.FC = () => {
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { confirm, ConfirmModal } = useConfirm();
   const route = useRoute<EventDetailRouteProp>();
   const { event: passedEvent } = route.params || {};
+
+  // Memoize translated constants
+  const FORM_STEPS = useMemo(() => getFormSteps(t), [t]);
+  const STATUS_LABELS = useMemo(() => getStatusLabels(t), [t]);
 
   // Mode management
   const isCreateMode = !passedEvent;
@@ -557,6 +615,17 @@ export const EventDetailScreen: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isAISuggesting, setIsAISuggesting] = useState(false);
+  const [isAISuggestionSlow, setIsAISuggestionSlow] = useState(false);
+  const [aiSuggestionRetryMessage, setAiSuggestionRetryMessage] =
+    useState<string | null>(null);
+  const [aiSuggestionData, setAiSuggestionData] =
+    useState<SuggestEventsResponse["data"] | null>(null);
+  const [isAISuggestionModalVisible, setIsAISuggestionModalVisible] =
+    useState(false);
+  const aiSuggestionSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // Validation state — tracks which fields have been touched / have errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -600,13 +669,13 @@ export const EventDetailScreen: React.FC = () => {
       if (startDate && date < startDate) {
         setFieldErrors((prev) => ({
           ...prev,
-          endDate: "Ngày kết thúc phải sau ngày bắt đầu",
+          endDate: t("eventDetail.errorEndDateBeforeStart"),
         }));
       } else {
         clearFieldError("endDate");
       }
     },
-    [startDate, clearFieldError],
+    [startDate, clearFieldError, t],
   );
 
   const handleStartTimeChange = useCallback(
@@ -625,14 +694,14 @@ export const EventDetailScreen: React.FC = () => {
         if (sameDay && date <= startTime) {
           setFieldErrors((prev) => ({
             ...prev,
-            endTime: "Giờ kết thúc phải sau giờ bắt đầu",
+            endTime: t("eventDetail.errorEndTimeBeforeStart"),
           }));
         } else {
           clearFieldError("endTime");
         }
       }
     },
-    [startTime, startDate, endDate, clearFieldError],
+    [startTime, startDate, endDate, clearFieldError, t],
   );
 
   // ============================================
@@ -732,28 +801,162 @@ export const EventDetailScreen: React.FC = () => {
   // SAVE & DELETE
   // ============================================
 
-  const showInfoDialog = useCallback(
-    async (
+  const showToast = useCallback(
+    (
+      type: "success" | "error" | "info",
       title: string,
       message: string,
-      type: "danger" | "warning" | "info" = "info",
     ) => {
-      await confirm({
+      Toast.show({
         type,
-        iconName:
-          type === "danger"
-            ? "alert-circle-outline"
-            : type === "warning"
-              ? "warning-outline"
-              : "information-circle-outline",
-        title,
-        message,
-        confirmText: "OK",
-        showCancel: false,
+        text1: title,
+        text2: message,
       });
     },
-    [confirm],
+    [],
   );
+
+  const clearAISuggestionSlowTimer = useCallback(() => {
+    if (aiSuggestionSlowTimerRef.current) {
+      clearTimeout(aiSuggestionSlowTimerRef.current);
+      aiSuggestionSlowTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearAISuggestionSlowTimer(), [clearAISuggestionSlowTimer]);
+
+  const applySuggestionToForm = useCallback(
+    async (suggestion: EventSuggestion) => {
+      const hasExistingFormData = Boolean(
+        name.trim() ||
+          description.trim() ||
+          category.trim() ||
+          location.trim() ||
+          startDate ||
+          endDate ||
+          startTime ||
+          endTime,
+      );
+
+      if (hasExistingFormData) {
+        const shouldApply = await confirm({
+          type: "warning",
+          iconName: "sparkles-outline",
+          title: t("eventDetail.aiApplyConfirmTitle"),
+          message: t("eventDetail.aiApplyConfirmMessage"),
+          confirmText: t("eventDetail.aiApplyConfirm"),
+          cancelText: t("eventDetail.aiApplyCancel"),
+        });
+
+        if (!shouldApply) {
+          return;
+        }
+      }
+
+      const nextCategory = normalizeSuggestionCategory(suggestion.category);
+
+      setName(suggestion.name?.trim() || "");
+      setDescription(buildSuggestionDescription(suggestion));
+      setCategory(nextCategory);
+      setStartDate(parseLocalDate(suggestion.start_date));
+      setEndDate(parseLocalDate(suggestion.end_date || suggestion.start_date));
+      setStartTime(
+        suggestion.start_time ? parseTime(suggestion.start_time) : null,
+      );
+      setEndTime(suggestion.end_time ? parseTime(suggestion.end_time) : null);
+      setLocation(suggestion.location?.trim() || "");
+      setFieldErrors({});
+      setIsAISuggestionModalVisible(false);
+
+      showToast(
+        "success",
+        t("eventDetail.aiAppliedSuccess"),
+        t("eventDetail.aiAppliedMessage"),
+      );
+    },
+    [
+      category,
+      confirm,
+      description,
+      endDate,
+      endTime,
+      location,
+      name,
+      showToast,
+      startDate,
+      startTime,
+      t,
+    ],
+  );
+
+  const handleSuggestEvents = useCallback(async () => {
+    if (!isEditing || isAISuggesting) return;
+
+    clearAISuggestionSlowTimer();
+    setAiSuggestionRetryMessage(null);
+    setIsAISuggestionSlow(false);
+    setIsAISuggesting(true);
+
+    aiSuggestionSlowTimerRef.current = setTimeout(() => {
+      setIsAISuggestionSlow(true);
+      showToast(
+        "info",
+        t("eventDetail.aiAssistTitle"),
+        t("eventDetail.aiSlowResponseMessage", {
+          defaultValue:
+            "AI đang mất nhiều thời gian hơn bình thường. Bạn vẫn có thể tiếp tục điền form trong lúc chờ.",
+        }),
+      );
+    }, AI_SUGGESTION_SLOW_THRESHOLD_MS);
+
+    try {
+      const response = await suggestEvents({
+        current_date: startDate ? formatDateForApi(startDate) : undefined,
+        count: 5,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(
+          response.message || t("eventDetail.aiError"),
+        );
+      }
+
+      if (!response.data.suggestions?.length) {
+        showToast(
+          "info",
+          t("eventDetail.aiAssistTitle"),
+          t("eventDetail.aiNoSuggestions"),
+        );
+        return;
+      }
+
+      setAiSuggestionRetryMessage(null);
+      setAiSuggestionData(response.data);
+      setIsAISuggestionModalVisible(true);
+    } catch (error: any) {
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        t("eventDetail.aiError");
+
+      setAiSuggestionRetryMessage(errorMessage);
+      showToast(
+        "error",
+        t("eventDetail.aiAssistTitle"),
+        errorMessage,
+      );
+    } finally {
+      clearAISuggestionSlowTimer();
+      setIsAISuggesting(false);
+    }
+  }, [
+    clearAISuggestionSlowTimer,
+    isEditing,
+    isAISuggesting,
+    showToast,
+    startDate,
+    t,
+  ]);
 
   const handleSave = useCallback(async () => {
     console.log("[EventSave] handleSave called, isCreateMode:", isCreateMode);
@@ -816,25 +1019,26 @@ export const EventDetailScreen: React.FC = () => {
       console.log("[EventSave] API result:", JSON.stringify(result));
 
       if (result?.success) {
-        await showInfoDialog(
-          "Thành công",
-          !isCreateMode ? "Đã cập nhật sự kiện" : "Đã tạo sự kiện mới",
+        showToast(
+          "success",
+          t("eventDetail.saveSuccess"),
+          !isCreateMode ? t("eventDetail.updateSuccess") : t("eventDetail.createSuccess"),
         );
         navigation.goBack();
       } else {
         console.log("[EventSave] result.success is false:", result?.message);
-        await showInfoDialog(
-          "Lỗi",
-          result?.message || "Không thể lưu sự kiện",
-          "danger",
+        showToast(
+          "error",
+          t("eventDetail.saveError"),
+          result?.message || t("eventDetail.saveErrorMessage"),
         );
       }
     } catch (error: any) {
       console.log("[EventSave] CATCH error:", error?.message, error?.response?.data);
-      await showInfoDialog(
-        "Lỗi",
-        error?.response?.data?.message || error.message || "Không thể lưu sự kiện",
-        "danger",
+      showToast(
+        "error",
+        t("eventDetail.saveError"),
+        error?.response?.data?.message || error.message || t("eventDetail.saveErrorMessage"),
       );
     } finally {
       setSaving(false);
@@ -852,7 +1056,8 @@ export const EventDetailScreen: React.FC = () => {
     isCreateMode,
     passedEvent,
     navigation,
-    showInfoDialog,
+    showToast,
+    t,
   ]);
 
   const handleDelete = useCallback(async () => {
@@ -861,10 +1066,10 @@ export const EventDetailScreen: React.FC = () => {
     const confirmed = await confirm({
       type: "danger",
       iconName: "trash-outline",
-      title: "Xóa sự kiện",
-      message: `Bạn có chắc muốn xóa "${passedEvent.name}"?`,
-      confirmText: "Xóa",
-      cancelText: "Hủy",
+      title: t("eventDetail.deleteConfirmTitle"),
+      message: t("eventDetail.deleteConfirmMessage", { name: passedEvent.name }),
+      confirmText: t("eventDetail.deleteConfirm"),
+      cancelText: t("eventDetail.deleteCancel"),
     });
 
     if (!confirmed) {
@@ -875,25 +1080,25 @@ export const EventDetailScreen: React.FC = () => {
     try {
       const result = await deleteEvent(passedEvent.id);
       if (result?.success) {
-        await showInfoDialog("Thành công", "Đã xóa sự kiện");
+        showToast("success", t("eventDetail.saveSuccess"), t("eventDetail.deleteSuccess"));
         navigation.goBack();
       } else {
-        await showInfoDialog(
-          "Lỗi",
-          result?.message || "Không thể xóa",
-          "danger",
+        showToast(
+          "error",
+          t("eventDetail.saveError"),
+          result?.message || t("eventDetail.deleteError"),
         );
       }
     } catch (error: any) {
-      await showInfoDialog(
-        "Lỗi",
-        error.message || "Không thể xóa",
-        "danger",
+      showToast(
+        "error",
+        t("eventDetail.saveError"),
+        error.message || t("eventDetail.deleteError"),
       );
     } finally {
       setDeleting(false);
     }
-  }, [confirm, passedEvent, navigation, showInfoDialog]);
+  }, [confirm, passedEvent, navigation, showToast, t]);
 
   // ============================================
   // RENDER STEP CONTENT (CREATE MODE)
@@ -904,16 +1109,16 @@ export const EventDetailScreen: React.FC = () => {
       case 0:
         return (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
+            <Text style={styles.sectionTitle}>{t("eventDetail.basicInfoTitle")}</Text>
 
             <InputField
-              label="Tên sự kiện"
+              label={t("eventDetail.eventNameLabel")}
               value={name}
               onChangeText={(text) => {
                 setName(text);
                 clearFieldError("name");
               }}
-              placeholder="VD: Lễ Giáng Sinh 2026"
+              placeholder={t("eventDetail.eventNamePlaceholder")}
               icon="event"
               required
               editable={isEditing}
@@ -922,7 +1127,7 @@ export const EventDetailScreen: React.FC = () => {
             />
 
             <CategoryPicker
-              label="Loại sự kiện"
+              label={t("eventDetail.categoryLabel")}
               value={category}
               onChange={(val) => {
                 setCategory(val);
@@ -934,13 +1139,13 @@ export const EventDetailScreen: React.FC = () => {
             />
 
             <InputField
-              label="Mô tả"
+              label={t("eventDetail.descriptionLabel")}
               value={description}
               onChangeText={(text) => {
                 setDescription(text);
                 clearFieldError("description");
               }}
-              placeholder="Mô tả chi tiết về sự kiện..."
+              placeholder={t("eventDetail.descriptionPlaceholder")}
               multiline
               editable={isEditing}
               maxLength={2000}
@@ -952,16 +1157,16 @@ export const EventDetailScreen: React.FC = () => {
       case 1:
         return (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thời gian diễn ra</Text>
+            <Text style={styles.sectionTitle}>{t("eventDetail.dateTimeTitle")}</Text>
 
             <View style={styles.row}>
               <View style={styles.halfField}>
                 <DateTimeField
-                  label="Ngày bắt đầu"
+                  label={t("eventDetail.startDateLabel")}
                   value={startDate}
                   onChange={handleStartDateChange}
                   mode="date"
-                  placeholder="Chọn ngày"
+                  placeholder={t("eventDetail.selectDatePlaceholder")}
                   required
                   editable={isEditing}
                   error={fieldErrors.startDate}
@@ -969,11 +1174,11 @@ export const EventDetailScreen: React.FC = () => {
               </View>
               <View style={styles.halfField}>
                 <DateTimeField
-                  label="Ngày kết thúc"
+                  label={t("eventDetail.endDateLabel")}
                   value={endDate}
                   onChange={handleEndDateChange}
                   mode="date"
-                  placeholder="Chọn ngày"
+                  placeholder={t("eventDetail.selectDatePlaceholder")}
                   required
                   editable={isEditing}
                   error={fieldErrors.endDate}
@@ -1000,11 +1205,11 @@ export const EventDetailScreen: React.FC = () => {
             <View style={styles.row}>
               <View style={styles.halfField}>
                 <DateTimeField
-                  label="Giờ bắt đầu"
+                  label={t("eventDetail.startTimeLabel")}
                   value={startTime}
                   onChange={handleStartTimeChange}
                   mode="time"
-                  placeholder="Chọn giờ"
+                  placeholder={t("eventDetail.selectTimePlaceholder")}
                   required
                   editable={isEditing}
                   error={fieldErrors.startTime}
@@ -1012,11 +1217,11 @@ export const EventDetailScreen: React.FC = () => {
               </View>
               <View style={styles.halfField}>
                 <DateTimeField
-                  label="Giờ kết thúc"
+                  label={t("eventDetail.endTimeLabel")}
                   value={endTime}
                   onChange={handleEndTimeChange}
                   mode="time"
-                  placeholder="Chọn giờ"
+                  placeholder={t("eventDetail.selectTimePlaceholder")}
                   required
                   editable={isEditing}
                   error={fieldErrors.endTime}
@@ -1031,15 +1236,15 @@ export const EventDetailScreen: React.FC = () => {
           <>
             {/* Location */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Địa điểm</Text>
+              <Text style={styles.sectionTitle}>{t("eventDetail.locationTitle")}</Text>
               <InputField
-                label="Vị trí"
+                label={t("eventDetail.locationLabel")}
                 value={location}
                 onChangeText={(text) => {
                   setLocation(text);
                   clearFieldError("location");
                 }}
-                placeholder="VD: Sân nhà thờ chính"
+                placeholder={t("eventDetail.locationPlaceholder")}
                 icon="location-on"
                 editable={isEditing}
                 maxLength={255}
@@ -1049,7 +1254,7 @@ export const EventDetailScreen: React.FC = () => {
 
             {/* Banner Image */}
             <View style={styles.bannerSection}>
-              <Text style={styles.sectionTitle}>Ảnh bìa</Text>
+              <Text style={styles.sectionTitle}>{t("eventDetail.bannerTitle")}</Text>
               <TouchableOpacity
                 style={styles.bannerContainer}
                 onPress={handlePickBanner}
@@ -1071,7 +1276,7 @@ export const EventDetailScreen: React.FC = () => {
                       color="rgba(255,255,255,0.25)"
                     />
                     <Text style={[styles.bannerPlaceholderText, { color: "rgba(255,255,255,0.7)" }]}>
-                      {isEditing ? "Nhấn để thêm ảnh bìa" : "Chưa có ảnh bìa"}
+                      {isEditing ? t("eventDetail.bannerAddText") : t("eventDetail.bannerEmptyText")}
                     </Text>
                   </LinearGradient>
                 )}
@@ -1086,7 +1291,7 @@ export const EventDetailScreen: React.FC = () => {
                 )}
               </TouchableOpacity>
               <Text style={styles.bannerHint}>
-                Tỉ lệ 16:9 · Định dạng JPG, PNG · Tối đa 5MB
+                {t("eventDetail.bannerHint")}
               </Text>
             </View>
           </>
@@ -1116,6 +1321,113 @@ export const EventDetailScreen: React.FC = () => {
     handlePickBanner,
   ]);
 
+  const renderAIAssistCard = () => (
+    <View style={styles.aiAssistCard}>
+      <View style={styles.aiAssistContent}>
+        <View style={styles.aiAssistIconBadge}>
+          <AISparkles size={20} color={GUIDE_COLORS.primary} isAnimating={!isAISuggesting} />
+        </View>
+        <View style={styles.aiAssistTextWrap}>
+          <Text style={styles.aiAssistTitle}>{t("eventDetail.aiAssistTitle")}</Text>
+          <Text style={styles.aiAssistSubtitle}>
+            {isAISuggesting
+              ? t("eventDetail.aiAssistLoadingHint", {
+                  defaultValue: "AI đang chuẩn bị đề xuất phù hợp cho form hiện tại.",
+                })
+              : t("eventDetail.aiAssistSubtitle")}
+          </Text>
+        </View>
+      </View>
+
+      {isAISuggesting && (
+        <View style={styles.aiAssistLoadingBox}>
+          <View style={styles.aiAssistLoadingRow}>
+            <ActivityIndicator size="small" color={GUIDE_COLORS.primaryDark} />
+            <Text style={styles.aiAssistLoadingTitle}>
+              {t("eventDetail.aiAssistLoadingLabel", {
+                defaultValue: "Đang tạo gợi ý sự kiện...",
+              })}
+            </Text>
+          </View>
+          <Text style={styles.aiAssistLoadingDescription}>
+            {isAISuggestionSlow
+              ? t("eventDetail.aiAssistSlowInlineMessage", {
+                  defaultValue:
+                    "Phản hồi đang chậm hơn bình thường. Bạn vẫn có thể tiếp tục điền form trong lúc chờ.",
+                })
+              : t("eventDetail.aiAssistLoadingDescription", {
+                  defaultValue:
+                    "AI đang phân tích mùa phụng vụ, thời gian và bối cảnh phù hợp cho sự kiện của bạn.",
+                })}
+          </Text>
+        </View>
+      )}
+
+      {!!aiSuggestionRetryMessage && !isAISuggesting && (
+        <View style={styles.aiAssistRetryBox}>
+          <View style={styles.aiAssistRetryContent}>
+            <MaterialIcons
+              name="refresh"
+              size={18}
+              color={GUIDE_COLORS.warning}
+            />
+            <Text style={styles.aiAssistRetryText}>
+              {t("eventDetail.aiAssistRetryDescription", {
+                defaultValue: "Chưa lấy được gợi ý. Bạn có thể thử lại ngay.",
+              })}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.aiAssistRetryButton}
+            onPress={() => {
+              void handleSuggestEvents();
+            }}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.aiAssistRetryButtonText}>
+              {t("common.retry", { defaultValue: "Thử lại" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={[styles.aiAssistButton, isAISuggesting && styles.buttonDisabled]}
+        onPress={async () => {
+          if (Platform.OS === 'ios') {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
+          handleSuggestEvents();
+        }}
+        disabled={isAISuggesting || saving || deleting}
+        activeOpacity={0.85}
+      >
+        <LinearGradient
+          colors={["#F4E4BA", "#D4AF37"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.aiAssistButtonGradient,
+            isAISuggesting && styles.aiAssistButtonGradientDisabled,
+          ]}
+        >
+          <MaterialIcons
+            name={isAISuggesting ? "hourglass-top" : "auto-awesome"}
+            size={18}
+            color="#3D2000"
+          />
+          <Text style={styles.aiAssistButtonText}>
+            {isAISuggesting
+              ? t("common.pleaseWait", {
+                  defaultValue: "Vui lòng chờ",
+                })
+              : t("eventDetail.aiAssistButton")}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+
   // ============================================
   // RENDER FULL FORM (EDIT MODE / VIEW MODE)
   // ============================================
@@ -1127,7 +1439,7 @@ export const EventDetailScreen: React.FC = () => {
         <View style={styles.rejectionBox}>
           <MaterialIcons name="error" size={20} color={GUIDE_COLORS.error} />
           <View style={styles.rejectionContent}>
-            <Text style={styles.rejectionTitle}>Lý do từ chối</Text>
+            <Text style={styles.rejectionTitle}>{t("eventDetail.rejectionReasonTitle")}</Text>
             <Text style={styles.rejectionText}>
               {passedEvent.rejection_reason}
             </Text>
@@ -1137,7 +1449,7 @@ export const EventDetailScreen: React.FC = () => {
 
       {/* Banner Image */}
       <View style={styles.bannerSection}>
-        <Text style={styles.sectionTitle}>Ảnh bìa</Text>
+        <Text style={styles.sectionTitle}>{t("eventDetail.bannerTitle")}</Text>
         <TouchableOpacity
           style={styles.bannerContainer}
           onPress={handlePickBanner}
@@ -1159,7 +1471,7 @@ export const EventDetailScreen: React.FC = () => {
                 color="rgba(255,255,255,0.25)"
               />
               <Text style={[styles.bannerPlaceholderText, { color: "rgba(255,255,255,0.7)" }]}>
-                {isEditing ? "Nhấn để thêm ảnh bìa" : "Chưa có ảnh bìa"}
+                {isEditing ? t("eventDetail.bannerAddText") : t("eventDetail.bannerEmptyText")}
               </Text>
             </LinearGradient>
           )}
@@ -1174,23 +1486,22 @@ export const EventDetailScreen: React.FC = () => {
           )}
         </TouchableOpacity>
         <Text style={styles.bannerHint}>
-          Tỉ lệ 16:9 · Định dạng JPG, PNG · Tối đa 5MB
-          {"\n"}* Vui lòng upload ảnh liên quan đến sự kiện
+          {t("eventDetail.bannerHintUpload")}
         </Text>
       </View>
 
       {/* Basic Info */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thông tin cơ bản</Text>
+        <Text style={styles.sectionTitle}>{t("eventDetail.basicInfoTitle")}</Text>
 
         <InputField
-          label="Tên sự kiện"
+          label={t("eventDetail.eventNameLabel")}
           value={name}
           onChangeText={(text) => {
             setName(text);
             clearFieldError("name");
           }}
-          placeholder="VD: Lễ Giáng Sinh 2026"
+          placeholder={t("eventDetail.eventNamePlaceholder")}
           icon="event"
           required
           editable={isEditing}
@@ -1199,7 +1510,7 @@ export const EventDetailScreen: React.FC = () => {
         />
 
         <CategoryPicker
-          label="Loại sự kiện"
+          label={t("eventDetail.categoryLabel")}
           value={category}
           onChange={(val) => {
             setCategory(val);
@@ -1210,13 +1521,13 @@ export const EventDetailScreen: React.FC = () => {
         />
 
         <InputField
-          label="Mô tả"
+          label={t("eventDetail.descriptionLabel")}
           value={description}
           onChangeText={(text) => {
             setDescription(text);
             clearFieldError("description");
           }}
-          placeholder="Mô tả chi tiết về sự kiện..."
+          placeholder={t("eventDetail.descriptionPlaceholder")}
           multiline
           editable={isEditing}
           maxLength={2000}
@@ -1226,16 +1537,16 @@ export const EventDetailScreen: React.FC = () => {
 
       {/* Date & Time */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Thời gian diễn ra</Text>
+        <Text style={styles.sectionTitle}>{t("eventDetail.dateTimeTitle")}</Text>
 
         <View style={styles.row}>
           <View style={styles.halfField}>
             <DateTimeField
-              label="Ngày bắt đầu"
+              label={t("eventDetail.startDateLabel")}
               value={startDate}
               onChange={handleStartDateChange}
               mode="date"
-              placeholder="Chọn ngày"
+              placeholder={t("eventDetail.selectDatePlaceholder")}
               required
               editable={isEditing}
               error={fieldErrors.startDate}
@@ -1243,11 +1554,11 @@ export const EventDetailScreen: React.FC = () => {
           </View>
           <View style={styles.halfField}>
             <DateTimeField
-              label="Ngày kết thúc"
+              label={t("eventDetail.endDateLabel")}
               value={endDate}
               onChange={handleEndDateChange}
               mode="date"
-              placeholder="Chọn ngày"
+              placeholder={t("eventDetail.selectDatePlaceholder")}
               editable={isEditing}
               error={fieldErrors.endDate}
               minimumDate={startDate || undefined}
@@ -1272,22 +1583,22 @@ export const EventDetailScreen: React.FC = () => {
         <View style={styles.row}>
           <View style={styles.halfField}>
             <DateTimeField
-              label="Giờ bắt đầu"
+              label={t("eventDetail.startTimeLabel")}
               value={startTime}
               onChange={handleStartTimeChange}
               mode="time"
-              placeholder="Chọn giờ"
+              placeholder={t("eventDetail.selectTimePlaceholder")}
               editable={isEditing}
               error={fieldErrors.startTime}
             />
           </View>
           <View style={styles.halfField}>
             <DateTimeField
-              label="Giờ kết thúc"
+              label={t("eventDetail.endTimeLabel")}
               value={endTime}
               onChange={handleEndTimeChange}
               mode="time"
-              placeholder="Chọn giờ"
+              placeholder={t("eventDetail.selectTimePlaceholder")}
               editable={isEditing}
               error={fieldErrors.endTime}
             />
@@ -1297,15 +1608,15 @@ export const EventDetailScreen: React.FC = () => {
 
       {/* Location */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Địa điểm</Text>
+        <Text style={styles.sectionTitle}>{t("eventDetail.locationTitle")}</Text>
         <InputField
-          label="Vị trí"
+          label={t("eventDetail.locationLabel")}
           value={location}
           onChangeText={(text) => {
             setLocation(text);
             clearFieldError("location");
           }}
-          placeholder="VD: Sân nhà thờ chính"
+          placeholder={t("eventDetail.locationPlaceholder")}
           icon="location-on"
           editable={isEditing}
           maxLength={255}
@@ -1318,7 +1629,7 @@ export const EventDetailScreen: React.FC = () => {
         <View style={styles.infoBox}>
           <MaterialIcons name="lock" size={20} color={GUIDE_COLORS.creamMuted} />
           <Text style={styles.infoText}>
-            Sự kiện đã được duyệt không thể chỉnh sửa
+            {t("eventDetail.approvedLockInfo")}
           </Text>
         </View>
       )}
@@ -1332,7 +1643,7 @@ export const EventDetailScreen: React.FC = () => {
             activeOpacity={0.8}
           >
             <MaterialIcons name="edit" size={22} color={GUIDE_COLORS.surface} />
-            <Text style={styles.editButtonText}>Chỉnh sửa sự kiện</Text>
+            <Text style={styles.editButtonText}>{t("eventDetail.editButton")}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1351,7 +1662,7 @@ export const EventDetailScreen: React.FC = () => {
             ) : (
               <>
                 <MaterialIcons name="save" size={22} color="#3D2000" />
-                <Text style={styles.saveButtonText}>Lưu thay đổi</Text>
+                <Text style={styles.saveButtonText}>{t("eventDetail.saveButton")}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1367,7 +1678,7 @@ export const EventDetailScreen: React.FC = () => {
               size={22}
               color={GUIDE_COLORS.textSecondary}
             />
-            <Text style={styles.cancelButtonText}>Hủy chỉnh sửa</Text>
+            <Text style={styles.cancelButtonText}>{t("eventDetail.cancelButton")}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -1385,7 +1696,7 @@ export const EventDetailScreen: React.FC = () => {
                   size={22}
                   color={GUIDE_COLORS.error}
                 />
-                <Text style={styles.deleteButtonText}>Xóa sự kiện</Text>
+                <Text style={styles.deleteButtonText}>{t("eventDetail.deleteButton")}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1425,10 +1736,10 @@ export const EventDetailScreen: React.FC = () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {isCreateMode
-            ? "Tạo sự kiện mới"
+            ? t("eventDetail.createTitle")
             : isEditing
-              ? "Chỉnh sửa"
-              : "Chi tiết sự kiện"}
+              ? t("eventDetail.editTitle")
+              : t("eventDetail.viewTitle")}
         </Text>
         <View style={styles.headerRight}>
           {!isCreateMode && passedEvent && (
@@ -1474,6 +1785,7 @@ export const EventDetailScreen: React.FC = () => {
           nestedScrollEnabled
           bounces
         >
+          {(isCreateMode || isEditing) && renderAIAssistCard()}
           {isCreateMode ? renderStepContent : renderFullForm()}
 
           {/* Step Navigation Buttons (create mode) */}
@@ -1490,7 +1802,7 @@ export const EventDetailScreen: React.FC = () => {
                     size={20}
                     color={GUIDE_COLORS.textSecondary}
                   />
-                  <Text style={styles.stepNavButtonSecondaryText}>Quay lại</Text>
+                  <Text style={styles.stepNavButtonSecondaryText}>{t("eventDetail.backButton")}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -1513,7 +1825,7 @@ export const EventDetailScreen: React.FC = () => {
                       color="#3D2000"
                     />
                     <Text style={styles.stepNavButtonPrimaryText}>
-                      {isLastStep ? "Tạo sự kiện" : "Tiếp theo"}
+                      {isLastStep ? t("eventDetail.createButton") : t("eventDetail.nextButton")}
                     </Text>
                   </>
                 )}
@@ -1525,6 +1837,167 @@ export const EventDetailScreen: React.FC = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <Modal
+        visible={isAISuggestionModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsAISuggestionModalVisible(false)}
+      >
+        <View style={styles.aiModalOverlay}>
+          <SafeAreaView style={styles.aiModalSafeArea} edges={["bottom"]}>
+            <View style={styles.aiModalSheet}>
+              <View style={styles.aiModalHandle} />
+              <View style={styles.aiModalHeader}>
+                <View style={styles.aiModalHeaderIcon}>
+                  <AISparkles size={20} color={GUIDE_COLORS.primary} isAnimating={true} />
+                </View>
+                <View style={styles.aiModalHeaderTextWrap}>
+                  <Text style={styles.aiModalTitle}>{t("eventDetail.aiModalTitle")}</Text>
+                  <Text style={styles.aiModalSubtitle}>
+                    {aiSuggestionData
+                      ? `${aiSuggestionData.site_name} • ${aiSuggestionData.liturgical_season}`
+                      : t("eventDetail.aiModalSubtitle")}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.aiModalCloseButton}
+                  onPress={() => setIsAISuggestionModalVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <MaterialIcons
+                    name="close"
+                    size={20}
+                    color={GUIDE_COLORS.creamLabel}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.aiSuggestionList}
+                contentContainerStyle={styles.aiSuggestionListContent}
+                showsVerticalScrollIndicator={false}
+              >
+              {(aiSuggestionData?.suggestions || []).map((suggestion, index) => {
+                const resolvedCategory = normalizeSuggestionCategory(
+                  suggestion.category,
+                );
+                const categoryInfo = resolvedCategory
+                  ? findCategoryByValue(resolvedCategory, t)
+                  : null;
+
+                // Get gradient colors for category
+                const categoryGradient = resolvedCategory && CATEGORY_GROUP_GRADIENTS[resolvedCategory]
+                  ? CATEGORY_GROUP_GRADIENTS[resolvedCategory]
+                  : DEFAULT_GRADIENT;
+
+                // Build date/time chip text
+                const dateText = parseLocalDate(suggestion.start_date).toLocaleDateString(
+                  "vi-VN",
+                  { day: "2-digit", month: "2-digit" }
+                );
+                const timeText = suggestion.start_time
+                  ? formatSuggestionTime(suggestion.start_time)
+                  : null;
+
+                return (
+                  <TouchableOpacity
+                    key={`${suggestion.name}-${index}`}
+                    style={styles.aiSuggestionCard}
+                    onPress={() => {
+                      void applySuggestionToForm(suggestion);
+                    }}
+                    activeOpacity={0.9}
+                  >
+                    {/* Gradient top border */}
+                    <LinearGradient
+                      colors={categoryGradient.colors}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.aiSuggestionGradientBorder}
+                    />
+
+                    {/* Header: Index + Name + Category Badge */}
+                    <View style={styles.aiSuggestionHeader}>
+                      <View style={styles.aiSuggestionHeaderLeft}>
+                        <View style={styles.aiSuggestionIndexBadge}>
+                          <Text style={styles.aiSuggestionIndexText}>
+                            {index + 1}
+                          </Text>
+                        </View>
+                        <Text style={styles.aiSuggestionName} numberOfLines={1}>
+                          {suggestion.name}
+                        </Text>
+                      </View>
+                      <View style={styles.aiSuggestionCategoryBadge}>
+                        <Text style={styles.aiSuggestionCategoryText} numberOfLines={1}>
+                          {categoryInfo?.label || t("eventDetail.aiSuggestionDefault")}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Compact chips for date/time/location */}
+                    <View style={styles.aiSuggestionChipsRow}>
+                      <View style={styles.aiSuggestionChip}>
+                        <MaterialIcons
+                          name="calendar-today"
+                          size={12}
+                          color={GUIDE_COLORS.primary}
+                        />
+                        <Text style={styles.aiSuggestionChipText}>
+                          {dateText}
+                        </Text>
+                      </View>
+                      {timeText && (
+                        <View style={styles.aiSuggestionChip}>
+                          <MaterialIcons
+                            name="schedule"
+                            size={12}
+                            color={GUIDE_COLORS.primary}
+                          />
+                          <Text style={styles.aiSuggestionChipText}>
+                            {timeText}
+                          </Text>
+                        </View>
+                      )}
+                      {!!suggestion.location?.trim() && (
+                        <View style={styles.aiSuggestionChip}>
+                          <MaterialIcons
+                            name="place"
+                            size={12}
+                            color={GUIDE_COLORS.primary}
+                          />
+                          <Text style={styles.aiSuggestionChipText} numberOfLines={1}>
+                            {suggestion.location.trim()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Description - truncated to 2 lines */}
+                    <Text style={styles.aiSuggestionDescription} numberOfLines={2}>
+                      {buildSuggestionDescription(suggestion)}
+                    </Text>
+
+                    {/* Apply button */}
+                    <View style={styles.aiSuggestionApplyRow}>
+                      <Text style={styles.aiSuggestionApplyText}>
+                        {t("eventDetail.aiSuggestionApplyText")}
+                      </Text>
+                      <MaterialIcons
+                        name="arrow-forward"
+                        size={18}
+                        color={GUIDE_COLORS.primary}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
       <MediaPickerModal
         visible={isMediaPickerVisible}
         onClose={() => setIsMediaPickerVisible(false)}
@@ -1533,7 +2006,7 @@ export const EventDetailScreen: React.FC = () => {
         allowsEditing={true}
         aspect={[16, 9]}
         quality={1}
-        title="Thêm ảnh bìa sự kiện"
+        title={t("eventDetail.mediaPickerTitle")}
       />
       <ConfirmModal />
     </View>
