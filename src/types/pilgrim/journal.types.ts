@@ -123,7 +123,14 @@ export interface CreateJournalRequest {
 /**
  * Update journal request
  */
-export interface UpdateJournalRequest extends Partial<CreateJournalRequest> { }
+export interface UpdateJournalRequest extends Partial<CreateJournalRequest> {
+  image_url?: string[];
+  audio_url?: string | null;
+  video_url?: string | null;
+  clear_images?: boolean;
+  clear_audio?: boolean;
+  clear_video?: boolean;
+}
 
 /**
  * Get journals params

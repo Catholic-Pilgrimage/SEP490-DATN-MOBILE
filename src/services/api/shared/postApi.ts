@@ -166,6 +166,30 @@ export const updatePost = async (
         formData.append("content", data.content);
     }
 
+    if (data.image_urls !== undefined) {
+        formData.append("image_urls", JSON.stringify(data.image_urls));
+    }
+
+    if (data.audio_url !== undefined) {
+        formData.append("audio_url", data.audio_url ?? "");
+    }
+
+    if (data.video_url !== undefined) {
+        formData.append("video_url", data.video_url ?? "");
+    }
+
+    if (data.clear_images !== undefined) {
+        formData.append("clear_images", String(data.clear_images));
+    }
+
+    if (data.clear_audio !== undefined) {
+        formData.append("clear_audio", String(data.clear_audio));
+    }
+
+    if (data.clear_video !== undefined) {
+        formData.append("clear_video", String(data.clear_video));
+    }
+
     if (data.images && data.images.length > 0) {
         data.images.forEach((image: any) => {
             formData.append("images", image as any);

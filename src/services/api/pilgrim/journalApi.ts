@@ -15,6 +15,7 @@ import {
   GetJournalsParams,
   GetJournalsResponse,
   JournalEntry,
+  UpdateJournalRequest,
 } from "../../../types/pilgrim";
 import { getAudioUploadMeta } from "../../../utils/audioUpload";
 import apiClient from "../apiClient";
@@ -124,7 +125,7 @@ export const getJournalDetail = async (
  */
 export const updateJournal = async (
   id: string,
-  data: Partial<CreateJournalRequest>,
+  data: UpdateJournalRequest,
 ): Promise<ApiResponse<JournalEntry>> => {
   const formData = new FormData();
 
@@ -132,6 +133,24 @@ export const updateJournal = async (
   if (data.content !== undefined) formData.append("content", data.content);
   if (data.privacy !== undefined) formData.append("privacy", data.privacy);
   appendPlannerItemFields(formData, data);
+  if (data.image_url !== undefined) {
+    formData.append("image_url", JSON.stringify(data.image_url));
+  }
+  if (data.audio_url !== undefined) {
+    formData.append("audio_url", data.audio_url ?? "");
+  }
+  if (data.video_url !== undefined) {
+    formData.append("video_url", data.video_url ?? "");
+  }
+  if (data.clear_images !== undefined) {
+    formData.append("clear_images", String(data.clear_images));
+  }
+  if (data.clear_audio !== undefined) {
+    formData.append("clear_audio", String(data.clear_audio));
+  }
+  if (data.clear_video !== undefined) {
+    formData.append("clear_video", String(data.clear_video));
+  }
 
   if (data.images && data.images.length > 0) {
     data.images.forEach((uri, index) => {

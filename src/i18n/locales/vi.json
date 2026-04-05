@@ -403,8 +403,8 @@
     "libraryPermission": "Vui lòng cấp quyền truy cập thư viện ảnh.",
     "defaultName": "Người hành hương",
     "defaultGuide": "Hướng dẫn viên",
-    "pilgrimRole": "Hành hương viên",
-    "pilgrimRoleVerified": "Hành hương viên (Đã xác minh)",
+    "pilgrimRole": "Người hành hương",
+    "pilgrimRoleVerified": "Người hành hương (Đã xác minh)",
     "notUpdated": "Chưa cập nhật",
     "loading": "Đang tải thông tin...",
     "sections": {
@@ -910,101 +910,7 @@
     "dayName5": "Thứ 6",
     "dayName6": "Thứ 7",
     "dateFormat": "{{dayName}}, {{day}} tháng {{month}}",
-    "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}",
-  },
-  "mySiteScreen": {
-    "tabs": {
-      "events": "Sự kiện",
-      "media": "Media",
-      "schedules": "Lịch lễ",
-      "locations": "Địa điểm",
-      "reviews": "Đánh giá"
-    },
-    "loading": "Đang tải...",
-    "noAddress": "Chưa có địa chỉ",
-    "fabAddEvent": "Tạo sự kiện mới",
-    "fabAddMedia": "Tải media lên"
-  },
-  "locationsTab": {
-    "title": "Địa điểm lân cận",
-    "viewFullMap": "Xem bản đồ",
-    "fullMapTitle": "Bản đồ địa điểm",
-    "map": {
-      "pendingPickTitle": "Vị trí đang chọn",
-      "pendingPickSubtitle": "Chạm bản đồ để đổi vị trí"
-    },
-    "addPlace": "Thêm địa điểm",
-    "categories": {
-      "all": "Tất cả",
-      "food": "Ăn uống",
-      "lodging": "Lưu trú",
-      "medical": "Y tế"
-    },
-    "status": {
-      "all": "Tất cả",
-      "pending": "Chờ duyệt",
-      "approved": "Đã duyệt",
-      "rejected": "Từ chối"
-    },
-    "activeFilter": {
-      "all": "Tất cả",
-      "active": "Đang hoạt động",
-      "inactive": "Đã xóa"
-    },
-    "filter": "Lọc",
-    "filterTitle": "Lọc địa điểm",
-    "applyFilter": "Áp dụng",
-    "categoryLabel": "Danh mục",
-    "statusLabel": "Trạng thái",
-    "displayLabel": "Hiển thị",
-    "statusDesc": {
-      "all": "Hiển thị tất cả",
-      "pending": "Đang chờ phê duyệt",
-      "approved": "Đã được phê duyệt",
-      "rejected": "Bị từ chối"
-    },
-    "activeDesc": {
-      "all": "Hiển thị tất cả",
-      "active": "is_active = true",
-      "inactive": "is_active = false"
-    },
-    "placeCount": "{{count}} nơi",
-    "distance": {
-      "meters": "{{distance}} m",
-      "kilometers": "{{distance}} km"
-    },
-    "distanceAway": "Cách {{distance}}",
-    "rejectionReason": "Lý do: {{reason}}",
-    "editPlace": "Chỉnh sửa",
-    "editAndResubmit": "Chỉnh sửa & gửi lại",
-    "restore": "Khôi phục",
-    "delete": "Xóa",
-    "deleteConfirm": "Xóa địa điểm",
-    "deleteMessage": "Bạn có chắc muốn xóa \"{{name}}\"?",
-    "restoreConfirm": "Khôi phục địa điểm",
-    "restoreMessage": "Khôi phục \"{{name}}\"?",
-    "empty": {
-      "noResults": "Không có kết quả",
-      "noPlaces": "Chưa có địa điểm nào",
-      "tryChangeFilter": "Thử thay đổi bộ lọc",
-      "tapToAdd": "Nhấn + hoặc chạm vào bản đồ để thêm"
-    },
-    "modal": {
-      "addTitle": "Thêm địa điểm lân cận",
-      "editTitle": "Chỉnh sửa địa điểm",
-      "cancel": "Hủy",
-      "submit": "Gửi duyệt",
-      "saveAndResubmit": "Lưu & gửi lại",
-      "categoryLabel": "Loại địa điểm *",
-      "nameLabel": "Tên địa điểm *",
-      "coordinatesInvalid": "Tọa độ không hợp lệ. Hãy chọn lại trên bản đồ."
-    }
-  },
-  "map": {
-    "location": "Địa điểm",
-    "selectedLocation": "Vị trí đã chọn",
-    "searchingLocation": "Đang tìm vị trí...",
-    "tapToViewDetail": "Nhấn để xem chi tiết"
+    "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
   },
   "siteModels3d": {
     "title": "Mô hình 3D",
@@ -1277,6 +1183,24 @@
     "defaultLocation": "Nhà thờ Đức Bà Sài Gòn",
     "locatedAt": "",
     "addCommentError": "Không thể thêm bình luận.",
+    "postActions": "Tuỳ chọn bài viết",
+    "editPost": "Chỉnh sửa bài viết",
+    "deletePost": "Xóa bài viết",
+    "reportPost": "Báo cáo bài viết",
+    "commentActions": "Tuỳ chọn bình luận",
+    "editComment": "Chỉnh sửa bình luận",
+    "deleteComment": "Xóa bình luận",
+    "reportComment": "Báo cáo bình luận",
+    "deletePostTitle": "Xóa bài viết",
+    "deletePostMessage": "Bạn có chắc muốn xóa bài viết này? Hành động này không thể hoàn tác.",
+    "deleteCommentTitle": "Xóa bình luận",
+    "deleteCommentMessage": "Bạn có chắc muốn xóa bình luận này?",
+    "photosCount": "{{count}} ảnh",
+    "videoAttachment": "Video đính kèm",
+    "nowPlaying": "Đang phát",
+    "tapToPlay": "Nhấn để phát",
+    "openFullscreen": "Mở toàn màn hình",
+    "audioAttachment": "Ghi âm đính kèm",
     "timeAgo": {
       "justNow": "Vừa xong",
       "secondsAgo": "{{count}} giây trước",
@@ -1328,9 +1252,13 @@
     "recordingNow": "Đang ghi âm...",
     "recordAudio": "Ghi âm",
     "stopRecording": "Dừng ghi âm",
+    "recordedFile": "File ghi âm",
+    "existingAudioFile": "Audio hiện có",
+    "readyToPost": "Sẵn sàng để đăng",
+    "attachedToPost": "Đính kèm cùng bài viết",
     "audioPermissionTitle": "Quyền microphone",
     "audioPermissionDenied": "Cần quyền microphone để ghi âm.",
-    "audioStartError": "Không thể bắt đầu ghi âm.",
+    "audioStartError": "Không thể bắt đầu ghi âm. Vui lòng thử lại.",
     "audioStopError": "Không thể dừng ghi âm.",
     "playAudioError": "Không thể phát ghi âm.",
     "imageLimit": "Tối đa 4 ảnh",
@@ -1468,7 +1396,7 @@
     "contentLabel": "NỘI DUNG",
     "imagesLabel": "HÌNH ẢNH",
     "videoLabel": "VIDEO",
-    "audioLabel": "AUDIO",
+    "audioLabel": "GHI ÂM",
     "menuTitle": "Nhật ký",
     "editJournal": "Chỉnh sửa nhật ký",
     "shareJournal": "Chia sẻ ra cộng đồng",

@@ -2,20 +2,17 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  COLORS,
+  SHADOWS,
 } from "../../constants/theme.constants";
 
 export interface AudioPickerModalProps {
@@ -39,7 +36,7 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
       <TouchableWithoutFeedback onPress={onClose}>
@@ -52,13 +49,19 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
               </View>
 
               <View style={styles.header}>
-                <Text style={styles.title}>{title || t('journal.addAudioSource')}</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons
-                    name="close"
-                    size={24}
-                    color={COLORS.textSecondary}
+                <View style={styles.titleContainer}>
+                  <MaterialIcons
+                    name="audiotrack"
+                    size={20}
+                    color={COLORS.primary}
+                    style={styles.headerIcon}
                   />
+                  <Text style={styles.title}>
+                    {title || t("journal.addAudioSource")}
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                  <Ionicons name="close" size={20} color={COLORS.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -70,25 +73,33 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
                     onClose();
                     onRecordNow();
                   }}
+                  activeOpacity={0.7}
                 >
                   <View
                     style={[
                       styles.iconContainer,
-                      { backgroundColor: COLORS.warningLight || '#FFF8E1' },
+                      { backgroundColor: "rgba(255, 152, 0, 0.12)" },
                     ]}
                   >
                     <MaterialIcons
-                      name="mic"
-                      size={24}
-                      color={COLORS.accent}
+                      name="mic-none"
+                      size={28}
+                      color="#FF9800"
                     />
                   </View>
                   <View style={styles.textContainer}>
-                    <Text style={styles.optionTitle}>{t('journal.recordNow')}</Text>
-                    <Text style={styles.optionDesc}>
-                      {t('journal.recordNowDesc')}
+                    <Text style={styles.optionTitle}>
+                      {t("journal.recordNow")}
+                    </Text>
+                    <Text style={styles.optionDesc} numberOfLines={2}>
+                      {t("journal.recordNowDesc")}
                     </Text>
                   </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color="#BDBDBD"
+                  />
                 </TouchableOpacity>
 
                 {/* Option: Upload File */}
@@ -98,25 +109,33 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
                     onClose();
                     onUploadFile();
                   }}
+                  activeOpacity={0.7}
                 >
                   <View
                     style={[
                       styles.iconContainer,
-                      { backgroundColor: COLORS.successLight || '#E8F5E9' },
+                      { backgroundColor: "rgba(76, 175, 80, 0.12)" },
                     ]}
                   >
                     <MaterialIcons
                       name="file-upload"
-                      size={24}
-                      color={COLORS.success}
+                      size={28}
+                      color="#4CAF50"
                     />
                   </View>
                   <View style={styles.textContainer}>
-                    <Text style={styles.optionTitle}>{t('journal.uploadAudioFile')}</Text>
-                    <Text style={styles.optionDesc}>
-                      {t('journal.uploadAudioFileDesc')}
+                    <Text style={styles.optionTitle}>
+                      {t("journal.uploadAudioFile")}
+                    </Text>
+                    <Text style={styles.optionDesc} numberOfLines={2}>
+                      {t("journal.uploadAudioFileDesc")}
                     </Text>
                   </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color="#BDBDBD"
+                  />
                 </TouchableOpacity>
               </View>
             </View>
@@ -130,77 +149,84 @@ export const AudioPickerModal: React.FC<AudioPickerModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: COLORS.overlayDark,
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
     justifyContent: "flex-end",
   },
   container: {
     backgroundColor: COLORS.white,
-    borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl,
-    paddingBottom: Platform.OS === "ios" ? 34 : SPACING.lg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    ...SHADOWS.large,
   },
   handleBarContainer: {
     alignItems: "center",
-    paddingVertical: SPACING.md,
+    paddingVertical: 12,
   },
   handleBar: {
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: COLORS.borderMedium,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E0E0E0",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.sm,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  titleContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerIcon: {
+    marginRight: 8,
   },
   title: {
-    fontSize: TYPOGRAPHY.fontSize.xl,
-    fontWeight: "bold",
-    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#212121",
+    letterSpacing: -0.3,
   },
   closeButton: {
-    padding: SPACING.xs,
-    backgroundColor: COLORS.backgroundSoft,
-    borderRadius: BORDER_RADIUS.full,
+    padding: 6,
+    backgroundColor: "#F5F5F5",
+    borderRadius: 20,
   },
   optionsContainer: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
-    paddingTop: SPACING.sm,
-    gap: SPACING.md,
+    paddingHorizontal: 20,
+    gap: 12,
   },
   option: {
     flexDirection: "row",
     alignItems: "center",
-    padding: SPACING.md,
+    padding: 16,
     backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.lg,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.subtle,
+    borderColor: "#F0F0F0",
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.md,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: SPACING.md,
+    marginRight: 16,
   },
   textContainer: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: TYPOGRAPHY.fontSize.md,
+    fontSize: 16,
     fontWeight: "600",
-    color: COLORS.textPrimary,
-    marginBottom: 2,
+    color: "#212121",
+    marginBottom: 4,
   },
   optionDesc: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: "#757575",
+    lineHeight: 18,
   },
 });

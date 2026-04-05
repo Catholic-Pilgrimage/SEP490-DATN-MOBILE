@@ -80,6 +80,12 @@ export interface UpdateFeedPostRequest {
     images?: any[];
     video?: any;
     audio?: any;
+    image_urls?: string[];
+    video_url?: string | null;
+    audio_url?: string | null;
+    clear_images?: boolean;
+    clear_video?: boolean;
+    clear_audio?: boolean;
 }
 
 export interface CreateFeedCommentRequest {

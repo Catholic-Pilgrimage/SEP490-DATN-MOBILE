@@ -1,8 +1,8 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     Animated,
@@ -83,17 +83,24 @@ export default function JournalDetailScreen() {
     };
 
     /* ─── Fetch ─── */
-    useEffect(() => {
+    const fetchJournal = useCallback(async () => {
         if (!journalId) return;
-        (async () => {
-            try {
-                setLoading(true);
-                const res = await pilgrimJournalApi.getJournalDetail(journalId);
-                if (res.success && res.data) setJournal(res.data);
-            } catch (e) { console.error(e); }
-            finally { setLoading(false); }
-        })();
+        try {
+            setLoading(true);
+            const res = await pilgrimJournalApi.getJournalDetail(journalId);
+            if (res.success && res.data) setJournal(res.data);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
     }, [journalId]);
+
+    useFocusEffect(
+        useCallback(() => {
+            void fetchJournal();
+        }, [fetchJournal]),
+    );
 
     /* ─── Resolve location ─── */
     useEffect(() => {
@@ -149,7 +156,7 @@ export default function JournalDetailScreen() {
                 const r = await pilgrimJournalApi.deleteJournal(journalId);
                 if (r.success) {
                     await showConfirm({
-                        type: 'success',
+                        type: 'info',
                         title: t('common.success'),
                         message: t('journal.deleteSuccess'),
                         showCancel: false,
@@ -178,7 +185,7 @@ export default function JournalDetailScreen() {
         try {
             await pilgrimJournalApi.shareJournal(journalId);
             await showConfirm({
-                type: 'success',
+                type: 'info',
                 title: t('journal.shareSuccess'),
                 message: t('journal.shareSuccessMessage'),
                 showCancel: false,
@@ -221,6 +228,15 @@ export default function JournalDetailScreen() {
         }
     };
     useEffect(() => () => { sound?.unloadAsync().catch(() => {}); }, [sound]);
+    useEffect(() => {
+        setPlaying(false);
+        setAudioDuration(0);
+        setAudioPos(0);
+        if (sound) {
+            sound.unloadAsync().catch(() => {});
+            setSound(null);
+        }
+    }, [journal?.audio_url]);
 
     const fmtMs = (ms: number) => {
         const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);

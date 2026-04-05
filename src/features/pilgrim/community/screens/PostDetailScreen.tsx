@@ -40,6 +40,7 @@ import {
   usePostDetail,
   useUpdateComment,
 } from "../../../../hooks/usePosts";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import i18n from "../../../../i18n";
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import type { FeedPost, FeedPostComment } from "../../../../types/post.types";
@@ -478,8 +479,8 @@ const PostAudioAttachment = ({
             <Text style={styles.mediaSectionTitle}>{label}</Text>
             <Text style={styles.mediaSectionSubtitle}>
               {isPlaying
-                ? t("postDetail.nowPlaying", { defaultValue: "Now playing" })
-                : t("postDetail.tapToPlay", { defaultValue: "Tap to play" })}
+                ? t("postDetail.nowPlaying", { defaultValue: "Đang phát" })
+                : t("postDetail.tapToPlay", { defaultValue: "Nhấn để phát" })}
             </Text>
           </View>
           <TouchableOpacity
@@ -550,7 +551,7 @@ const PostVideoAttachment = ({
     <View style={styles.mediaSection}>
       <Text style={styles.mediaSectionTitle}>
         {t("postDetail.videoAttachment", {
-          defaultValue: "Video attachment",
+          defaultValue: "Video đính kèm",
         })}
       </Text>
 
@@ -590,7 +591,7 @@ const PostVideoAttachment = ({
             />
             <Text style={styles.mediaInlineActionText}>
               {t("postDetail.openFullscreen", {
-                defaultValue: "Open fullscreen",
+                defaultValue: "Mở toàn màn hình",
               })}
             </Text>
           </TouchableOpacity>
@@ -799,7 +800,7 @@ const ReplyBubble = ({
                 style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
               >
                 <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
-                  {translate("profile.pilgrimRole", { defaultValue: "Pilgrim" })}
+                  {translate("profile.pilgrimRole", { defaultValue: "Người hành hương" })}
                 </Text>
               </View>
             )}
@@ -913,7 +914,7 @@ const CommentItem = ({
                       style={[styles.commentGuideBadgeText, { color: "#666" }]}
                     >
                       {translate("profile.pilgrimRole", {
-                        defaultValue: "Pilgrim",
+                        defaultValue: "Người hành hương",
                       })}
                     </Text>
                   </View>
@@ -1017,6 +1018,7 @@ export default function PostDetailScreen() {
   const flatListRef = useRef<any>(null);
 
   const isCurrentUserGuide = user?.role === "local_guide";
+  const { confirm: showConfirm } = useConfirm();
 
   useEffect(() => {
     if (autoFocusComment) {
@@ -1063,7 +1065,8 @@ export default function PostDetailScreen() {
             setResolvedSiteName(journalLocationName);
             return;
           }
-        } catch {
+        } catch (error: any) {
+          console.log("[PostDetail] Journal lookup failed:", error?.response?.status === 404 ? "Journal not found" : error.message);
           // Fall through to post/source journal fields.
         }
       }
@@ -1232,59 +1235,53 @@ export default function PostDetailScreen() {
     }, 150);
   }, [activeCommentAction]);
 
-  const handleDeleteComment = React.useCallback(() => {
+  const handleDeleteComment = React.useCallback(async () => {
     if (!activeCommentAction) return;
 
     const targetComment = activeCommentAction;
     setActiveCommentAction(null);
 
-    Alert.alert(
-      t("postDetail.deleteCommentTitle", {
+    const confirmed = await showConfirm({
+      title: t("postDetail.deleteCommentTitle", {
         defaultValue: "Delete comment",
       }),
-      t("postDetail.deleteCommentMessage", {
+      message: t("postDetail.deleteCommentMessage", {
         defaultValue: "Are you sure you want to delete this comment?",
       }),
-      [
-        {
-          text: t("common.cancel", { defaultValue: "Cancel" }),
-          style: "cancel",
-        },
-        {
-          text: t("common.delete", { defaultValue: "Delete" }),
-          style: "destructive",
-          onPress: () => {
-            deleteCommentMutation.mutate(targetComment.id, {
-              onSuccess: () => {
-                if (editingComment?.id === targetComment.id) {
-                  setEditingComment(null);
-                  setCommentText("");
-                }
+      confirmText: t("common.delete", { defaultValue: "Delete" }),
+      cancelText: t("common.cancel", { defaultValue: "Cancel" }),
+      type: "danger",
+    });
 
-                Toast.show({
-                  type: "success",
-                  text1: t("common.success", { defaultValue: "Success" }),
-                  text2: t("postDetail.deleteCommentSuccess", {
-                    defaultValue: "Comment deleted.",
-                  }),
-                });
-              },
-              onError: (err: any) => {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error", { defaultValue: "Error" }),
-                  text2:
-                    t("postDetail.deleteCommentError", {
-                      defaultValue: "Unable to delete comment.",
-                    }) + (err?.message ? ` ${err.message}` : ""),
-                });
-              },
-            });
-          },
+    if (confirmed) {
+      deleteCommentMutation.mutate(targetComment.id, {
+        onSuccess: () => {
+          if (editingComment?.id === targetComment.id) {
+            setEditingComment(null);
+            setCommentText("");
+          }
+
+          Toast.show({
+            type: "success",
+            text1: t("common.success", { defaultValue: "Success" }),
+            text2: t("postDetail.deleteCommentSuccess", {
+              defaultValue: "Comment deleted.",
+            }),
+          });
         },
-      ],
-    );
-  }, [activeCommentAction, deleteCommentMutation, editingComment?.id, t]);
+        onError: (err: any) => {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Error" }),
+            text2:
+              t("postDetail.deleteCommentError", {
+                defaultValue: "Unable to delete comment.",
+              }) + (err?.message ? ` ${err.message}` : ""),
+          });
+        },
+      });
+    }
+  }, [activeCommentAction, showConfirm, deleteCommentMutation, editingComment?.id, t]);
 
   const handleReportComment = React.useCallback(() => {
     if (!activeCommentAction) return;
@@ -1303,55 +1300,49 @@ export default function PostDetailScreen() {
     });
   }, [activePostAction, navigation]);
 
-  const handleDeletePost = React.useCallback(() => {
+  const handleDeletePost = React.useCallback(async () => {
     if (!activePostAction) return;
 
     const targetPost = activePostAction;
     setActivePostAction(null);
 
-    Alert.alert(
-      t("postDetail.deletePost", {
+    const confirmed = await showConfirm({
+      title: t("postDetail.deletePost", {
         defaultValue: "Delete post",
       }),
-      t("postDetail.deletePostMessage", {
+      message: t("postDetail.deletePostMessage", {
         defaultValue: "Are you sure you want to delete this post?",
       }),
-      [
-        {
-          text: t("common.cancel", { defaultValue: "Cancel" }),
-          style: "cancel",
+      confirmText: t("common.delete", { defaultValue: "Delete" }),
+      cancelText: t("common.cancel", { defaultValue: "Cancel" }),
+      type: "danger",
+    });
+
+    if (confirmed) {
+      deletePostMutation.mutate(targetPost.id, {
+        onSuccess: () => {
+          Toast.show({
+            type: "success",
+            text1: t("common.success", { defaultValue: "Success" }),
+            text2: t("postDetail.deletePostSuccess", {
+              defaultValue: "Post deleted.",
+            }),
+          });
+          navigation.goBack();
         },
-        {
-          text: t("common.delete", { defaultValue: "Delete" }),
-          style: "destructive",
-          onPress: () => {
-            deletePostMutation.mutate(targetPost.id, {
-              onSuccess: () => {
-                Toast.show({
-                  type: "success",
-                  text1: t("common.success", { defaultValue: "Success" }),
-                  text2: t("postDetail.deletePostSuccess", {
-                    defaultValue: "Post deleted.",
-                  }),
-                });
-                navigation.goBack();
-              },
-              onError: (error: any) => {
-                Toast.show({
-                  type: "error",
-                  text1: t("common.error", { defaultValue: "Error" }),
-                  text2:
-                    t("postDetail.deletePostError", {
-                      defaultValue: "Unable to delete post.",
-                    }) + (error?.message ? ` ${error.message}` : ""),
-                });
-              },
-            });
-          },
+        onError: (error: any) => {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Error" }),
+            text2:
+              t("postDetail.deletePostError", {
+                defaultValue: "Unable to delete post.",
+              }) + (error?.message ? ` ${error.message}` : ""),
+          });
         },
-      ],
-    );
-  }, [activePostAction, deletePostMutation, navigation, t]);
+      });
+    }
+  }, [activePostAction, showConfirm, deletePostMutation, navigation, t]);
 
   const handleReportPost = React.useCallback(() => {
     if (!activePostAction) return;
@@ -1439,7 +1430,7 @@ export default function PostDetailScreen() {
             <Text style={styles.mediaSectionTitle}>
               {t("postDetail.photosCount", {
                 count: imageUrls.length,
-                defaultValue: "{{count}} photos",
+                defaultValue: "{{count}} ảnh",
               })}
             </Text>
             <ScrollView
@@ -1475,7 +1466,7 @@ export default function PostDetailScreen() {
             <PostAudioAttachment
               url={videoUrl}
               label={t("postDetail.videoAttachment", {
-                defaultValue: "Video attachment",
+                defaultValue: "Video đính kèm",
               })}
               iconName="videocam"
             />
@@ -1493,7 +1484,7 @@ export default function PostDetailScreen() {
           <PostAudioAttachment
             url={audioUrl}
             label={t("postDetail.audioAttachment", {
-              defaultValue: "Audio attachment",
+              defaultValue: "Ghi âm đính kèm",
             })}
             iconName="graphic-eq"
           />

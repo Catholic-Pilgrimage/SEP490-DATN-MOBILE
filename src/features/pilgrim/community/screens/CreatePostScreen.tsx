@@ -182,7 +182,7 @@ export default function CreatePostScreen() {
                 </Text>
               </View>
             )}
-            <Text style={styles.userName}>{user?.fullName || "Pilgrim"}</Text>
+            <Text style={styles.userName}>{user?.fullName || "Người hành hương"}</Text>
           </View>
 
           {/* Input Field */}
