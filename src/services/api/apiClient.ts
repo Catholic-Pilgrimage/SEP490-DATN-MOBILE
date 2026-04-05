@@ -280,8 +280,8 @@ function transformError(error: AxiosError): Error {
       .join(". ");
   }
 
-  // Use detail message if available, otherwise use main message
-  const fullMessage = detailMessage || apiMessage;
+  // Ưu tiên thông báo chính (apiMessage) hơn các chi tiết kỹ thuật/ID (detailMessage)
+  const fullMessage = apiMessage || detailMessage;
 
   if (__DEV__ && error.response) {
     console.warn(
