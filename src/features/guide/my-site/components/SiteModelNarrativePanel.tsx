@@ -12,12 +12,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -94,6 +94,31 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  /** Demo preview trong voice modal */
+  const demoSoundRef = useRef<Audio.Sound | null>(null);
+  const [playingDemoId, setPlayingDemoId] = useState<string | null>(null);
+
+  /** Ref ScrollView để cuộn khi bàn phím hiện */
+  const scrollRef = useRef<import("react-native").ScrollView>(null);
+
+  /** Theo dõi chiều cao bàn phím để điều chỉnh maxHeight panel */
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height),
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0),
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const [expanded, setExpanded] = useState(false);
   const [editTab, setEditTab] = useState<EditTab>("tts");
   const [ttsText, setTtsText] = useState(media.narration_text ?? "");
@@ -120,6 +145,8 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     return () => {
       void soundRef.current?.unloadAsync();
       soundRef.current = null;
+      void demoSoundRef.current?.unloadAsync();
+      demoSoundRef.current = null;
     };
   }, []);
 
@@ -152,6 +179,59 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     if (!selectedVoiceId) return null;
     return voices.find((v) => v.id === selectedVoiceId)?.name ?? selectedVoiceId;
   }, [selectedVoiceId, voices]);
+
+  /**
+   * Nh\u00f3m gi\u1ecdng theo ng\u00f4n ng\u1eef \u2192 v\u00f9ng mi\u1ec1n.
+   * Chu\u1ea9n h\u00f3a c\u00e1c gi\u00e1 tr\u1ecb unknown / tr\u1ed1ng th\u00e0nh nh\u00e3n hi\u1ec3n th\u1ecb \u0111\u1eb9p h\u01a1n.
+   */
+  const voiceSections = useMemo(() => {
+    /** Hi\u1ec3n th\u1ecb language: "vi" \u2192 "VI", "en" \u2192 "EN", kh\u00e1c \u2192 in hoa */
+    const normLang = (raw: string | undefined | null): string => {
+      const v = (raw ?? "").trim().toLowerCase();
+      if (!v || v === "unknown") return "Kh\u00e1c";
+      return v;
+    };
+    /** Hi\u1ec3n th\u1ecb v\u00f9ng: gi\u1eef nguy\u00ean, n\u1ebfu tr\u1ed1ng / unknown \u2192 "Kh\u00e1c" */
+    const normRegion = (raw: string | undefined | null): string => {
+      const v = (raw ?? "").trim();
+      if (!v || v.toLowerCase() === "unknown") return "Kh\u00e1c";
+      return v;
+    };
+
+    const byLang = new Map<string, Map<string, TtsVoiceOption[]>>();
+    for (const voice of voices) {
+      const lang = normLang(voice.language);
+      const region = normRegion(voice.region);
+      if (!byLang.has(lang)) byLang.set(lang, new Map());
+      const byRegion = byLang.get(lang)!;
+      if (!byRegion.has(region)) byRegion.set(region, []);
+      byRegion.get(region)!.push(voice);
+    }
+
+    const sections: { lang: string; region: string; data: TtsVoiceOption[] }[] = [];
+    // S\u1eafp x\u1ebfp language: vi tr\u01b0\u1edbc, en sau, "Kh\u00e1c" cu\u1ed1i
+    const langOrder = ["vi", "en"];
+    const sortedLangs = [
+      ...langOrder.filter((l) => byLang.has(l)),
+      ...[...byLang.keys()].filter((l) => !langOrder.includes(l) && l !== "Kh\u00e1c"),
+      ...(byLang.has("Kh\u00e1c") ? ["Kh\u00e1c"] : []),
+    ];
+    for (const lang of sortedLangs) {
+      const byRegion = byLang.get(lang)!;
+      // S\u1eafp x\u1ebfp v\u00f9ng: B\u1eafc tr\u01b0\u1edbc, Trung gi\u1eefa, Nam cu\u1ed1i, "Kh\u00e1c" sau c\u00f9ng
+      const regionOrder = ["B\u1eafc", "Trung", "Nam"];
+      const sortedRegions = [
+        ...regionOrder.filter((r) => byRegion.has(r)),
+        ...[...byRegion.keys()].filter((r) => !regionOrder.includes(r) && r !== "Kh\u00e1c"),
+        ...(byRegion.has("Kh\u00e1c") ? ["Kh\u00e1c"] : []),
+      ];
+      for (const region of sortedRegions) {
+        sections.push({ lang, region, data: byRegion.get(region)! });
+      }
+    }
+    return sections;
+  }, [voices]);
+
 
   const invalidateModels = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.siteModels3d() });
@@ -304,28 +384,99 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     }
   }, [confirm, deleteMutation, t]);
 
+  /** Phát / dừng demo clip của giọng. */
+  const playDemoVoice = useCallback(
+    async (voice: TtsVoiceOption) => {
+      if (!voice.demo) return;
+      try {
+        // Đang phát chính giọng này → pause
+        if (playingDemoId === voice.id && demoSoundRef.current) {
+          await demoSoundRef.current.pauseAsync();
+          setPlayingDemoId(null);
+          return;
+        }
+        // Dừng bất kỳ demo đang phát
+        if (demoSoundRef.current) {
+          await demoSoundRef.current.unloadAsync();
+          demoSoundRef.current = null;
+        }
+        setPlayingDemoId(voice.id);
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: voice.demo },
+          { shouldPlay: true },
+          (status) => {
+            if (status.isLoaded && status.didJustFinish) {
+              setPlayingDemoId(null);
+            }
+          },
+        );
+        demoSoundRef.current = sound;
+      } catch {
+        setPlayingDemoId(null);
+        showApiToast(false, t("siteModels3d.narrativePlayError"));
+      }
+    },
+    [playingDemoId, showApiToast, t],
+  );
+
   const renderVoiceRow = useCallback(
-    ({ item }: { item: TtsVoiceOption }) => (
-      <Pressable
-        style={({ pressed }) => [
-          styles.voiceRow,
-          selectedVoiceId === item.id && styles.voiceRowSelected,
-          pressed && styles.voiceRowPressed,
-        ]}
-        onPress={() => {
-          setSelectedVoiceId(item.id);
-          setVoiceModalVisible(false);
-        }}
-      >
-        <Text style={styles.voiceRowTitle} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text style={styles.voiceRowMeta} numberOfLines={1}>
-          {item.region} · {item.language}
-        </Text>
-      </Pressable>
-    ),
-    [selectedVoiceId],
+    ({ item }: { item: TtsVoiceOption }) => {
+      const isDemo = playingDemoId === item.id;
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.voiceRow,
+            selectedVoiceId === item.id && styles.voiceRowSelected,
+            pressed && styles.voiceRowPressed,
+          ]}
+          onPress={() => {
+            // Dừng demo nếu đang phát
+            void demoSoundRef.current?.unloadAsync();
+            demoSoundRef.current = null;
+            setPlayingDemoId(null);
+            setSelectedVoiceId(item.id);
+            setVoiceModalVisible(false);
+          }}
+        >
+          <View style={styles.voiceRowContent}>
+            <View style={styles.voiceRowInfo}>
+              <Text style={styles.voiceRowTitle} numberOfLines={1}>
+                {item.name}
+              </Text>
+            </View>
+            {item.demo ? (
+              <Pressable
+                style={styles.demoBtn}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  void playDemoVoice(item);
+                }}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isDemo
+                    ? t("siteModels3d.narrativeDemoPause")
+                    : t("siteModels3d.narrativeDemoPlay")
+                }
+              >
+                <MaterialIcons
+                  name={isDemo ? "pause-circle" : "play-circle-outline"}
+                  size={28}
+                  color={isDemo ? PREMIUM_COLORS.gold : "rgba(255,255,255,0.55)"}
+                />
+              </Pressable>
+            ) : null}
+          </View>
+        </Pressable>
+      );
+    },
+    [selectedVoiceId, playingDemoId, playDemoVoice, t],
   );
 
   const busy =
@@ -337,11 +488,14 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
   const collapsedLabel = narrativeStatusLabel(narrativeStatus, t);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <View
       style={[
         styles.wrap,
-        expanded && { maxHeight: expandedMaxHeight },
+        expanded && {
+          maxHeight: keyboardHeight > 0
+            ? Math.min(expandedMaxHeight + keyboardHeight * 0.6, windowH * 0.75)
+            : expandedMaxHeight,
+        },
         !expanded && styles.wrapCollapsed,
         { paddingBottom: bottomInset },
       ]}
@@ -407,6 +561,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
 
       {expanded ? (
         <ScrollView
+          ref={scrollRef}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           style={styles.expandedScroll}
@@ -493,6 +648,11 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
                     multiline
                     maxLength={TTS_MAX}
                     editable={!busy}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollRef.current?.scrollToEnd({ animated: true });
+                      }, 300);
+                    }}
                   />
                   <Text style={[styles.charCount, { color: countColor }]}>
                     {t("siteModels3d.narrativeCharCount", {
@@ -610,12 +770,25 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
             {voicesLoading ? (
               <ActivityIndicator color={PREMIUM_COLORS.gold} style={{ marginVertical: 16 }} />
             ) : (
-              <FlatList
-                data={voices}
+              <SectionList
+                sections={voiceSections}
                 keyExtractor={(item) => item.id}
                 renderItem={renderVoiceRow}
+                renderSectionHeader={({ section }) => (
+                  <View style={styles.sectionHeader}>
+                    <View style={styles.sectionLangBadge}>
+                      <Text style={styles.sectionLangText}>
+                        {(section as { lang: string; region: string }).lang.toUpperCase()}
+                      </Text>
+                    </View>
+                    <Text style={styles.sectionRegionText}>
+                      {(section as { lang: string; region: string }).region}
+                    </Text>
+                  </View>
+                )}
                 style={styles.voiceList}
                 keyboardShouldPersistTaps="handled"
+                stickySectionHeadersEnabled={false}
               />
             )}
             <Pressable
@@ -628,7 +801,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
         </Pressable>
       </Modal>
       <ConfirmModal />
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -876,10 +1049,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   voiceList: {
-    maxHeight: 280,
+    maxHeight: 300,
   },
   voiceRow: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 10,
     borderRadius: 10,
     marginBottom: 6,
@@ -892,6 +1065,15 @@ const styles = StyleSheet.create({
   voiceRowPressed: {
     opacity: 0.85,
   },
+  voiceRowContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  voiceRowInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
   voiceRowTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -901,6 +1083,37 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "rgba(255,255,255,0.5)",
     marginTop: 2,
+  },
+  demoBtn: {
+    padding: 2,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    marginTop: 8,
+    marginBottom: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  sectionLangBadge: {
+    backgroundColor: PREMIUM_COLORS.gold,
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sectionLangText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#1a1a1a",
+    letterSpacing: 0.5,
+  },
+  sectionRegionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.7)",
   },
   modalCloseBtn: {
     marginTop: 12,

@@ -10,8 +10,11 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
 import { PlanItem } from "../../../../../types/pilgrim/planner.types";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "../../../../../config/toast.config";
 
 export interface EditItemModalProps {
   visible: boolean;
@@ -54,6 +57,7 @@ export default function EditItemModal(props: EditItemModalProps) {
     savingEdit,
     onOpenNearbyPlaces,
   } = props;
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -62,7 +66,7 @@ export default function EditItemModal(props: EditItemModalProps) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.modalContainer}>
+      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 20) }]}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>Chỉnh sửa địa điểm</Text>
           <TouchableOpacity onPress={onClose}>
@@ -70,7 +74,7 @@ export default function EditItemModal(props: EditItemModalProps) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 16) + 20 }}>
           {editingItem && (
             <Text style={[styles.timeInputLabel, { marginBottom: 16 }]}>
               {editingItem.site.name}
@@ -159,6 +163,9 @@ export default function EditItemModal(props: EditItemModalProps) {
             )}
           </TouchableOpacity>
         </ScrollView>
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+          <Toast config={toastConfig} />
+        </View>
       </View>
     </Modal>
   );

@@ -46,11 +46,17 @@ export interface GetJournalsResponse {
 /**
  * Journal entry
  */
+export type JournalType = 'point' | 'summary';
+export type LocationScope = 'single_site' | 'multi_site';
+export type SiteSource = 'journal.site' | 'plannerItem.site' | 'checked_in_sites' | null;
+
 export interface JournalEntry {
   id: string;
   user_id: string;
   site_id: string;
-  planner_item_id?: string; // Optional in response?
+  planner_item_id?: string | string[] | null; // UUID[] từ BE có thể về dạng array hoặc postgres array string
+  planner_item_ids?: string[] | string | null; // Alias tương thích nếu BE trả field plural
+  planner_id?: string; // ID kế hoạch hành hương được lấy tự động từ check-in
   title: string;
   content: string;
   audio_url?: string;
@@ -63,12 +69,29 @@ export interface JournalEntry {
     email: string;
     avatar_url: string;
   };
+  /**
+   * site = null có chủ đích khi location_scope = 'multi_site'
+   * Không hiển thị location row trong trường hợp này.
+   */
   site?: {
     id: string;
     name: string;
     code: string;
     province: string;
+  } | null;
+  planner?: {
+    id: string;
+    name: string;
+    status?: string;
   };
+  /** ID site đã được suy ra (có thể khác site_id gốc nếu resolve từ plannerItem) */
+  resolved_site_id?: string | null;
+  /** 'point' = nhật ký 1 địa điểm, 'summary' = tổng kết nhiều địa điểm */
+  journal_type?: JournalType;
+  /** 'single_site' = có 1 site hiển thị, 'multi_site' = nhiều site → ẩn location row */
+  location_scope?: LocationScope;
+  /** Nguồn suy ra site: 'journal.site' | 'plannerItem.site' | 'checked_in_sites' | null */
+  site_source?: SiteSource;
   created_at: string;
   updated_at: string;
 }
@@ -88,7 +111,9 @@ export interface JournalSummary extends JournalEntry { } // Assuming summary has
 export interface CreateJournalRequest {
   title: string;
   content: string;
-  planner_item_id: string; // Required - ID của planner item đã check-in
+  planner_item_id?: string; // Fallback cho backend chỉ nhận 1 planner item
+  planner_item_ids: string[]; // Mảng ID các planner items đã check-in (multi-select)
+  planner_id?: string; // ID kế hoạch - lấy từ selectedPlanner.id
   privacy?: JournalVisibility;
   images?: string[]; // Local URIs to upload - Tối đa 10 ảnh (jpg, png, jpeg, webp), max 10MB
   audio?: string; // Local URI to upload - File audio (mp3, wav, m4a, ogg, aac), max 100MB

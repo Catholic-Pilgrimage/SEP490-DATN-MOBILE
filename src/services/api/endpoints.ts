@@ -115,6 +115,7 @@ export const PILGRIM_ENDPOINTS = {
       `${API_BASE}/planners/${id}/members/${memberId}`,
     PARTICIPANTS: (id: string) => `${API_BASE}/planners/${id}/participants`,
     ADD_ITEM: (id: string) => `${API_BASE}/planners/${id}/items`,
+    CLEAR_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items`,
     DELETE_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}`,
     UPDATE_ITEM: (planId: string, itemId: string) =>
@@ -149,6 +150,14 @@ export const PILGRIM_ENDPOINTS = {
     LIST: `${API_BASE}/sos`,
     DETAIL: (id: string) => `${API_BASE}/sos/${id}`,
     CANCEL: (id: string) => `${API_BASE}/sos/${id}`,
+  },
+
+  // Friendship - Social relations
+  FRIENDSHIP: {
+    LIST: `${API_BASE}/friendships`,
+    REQUEST: `${API_BASE}/friendships/request`,
+    RESPOND: (id: string) => `${API_BASE}/friendships/${id}/respond`,
+    REMOVE: (friendId: string) => `${API_BASE}/friendships/${friendId}`,
   },
 
   // Journal - Spiritual journals

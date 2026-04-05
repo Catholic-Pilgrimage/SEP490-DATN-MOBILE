@@ -490,7 +490,7 @@ export const MediaUploadScreen: React.FC = () => {
                 <VideoView
                   style={styles.previewImage}
                   player={player}
-                  allowsFullscreen
+                  fullscreenOptions={{ enable: true }}
                   allowsPictureInPicture
                   contentFit="contain"
                 />

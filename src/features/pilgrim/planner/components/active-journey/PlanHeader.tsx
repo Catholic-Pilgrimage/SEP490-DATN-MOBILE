@@ -41,7 +41,10 @@ export default function PlanHeader({ plan, firstItem, compact }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     overflow: "hidden",
     backgroundColor: COLORS.backgroundCard,
     position: "relative",

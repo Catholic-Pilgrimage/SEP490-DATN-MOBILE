@@ -270,7 +270,7 @@ export default function AddSiteModal({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={sharedStyles.modalContainer}>
+      <View style={[sharedStyles.modalContainer, { paddingTop: Math.max(insets.top, 20) }]}>
         <View style={sharedStyles.modalHeader}>
           <Text style={sharedStyles.modalTitle}>
             {t("planner.chooseLocation")}

@@ -32,3 +32,6 @@ export * from "./verification.types";
 
 // Dashboard types
 export * from "./dashboard.types";
+
+// Friendship types
+export * from "./friendship.types";

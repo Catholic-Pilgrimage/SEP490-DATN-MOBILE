@@ -74,6 +74,7 @@ export interface PlanParticipant {
   id: string;
   userId: string;
   userName: string;
+  userEmail?: string;
   userAvatar?: string;
   role: "owner" | "editor" | "viewer";
   joinedAt: string;
@@ -404,6 +405,8 @@ export interface CheckInEntity {
   user_id: string;
   site_id: string;
   checked_in_at: string;
+  /** Trạng thái check-in: 'checked_in' | 'missed' | ... — lọc chỉ lấy 'checked_in' */
+  status?: string;
   note?: string;
   photos?: string[];
   site?: {
@@ -429,14 +432,15 @@ export interface GetCheckInsResponse {
   };
 }
 
-/** BE CheckinController: nhận `latitude`/`longitude` hoặc `checkin_latitude`/`checkin_longitude`. */
+/** BE CheckinController: nhận multipart/form-data với field `photo` (ảnh bắt buộc). */
 export interface CheckInItemRequest {
   latitude?: number;
   longitude?: number;
   checkin_latitude?: number;
   checkin_longitude?: number;
+  /** Local file URI from ImagePicker — sẽ được gửi qua FormData field 'photo' */
+  photoUri: string;
   note?: string;
-  photos?: string[];
 }
 
 export interface CheckInItemResponse {
@@ -461,6 +465,7 @@ export type UpdatePlannerItemStatusRequest =
   | {
       status: "visited";
       skip_reason?: string;
+      requires_confirmation?: boolean;
       confirm_missed?: boolean;
       confirmed?: boolean;
     }
