@@ -24,11 +24,33 @@ import { MediaPickerModal } from '../../../../components/common/MediaPickerModal
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import pilgrimJournalApi from '../../../../services/api/pilgrim/journalApi';
 import pilgrimPlannerApi from '../../../../services/api/pilgrim/plannerApi';
-import { CheckInEntity } from '../../../../types/pilgrim/planner.types';
-import { normalizeImageUrls } from '../../../../utils/postgresArrayParser';
+import { CheckInEntity, PlanEntity } from '../../../../types/pilgrim/planner.types';
+import { normalizeImageUrls, parsePostgresArray } from '../../../../utils/postgresArrayParser';
 
 const { width } = Dimensions.get('window');
 const FontDisplay = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
+
+const dedupeCheckInsByPlannerItem = (checkIns: CheckInEntity[]) =>
+    Array.from(
+        new Map(
+            checkIns
+                .filter((checkIn) => checkIn.planner_item_id)
+                .map((checkIn) => [checkIn.planner_item_id, checkIn]),
+        ).values(),
+    );
+
+const getJournalPlannerItemIds = (journal: any): string[] =>
+    Array.from(
+        new Set([
+            ...parsePostgresArray(journal?.planner_item_id),
+            ...parsePostgresArray(journal?.planner_item_ids),
+        ]),
+    );
+
+const buildLocationFromCheckIns = (checkIns: CheckInEntity[]) =>
+    Array.from(
+        new Set(checkIns.map((checkIn) => checkIn.site?.name || '').filter(Boolean)),
+    ).join(', ');
 
 export default function CreateJournalScreen() {
     const navigation = useNavigation<any>();
@@ -39,13 +61,13 @@ export default function CreateJournalScreen() {
     // State
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
-    const [location, setLocation] = useState('');
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(false);
     const [existingImages, setExistingImages] = useState<string[]>([]);
 
     // Media State
     const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
+    const [selectedVideos, setSelectedVideos] = useState<ImagePicker.ImagePickerAsset[]>([]);
     const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
     const [mediaType, setMediaType] = useState<'images' | 'videos'>('images');
 
@@ -57,75 +79,264 @@ export default function CreateJournalScreen() {
     const [sound, setSound] = useState<Audio.Sound | undefined>();
     const [isPlaying, setIsPlaying] = useState(false);
 
-    // Check-in Logic
-    const [selectedPlannerItemId, setSelectedPlannerItemId] = useState<string | null>(paramPlannerItemId || null);
-    const [checkedInLocations, setCheckedInLocations] = useState<CheckInEntity[]>([]);
+    // ── Step 1: Chọn kế hoạch đã hoàn thành (planner_id) ──
+    const [completedPlanners, setCompletedPlanners] = useState<PlanEntity[]>([]);
+    const [selectedPlanner, setSelectedPlanner] = useState<PlanEntity | null>(null);
+    const [plannerLoading, setPlannerLoading] = useState(false);
+
+    // ── Step 2: Chọn điểm check-in thuộc planner đó (planner_item_ids - multi-select) ──
+    const [allCheckIns, setAllCheckIns] = useState<CheckInEntity[]>([]);
+    const [filteredCheckIns, setFilteredCheckIns] = useState<CheckInEntity[]>([]);
+    const [checkInLoading, setCheckInLoading] = useState(false);
+    const [checkInsLoaded, setCheckInsLoaded] = useState(false);
+    const [selectedPlannerItemIds, setSelectedPlannerItemIds] = useState<string[]>(
+        paramPlannerItemId ? [paramPlannerItemId] : []
+    );
+    const [location, setLocation] = useState('');
+    const [pendingEditSelection, setPendingEditSelection] = useState<{
+        plannerId?: string;
+        plannerName?: string;
+        plannerItemIds: string[];
+        location?: string;
+    } | null>(null);
+    const [editSelectionInitialized, setEditSelectionInitialized] = useState(false);
 
     useEffect(() => {
+        setPendingEditSelection(null);
+        setEditSelectionInitialized(false);
+    }, [journalId]);
+
+    useEffect(() => {
+        fetchCompletedPlanners();
         fetchMyCheckIns();
         if (journalId) fetchJournalDetails();
     }, [journalId]);
 
+    useEffect(() => {
+        if (!journalId || !checkInsLoaded || !pendingEditSelection || editSelectionInitialized) {
+            return;
+        }
+
+        const plannerChoice = pendingEditSelection.plannerId
+            ? completedPlanners.find((planner) => planner.id === pendingEditSelection.plannerId) ||
+              ({
+                  id: pendingEditSelection.plannerId,
+                  name: pendingEditSelection.plannerName || 'Kế hoạch hành hương',
+                  user_id: '',
+                  number_of_people: 0,
+                  transportation: '',
+                  status: 'completed',
+                  share_token: '',
+                  qr_code_url: '',
+                  created_at: '',
+                  updated_at: '',
+              } as PlanEntity)
+            : null;
+
+        if (!plannerChoice) {
+            const nextPlannerItemIds = pendingEditSelection.plannerItemIds;
+            setSelectedPlannerItemIds(nextPlannerItemIds);
+            setLocation(pendingEditSelection.location || '');
+            setEditSelectionInitialized(true);
+            return;
+        }
+
+        hydratePlannerSelection(plannerChoice, pendingEditSelection.plannerItemIds, {
+            autoSelectSingle: false,
+            fallbackLocation: pendingEditSelection.location,
+        }).finally(() => {
+            setEditSelectionInitialized(true);
+        });
+    }, [checkInsLoaded, completedPlanners, editSelectionInitialized, journalId, pendingEditSelection]);
+
+    /** Fetch tất cả planner có status === 'completed' */
+    const fetchCompletedPlanners = async () => {
+        try {
+            setPlannerLoading(true);
+            const response = await pilgrimPlannerApi.getPlans({ limit: 100 });
+            if (response.success && response.data?.planners) {
+                const completed = response.data.planners.filter(p => p.status === 'completed');
+                setCompletedPlanners(completed);
+            }
+        } catch (error) {
+            console.error('Failed to fetch completed planners', error);
+        } finally {
+            setPlannerLoading(false);
+        }
+    };
+
+    /** Fetch tất cả check-ins của user (chỉ lấy status='checked_in') */
     const fetchMyCheckIns = async () => {
         try {
             const response = await pilgrimPlannerApi.getMyCheckIns();
-            
             if (response.success && response.data) {
                 const rawData = response.data as CheckInEntity[] | { check_ins?: CheckInEntity[] };
-                const checkIns = Array.isArray(rawData)
-                    ? rawData
-                    : rawData.check_ins || [];
-                // Filter out check-ins without site info
-                const validCheckIns = checkIns.filter(c => c.site && c.site.name);
-                setCheckedInLocations(validCheckIns);
+                const all = Array.isArray(rawData) ? rawData : rawData.check_ins || [];
+                const valid = dedupeCheckInsByPlannerItem(all.filter(
+                    (c) => (!c.status || c.status === 'checked_in') && c.site && c.site.name
+                ));
+                setAllCheckIns(valid);
 
-                // If coming from a specific planner item, set the location
+                // Nếu navigate từ planner item cụ thể
                 if (paramPlannerItemId) {
-                    const found = validCheckIns.find(c => c.planner_item_id === paramPlannerItemId);
+                    const found = valid.find(c => c.planner_item_id === paramPlannerItemId);
                     if (found && found.site) {
                         setLocation(found.site.name);
-                        setSelectedPlannerItemId(found.planner_item_id);
+                        setSelectedPlannerItemIds([found.planner_item_id]);
                     }
-                    return;
-                }
-
-                // Default to the most recent checked-in location so users can save immediately.
-                if (!journalId && !selectedPlannerItemId && validCheckIns.length > 0) {
-                    setLocation(validCheckIns[0].site?.name || '');
-                    setSelectedPlannerItemId(validCheckIns[0].planner_item_id);
                 }
             }
         } catch (error) {
-            console.error("Failed to fetch check-ins", error);
+            console.error('Failed to fetch check-ins', error);
+        } finally {
+            setCheckInsLoaded(true);
         }
     };
 
+    /** User chọn kế hoạch → fetch detail để lấy items[], filter check-ins, reset chọn điểm */
+    const hydratePlannerSelection = async (
+        planner: PlanEntity,
+        initialSelectedPlannerItemIds: string[] = [],
+        options?: {
+            autoSelectSingle?: boolean;
+            fallbackLocation?: string;
+        },
+    ) => {
+        setSelectedPlanner(planner);
+        setFilteredCheckIns([]);
+        setCheckInLoading(true);
+
+        try {
+            const detail = await pilgrimPlannerApi.getPlanDetail(planner.id);
+            const plannerItems = detail?.data?.items ||
+                Object.values(detail?.data?.items_by_day || {}).flat();
+            const plannerItemIds = new Set(plannerItems.map((item: any) => item.id));
+            const filtered = dedupeCheckInsByPlannerItem(allCheckIns.filter(c => plannerItemIds.has(c.planner_item_id)));
+            const matchedCheckIns = filtered.filter((checkIn) =>
+                initialSelectedPlannerItemIds.includes(checkIn.planner_item_id),
+            );
+
+            setFilteredCheckIns(filtered);
+
+            if (matchedCheckIns.length > 0) {
+                setSelectedPlannerItemIds(matchedCheckIns.map((checkIn) => checkIn.planner_item_id));
+                setLocation(buildLocationFromCheckIns(matchedCheckIns));
+                return;
+            }
+
+            if (options?.autoSelectSingle !== false && filtered.length === 1 && filtered[0].site) {
+                setSelectedPlannerItemIds([filtered[0].planner_item_id]);
+                setLocation(filtered[0].site.name);
+                return;
+            }
+
+            setSelectedPlannerItemIds([]);
+            setLocation(options?.fallbackLocation || '');
+        } catch (error) {
+            console.error('Failed to fetch planner detail', error);
+            const filtered = dedupeCheckInsByPlannerItem(allCheckIns.filter(c => c.planner?.id === planner.id));
+            const matchedCheckIns = filtered.filter((checkIn) =>
+                initialSelectedPlannerItemIds.includes(checkIn.planner_item_id),
+            );
+
+            setFilteredCheckIns(filtered);
+
+            if (matchedCheckIns.length > 0) {
+                setSelectedPlannerItemIds(matchedCheckIns.map((checkIn) => checkIn.planner_item_id));
+                setLocation(buildLocationFromCheckIns(matchedCheckIns));
+                return;
+            }
+
+            setSelectedPlannerItemIds([]);
+            setLocation(options?.fallbackLocation || '');
+        } finally {
+            setCheckInLoading(false);
+        }
+    };
+
+    const handleSelectPlanner = async (planner: PlanEntity) => {
+        setEditSelectionInitialized(true);
+        await hydratePlannerSelection(planner);
+        return;
+        /*
+            // Fetch chi tiết planner để lấy danh sách items[]
+            const detail = await pilgrimPlannerApi.getPlanDetail(planner.id);
+            const plannerItems = detail?.data?.items || 
+                Object.values(detail?.data?.items_by_day || {}).flat();
+
+            // Lấy set id của các planner items
+            const plannerItemIds = new Set(plannerItems.map((item: any) => item.id));
+
+            // Filter check-ins: chỉ giữ những check-in có planner_item_id trong planner này
+            const filtered = dedupeCheckInsByPlannerItem(allCheckIns.filter(c => plannerItemIds.has(c.planner_item_id)));
+            setFilteredCheckIns(filtered);
+
+            // Nếu chỉ có 1 check-in, tự động chọn luôn
+            if (filtered.length === 1 && filtered[0].site) {
+                setSelectedPlannerItemIds([filtered[0].planner_item_id]);
+                setLocation(filtered[0].site.name);
+            }
+        } catch (error) {
+            console.error('Failed to fetch planner detail', error);
+            const filtered = dedupeCheckInsByPlannerItem(allCheckIns.filter(c => c.planner?.id === planner.id));
+            setFilteredCheckIns(filtered);
+        } finally {
+            setCheckInLoading(false);
+        }
+        */
+    };
+
+    /** Toggle chọn / bỏ chọn điểm check-in */
     const handleSelectLocation = (checkIn: CheckInEntity) => {
-        if (checkIn.site) {
-            setLocation(checkIn.site.name);
-            setSelectedPlannerItemId(checkIn.planner_item_id);
-        }
+        if (!checkIn.site) return;
+        const id = checkIn.planner_item_id;
+        setSelectedPlannerItemIds(prev => {
+            const isSelected = prev.includes(id);
+            const next = isSelected ? prev.filter(x => x !== id) : Array.from(new Set([...prev, id]));
+            // Cập nhật location text
+            const selectedCheckIns = filteredCheckIns.filter(c => next.includes(c.planner_item_id));
+            setLocation(selectedCheckIns.map(c => c.site?.name || '').filter(Boolean).join(', '));
+            return next;
+        });
     };
 
-    const handlePickMedia = (type: 'images' | 'videos') => {
-        setMediaType(type);
-        setMediaPickerVisible(true);
+    const handlePickMedia = async (type: 'images' | 'videos') => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: type === 'images'
+                ? ImagePicker.MediaTypeOptions.Images
+                : ImagePicker.MediaTypeOptions.Videos,
+            allowsMultipleSelection: type === 'images',
+            quality: 0.8,
+            videoMaxDuration: 300, // 5 phút
+        });
+
+        if (!result.canceled && result.assets.length > 0) {
+            if (type === 'images') {
+                setSelectedImages(prev => [...prev, ...result.assets].slice(0, 10));
+            } else {
+                // Chỉ cho chọn 1 video
+                setSelectedVideos([result.assets[0]]);
+            }
+        }
     };
 
     const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
         if (!result.canceled) {
             if (mediaType === 'images') {
-                setSelectedImages((prev) => [...prev, ...result.assets].slice(0, 10)); // Max 10 images
-            } else {
-                // Video handling - for now just add to images array
                 setSelectedImages((prev) => [...prev, ...result.assets].slice(0, 10));
+            } else {
+                setSelectedVideos([result.assets[0]]);
             }
         }
         setMediaPickerVisible(false);
     };
 
-    const handleRemoveMedia = (index: number) => {
-        setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+    const handleRemoveMedia = (index: number, type: 'images' | 'videos' = 'images') => {
+        if (type === 'images') {
+            setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+        } else {
+            setSelectedVideos([]);
+        }
     };
 
     const handleRecordAudio = async () => {
@@ -327,14 +538,41 @@ export default function CreateJournalScreen() {
             const response = await pilgrimJournalApi.getJournalDetail(journalId);
             if (response.success && response.data) {
                 const data = response.data;
+                const plannerItemIds = getJournalPlannerItemIds(data);
+                const plannerId = data.planner?.id || data.planner_id;
+                const plannerName = data.planner?.name;
+                const fallbackLocation = data.site?.name || '';
+
                 setTitle(data.title);
                 setContent(data.content);
-                if (data.site) {
-                    setLocation(data.site.name);
-                }
+                setSelectedPlannerItemIds(plannerItemIds);
+                setLocation(fallbackLocation);
                 if (data.image_url) {
                     setExistingImages(normalizeImageUrls(data.image_url));
                 }
+                if (plannerId) {
+                    setSelectedPlanner(
+                        completedPlanners.find((planner) => planner.id === plannerId) ||
+                        ({
+                            id: plannerId,
+                            name: plannerName || 'Kế hoạch hành hương',
+                            user_id: '',
+                            number_of_people: 0,
+                            transportation: '',
+                            status: 'completed',
+                            share_token: '',
+                            qr_code_url: '',
+                            created_at: '',
+                            updated_at: '',
+                        } as PlanEntity),
+                    );
+                }
+                setPendingEditSelection({
+                    plannerId,
+                    plannerName,
+                    plannerItemIds,
+                    location: fallbackLocation,
+                });
                 // Load existing audio if available
                 if (data.audio_url) {
                     setRecordingUri(data.audio_url);
@@ -357,24 +595,34 @@ export default function CreateJournalScreen() {
             return;
         }
 
-        // Validate Planner Item ID for creation (Backend requirement - MUST have checked-in location)
-        if (!journalId && !selectedPlannerItemId) {
-            Alert.alert('Yêu cầu check-in trước', 'Vui lòng chọn một địa điểm mà bạn đã check-in để viết nhật ký tâm linh.');
+        // Validate: phải chọn ít nhất 1 điểm check-in khi tạo mới
+        if (!journalId && selectedPlannerItemIds.length === 0) {
+            Alert.alert('Yêu cầu check-in trước', 'Vui lòng chọn ít nhất một địa điểm bạn đã check-in.');
             return;
         }
 
         setLoading(true);
         try {
+            const plannerItemIds = Array.from(new Set(selectedPlannerItemIds.filter(Boolean)));
+
             if (journalId) {
                 // UPDATE
                 // Prepare new image URIs (only send newly selected images)
                 const imageUris = selectedImages.map(img => img.uri);
 
+                if (plannerItemIds.length === 0) {
+                    Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một địa điểm đã check-in');
+                    return;
+                }
+
                 await pilgrimJournalApi.updateJournal(journalId, {
                     title,
                     content,
+                    planner_item_ids: plannerItemIds,
+                    planner_id: selectedPlanner?.id || pendingEditSelection?.plannerId,
                     privacy,
                     images: imageUris.length > 0 ? imageUris : undefined,
+                    video: selectedVideos[0]?.uri || undefined,
                     audio: recordingUri,
                 });
                 Alert.alert(
@@ -384,9 +632,9 @@ export default function CreateJournalScreen() {
                     }${recordingUri ? ' với audio' : ''}`
                 );
             } else {
-                // CREATE - planner_item_id is required
-                if (!selectedPlannerItemId) {
-                    Alert.alert('Lỗi', 'Không thể tạo nhật ký mà không có địa điểm đã check-in');
+                // CREATE - ít nhất 1 planner_item_id là required
+                if (plannerItemIds.length === 0) {
+                    Alert.alert('Lỗi', 'Vui lòng chọn ít nhất một địa điểm đã check-in');
                     return;
                 }
 
@@ -396,9 +644,11 @@ export default function CreateJournalScreen() {
                 await pilgrimJournalApi.createJournal({
                     title: title.trim(),
                     content: content.trim(),
-                    planner_item_id: selectedPlannerItemId,
+                    planner_item_ids: plannerItemIds,
+                    planner_id: selectedPlanner?.id || undefined,
                     privacy,
                     images: imageUris.length > 0 ? imageUris : undefined,
+                    video: selectedVideos[0]?.uri || undefined,
                     audio: recordingUri,
                 });
                 Alert.alert(
@@ -459,49 +709,107 @@ export default function CreateJournalScreen() {
                     contentContainerStyle={[styles.contentJSON, { paddingBottom: 150 }]} // Padding for footer
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Location Section */}
+                    {/* ── STEP 1: Chọn kế hoạch hành hương đã hoàn thành (planner_id) ── */}
                     <View style={styles.section}>
-                        <Text style={styles.label}>Địa điểm hành hương</Text>
-                        <View style={styles.locationInput}>
-                            <MaterialIcons name="location-on" size={20} color={COLORS.textSecondary} style={styles.locationIcon} />
-                            <Text style={[styles.locationPlaceholder, location ? { color: COLORS.textPrimary } : {}]}>
-                                {location || "Chọn địa điểm bên dưới"}
-                            </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <MaterialIcons name="route" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
+                            <Text style={styles.label}>Bước 1: Chọn kế hoạch</Text>
+                            <View style={styles.completedBadge}>
+                                <Text style={styles.completedBadgeText}>Đã hoàn thành</Text>
+                            </View>
                         </View>
 
-                        <Text style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 8, marginBottom: 4 }}>
-                            Chọn địa điểm đã check-in:
-                        </Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipContainer}>
-                            {checkedInLocations.length > 0 ? (
-                                checkedInLocations.map((checkIn, index) => (
+                        {plannerLoading ? (
+                            <ActivityIndicator size="small" color={COLORS.accent} style={{ marginVertical: 8 }} />
+                        ) : completedPlanners.length === 0 ? (
+                            <Text style={styles.emptyHint}>Chưa có kế hoạch nào hoàn thành</Text>
+                        ) : (
+                            <View style={styles.chipWrapContainer}>
+                                {completedPlanners.map((planner) => (
                                     <TouchableOpacity
-                                        key={checkIn.id || index}
+                                        key={planner.id}
                                         style={[
                                             styles.chip,
-                                            selectedPlannerItemId === checkIn.planner_item_id && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                                            selectedPlanner?.id === planner.id && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
                                         ]}
-                                        onPress={() => handleSelectLocation(checkIn)}
+                                        onPress={() => handleSelectPlanner(planner)}
                                     >
                                         <MaterialIcons
                                             name="check-circle"
                                             size={16}
-                                            color={selectedPlannerItemId === checkIn.planner_item_id ? COLORS.white : COLORS.accent}
+                                            color={selectedPlanner?.id === planner.id ? COLORS.white : COLORS.accent}
                                         />
                                         <Text style={[
                                             styles.chipText,
-                                            selectedPlannerItemId === checkIn.planner_item_id && { color: COLORS.white }
-                                        ]}>
-                                            {checkIn.site?.name || 'Địa điểm'}
+                                            selectedPlanner?.id === planner.id && { color: COLORS.white }
+                                        ]} numberOfLines={1}>
+                                            {planner.name}
                                         </Text>
                                     </TouchableOpacity>
-                                ))
+                                ))}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* ── STEP 2: Chọn điểm check-in của kế hoạch đó (planner_item_id) ── */}
+                    <View style={styles.section}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                            <MaterialIcons name="location-on" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
+                            <Text style={styles.label}>Bước 2: Chọn địa điểm</Text>
+                        </View>
+
+                        <View style={styles.locationInput}>
+                            <MaterialIcons name="location-on" size={20} color={COLORS.textSecondary} style={styles.locationIcon} />
+                            <Text style={[styles.locationPlaceholder, location ? { color: COLORS.textPrimary } : {}]}>
+                                {location || (selectedPlanner ? 'Chọn điểm đã check-in bên dưới' : 'Vui lòng chọn kế hoạch trước')}
+                            </Text>
+                        </View>
+
+                        <Text style={{ fontSize: 12, color: COLORS.textTertiary, marginTop: 8, marginBottom: 4 }}>
+                            {selectedPlanner
+                                ? `Điểm đã check-in trong "${selectedPlanner.name}":`
+                                : 'Chọn kế hoạch ở bước 1 để xem các điểm đã check-in'}
+                        </Text>
+
+                        {/* Chips check-in - chỉ hiện sau khi chọn planner */}
+                        {(selectedPlanner || journalId) && (
+                            checkInLoading ? (
+                                <ActivityIndicator size="small" color={COLORS.accent} style={{ marginVertical: 10 }} />
                             ) : (
-                                <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', padding: 10 }}>
-                                    Không có địa điểm đã check-in. Hãy check-in tại một địa điểm trước!
-                                </Text>
-                            )}
-                        </ScrollView>
+                                <View style={styles.chipWrapContainer}>
+                                    {filteredCheckIns.length > 0 ? (
+                                        filteredCheckIns.map((checkIn: CheckInEntity, index: number) => (
+                                            <TouchableOpacity
+                                                key={checkIn.id || index}
+                                                style={[
+                                                    styles.chip,
+                                                    selectedPlannerItemIds.includes(checkIn.planner_item_id) && { backgroundColor: COLORS.accent, borderColor: COLORS.accent }
+                                                ]}
+                                                onPress={() => handleSelectLocation(checkIn)}
+                                            >
+                                                <MaterialIcons
+                                                    name={selectedPlannerItemIds.includes(checkIn.planner_item_id) ? "check-circle" : "radio-button-unchecked"}
+                                                    size={16}
+                                                    color={selectedPlannerItemIds.includes(checkIn.planner_item_id) ? COLORS.white : COLORS.accent}
+                                                />
+                                                <Text style={[
+                                                    styles.chipText,
+                                                    selectedPlannerItemIds.includes(checkIn.planner_item_id) && { color: COLORS.white }
+                                                ]}>
+                                                    {checkIn.site?.name || 'Địa điểm'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))
+                                    ) : (
+                                        <Text style={{ color: COLORS.textSecondary, fontStyle: 'italic', padding: 10 }}>
+                                            {selectedPlanner
+                                                ? 'Bạn chưa check-in điểm nào trong kế hoạch này'
+                                                : 'Không có địa điểm đã check-in'}
+                                        </Text>
+                                    )}
+                                </View>
+                            )
+                        )}
                     </View>
 
                     {/* Reflection Editor */}
@@ -565,26 +873,65 @@ export default function CreateJournalScreen() {
                     <View style={styles.section}>
                         <View style={styles.mediaHeader}>
                             <Text style={styles.label}>Hình ảnh & Video</Text>
-                            <TouchableOpacity onPress={() => handlePickMedia('images')}>
-                                <Text style={styles.linkText}>Xem tất cả</Text>
-                            </TouchableOpacity>
+                            <Text style={{ fontSize: 12, color: COLORS.textTertiary }}>
+                                {displayImages.length + selectedVideos.length > 0
+                                    ? `${displayImages.length} ảnh${selectedVideos.length > 0 ? ', 1 video' : ''}`
+                                    : 'Tối đa 10 ảnh + 1 video'}
+                            </Text>
                         </View>
 
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaRow}>
-                            <TouchableOpacity 
+                            {/* Nút thêm (ActionSheet) */}
+                            <TouchableOpacity
                                 style={styles.addMediaBtn}
-                                onPress={() => handlePickMedia('images')}
+                                onPress={() => {
+                                    Alert.alert(
+                                        'Thêm phương tiện',
+                                        'Chọn loại tệp muốn thêm',
+                                        [
+                                            { text: '📷  Chọn ảnh', onPress: () => handlePickMedia('images') },
+                                            { text: '🎬  Chọn video', onPress: () => handlePickMedia('videos') },
+                                            { text: 'Huỷ', style: 'cancel' },
+                                        ]
+                                    );
+                                }}
                             >
-                                <MaterialIcons name="add-circle" size={24} color={COLORS.accent} />
+                                <MaterialIcons name="add-circle-outline" size={28} color={COLORS.accent} />
                                 <Text style={styles.addMediaText}>Thêm</Text>
                             </TouchableOpacity>
 
+                            {/* Thumbnails ảnh */}
                             {displayImages.map((img, index) => (
                                 <View key={img.id || index} style={styles.mediaItem}>
                                     <Image source={{ uri: img.uri }} style={styles.mediaImage} />
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={styles.removeMediaBtn}
-                                        onPress={() => handleRemoveMedia(index)}
+                                        onPress={() => handleRemoveMedia(index, 'images')}
+                                    >
+                                        <MaterialIcons name="close" size={14} color="#fff" />
+                                    </TouchableOpacity>
+                                </View>
+                            ))}
+
+                            {/* Thumbnail video */}
+                            {selectedVideos.map((vid, index) => (
+                                <View key={index} style={styles.mediaItem}>
+                                    {vid.uri ? (
+                                        <Image source={{ uri: vid.uri }} style={styles.mediaImage} />
+                                    ) : (
+                                        <View style={[styles.mediaImage, { backgroundColor: '#1a1a2e', justifyContent: 'center', alignItems: 'center' }]}>
+                                            <MaterialIcons name="videocam" size={30} color={COLORS.accent} />
+                                        </View>
+                                    )}
+                                    <View style={styles.videoOverlay}>
+                                        <MaterialIcons name="play-circle-filled" size={28} color="rgba(255,255,255,0.9)" />
+                                    </View>
+                                    <View style={{ position: 'absolute', bottom: 4, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 }}>
+                                        <Text style={{ color: '#fff', fontSize: 9, fontWeight: '600' }}>VID</Text>
+                                    </View>
+                                    <TouchableOpacity
+                                        style={styles.removeMediaBtn}
+                                        onPress={() => handleRemoveMedia(0, 'videos')}
                                     >
                                         <MaterialIcons name="close" size={14} color="#fff" />
                                     </TouchableOpacity>
@@ -776,6 +1123,12 @@ const styles = StyleSheet.create({
         marginTop: 12,
         paddingVertical: 4, // for shadow clipping
     },
+    chipWrapContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 12,
+        paddingVertical: 4,
+    },
     chip: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -784,6 +1137,7 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 99,
         marginRight: 8,
+        marginBottom: 8,
         gap: 6,
         borderWidth: 1,
         borderColor: 'transparent',
@@ -793,6 +1147,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.textSecondary,
+        flexShrink: 1,
     },
     editorContainer: {
         backgroundColor: COLORS.surface0,
@@ -1013,7 +1368,7 @@ const styles = StyleSheet.create({
     audioPlayer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
+        backgroundColor: COLORS.surface0,
         borderRadius: 12,
         padding: SPACING.md,
         marginTop: SPACING.sm,
@@ -1054,4 +1409,58 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    // Planner tag (hiển thị kế hoạch liên kết sau khi chọn check-in)
+    plannerTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        marginTop: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        backgroundColor: 'rgba(212, 175, 55, 0.1)',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(212, 175, 55, 0.25)',
+        alignSelf: 'flex-start',
+    },
+    plannerTagText: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+    },
+    // Sub-text dưới chip (tên kế hoạch)
+    chipSubText: {
+        fontSize: 10,
+        color: COLORS.textTertiary,
+        marginTop: 1,
+    },
+    // Badge "Đã hoàn thành" xanh lá
+    completedBadge: {
+        marginLeft: 8,
+        backgroundColor: 'rgba(39, 174, 96, 0.12)',
+        borderRadius: 99,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderWidth: 1,
+        borderColor: 'rgba(39, 174, 96, 0.3)',
+    },
+    completedBadgeText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#27ae60',
+    },
+    emptyHint: {
+        fontSize: 13,
+        color: COLORS.textTertiary,
+        fontStyle: 'italic',
+        paddingVertical: 8,
+        paddingHorizontal: 4,
+    },
+    videoOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 10,
+    },
 });
+

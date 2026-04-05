@@ -5,6 +5,7 @@
  * Base URL: /api/posts
  */
 
+import { Platform } from "react-native";
 import { ApiResponse, PaginatedResponse } from "../../../types/api.types";
 import {
     CreateFeedCommentRequest,
@@ -16,6 +17,7 @@ import {
     UpdateFeedPostRequest,
 } from "../../../types/post.types";
 import { normalizeImageUrls } from "../../../utils/postgresArrayParser";
+import { getAudioUploadMeta } from "../../../utils/audioUpload";
 import apiClient from "../apiClient";
 import ENDPOINTS from "../endpoints";
 
@@ -118,6 +120,26 @@ export const createPost = async (
         });
     }
 
+    if (data.video) {
+        formData.append("video", data.video as any);
+    }
+
+    if (data.audio) {
+        // Re-build the audio file object at the service layer (same pattern as journalApi)
+        // so that:
+        //  1. The MIME type is always "audio/*"  (not inferred from extension by RN).
+        //  2. The file name ends in .m4a, never .mp4, avoiding the backend
+        //     image-format validator: "Image file format mp4 not allowed".
+        const audioUri: string =
+            typeof data.audio === "string" ? data.audio : data.audio.uri;
+        const { extension, mimeType } = getAudioUploadMeta(audioUri);
+        formData.append("audio", {
+            uri: Platform.OS === "ios" ? audioUri.replace("file://", "") : audioUri,
+            type: mimeType,
+            name: `post_audio.${extension}`,
+        } as any);
+    }
+
     const response = await apiClient.post<ApiResponse<FeedPost>>(
         ENDPOINTS.SHARED.POSTS.BASE,
         formData,
@@ -148,6 +170,23 @@ export const updatePost = async (
         data.images.forEach((image: any) => {
             formData.append("images", image as any);
         });
+    }
+
+    if (data.video) {
+        formData.append("video", data.video as any);
+    }
+
+    if (data.audio) {
+        // Same re-building logic as createPost — always use audio MIME type
+        // and force .m4a extension to avoid backend image-validator rejection.
+        const audioUri: string =
+            typeof data.audio === "string" ? data.audio : data.audio.uri;
+        const { extension, mimeType } = getAudioUploadMeta(audioUri);
+        formData.append("audio", {
+            uri: Platform.OS === "ios" ? audioUri.replace("file://", "") : audioUri,
+            type: mimeType,
+            name: `post_audio.${extension}`,
+        } as any);
     }
 
     const response = await apiClient.put<ApiResponse<FeedPost>>(

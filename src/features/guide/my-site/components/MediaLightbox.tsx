@@ -224,7 +224,7 @@ function VideoLightboxInner({
             height: playerSize.height,
           }}
           player={player}
-          allowsFullscreen={false}
+          fullscreenOptions={{ enable: false }}
           allowsPictureInPicture
           contentFit="contain"
         />

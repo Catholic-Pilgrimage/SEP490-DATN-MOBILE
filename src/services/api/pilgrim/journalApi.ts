@@ -16,8 +16,26 @@ import {
   GetJournalsResponse,
   JournalEntry,
 } from "../../../types/pilgrim";
+import { getAudioUploadMeta } from "../../../utils/audioUpload";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
+
+// ============================================
+// HELPERS
+// ============================================
+
+const appendPlannerItemFields = (
+  formData: FormData,
+  data: Pick<Partial<CreateJournalRequest>, "planner_item_id" | "planner_item_ids">,
+) => {
+  const plannerItemIds = Array.from(
+    new Set([...(data.planner_item_ids ?? []), ...(data.planner_item_id ? [data.planner_item_id] : [])].filter(Boolean)),
+  );
+
+  plannerItemIds.forEach((id) => {
+    formData.append("planner_item_id[]", id);
+  });
+};
 
 // ============================================
 // API FUNCTIONS
@@ -38,53 +56,44 @@ export const getMyJournals = async (
 
 /**
  * Create new journal with support for file uploads (images, audio, video)
- * Requires FormData if files are present.
  */
 export const createJournal = async (
   data: CreateJournalRequest,
 ): Promise<ApiResponse<JournalEntry>> => {
   const formData = new FormData();
 
-  // 1. Append Text Fields (Required)
   formData.append("title", data.title);
   formData.append("content", data.content);
-  formData.append("planner_item_id", data.planner_item_id); // Required - must be from checked-in location
-  
-  // Optional fields
-  if (data.privacy) {
-    formData.append("privacy", data.privacy);
-  }
 
-  // 2. Append Images (Array)
+  appendPlannerItemFields(formData, data);
+
+  if (data.planner_id) formData.append("planner_id", data.planner_id);
+  if (data.privacy) formData.append("privacy", data.privacy);
+
   if (data.images && data.images.length > 0) {
     data.images.forEach((uri, index) => {
       const fileType = uri.split('.').pop() || 'jpeg';
-      const fileName = `image_${index}.${fileType}`;
       formData.append("images", {
         uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-        type: `image/${fileType}`, // simplified mime type inference
-        name: fileName,
+        type: `image/${fileType}`,
+        name: `image_${index}.${fileType}`,
       } as any);
     });
   }
 
-  // 3. Append Audio (Single file)
   if (data.audio) {
-    const uri = data.audio;
-    const fileType = uri.split('.').pop() || 'm4a'; // default audio ext
+    const { extension, mimeType } = getAudioUploadMeta(data.audio);
     formData.append("audio", {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-      type: `audio/${fileType}`,
-      name: `audio.${fileType}`,
+      uri: Platform.OS === 'ios' ? data.audio.replace('file://', '') : data.audio,
+      type: mimeType,
+      name: `audio.${extension}`,
     } as any);
   }
 
-  // 4. Append Video (Single file)
   if (data.video) {
-    const uri = data.video;
-    const fileType = uri.split('.').pop() || 'mp4';
+    const fileType = data.video.split('.').pop() || 'mp4';
     formData.append("video", {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+      uri: Platform.OS === 'ios' ? data.video.replace('file://', '') : data.video,
       type: `video/${fileType}`,
       name: `video.${fileType}`,
     } as any);
@@ -93,11 +102,7 @@ export const createJournal = async (
   const response = await apiClient.post<ApiResponse<JournalEntry>>(
     PILGRIM_ENDPOINTS.JOURNAL.CREATE,
     formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return response.data;
 };
@@ -116,7 +121,6 @@ export const getJournalDetail = async (
 
 /**
  * Update journal by ID
- * Supports partial updates and file uploads
  */
 export const updateJournal = async (
   id: string,
@@ -124,44 +128,35 @@ export const updateJournal = async (
 ): Promise<ApiResponse<JournalEntry>> => {
   const formData = new FormData();
 
-  // 1. Append Text Fields if they exist
   if (data.title !== undefined) formData.append("title", data.title);
   if (data.content !== undefined) formData.append("content", data.content);
   if (data.privacy !== undefined) formData.append("privacy", data.privacy);
-  // planner_item_id is typically not updated, but if needed:
-  if (data.planner_item_id !== undefined) formData.append("planner_item_id", data.planner_item_id);
+  appendPlannerItemFields(formData, data);
 
-  // 2. Append Images (Array) - This typically ADDS new images or REPLACES depending on backend logic.
-  // Based on "Thêm ảnh mới" (Add new images) description in screenshot.
   if (data.images && data.images.length > 0) {
     data.images.forEach((uri, index) => {
       const fileType = uri.split('.').pop() || 'jpeg';
-      const fileName = `image_${index}.${fileType}`;
       formData.append("images", {
         uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
         type: `image/${fileType}`,
-        name: fileName,
+        name: `image_${index}.${fileType}`,
       } as any);
     });
   }
 
-  // 3. Append Audio (Single file)
   if (data.audio) {
-    const uri = data.audio;
-    const fileType = uri.split('.').pop() || 'm4a';
+    const { extension, mimeType } = getAudioUploadMeta(data.audio);
     formData.append("audio", {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-      type: `audio/${fileType}`,
-      name: `audio.${fileType}`,
+      uri: Platform.OS === 'ios' ? data.audio.replace('file://', '') : data.audio,
+      type: mimeType,
+      name: `audio.${extension}`,
     } as any);
   }
 
-  // 4. Append Video (Single file)
   if (data.video) {
-    const uri = data.video;
-    const fileType = uri.split('.').pop() || 'mp4';
+    const fileType = data.video.split('.').pop() || 'mp4';
     formData.append("video", {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+      uri: Platform.OS === 'ios' ? data.video.replace('file://', '') : data.video,
       type: `video/${fileType}`,
       name: `video.${fileType}`,
     } as any);
@@ -170,11 +165,7 @@ export const updateJournal = async (
   const response = await apiClient.patch<ApiResponse<JournalEntry>>(
     PILGRIM_ENDPOINTS.JOURNAL.UPDATE(id),
     formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+    { headers: { "Content-Type": "multipart/form-data" } }
   );
   return response.data;
 };
@@ -189,6 +180,16 @@ export const deleteJournal = async (id: string): Promise<ApiResponse<void>> => {
   return response.data;
 };
 
+/**
+ * Share journal to community (tạo post từ journal)
+ */
+export const shareJournal = async (id: string): Promise<ApiResponse<any>> => {
+  const response = await apiClient.post<ApiResponse<any>>(
+    PILGRIM_ENDPOINTS.JOURNAL.SHARE(id),
+  );
+  return response.data;
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -199,6 +200,7 @@ const pilgrimJournalApi = {
   deleteJournal,
   getJournalDetail,
   updateJournal,
+  shareJournal,
 };
 
 export default pilgrimJournalApi;

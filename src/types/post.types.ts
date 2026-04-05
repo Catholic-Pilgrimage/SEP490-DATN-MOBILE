@@ -17,6 +17,13 @@ export interface FeedPostSourceJournal {
     image_url?: string[];
     audio_url?: string | null;
     video_url?: string | null;
+    planner_id?: string | null;
+    planner_item_id?: string | string[] | null;
+    planner_item_ids?: string[] | string | null;
+    site_id?: string | null;
+    resolved_site_id?: string | null;
+    location_scope?: "single_site" | "multi_site";
+    site?: FeedPostSite | null;
 }
 
 export interface FeedPostSite {
@@ -64,11 +71,15 @@ export interface FeedPostComment {
 export interface CreateFeedPostRequest {
     content: string;
     images?: any[]; // Array of file objects for React Native (typically with uri, type, name)
+    video?: any;
+    audio?: any;
 }
 
 export interface UpdateFeedPostRequest {
     content?: string;
     images?: any[];
+    video?: any;
+    audio?: any;
 }
 
 export interface CreateFeedCommentRequest {
