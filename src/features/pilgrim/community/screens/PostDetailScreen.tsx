@@ -619,6 +619,7 @@ const CommentOverflowButton = ({
 const CommentActionSheet = ({
   visible,
   comment,
+  isOwner = false,
   busy = false,
   onClose,
   onEdit,
@@ -627,6 +628,8 @@ const CommentActionSheet = ({
 }: {
   visible: boolean;
   comment: FeedPostComment | null;
+  /** Whether the current user owns this comment */
+  isOwner?: boolean;
   busy?: boolean;
   onClose: () => void;
   onEdit: () => void;
@@ -637,13 +640,14 @@ const CommentActionSheet = ({
 
   if (!visible || !comment) return null;
 
-  const actionItems = [
+  const allItems = [
     {
       key: "edit",
       icon: "edit",
       label: t("postDetail.editComment", { defaultValue: "Edit comment" }),
       onPress: onEdit,
       danger: false,
+      ownerOnly: true,
     },
     {
       key: "delete",
@@ -651,6 +655,7 @@ const CommentActionSheet = ({
       label: t("postDetail.deleteComment", { defaultValue: "Delete comment" }),
       onPress: onDelete,
       danger: true,
+      ownerOnly: true,
     },
     {
       key: "report",
@@ -658,8 +663,13 @@ const CommentActionSheet = ({
       label: t("postDetail.reportComment", { defaultValue: "Report comment" }),
       onPress: onReport,
       danger: false,
+      ownerOnly: false,
     },
   ];
+
+  const actionItems = isOwner
+    ? allItems.filter((item) => item.ownerOnly)
+    : allItems.filter((item) => !item.ownerOnly);
 
   return (
     <Modal
@@ -1693,6 +1703,11 @@ export default function PostDetailScreen() {
       <PostActionSheet
         visible={Boolean(activePostAction)}
         postContent={activePostAction?.content}
+        isOwner={Boolean(
+          user?.id &&
+          activePostAction?.user_id &&
+          user.id === activePostAction.user_id
+        )}
         busy={deletePostMutation.isPending}
         onClose={() => setActivePostAction(null)}
         onEdit={handleEditPost}
@@ -1710,6 +1725,11 @@ export default function PostDetailScreen() {
       <CommentActionSheet
         visible={Boolean(activeCommentAction)}
         comment={activeCommentAction}
+        isOwner={Boolean(
+          user?.id &&
+          activeCommentAction?.user_id &&
+          user.id === activeCommentAction.user_id
+        )}
         busy={deleteCommentMutation.isPending}
         onClose={() => setActiveCommentAction(null)}
         onEdit={handleEditComment}

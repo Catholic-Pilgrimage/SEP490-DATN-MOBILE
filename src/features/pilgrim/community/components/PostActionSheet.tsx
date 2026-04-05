@@ -17,6 +17,8 @@ import {
 
 interface PostActionSheetProps {
   busy?: boolean;
+  /** Whether the current user is the owner of this post */
+  isOwner?: boolean;
   postContent?: string;
   visible: boolean;
   onClose: () => void;
@@ -27,6 +29,7 @@ interface PostActionSheetProps {
 
 const PostActionSheet: React.FC<PostActionSheetProps> = ({
   busy = false,
+  isOwner = false,
   postContent,
   visible,
   onClose,
@@ -64,42 +67,48 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
             </Text>
           ) : null}
 
-          <TouchableOpacity
-            style={styles.action}
-            onPress={onEdit}
-            disabled={busy}
-          >
-            <MaterialIcons name="edit" size={20} color={COLORS.textPrimary} />
-            <Text style={styles.actionText}>
-              {t("postDetail.editPost", { defaultValue: "Edit post" })}
-            </Text>
-          </TouchableOpacity>
+          {/* Owner-only actions: Edit & Delete */}
+          {isOwner ? (
+            <>
+              <TouchableOpacity
+                style={styles.action}
+                onPress={onEdit}
+                disabled={busy}
+              >
+                <MaterialIcons name="edit" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.actionText}>
+                  {t("postDetail.editPost", { defaultValue: "Edit post" })}
+                </Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.action}
-            onPress={onDelete}
-            disabled={busy}
-          >
-            <MaterialIcons
-              name="delete-outline"
-              size={20}
-              color={COLORS.danger}
-            />
-            <Text style={[styles.actionText, styles.actionTextDanger]}>
-              {t("postDetail.deletePost", { defaultValue: "Delete post" })}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.action}
-            onPress={onReport}
-            disabled={busy}
-          >
-            <MaterialIcons name="flag" size={20} color={COLORS.textPrimary} />
-            <Text style={styles.actionText}>
-              {t("postDetail.reportPost", { defaultValue: "Report post" })}
-            </Text>
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.action}
+                onPress={onDelete}
+                disabled={busy}
+              >
+                <MaterialIcons
+                  name="delete-outline"
+                  size={20}
+                  color={COLORS.danger}
+                />
+                <Text style={[styles.actionText, styles.actionTextDanger]}>
+                  {t("postDetail.deletePost", { defaultValue: "Delete post" })}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            /* Non-owner action: Report only */
+            <TouchableOpacity
+              style={styles.action}
+              onPress={onReport}
+              disabled={busy}
+            >
+              <MaterialIcons name="flag" size={20} color={COLORS.textPrimary} />
+              <Text style={styles.actionText}>
+                {t("postDetail.reportPost", { defaultValue: "Report post" })}
+              </Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.cancel}

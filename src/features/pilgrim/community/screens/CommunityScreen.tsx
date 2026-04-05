@@ -930,9 +930,16 @@ export default function CommunityScreen() {
                     }
                 />
             )}
+
+            {/* Post action sheet: owner sees Edit+Delete, others see Report only */}
             <PostActionSheet
                 visible={Boolean(activePostAction)}
                 postContent={activePostAction?.content}
+                isOwner={Boolean(
+                    user?.id &&
+                    activePostAction?.user_id &&
+                    user.id === activePostAction.user_id
+                )}
                 busy={deletePostMutation.isPending}
                 onClose={() => setActivePostAction(null)}
                 onEdit={handleEditPost}
