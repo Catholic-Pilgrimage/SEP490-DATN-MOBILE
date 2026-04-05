@@ -328,9 +328,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [routeSummary, setRouteSummary] = useState<string>("");
   const [routeLoading, setRouteLoading] = useState(false);
 
-  // Calculate route when full map opens
+  // Calculate route when plan data is available (for both inline map + full map)
+  const [hasCalcRoute, setHasCalcRoute] = useState(false);
   useEffect(() => {
-    if (!showFullMap || !plan?.items_by_day || isOffline) return;
+    if (hasCalcRoute || !plan?.items_by_day || isOffline) return;
 
     const calculatePlanRoute = async () => {
       // Collect all waypoints ordered by day then by leg_number/order
@@ -402,11 +403,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setRouteSummary("");
       } finally {
         setRouteLoading(false);
+        setHasCalcRoute(true);
       }
     };
 
     calculatePlanRoute();
-  }, [showFullMap, plan?.items_by_day, isOffline]);
+  }, [hasCalcRoute, plan?.items_by_day, isOffline]);
 
   // Calendar Sync Modal state
   const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
@@ -2427,7 +2429,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           pins={mapPins}
           scrollEnabled={false}
           showInfoCards={false}
+          showUserLocation={true}
           tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
+          routeSegments={routeSegments}
           cardBottomOffset={180}
           style={styles.headerImage}
         />

@@ -147,7 +147,11 @@ export const useJourneyExecution = (
                 return true;
               }
             } catch (e) {
-              // Stick to refresh
+              Toast.show({
+                type: "info",
+                text1: "Chưa thể kết thúc hành trình",
+                text2: "Có thể còn điểm chưa xử lý",
+              });
             }
           }
           await refreshPlan();

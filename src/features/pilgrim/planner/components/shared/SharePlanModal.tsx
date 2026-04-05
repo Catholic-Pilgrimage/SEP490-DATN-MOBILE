@@ -154,7 +154,13 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
         setPendingInvites([]);
       }
     } catch (e) {
-      console.error("SharePlanModal load:", e);
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.loadMembersFailed", {
+          defaultValue: "Không thể tải danh sách thành viên",
+        }),
+      });
       setParticipants([]);
       setPendingInvites([]);
       setProgressByUserId({});
