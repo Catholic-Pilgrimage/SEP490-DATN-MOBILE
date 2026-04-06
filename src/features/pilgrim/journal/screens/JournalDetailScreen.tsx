@@ -22,6 +22,7 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useConfirm } from '../../../../hooks/useConfirm';
 import { useAuth } from '../../../../hooks/useAuth';
@@ -155,27 +156,27 @@ export default function JournalDetailScreen() {
             try {
                 const r = await pilgrimJournalApi.deleteJournal(journalId);
                 if (r.success) {
-                    await showConfirm({
-                        type: 'info',
-                        title: t('common.success'),
-                        message: t('journal.deleteSuccess'),
-                        showCancel: false,
+                    Toast.show({
+                        type: 'success',
+                        text1: t('common.success'),
+                        text2: t('journal.deleteSuccess'),
+                        position: 'top',
                     });
                     navigation.goBack();
                 } else {
-                    await showConfirm({
-                        type: 'danger',
-                        title: t('common.error'),
-                        message: t('journal.deleteError'),
-                        showCancel: false,
+                    Toast.show({
+                        type: 'error',
+                        text1: t('common.error'),
+                        text2: t('journal.deleteError'),
+                        position: 'top',
                     });
                 }
             } catch {
-                await showConfirm({
-                    type: 'danger',
-                    title: t('common.error'),
-                    message: t('journal.deleteError'),
-                    showCancel: false,
+                Toast.show({
+                    type: 'error',
+                    text1: t('common.error'),
+                    text2: t('journal.deleteError'),
+                    position: 'top',
                 });
             }
         }
@@ -184,18 +185,18 @@ export default function JournalDetailScreen() {
     const doShare = () => hideMenu(async () => {
         try {
             await pilgrimJournalApi.shareJournal(journalId);
-            await showConfirm({
-                type: 'info',
-                title: t('journal.shareSuccess'),
-                message: t('journal.shareSuccessMessage'),
-                showCancel: false,
+            Toast.show({
+                type: 'success',
+                text1: t('journal.shareSuccess'),
+                text2: t('journal.shareSuccessMessage'),
+                position: 'top',
             });
         } catch (e: any) {
-            await showConfirm({
-                type: 'danger',
-                title: t('common.error'),
-                message: e?.message || t('journal.shareError'),
-                showCancel: false,
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: e?.message || t('journal.shareError'),
+                position: 'top',
             });
         }
     });
@@ -219,11 +220,11 @@ export default function JournalDetailScreen() {
             );
             setSound(s); setPlaying(true);
         } catch {
-            await showConfirm({
-                type: 'danger',
-                title: t('common.error'),
-                message: t('journal.audioPlayError'),
-                showCancel: false,
+            Toast.show({
+                type: 'error',
+                text1: t('common.error'),
+                text2: t('journal.audioPlayError'),
+                position: 'top',
             });
         }
     };

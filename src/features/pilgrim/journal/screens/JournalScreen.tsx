@@ -18,6 +18,7 @@ import {
     View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useConfirm } from '../../../../hooks/useConfirm';
@@ -110,22 +111,22 @@ export const JournalScreen = () => {
     const handleRestore = async (id: string) => {
         try {
             await pilgrimJournalApi.restoreJournal(id);
-            await showConfirm({
+            Toast.show({
                 type: 'success',
-                title: t('common.success'),
-                message: t('journal.restoreSuccess'),
-                showCancel: false,
+                text1: t('common.success'),
+                text2: t('journal.restoreSuccess'),
+                position: 'top',
             });
             // Refresh after restore
             await fetchJournals();
         } catch (error: any) {
             console.error('Restore failed:', error);
             const errorMsg = error?.response?.data?.error?.message || error?.message || t('journal.restoreError');
-            await showConfirm({
-                type: 'danger',
-                title: t('journal.restoreErrorTitle'),
-                message: errorMsg,
-                showCancel: false,
+            Toast.show({
+                type: 'error',
+                text1: t('journal.restoreErrorTitle'),
+                text2: errorMsg,
+                position: 'top',
             });
         }
     };

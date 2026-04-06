@@ -249,6 +249,18 @@ export const sharePlannerToCommunity = async (
   return response.data;
 };
 
+/** POST /api/planners/:id/clone — clone journey */
+export const clonePlanner = async (
+  planId: string,
+  data?: CreatePlanRequest,
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.post<ApiResponse<PlanEntity>>(
+    PILGRIM_ENDPOINTS.PLANNER.CLONE(planId),
+    data,
+  );
+  return response.data;
+};
+
 export const updatePlannerItemStatus = async (
   planId: string,
   itemId: string,
@@ -545,6 +557,7 @@ const pilgrimPlannerApi = {
   updatePlannerStatus,
   updatePlannerLock,
   sharePlannerToCommunity,
+  clonePlanner,
   updatePlannerItemStatus,
   getPlannerProgress,
   getPlannerTransactions,

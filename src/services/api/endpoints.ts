@@ -136,6 +136,7 @@ export const PILGRIM_ENDPOINTS = {
     PROGRESS: (id: string) => `${API_BASE}/planners/${id}/progress`,
     /** POST — chia sẻ hành trình đã hoàn thành lên cộng đồng */
     SHARE: (id: string) => `${API_BASE}/planners/${id}/share`,
+    CLONE: (id: string) => `${API_BASE}/planners/${id}/clone`,
     TRANSACTIONS: (id: string) => `${API_BASE}/planners/${id}/transactions`,
     CANCEL_DEPOSIT: (id: string) =>
       `${API_BASE}/planners/${id}/cancel-deposit`,
