@@ -524,21 +524,21 @@ export default function CreateJournalScreen() {
     const intention = prayerIntention.trim();
 
     if (!plannerItemId && !plannerId) {
-      await confirm({
-        type: "warning",
-        title: t("journal.aiPrayerMissingPlanTitle"),
-        message: t("journal.aiPrayerMissingPlanMessage"),
-        showCancel: false,
+      Toast.show({
+        type: 'info',
+        text1: t('journal.aiPrayerMissingPlanTitle'),
+        text2: t('journal.aiPrayerMissingPlanMessage'),
+        position: 'top',
       });
       return;
     }
 
     if (!currentText && !mood && !intention) {
-      await confirm({
-        type: "warning",
-        title: t("journal.aiPrayerMissingPromptTitle"),
-        message: t("journal.aiPrayerMissingPromptMessage"),
-        showCancel: false,
+      Toast.show({
+        type: 'info',
+        text1: t('journal.aiPrayerMissingPromptTitle'),
+        text2: t('journal.aiPrayerMissingPromptMessage'),
+        position: 'top',
       });
       return;
     }
