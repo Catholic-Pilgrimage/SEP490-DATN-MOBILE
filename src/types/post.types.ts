@@ -54,6 +54,29 @@ export interface FeedPost {
     is_active?: boolean;
     sourceJournal?: FeedPostSourceJournal | null;
     site?: FeedPostSite | null;
+    planner?: any;
+    journey?: {
+        id: string;
+        name: string;
+        start_date: string;
+        end_date: string;
+        status: string;
+        number_of_days: number;
+        number_of_people: number;
+        transportation: string;
+        cloneable?: boolean;
+        summary?: {
+            total_days: number;
+            total_stops: number;
+            visited_stops: number;
+            skipped_stops: number;
+            upcoming_stops: number;
+            visited_percentage: number;
+            cover_image?: string;
+            can_clone?: boolean;
+        };
+        items_by_day?: Record<string, any[]>;
+    } | null;
 }
 
 export interface FeedPostComment {

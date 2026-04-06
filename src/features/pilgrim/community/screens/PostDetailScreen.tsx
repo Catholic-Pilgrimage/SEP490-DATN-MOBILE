@@ -7,7 +7,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -20,7 +19,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import Toast from "react-native-toast-message";
 import {
@@ -30,7 +29,7 @@ import {
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
-import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import {
   useAddComment,
   useDeleteComment,
@@ -40,7 +39,6 @@ import {
   usePostDetail,
   useUpdateComment,
 } from "../../../../hooks/usePosts";
-import { useConfirm } from "../../../../hooks/useConfirm";
 import i18n from "../../../../i18n";
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import type { FeedPost, FeedPostComment } from "../../../../types/post.types";
@@ -51,8 +49,52 @@ import {
   getFeedPostSiteId,
 } from "../../../../utils/feedPostLocation";
 import { resolveJournalLocationName } from "../../../../utils/journalLocation";
+import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
 import PostActionSheet from "../components/PostActionSheet";
 import ReportPostModal from "../components/ReportPostModal";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Date Helpers (Synced with CreatePlanScreen)
+const toLocalYMD = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const parseYMDLocal = (ymd: string): Date => {
+  const [y, mo, da] = ymd.split("-").map((x) => parseInt(x, 10));
+  return new Date(y, mo - 1, da);
+};
+const addDaysToYMD = (ymd: string, days: number): string => {
+  const d = parseYMDLocal(ymd);
+  d.setDate(d.getDate() + days);
+  return toLocalYMD(d);
+};
+const tomorrowYMD = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toLocalYMD(d);
+};
+const getDaysInMonth = (year: number, month: number) => {
+  return new Date(year, month + 1, 0).getDate();
+};
+const getFirstDayOfMonth = (year: number, month: number) => {
+  return new Date(year, month, 1).getDay();
+};
+const generateCalendarDays = (year: number, month: number) => {
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const days: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+  return days;
+};
+const inclusiveTripDays = (startYMD: string, endYMD: string): number => {
+  const a = parseYMDLocal(startYMD).getTime();
+  const b = parseYMDLocal(endYMD).getTime();
+  if (b < a) return 0;
+  return Math.ceil((b - a) / (1000 * 60 * 60 * 24)) + 1;
+};
 
 // Utilities
 
@@ -521,6 +563,579 @@ const PostAudioAttachment = ({
     </View>
   );
 };
+
+const formatDate = (ymd: string) => {
+  if (!ymd) return "";
+  const parts = ymd.split("-");
+  if (parts.length !== 3) return ymd;
+  const [y, m, d] = parts;
+  return `${d}-${m}-${y}`;
+};
+
+const formatDisplayDate = (ymd: string) => {
+  if (!ymd) return "";
+  try {
+    const date = parseYMDLocal(ymd);
+    const d = String(date.getDate()).padStart(2, "0");
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const y = date.getFullYear();
+    
+    return `${d}-${m}-${y}`;
+  } catch (e) {
+    return ymd;
+  }
+};
+
+const ClonePlanModal = ({
+  visible,
+  onClose,
+  onConfirm,
+  initialData,
+  isBusy,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: (data: any) => void;
+  initialData: any;
+  isBusy: boolean;
+}) => {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+
+  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState(tomorrowYMD());
+  const [endDate, setEndDate] = useState("");
+  const [peopleCount, setPeopleCount] = useState(1);
+  const [transportation, setTransportation] = useState<"bus" | "car" | "motorbike">("bus");
+  const [depositAmount, setDepositAmount] = useState<string>("0");
+  const [penaltyPercent, setPenaltyPercent] = useState<string>("0");
+
+  // Date picker states
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [startCalendarDate, setStartCalendarDate] = useState(new Date());
+  const [endCalendarDate, setEndCalendarDate] = useState(new Date());
+
+  useEffect(() => {
+    if (visible && initialData) {
+      setName(`${initialData.name} (${t("common.copy", { defaultValue: "Bản sao" })})`);
+
+      const t0 = tomorrowYMD();
+      setStartDate(t0);
+
+      // Preserve duration
+      let duration = 3;
+      if (initialData.start_date && initialData.end_date) {
+        const d1 = parseYMDLocal(initialData.start_date).getTime();
+        const d2 = parseYMDLocal(initialData.end_date).getTime();
+        duration = Math.max(1, Math.ceil((d2 - d1) / (1000 * 60 * 60 * 24)));
+      }
+      setEndDate(addDaysToYMD(t0, duration));
+
+      setPeopleCount(initialData.number_of_people || 1);
+      setTransportation(initialData.transportation || "bus");
+      setDepositAmount(String(initialData.member_deposit || "0"));
+      setPenaltyPercent(String(initialData.penalty_percentage || "0"));
+
+      // Reset calendar focus
+      const dStart = parseYMDLocal(t0);
+      setStartCalendarDate(new Date(dStart.getFullYear(), dStart.getMonth(), 1));
+      const dEnd = parseYMDLocal(addDaysToYMD(t0, duration));
+      setEndCalendarDate(new Date(dEnd.getFullYear(), dEnd.getMonth(), 1));
+    }
+  }, [visible, initialData, t]);
+
+  const handleConfirm = () => {
+    if (!name.trim()) {
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: t("planner.nameRequired"),
+      });
+      return;
+    }
+    onConfirm({
+      name: name.trim(),
+      start_date: startDate,
+      end_date: endDate,
+      number_of_people: peopleCount,
+      transportation,
+      member_deposit: Number(depositAmount) || 0,
+      penalty_percentage: Number(penaltyPercent) || 0,
+    });
+  };
+
+  const renderCalendar = (
+    currentDate: Date,
+    setCurrentDate: (d: Date) => void,
+    selectedYMD: string,
+    onSelect: (ymd: string) => void,
+    minYMD?: string,
+  ) => {
+    const days = generateCalendarDays(currentDate.getFullYear(), currentDate.getMonth());
+    const monthLabel = currentDate.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+
+    return (
+      <View style={styles.cloneCalendarCard}>
+        <View style={styles.cloneCalendarHeader}>
+          <TouchableOpacity
+            onPress={() => {
+              const d = new Date(currentDate);
+              d.setMonth(d.getMonth() - 1);
+              setCurrentDate(d);
+            }}
+          >
+            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <Text style={styles.cloneCalendarMonth}>{monthLabel}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              const d = new Date(currentDate);
+              d.setMonth(d.getMonth() + 1);
+              setCurrentDate(d);
+            }}
+          >
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cloneCalendarDaysHeader}>
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
+            <Text key={i} style={styles.cloneCalendarDayHeader}>{d}</Text>
+          ))}
+        </View>
+
+        <View style={styles.cloneCalendarGrid}>
+          {days.map((day, idx) => {
+            if (day === null) return <View key={idx} style={styles.cloneCalendarDay} />;
+            const ymd = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const isSelected = ymd === selectedYMD;
+            const isDisabled = minYMD ? ymd < minYMD : false;
+
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.cloneCalendarDay, isSelected && styles.cloneCalendarDaySelected, isDisabled && styles.cloneCalendarDayDisabled]}
+                disabled={isDisabled}
+                onPress={() => onSelect(ymd)}
+              >
+                <Text style={[styles.cloneCalendarDayText, isSelected && styles.cloneCalendarDayTextSelected, isDisabled && styles.cloneCalendarDayTextDisabled]}>
+                  {day}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.cloneModalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={[styles.cloneModalContent, { paddingBottom: insets.bottom + 20 }]}
+        >
+          <View style={styles.cloneHeader}>
+            <TouchableOpacity onPress={onClose} style={styles.cloneCloseBtn}>
+              <Text style={styles.cloneCloseText}>{t("common.cancel")}</Text>
+            </TouchableOpacity>
+            <Text style={styles.cloneHeaderTitle}>{t("planner.newJourney") || "Hành trình mới"}</Text>
+            <View style={{ width: 60 }} />
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.cloneScroll}>
+            <View style={styles.cloneSection}>
+              <View style={styles.cloneLabelRow}>
+                <Ionicons name="trail-sign" size={18} color={COLORS.accent} />
+                <Text style={styles.cloneLabel}>{t("planner.journeyName")}</Text>
+              </View>
+              <TextInput
+                style={styles.cloneInput}
+                value={name}
+                onChangeText={setName}
+                placeholder={t("planner.journeyName")}
+                placeholderTextColor={COLORS.textTertiary}
+              />
+            </View>
+
+            <View style={styles.cloneSection}>
+              <View style={[styles.cloneLabelRow, { justifyContent: "space-between" }]}>
+                <View style={styles.cloneLabelRow}>
+                  <Ionicons name="calendar" size={18} color={COLORS.accent} />
+                  <Text style={styles.cloneLabel}>{t("planner.tripTime") || "Thời gian hành hương"}</Text>
+                </View>
+                <View style={styles.cloneDurationBadge}>
+                  <Text style={styles.cloneDurationText}>
+                    {t("planner.tripDuration", {
+                      days: inclusiveTripDays(startDate, endDate),
+                      nights: Math.max(0, inclusiveTripDays(startDate, endDate) - 1),
+                    })}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cloneDateSelector}>
+                <TouchableOpacity
+                  style={[styles.cloneDateBox, showStartPicker && styles.cloneDateBoxActive]}
+                  onPress={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+                >
+                  <Text style={styles.cloneDateLabel}>{t("planner.startDate") || "Ngày đi"}</Text>
+                  <Text style={styles.cloneDateValue}>{formatDisplayDate(startDate)}</Text>
+                </TouchableOpacity>
+                <View style={styles.cloneDateArrow}><Ionicons name="arrow-forward" size={16} color={COLORS.textTertiary} /></View>
+                <TouchableOpacity
+                  style={[styles.cloneDateBox, showEndPicker && styles.cloneDateBoxActive]}
+                  onPress={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+                >
+                  <Text style={styles.cloneDateLabel}>{t("planner.endDate") || "Ngày về"}</Text>
+                  <Text style={styles.cloneDateValue}>{formatDisplayDate(endDate)}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {showStartPicker && renderCalendar(startCalendarDate, setStartCalendarDate, startDate, (d) => { setStartDate(d); if (endDate < d) setEndDate(d); setShowStartPicker(false); }, tomorrowYMD())}
+              {showEndPicker && renderCalendar(endCalendarDate, setEndCalendarDate, endDate, (d) => { setEndDate(d); setShowEndPicker(false); }, startDate)}
+            </View>
+
+            <View style={styles.cloneSection}>
+              <View style={styles.cloneLabelRow}>
+                <Ionicons name="people" size={18} color={COLORS.accent} />
+                <Text style={styles.cloneLabel}>{t("planner.numberOfPeople") || "Số lượng người tham gia"}</Text>
+              </View>
+              <View style={styles.cloneCounterBox}>
+                <Text style={styles.cloneCounterLabel}>{t("planner.people") || "Số người đi"}</Text>
+                <View style={styles.cloneCounterControls}>
+                  <TouchableOpacity style={styles.cloneCounterBtn} onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}>
+                    <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={styles.cloneCounterValue}>{peopleCount}</Text>
+                  <TouchableOpacity style={styles.cloneCounterBtn} onPress={() => setPeopleCount(peopleCount + 1)}>
+                    <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {peopleCount > 1 && (
+              <View style={styles.cloneSection}>
+                <View style={[styles.cloneLabelRow, { justifyContent: "space-between" }]}>
+                  <View style={styles.cloneLabelRow}>
+                    <Ionicons name="warning-outline" size={18} color={COLORS.accent} />
+                    <Text style={styles.cloneLabel}>{t("planner.memberDepositLabel")}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.infoIconButton}>
+                    <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.cloneDepositCard}>
+                  <Text style={styles.cloneInputLabel}>{t("planner.depositAmountLabel") || "Member deposit (VND)"}</Text>
+                  <TextInput
+                    style={styles.cloneDepositInput}
+                    value={depositAmount}
+                    onChangeText={setDepositAmount}
+                    keyboardType="numeric"
+                    placeholder="e.g. 100000"
+                  />
+                  
+                  <Text style={[styles.cloneInputLabel, { marginTop: SPACING.md }]}>{t("planner.penaltyPercentageLabel") || "Penalty rate (%)"}</Text>
+                  <View style={styles.clonePenaltyRow}>
+                    <TextInput
+                      style={styles.clonePenaltyInput}
+                      value={penaltyPercent}
+                      onChangeText={setPenaltyPercent}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.clonePenaltySuffix}>%</Text>
+                  </View>
+                  <Text style={styles.clonePenaltyHint}>
+                    {t("planner.penaltyPreview", { percent: penaltyPercent })}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.cloneSection}>
+              <View style={styles.cloneLabelRow}>
+                <Ionicons name="car" size={18} color={COLORS.accent} />
+                <Text style={styles.cloneLabel}>{t("planner.transportationMain") || "Phương tiện di chuyển chính"}</Text>
+              </View>
+              <View style={styles.cloneTransportRow}>
+                {[
+                  { id: "bus", icon: "bus", label: t("planner.bus") },
+                  { id: "car", icon: "car", label: t("planner.car") },
+                  { id: "motorbike", icon: "bicycle", label: t("planner.motorcycle") }
+                ].map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.cloneTransportItem, transportation === item.id && styles.cloneTransportItemSelected]}
+                    onPress={() => setTransportation(item.id as any)}
+                  >
+                    <Ionicons name={item.icon as any} size={24} color={transportation === item.id ? COLORS.white : COLORS.textTertiary} />
+                    <Text style={[styles.cloneTransportLabel, transportation === item.id && styles.cloneTransportLabelSelected]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+
+          <TouchableOpacity style={[styles.cloneConfirmBtn, isBusy && { opacity: 0.7 }]} onPress={handleConfirm} disabled={isBusy}>
+            {isBusy ? <ActivityIndicator color={COLORS.textPrimary} /> : <Text style={styles.cloneConfirmBtnText}>{t("planner.continueSelectingPlaces")} ➔</Text>}
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+};
+
+const JourneyAttachment = ({ journey }: { journey: any }) => {
+  const { t, i18n } = useTranslation();
+  const navigation = useNavigation<any>();
+
+  if (!journey) return null;
+
+  const summary = journey.summary || {};
+  const itemsByDay = journey.items_by_day || {};
+  const dayKeys = Object.keys(itemsByDay).sort((a, b) => Number(a) - Number(b));
+
+  const [isCloning, setIsCloning] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+
+  const handleCloneJourney = () => {
+    setShowCloneModal(true);
+  };
+
+  const handleConfirmClone = async (formData: any) => {
+    try {
+      setIsCloning(true);
+      const res = await pilgrimPlannerApi.clonePlanner(journey.id, formData);
+
+      if (res.success && res.data) {
+        setShowCloneModal(false);
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.cloneSuccess"),
+        });
+
+        // Navigate back to the Planner main dashboard (Schedule tab)
+        navigation.navigate("Schedule");
+      } else {
+        throw new Error(res.message || t("planner.cloneError"));
+      }
+    } catch (err: any) {
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: err.message || t("planner.cloneError"),
+      });
+    } finally {
+      setIsCloning(false);
+    }
+  };
+
+  return (
+    <View style={styles.mediaSection}>
+      <ClonePlanModal
+        visible={showCloneModal}
+        onClose={() => setShowCloneModal(false)}
+        onConfirm={handleConfirmClone}
+        initialData={journey}
+        isBusy={isCloning}
+      />
+      <Text style={styles.mediaSectionTitle}>
+        {t("postDetail.sharedJourney")}
+      </Text>
+      <View style={styles.journeyCard}>
+        <View style={styles.journeyHeader}>
+          <View style={styles.journeyTitleRow}>
+            <View style={styles.journeyIconBadge}>
+              <MaterialIcons name="map" size={24} color={COLORS.primary} />
+            </View>
+            <View style={styles.journeyNameCol}>
+              <Text style={styles.journeyName} numberOfLines={1}>
+                {journey.name}
+              </Text>
+              <Text style={styles.journeyDates}>
+                {formatDate(journey.start_date)} → {formatDate(journey.end_date)}
+              </Text>
+              <View style={styles.journeyMetaRow}>
+                <View style={styles.journeyMetaItem}>
+                  <MaterialIcons
+                    name="people-outline"
+                    size={14}
+                    color={COLORS.textTertiary}
+                  />
+                  <Text style={styles.journeyMetaText}>
+                    {journey.number_of_people || 0} {t("planner.people")}
+                  </Text>
+                </View>
+                <View style={styles.metaDivider} />
+                <View style={styles.journeyMetaItem}>
+                  <MaterialIcons
+                    name={
+                      journey.transportation === "bus"
+                        ? "directions-bus"
+                        : journey.transportation === "motorcycle"
+                        ? "motorcycle"
+                        : "directions-car"
+                    }
+                    size={14}
+                    color={COLORS.textTertiary}
+                  />
+                  <Text style={styles.journeyMetaText}>
+                    {t(`planner.${journey.transportation || "car"}`)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.journeySummaryRow}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{summary.total_days}</Text>
+            <Text style={styles.summaryLabel}>
+              {t("planner.days")}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{summary.total_stops}</Text>
+            <Text style={styles.summaryLabel}>
+              {t("planner.stops")}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>
+              {summary.visited_percentage}%
+            </Text>
+            <Text style={styles.summaryLabel}>
+              {t("planner.completed")}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.itineraryContainer}>
+          {dayKeys.map((dayKey) => (
+            <View key={dayKey} style={styles.dayGroup}>
+              <View style={styles.dayHeaderRow}>
+                <View style={styles.dayPulse} />
+                <Text style={styles.dayHeaderText}>
+                  {t("planner.day", { count: Number(dayKey) })}
+                </Text>
+              </View>
+              <View style={styles.dayItemsList}>
+                {itemsByDay[dayKey].map((item: any, idx: number) => {
+                  const hasImage = !!item.site?.cover_image;
+                  const hasPatron = !!item.site?.patron_saint;
+                  const hasNote = !!item.note;
+
+                  return (
+                    <View key={item.id || idx} style={styles.siteItemRow}>
+                      <View style={styles.siteTimeline}>
+                        <View style={styles.siteTimelineLine} />
+                        <View style={styles.siteTimelineDot} />
+                      </View>
+                      <View style={styles.siteInfoCard}>
+                        {hasImage && (
+                          <View style={styles.siteImageContainer}>
+                            <Image
+                              source={{ uri: item.site.cover_image }}
+                              style={styles.siteImage}
+                            />
+                          </View>
+                        )}
+                        <Text style={styles.siteItemName} numberOfLines={1}>
+                          {item.site?.name}
+                        </Text>
+                        <View style={styles.siteMeta}>
+                          <Text style={styles.siteProvince}>
+                            <MaterialIcons name="location-on" size={10} />{" "}
+                            {(item.site?.province || "").split(",").pop()}
+                          </Text>
+                          {hasPatron && (
+                            <>
+                              <View style={styles.metaDivider} />
+                              <Text style={styles.sitePatronText}>
+                                <MaterialIcons name="shield" size={10} />{" "}
+                                {item.site.patron_saint}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+
+                        {hasNote && (
+                          <View style={styles.siteNoteContainer}>
+                            <MaterialIcons
+                              name="event-note"
+                              size={12}
+                              color={COLORS.textTertiary}
+                            />
+                            <Text style={styles.siteNoteText} numberOfLines={3}>
+                              {item.note}
+                            </Text>
+                          </View>
+                        )}
+
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginTop: 4,
+                            gap: 6,
+                          }}
+                        >
+                          {item.status === "skipped" && (
+                            <View style={styles.skippedBadge}>
+                              <Text style={styles.skippedText}>
+                                {t("planner.statusSkipped")}
+                              </Text>
+                            </View>
+                          )}
+                          {item.status === "visited" && (
+                            <View style={styles.visitedBadge}>
+                              <Text style={styles.visitedText}>
+                                {t("planner.statusVisited")}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {journey.id && (
+          <TouchableOpacity
+            style={[styles.cloneBtn, isCloning && { opacity: 0.7 }]}
+            onPress={handleCloneJourney}
+            disabled={isCloning}
+            activeOpacity={0.8}
+          >
+            {isCloning ? (
+              <ActivityIndicator size="small" color={COLORS.white} />
+            ) : (
+              <MaterialIcons name="content-copy" size={18} color={COLORS.white} />
+            )}
+            <Text style={styles.cloneBtnText}>
+              {isCloning
+                ? t("common.processing")
+                : t("planner.cloneJourney")}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+};
+
 const PostVideoAttachment = ({
   url,
   onOpenFullscreen,
@@ -550,9 +1165,7 @@ const PostVideoAttachment = ({
   return (
     <View style={styles.mediaSection}>
       <Text style={styles.mediaSectionTitle}>
-        {t("postDetail.videoAttachment", {
-          defaultValue: "Video đính kèm",
-        })}
+        {t("postDetail.videoAttachment")}
       </Text>
 
       {hasError ? (
@@ -563,9 +1176,7 @@ const PostVideoAttachment = ({
             color={COLORS.textTertiary}
           />
           <Text style={styles.videoFallbackText}>
-            {t("postDetail.videoUnavailable", {
-              defaultValue: "Video is unavailable.",
-            })}
+            {t("postDetail.videoUnavailable")}
           </Text>
         </View>
       ) : (
@@ -590,9 +1201,7 @@ const PostVideoAttachment = ({
               color={COLORS.primary}
             />
             <Text style={styles.mediaInlineActionText}>
-              {t("postDetail.openFullscreen", {
-                defaultValue: "Mở toàn màn hình",
-              })}
+              {t("postDetail.openFullscreen")}
             </Text>
           </TouchableOpacity>
         </>
@@ -645,7 +1254,7 @@ const CommentActionSheet = ({
     {
       key: "edit",
       icon: "edit",
-      label: t("postDetail.editComment", { defaultValue: "Edit comment" }),
+      label: t("postDetail.editComment"),
       onPress: onEdit,
       danger: false,
       ownerOnly: true,
@@ -653,7 +1262,7 @@ const CommentActionSheet = ({
     {
       key: "delete",
       icon: "delete-outline",
-      label: t("postDetail.deleteComment", { defaultValue: "Delete comment" }),
+      label: t("postDetail.deleteComment"),
       onPress: onDelete,
       danger: true,
       ownerOnly: true,
@@ -661,7 +1270,7 @@ const CommentActionSheet = ({
     {
       key: "report",
       icon: "flag",
-      label: t("postDetail.reportComment", { defaultValue: "Report comment" }),
+      label: t("postDetail.reportComment"),
       onPress: onReport,
       danger: false,
       ownerOnly: false,
@@ -690,9 +1299,7 @@ const CommentActionSheet = ({
         <View style={styles.commentSheet}>
           <View style={styles.commentSheetHandle} />
           <Text style={styles.commentSheetTitle}>
-            {t("postDetail.commentActions", {
-              defaultValue: "Comment actions",
-            })}
+            {t("postDetail.commentActions")}
           </Text>
           <Text style={styles.commentSheetPreview} numberOfLines={2}>
             {comment.content}
@@ -786,13 +1393,13 @@ const ReplyBubble = ({
               style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
             >
               {comment.author?.full_name ||
-                translate("postDetail.user", { defaultValue: "User" })}
+                translate("postDetail.user")}
             </Text>
             {isGuide ? (
               <View style={styles.commentGuideBadge}>
                 <MaterialIcons name="verified" size={10} color="#fff" />
                 <Text style={styles.commentGuideBadgeText}>
-                  {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+                  {translate("profile.localGuide")}
                 </Text>
               </View>
             ) : (
@@ -800,7 +1407,7 @@ const ReplyBubble = ({
                 style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
               >
                 <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
-                  {translate("profile.pilgrimRole", { defaultValue: "Người hành hương" })}
+                  {translate("profile.pilgrimRole")}
                 </Text>
               </View>
             )}
@@ -839,17 +1446,12 @@ const CommentItem = ({
   const { comment, replies } = node;
   const [expanded, setExpanded] = useState(false);
   const repliesToggleLabel = expanded
-    ? translate("postDetail.collapseReplies", {
-        defaultValue: "Hide replies",
-      })
+    ? translate("postDetail.collapseReplies")
     : replies.length === 1
-      ? translate("postDetail.viewOneReply", {
-          defaultValue: "View 1 reply",
-        })
+      ? translate("postDetail.viewOneReply")
       : translate("postDetail.viewAllReplies", {
-          count: replies.length,
-          defaultValue: "View all {{count}} replies",
-        });
+        count: replies.length,
+      });
 
   return (
     <View style={styles.commentItem}>
@@ -1450,7 +2052,7 @@ export default function PostDetailScreen() {
                     style={[
                       styles.galleryImageCard,
                       index === imageUrls.length - 1 &&
-                        styles.galleryImageCardLast,
+                      styles.galleryImageCardLast,
                     ]}
                   >
                     <Image source={{ uri: imageUrl }} style={styles.feedImage} />
@@ -1488,6 +2090,10 @@ export default function PostDetailScreen() {
             })}
             iconName="graphic-eq"
           />
+        ) : null}
+
+        {actualPost.journey ? (
+          <JourneyAttachment journey={actualPost.journey} />
         ) : null}
 
         <View style={[styles.paddingContent, { paddingTop: SPACING.sm }]}>
@@ -1638,21 +2244,14 @@ export default function PostDetailScreen() {
             ]}
             placeholder={
               editingComment
-                ? t("postDetail.editCommentPlaceholder", {
-                    defaultValue: "Edit your comment...",
-                  })
+                ? t("postDetail.editCommentPlaceholder")
                 : replyingTo
-                ? t("postDetail.replyPlaceholder", {
+                  ? t("postDetail.replyPlaceholder", {
                     name: replyingTo.name,
-                    defaultValue: "Reply to {{name}}...",
                   })
-                : isCurrentUserGuide
-                  ? t("postDetail.commentAsGuidePlaceholder", {
-                      defaultValue: "Comment as Local Guide...",
-                    })
-                  : t("postDetail.commentPlaceholder", {
-                      defaultValue: "Add a prayer or comment...",
-                    })
+                  : isCurrentUserGuide
+                    ? t("postDetail.commentAsGuidePlaceholder")
+                    : t("postDetail.commentPlaceholder")
             }
             placeholderTextColor={COLORS.textTertiary}
             value={commentText}
@@ -2305,5 +2904,516 @@ const styles = StyleSheet.create({
   sendButtonActive: {
     backgroundColor: COLORS.accent,
     ...SHADOWS.small,
+  },
+  // Journey Attachment styles
+  journeyCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    padding: SPACING.md,
+    ...SHADOWS.small,
+  },
+  journeyHeader: {
+    marginBottom: SPACING.md,
+  },
+  journeyTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  journeyIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "rgba(24, 119, 242, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.md,
+  },
+  journeyNameCol: {
+    flex: 1,
+  },
+  journeyName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  journeyDates: {
+    fontSize: 12,
+    color: COLORS.textTertiary,
+    marginTop: 2,
+  },
+  journeyMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 8,
+  },
+  journeyMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  journeyMetaText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
+  },
+  journeySummaryRow: {
+    flexDirection: "row",
+    backgroundColor: COLORS.backgroundSoft,
+    borderRadius: 12,
+    paddingVertical: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  summaryValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+    fontWeight: "600",
+  },
+  summaryDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: COLORS.borderLight,
+  },
+  itineraryContainer: {
+    paddingLeft: 4,
+  },
+  dayGroup: {
+    marginBottom: SPACING.md,
+  },
+  dayHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
+  },
+  dayPulse: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.primary,
+    marginRight: 8,
+  },
+  dayHeaderText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dayItemsList: {
+    paddingLeft: 3,
+  },
+  siteItemRow: {
+    flexDirection: "row",
+    minHeight: 50,
+  },
+  siteTimeline: {
+    width: 20,
+    alignItems: "center",
+  },
+  siteTimelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: COLORS.borderLight,
+  },
+  siteTimelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.white,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    position: "absolute",
+    top: 6,
+  },
+  siteInfoCard: {
+    flex: 1,
+    paddingBottom: SPACING.md,
+    paddingLeft: SPACING.xs,
+  },
+  siteItemName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  siteImageContainer: {
+    width: "100%",
+    height: 120,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 8,
+    backgroundColor: COLORS.backgroundSoft,
+  },
+  siteImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  sitePatronText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: '500',
+  },
+  metaDivider: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: COLORS.textTertiary,
+  },
+  siteMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: 2,
+    gap: 6,
+  },
+  siteProvince: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  siteNoteText: {
+    flex: 1,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
+  },
+  skippedBadge: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  skippedText: {
+    fontSize: 10,
+    color: "#EF4448",
+    fontWeight: "700",
+  },
+  visitedBadge: {
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  visitedText: {
+    fontSize: 10,
+    color: "#22C55E",
+    fontWeight: "700",
+  },
+  cloneBtn: {
+    backgroundColor: COLORS.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: SPACING.sm,
+    gap: 8,
+  },
+  cloneBtnText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  // Clone Modal Styles
+  cloneModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  cloneModalContent: {
+    backgroundColor: COLORS.backgroundSoft,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    height: "85%",
+  },
+  cloneHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  cloneCloseText: {
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  cloneHeaderTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  cloneScroll: {
+    padding: SPACING.lg,
+  },
+  cloneSection: {
+    marginBottom: SPACING.xl,
+  },
+  cloneLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: SPACING.sm,
+  },
+  cloneLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  cloneInput: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    padding: SPACING.md,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  cloneDurationBadge: {
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  cloneDurationText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  cloneDateSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    height: 80,
+  },
+  cloneDateBox: {
+    flex: 1,
+    padding: SPACING.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cloneDateBoxActive: {
+    backgroundColor: "#F3F4F6",
+  },
+  cloneDateLabel: {
+    fontSize: 11,
+    color: COLORS.textTertiary,
+    marginBottom: 4,
+  },
+  cloneDateValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  cloneDateArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F9FAFB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cloneCounterBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cloneCounterLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.textPrimary,
+  },
+  cloneCounterControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  cloneCounterBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cloneCounterValue: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    minWidth: 20,
+    textAlign: "center",
+  },
+  cloneTransportRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  cloneTransportItem: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cloneTransportItemSelected: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  cloneTransportLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.textTertiary,
+    marginTop: SPACING.xs,
+  },
+  cloneTransportLabelSelected: {
+    color: COLORS.white,
+  },
+  cloneConfirmBtn: {
+    margin: SPACING.lg,
+    backgroundColor: COLORS.accent,
+    height: 60,
+    borderRadius: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    ...SHADOWS.medium,
+  },
+  cloneConfirmBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+
+  // Calendar within modal
+  cloneCalendarCard: {
+    marginTop: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  cloneCalendarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: SPACING.sm,
+  },
+  cloneCalendarMonth: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  cloneCalendarDaysHeader: {
+    flexDirection: "row",
+    marginBottom: SPACING.xs,
+  },
+  cloneCalendarDayHeader: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "600",
+    color: COLORS.textTertiary,
+  },
+  cloneCalendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  cloneCalendarDay: {
+    width: "14.28%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+  cloneCalendarDaySelected: {
+    backgroundColor: COLORS.primary,
+  },
+  cloneCalendarDayDisabled: {
+    opacity: 0.3,
+  },
+  cloneCalendarDayText: {
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+  cloneCalendarDayTextSelected: {
+    color: COLORS.white,
+    fontWeight: "700",
+  },
+  // Deposit Info
+  infoIconButton: {
+    padding: 2,
+  },
+  cloneDepositCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: 4,
+  },
+  cloneInputLabel: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    fontWeight: "600",
+  },
+  cloneDepositInput: {
+    backgroundColor: "#F9F7F1",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontWeight: "700",
+  },
+  clonePenaltyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9F7F1",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 52,
+  },
+  clonePenaltyInput: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontWeight: "700",
+  },
+  clonePenaltySuffix: {
+    fontSize: 18,
+    color: COLORS.textSecondary,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+  clonePenaltyHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontWeight: "500",
   },
 });
