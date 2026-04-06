@@ -3,6 +3,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useRef, useState } from 'react';
 import { Dimensions, FlatList, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
+import { useI18n } from '../../../../hooks/useI18n';
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding on each side
@@ -21,11 +23,7 @@ interface VerticalSiteCardProps {
     onFavoritePress: () => void;
 }
 
-const REGION_LABELS = {
-    Bac: 'Miền Bắc',
-    Trung: 'Miền Trung',
-    Nam: 'Miền Nam',
-};
+
 
 export const VerticalSiteCard: React.FC<VerticalSiteCardProps> = ({
     name,
@@ -36,7 +34,15 @@ export const VerticalSiteCard: React.FC<VerticalSiteCardProps> = ({
     onPress,
     onFavoritePress,
 }) => {
+    const { t } = useI18n();
     const validCoverImage = coverImage?.trim() ? coverImage : 'https://via.placeholder.com/400x500?text=No+Image';
+
+    const getRegionLabel = (r: string) => {
+        if (r === 'Bac') return t('explore.north', { defaultValue: 'Miền Bắc' });
+        if (r === 'Trung') return t('explore.central', { defaultValue: 'Miền Trung' });
+        if (r === 'Nam') return t('explore.south', { defaultValue: 'Miền Nam' });
+        return t('explore.typeOther', { defaultValue: 'Khác' });
+    };
 
     // Mock multiple images for the carousel effect if only 1 is provided
     const images = [
@@ -95,7 +101,7 @@ export const VerticalSiteCard: React.FC<VerticalSiteCardProps> = ({
                 {/* Region Badge Overlay */}
                 {!!region && (
                     <View style={styles.badgeContainer}>
-                        <Text style={styles.badgeText}>{REGION_LABELS[region] || 'Khác'}</Text>
+                        <Text style={styles.badgeText}>{getRegionLabel(region)}</Text>
                     </View>
                 )}
 

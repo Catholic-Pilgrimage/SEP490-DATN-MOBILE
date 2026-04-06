@@ -29,7 +29,7 @@ export const createReport = async (
  * Get my reports
  */
 export const getMyReports = async (
-  params?: PaginationParams,
+  params?: PaginationParams & { is_active?: string },
 ): Promise<ApiResponse<GetMyReportsResponse>> => {
   const response = await apiClient.get<ApiResponse<GetMyReportsResponse>>(
     SHARED_ENDPOINTS.REPORTS.MY_REPORTS,

@@ -116,6 +116,8 @@ import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen
 import WalletScreen from '../features/pilgrim/profile/screens/WalletScreen';
 import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
 import FriendListScreen from '../features/pilgrim/profile/screens/FriendListScreen';
+import MyReportsScreen from '../features/pilgrim/profile/screens/MyReportsScreen';
+import ReportDetailScreen from '../features/pilgrim/profile/screens/ReportDetailScreen';
 
 const ProfileStack = createNativeStackNavigator();
 
@@ -136,6 +138,8 @@ const ProfileStackNavigator = () => (
     <ProfileStack.Screen name="SOSDetail" component={SOSDetailScreen} />
     <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
     <ProfileStack.Screen name="Wallet" component={WalletScreen} />
+    <ProfileStack.Screen name="MyReports" component={MyReportsScreen} />
+    <ProfileStack.Screen name="ReportDetail" component={ReportDetailScreen} />
   </ProfileStack.Navigator>
 );
 

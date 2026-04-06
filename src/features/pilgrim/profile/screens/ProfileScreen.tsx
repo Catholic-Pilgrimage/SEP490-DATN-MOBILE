@@ -270,7 +270,7 @@ const ProfileScreen = () => {
     },
     {
       icon: "people-outline",
-      label: "Bạn bè",
+      label: t("profile.menu.friends"),
       requireAuth: true,
       route: "FriendList",
       showBadge: pendingRequests.length > 0 ? pendingRequests.length.toString() : undefined,
@@ -280,6 +280,12 @@ const ProfileScreen = () => {
       label: t("profile.menu.sosHistory"),
       requireAuth: true,
       route: "SOSHistory",
+    },
+    {
+      icon: "flag-outline",
+      label: t("profile.menu.myReports"),
+      requireAuth: true,
+      route: "MyReports",
     },
     {
       icon: "cloud-download-outline",
@@ -333,6 +339,7 @@ const ProfileScreen = () => {
       item.route === "EditProfile" ||
       item.route === "OfflineDownloads" ||
       item.route === "SOSHistory" ||
+      item.route === "MyReports" ||
       item.route === "Wallet" ||
       item.route === "FriendList" ||
       item.route === "Settings" ||
@@ -344,9 +351,9 @@ const ProfileScreen = () => {
     }
   };
 
-  // Nhóm: tài khoản + ví + SOS + offline → cài đặt & lịch sử
-  const accountItems = menuItems.slice(0, 7);
-  const settingsItems = menuItems.slice(7);
+  // Nhóm: tài khoản + ví + SOS + Báo cáo + offline → cài đặt & lịch sử
+  const accountItems = menuItems.slice(0, 8);
+  const settingsItems = menuItems.slice(8);
 
   return (
     <ImageBackground

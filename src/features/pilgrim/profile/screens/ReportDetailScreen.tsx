@@ -7,7 +7,6 @@ import {
     ActivityIndicator,
     Alert,
     ImageBackground,
-    Linking,
     ScrollView,
     TouchableOpacity,
     View,
@@ -17,10 +16,10 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
-import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
-import { SOSEntity } from '../../../../types/pilgrim';
+import reportApi from '../../../../services/api/shared/reportApi';
+import { ReportEntity, ReportReason } from '../../../../types/report.types';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Colors Theme (Terracotta)
 const THEME = {
     primary: '#C05621',
     primaryLight: '#FDF1E6',
@@ -31,36 +30,59 @@ const THEME = {
     danger: '#E53E3E',
     success: '#38A169',
     info: '#3182CE',
-    warning: '#DD6B20',
+    warning: '#D69E2E',
     gray: '#A0AEC0',
 };
 
 type ParamList = {
-    SOSDetail: {
-        sosId: string;
+    ReportDetail: {
+        reportId: string;
     };
 };
 
-export const SOSDetailScreen = () => {
+const getReasonLabel = (reason: ReportReason, t: any) => {
+    const reasons: Record<ReportReason, string> = {
+        spam: t('reports.reasons.spam'),
+        harassment: t('reports.reasons.harassment'),
+        hate_speech: t('reports.reasons.hate_speech'),
+        violence: t('reports.reasons.violence'),
+        nudity: t('reports.reasons.nudity'),
+        false_information: t('reports.reasons.false_information'),
+        scam: t('reports.reasons.scam'),
+        other: t('reports.reasons.other'),
+    };
+    return reasons[reason] || t('reports.reasons.fallback');
+};
+
+const getTargetTypeLabel = (type: string, t: any) => {
+    switch(type) {
+        case 'post': return t('reports.targets.post');
+        case 'comment': return t('reports.targets.comment');
+        case 'user': return t('reports.targets.user');
+        default: return t('reports.targets.other');
+    }
+};
+
+export const ReportDetailScreen = () => {
     const { t, i18n } = useTranslation();
-    const navigation = useNavigation();
-    const route = useRoute<RouteProp<ParamList, 'SOSDetail'>>();
-    const { sosId } = route.params;
+    const navigation = useNavigation<NativeStackNavigationProp<any>>();
+    const route = useRoute<RouteProp<ParamList, 'ReportDetail'>>();
+    const { reportId } = route.params;
     const insets = useSafeAreaInsets();
 
-    const [sosData, setSosData] = useState<SOSEntity | null>(null);
+    const [reportData, setReportData] = useState<ReportEntity | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [isCancelling, setIsCancelling] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
-    const fetchSOSDetail = async () => {
+    const fetchReportDetail = async () => {
         try {
-            const response = await pilgrimSOSApi.getSOSDetail(sosId);
+            const response = await reportApi.getReportDetail(reportId);
             if (response.data) {
-                setSosData(response.data);
+                setReportData(response.data);
             }
         } catch (error) {
-            console.error('Failed to fetch SOS detail', error);
-            Alert.alert(t('common.error'), t('sos.fetchError'));
+            console.error('Failed to fetch report detail', error);
+            Alert.alert(t('common.error'), t('reports.fetchError'));
             navigation.goBack();
         } finally {
             setIsLoading(false);
@@ -68,44 +90,36 @@ export const SOSDetailScreen = () => {
     };
 
     useEffect(() => {
-        if (sosId) {
-            fetchSOSDetail();
+        if (reportId) {
+            fetchReportDetail();
         }
-    }, [sosId]);
+    }, [reportId]);
 
-    const handleCancelSOS = () => {
+    const handleCancel = () => {
         Alert.alert(
-            t('sos.confirmCancelTitle'),
-            t('sos.confirmCancelMsg'),
+            t('reports.cancelConfirmTitle'),
+            t('reports.cancelConfirmMsg'),
             [
                 { text: t('common.no'), style: 'cancel' },
                 {
-                    text: t('sos.cancelRequest'),
+                    text: t('reports.cancelBtn'),
                     style: 'destructive',
                     onPress: async () => {
-                        setIsCancelling(true);
+                        setIsDeleting(true);
                         try {
-                            await pilgrimSOSApi.cancelSOS(sosId);
-                            Alert.alert(t('common.success'), t('sos.cancelSuccess'));
-                            setSosData(prev => prev ? { ...prev, status: 'cancelled' } : null);
+                            await reportApi.deleteReport(reportId);
+                            Alert.alert(t('common.success'), t('reports.cancelSuccess'));
+                            navigation.goBack();
                         } catch (error) {
-                            console.error('Failed to cancel SOS', error);
-                            Alert.alert(t('common.error'), t('sos.cancelError'));
+                            console.error('Failed to cancel report', error);
+                            Alert.alert(t('common.error'), t('reports.cancelError'));
                         } finally {
-                            setIsCancelling(false);
+                            setIsDeleting(false);
                         }
                     },
                 },
             ]
         );
-    };
-
-    const handleCallGuide = () => {
-        if (sosData?.assignedGuide?.phone) {
-            Linking.openURL(`tel:${sosData.assignedGuide.phone}`);
-        } else {
-            Alert.alert(t('sos.notice'), t('sos.noContact'));
-        }
     };
 
     if (isLoading) {
@@ -116,19 +130,20 @@ export const SOSDetailScreen = () => {
         );
     }
 
-    if (!sosData) return null;
+    if (!reportData) return null;
 
     const getStatusInfo = (status: string) => {
         switch (status) {
-            case 'pending': return { label: t('sos.statusPending'), color: THEME.warning, icon: 'time' };
-            case 'processing': return { label: t('sos.statusProcessing'), color: THEME.info, icon: 'sync' };
-            case 'resolved': return { label: t('sos.statusResolved'), color: THEME.success, icon: 'checkmark-circle' };
-            case 'cancelled': return { label: t('sos.statusCancelled'), color: THEME.gray, icon: 'close-circle' };
-            default: return { label: t('sos.statusUnknown'), color: THEME.gray, icon: 'help-circle' };
+            case 'pending': return { label: t('reports.statuses.pending'), color: THEME.warning, icon: 'time' };
+            case 'reviewed': return { label: t('reports.statuses.reviewed'), color: THEME.info, icon: 'eye' };
+            case 'resolved': return { label: t('reports.statuses.resolved'), color: THEME.success, icon: 'checkmark-circle' };
+            case 'rejected': return { label: t('reports.statuses.rejected'), color: THEME.gray, icon: 'close-circle' };
+            case 'cancelled': return { label: t('reports.statuses.cancelled'), color: THEME.gray, icon: 'ban' };
+            default: return { label: t('reports.statuses.unknown'), color: THEME.gray, icon: 'help-circle' };
         }
     };
 
-    const statusInfo = getStatusInfo(sosData.status);
+    const statusInfo = getStatusInfo(reportData.status);
 
     return (
         <ImageBackground
@@ -137,40 +152,45 @@ export const SOSDetailScreen = () => {
             resizeMode="cover"
             fadeDuration={0}
         >
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color={THEME.textMain} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('sos.detailTitle')}</Text>
+                <Text style={styles.headerTitle}>{t('reports.detailTitle')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-
-                {/* Status Card */}
                 <View style={[styles.statusCard, { borderLeftColor: statusInfo.color }]}>
                     <View style={[styles.statusIcon, { backgroundColor: `${statusInfo.color}15` }]}>
                         <Ionicons name={statusInfo.icon as any} size={24} color={statusInfo.color} />
                     </View>
                     <View>
-                        <Text style={styles.statusLabel}>{t('sos.statusLabel')}</Text>
+                        <Text style={styles.statusLabel}>{t('reports.statusLabel')}</Text>
                         <Text style={[styles.statusValue, { color: statusInfo.color }]}>
                             {statusInfo.label}
                         </Text>
                     </View>
                 </View>
 
-                {/* Main Info */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>{t('sos.requestInfo')}</Text>
+                    <Text style={styles.sectionTitle}>{t('reports.requestInfo')}</Text>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="location-outline" size={20} color={THEME.textMuted} />
+                        <Ionicons name="information-circle-outline" size={20} color={THEME.textMuted} />
                         <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>{t('sos.location')}</Text>
-                            <Text style={styles.infoValue}>{sosData.site?.name}</Text>
-                            <Text style={styles.infoSub}>{sosData.site?.address}</Text>
+                            <Text style={styles.infoLabel}>{t('reports.targetType')}</Text>
+                            <Text style={styles.infoValue}>{getTargetTypeLabel(reportData.target_type, t)}</Text>
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    <View style={styles.infoRow}>
+                        <Ionicons name="warning-outline" size={20} color={THEME.textMuted} />
+                        <View style={styles.infoContent}>
+                            <Text style={styles.infoLabel}>{t('reports.reason')}</Text>
+                            <Text style={styles.infoValue}>{getReasonLabel(reportData.reason, t)}</Text>
                         </View>
                     </View>
 
@@ -179,8 +199,8 @@ export const SOSDetailScreen = () => {
                     <View style={styles.infoRow}>
                         <Ionicons name="document-text-outline" size={20} color={THEME.textMuted} />
                         <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>{t('sos.content')}</Text>
-                            <Text style={styles.infoValue}>{sosData.message}</Text>
+                            <Text style={styles.infoLabel}>{t('reports.description')}</Text>
+                            <Text style={styles.infoValue}>{reportData.description || t('reports.noDescription')}</Text>
                         </View>
                     </View>
 
@@ -189,46 +209,26 @@ export const SOSDetailScreen = () => {
                     <View style={styles.infoRow}>
                         <Ionicons name="calendar-outline" size={20} color={THEME.textMuted} />
                         <View style={styles.infoContent}>
-                            <Text style={styles.infoLabel}>{t('sos.timeLabel')}</Text>
+                            <Text style={styles.infoLabel}>{t('reports.timeLabel')}</Text>
                             <Text style={styles.infoValue}>
-                                {dayjs(sosData.created_at).locale(i18n.language).format('HH:mm - DD/MM/YYYY')}
+                                {dayjs(reportData.created_at).locale(i18n.language).format('HH:mm - DD/MM/YYYY')}
                             </Text>
                         </View>
                     </View>
                 </View>
 
-                {/* Guide Info (if assigned) */}
-                {sosData.assignedGuide && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>{t('sos.helper')}</Text>
-                        <View style={styles.guideCard}>
-                            <View style={styles.guideAvatar}>
-                                <Ionicons name="person" size={24} color={THEME.primary} />
-                            </View>
-                            <View style={styles.guideInfo}>
-                                <Text style={styles.guideName}>{sosData.assignedGuide.full_name}</Text>
-                                <Text style={styles.guideRole}>{t('sos.role')}</Text>
-                            </View>
-                            <TouchableOpacity style={styles.callButton} onPress={handleCallGuide}>
-                                <Ionicons name="call" size={20} color={THEME.white} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
-                {/* Actions */}
-                {sosData.status === 'pending' && (
-                    <TouchableOpacity
-                        style={styles.cancelButton}
-                        onPress={handleCancelSOS}
-                        disabled={isCancelling}
+                {reportData.is_active !== false && reportData.status !== 'cancelled' && (
+                    <TouchableOpacity 
+                        style={styles.deleteButton} 
+                        onPress={handleCancel}
+                        disabled={isDeleting}
                     >
-                        {isCancelling ? (
+                        {isDeleting ? (
                             <ActivityIndicator color={THEME.danger} />
                         ) : (
                             <>
                                 <Ionicons name="close-circle-outline" size={20} color={THEME.danger} />
-                                <Text style={styles.cancelButtonText}>{t('sos.cancelRequest')}</Text>
+                                <Text style={styles.deleteButtonText}>{t('reports.cancelBtn')}</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -327,62 +327,21 @@ const styles = RNStyleSheet.create({
     infoLabel: {
         fontSize: TYPOGRAPHY.fontSize.xs,
         color: THEME.textMuted,
-        marginBottom: 2,
+        marginBottom: 4,
     },
     infoValue: {
         fontSize: TYPOGRAPHY.fontSize.md,
         color: THEME.textMain,
         fontWeight: TYPOGRAPHY.fontWeight.medium,
-    },
-    infoSub: {
-        fontSize: TYPOGRAPHY.fontSize.sm,
-        color: THEME.textMuted,
-        marginTop: 2,
+        lineHeight: 22,
     },
     divider: {
         height: 1,
         backgroundColor: THEME.border,
         marginVertical: SPACING.md,
-        marginLeft: 36, // align with content
+        marginLeft: 36,
     },
-    guideCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: THEME.primaryLight,
-        padding: SPACING.md,
-        borderRadius: BORDER_RADIUS.md,
-    },
-    guideAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: `${THEME.primary}20`,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: SPACING.md,
-    },
-    guideInfo: {
-        flex: 1,
-    },
-    guideName: {
-        fontSize: TYPOGRAPHY.fontSize.md,
-        fontWeight: TYPOGRAPHY.fontWeight.bold,
-        color: THEME.primary,
-    },
-    guideRole: {
-        fontSize: TYPOGRAPHY.fontSize.sm,
-        color: THEME.textMuted,
-    },
-    callButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: THEME.success,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...SHADOWS.small,
-    },
-    cancelButton: {
+    deleteButton: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
@@ -394,11 +353,11 @@ const styles = RNStyleSheet.create({
         borderColor: THEME.danger,
         marginTop: SPACING.sm,
     },
-    cancelButtonText: {
+    deleteButtonText: {
         color: THEME.danger,
         fontWeight: TYPOGRAPHY.fontWeight.bold,
         fontSize: TYPOGRAPHY.fontSize.md,
     },
 });
 
-export default SOSDetailScreen;
+export default ReportDetailScreen;

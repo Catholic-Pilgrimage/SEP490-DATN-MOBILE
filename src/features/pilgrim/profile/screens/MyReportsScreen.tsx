@@ -5,6 +5,7 @@ import 'dayjs/locale/vi';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     ImageBackground,
     RefreshControl,
@@ -16,71 +17,102 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
-import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
-import { SOSEntity } from '../../../../types/pilgrim';
+import reportApi from '../../../../services/api/shared/reportApi';
+import { ReportEntity, ReportReason } from '../../../../types/report.types';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Terracotta Theme Colors
+// Terracotta Theme Colors - similar to SOS for consistency
 const THEME = {
     primary: '#C05621', // Terracotta
     primaryLight: '#FDF1E6', // Light Terracotta bg
-    pending: '#C05621',
-    processing: '#2B6CB0',
-    resolved: '#38A169',
-    cancelled: '#718096',
+    pending: '#D69E2E', // Yellow
+    reviewed: '#3182CE', // Blue
+    resolved: '#38A169', // Green
+    rejected: '#718096', // Gray
+    gray: '#A0AEC0',
     white: '#FFFFFF',
     textMain: '#2D3748',
     textMuted: '#718096',
     border: '#E2E8F0',
+    danger: '#E53E3E',
+};
+
+const getReasonLabel = (reason: ReportReason, t: any) => {
+    const reasons: Record<ReportReason, string> = {
+        spam: t('reports.reasons.spam'),
+        harassment: t('reports.reasons.harassment'),
+        hate_speech: t('reports.reasons.hate_speech'),
+        violence: t('reports.reasons.violence'),
+        nudity: t('reports.reasons.nudity'),
+        false_information: t('reports.reasons.false_information'),
+        scam: t('reports.reasons.scam'),
+        other: t('reports.reasons.other'),
+    };
+    return reasons[reason] || t('reports.reasons.fallback');
+};
+
+const getTargetTypeLabel = (type: string, t: any) => {
+    switch(type) {
+        case 'post': return t('reports.targets.post');
+        case 'comment': return t('reports.targets.comment');
+        case 'user': return t('reports.targets.user');
+        default: return t('reports.targets.other');
+    }
 };
 
 const StatusBadge = ({ status }: { status: string }) => {
     const { t } = useTranslation();
     let color = THEME.pending;
-    let label = t('sos.statusPending');
+    let label = t('reports.statuses.pending');
     let icon = 'time-outline';
 
     switch (status) {
-        case 'processing':
-            color = THEME.processing;
-            label = t('sos.statusProcessing');
-            icon = 'sync-outline';
+        case 'reviewed':
+            color = THEME.reviewed;
+            label = t('reports.statuses.reviewed');
+            icon = 'eye-outline';
             break;
         case 'resolved':
             color = THEME.resolved;
-            label = t('sos.statusResolved');
-            icon = 'checkmark-done-circle-outline';
+            label = t('reports.statuses.resolved');
+            icon = 'checkmark-circle-outline';
+            break;
+        case 'rejected':
+            color = THEME.rejected;
+            label = t('reports.statuses.rejected');
+            icon = 'close-circle-outline';
             break;
         case 'cancelled':
-            color = THEME.cancelled;
-            label = t('sos.statusCancelled');
-            icon = 'close-circle-outline';
+            color = THEME.gray;
+            label = t('reports.statuses.cancelled');
+            icon = 'ban-outline';
             break;
     }
 
     return (
         <View style={[styles.badge, { backgroundColor: `${color}15` }]}>
-            <Ionicons name={icon as any} size={14} color={color} />
+            <Ionicons name={icon as any} size={12} color={color} />
             <Text style={[styles.badgeText, { color }]}>{label}</Text>
         </View>
     );
 };
 
-export const SOSHistoryScreen = () => {
+export const MyReportsScreen = () => {
     const { t, i18n } = useTranslation();
-    const navigation = useNavigation();
-    const [sosList, setSOSList] = useState<SOSEntity[]>([]);
+    const navigation = useNavigation<NativeStackNavigationProp<any>>();
+    const [reports, setReports] = useState<ReportEntity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const insets = useSafeAreaInsets();
 
-    const fetchSOSList = async () => {
+    const fetchReports = async () => {
         try {
-            const response = await pilgrimSOSApi.getSOSList({ limit: 20 });
-            if (response.data && response.data.sosRequests) {
-                setSOSList(response.data.sosRequests);
+            const response = await reportApi.getMyReports({ is_active: 'all', limit: 50 });
+            if (response.data && response.data.reports) {
+                setReports(response.data.reports);
             }
         } catch (error) {
-            console.error('Failed to fetch SOS list', error);
+            console.error('Failed to fetch reports', error);
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
@@ -88,33 +120,79 @@ export const SOSHistoryScreen = () => {
     };
 
     useEffect(() => {
-        fetchSOSList();
-    }, []);
+        const unsubscribe = navigation.addListener('focus', () => {
+            fetchReports();
+        });
+        return unsubscribe;
+    }, [navigation]);
 
     const onRefresh = () => {
         setIsRefreshing(true);
-        fetchSOSList();
+        fetchReports();
     };
 
-    const renderItem = ({ item }: { item: SOSEntity }) => (
+    const handleCancel = async (id: string, e: any) => {
+        e.stopPropagation();
+        Alert.alert(
+            t('reports.cancelConfirmTitle'),
+            t('reports.cancelConfirmMsg'),
+            [
+                { text: t('common.cancel'), style: "cancel" },
+                { 
+                    text: t('reports.cancelBtn'), 
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await reportApi.deleteReport(id);
+                            fetchReports();
+                        } catch (error) {
+                            Alert.alert(t('common.error'), t('reports.cancelError'));
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const renderItem = ({ item }: { item: ReportEntity }) => (
         <TouchableOpacity
             style={styles.card}
             activeOpacity={0.7}
-            onPress={() => (navigation as any).navigate('SOSDetail', { sosId: item.id })}
+            onPress={() => navigation.navigate('ReportDetail', { reportId: item.id })}
         >
             <View style={styles.cardHeader}>
-                <View style={styles.siteInfo}>
-                    <Ionicons name="location" size={16} color={THEME.primary} />
-                    <Text style={styles.siteName} numberOfLines={1}>
-                        {item.site?.name || t('sos.unknownLocation')}
+                <View style={styles.targetInfo}>
+                    <Ionicons 
+                        name={item.target_type === 'user' ? 'person' : 'document-text'} 
+                        size={16} 
+                        color={THEME.textMuted} 
+                    />
+                    <Text style={styles.targetType}>
+                        {getTargetTypeLabel(item.target_type, t)}
                     </Text>
                 </View>
-                <StatusBadge status={item.status} />
+                <View style={styles.cardActions}>
+                    <StatusBadge status={item.status} />
+                    {item.is_active !== false && item.status !== 'cancelled' && (
+                        <TouchableOpacity 
+                            style={styles.deleteButton} 
+                            onPress={(e) => handleCancel(item.id, e)}
+                        >
+                            <Ionicons name="close-circle-outline" size={18} color={THEME.danger} />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
-            <Text style={styles.message} numberOfLines={2}>
-                {item.message}
+            <Text style={styles.reasonLabel}>
+                {t('reports.violationLabel')}<Text style={styles.reasonText}>{getReasonLabel(item.reason, t)}</Text>
             </Text>
+            
+            {item.description ? (
+                <Text style={styles.description} numberOfLines={2}>
+                    {item.description}
+                </Text>
+            ) : null}
 
             <View style={styles.cardFooter}>
                 <Text style={styles.timeText}>
@@ -122,11 +200,10 @@ export const SOSHistoryScreen = () => {
                 </Text>
                 <Ionicons name="chevron-forward" size={16} color={THEME.textMuted} />
             </View>
-
-            {/* Accent Line */}
+            
             <View style={[
                 styles.accentLine,
-                { backgroundColor: item.status === 'pending' ? THEME.pending : 'transparent' }
+                { backgroundColor: item.status === 'pending' ? THEME.pending : (item.status === 'resolved' ? THEME.resolved : 'transparent') }
             ]} />
         </TouchableOpacity>
     );
@@ -138,7 +215,7 @@ export const SOSHistoryScreen = () => {
             resizeMode="cover"
             fadeDuration={0}
         >
-            {/* Custom Header */}
+            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -146,7 +223,7 @@ export const SOSHistoryScreen = () => {
                 >
                     <Ionicons name="arrow-back" size={24} color={THEME.textMain} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{t('sos.historyTitle')}</Text>
+                <Text style={styles.headerTitle}>{t('reports.title')}</Text>
                 <View style={{ width: 40 }} />
             </View>
 
@@ -155,19 +232,19 @@ export const SOSHistoryScreen = () => {
                 <View style={styles.centerContainer}>
                     <ActivityIndicator size="small" color={THEME.primary} />
                 </View>
-            ) : sosList.length === 0 ? (
+            ) : reports.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <View style={styles.emptyIconBg}>
-                        <Ionicons name="shield-checkmark-outline" size={48} color={THEME.primary} />
+                        <Ionicons name="flag-outline" size={48} color={THEME.primary} />
                     </View>
-                    <Text style={styles.emptyTitle}>{t('sos.emptyTitle')}</Text>
+                    <Text style={styles.emptyTitle}>{t('reports.emptyTitle')}</Text>
                     <Text style={styles.emptyText}>
-                        {t('sos.emptyText')}
+                        {t('reports.emptyText')}
                     </Text>
                 </View>
             ) : (
                 <FlatList
-                    data={sosList}
+                    data={reports}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
@@ -216,7 +293,6 @@ const styles = RNStyleSheet.create({
     listContent: {
         padding: SPACING.md,
     },
-    // Card Styles
     card: {
         backgroundColor: THEME.white,
         borderRadius: BORDER_RADIUS.lg,
@@ -229,26 +305,41 @@ const styles = RNStyleSheet.create({
     cardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         marginBottom: SPACING.sm,
     },
-    siteInfo: {
+    targetInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        flex: 1,
-        marginRight: SPACING.sm,
     },
-    siteName: {
+    targetType: {
         fontSize: TYPOGRAPHY.fontSize.sm,
         fontWeight: TYPOGRAPHY.fontWeight.bold,
-        color: THEME.textMain,
+        color: THEME.textMuted,
+        textTransform: 'uppercase',
     },
-    message: {
+    cardActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    deleteButton: {
+        padding: 4,
+    },
+    reasonLabel: {
         fontSize: TYPOGRAPHY.fontSize.md,
         color: THEME.textMain,
+        marginBottom: SPACING.xs,
+    },
+    reasonText: {
+        fontWeight: TYPOGRAPHY.fontWeight.bold,
+    },
+    description: {
+        fontSize: TYPOGRAPHY.fontSize.sm,
+        color: THEME.textMain,
         marginBottom: SPACING.md,
-        lineHeight: 22,
+        lineHeight: 20,
     },
     cardFooter: {
         flexDirection: 'row',
@@ -257,6 +348,7 @@ const styles = RNStyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#F7FAFC',
         paddingTop: SPACING.sm,
+        marginTop: SPACING.xs,
     },
     timeText: {
         fontSize: TYPOGRAPHY.fontSize.xs,
@@ -282,7 +374,6 @@ const styles = RNStyleSheet.create({
         bottom: 0,
         width: 4,
     },
-    // Empty State
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -308,7 +399,8 @@ const styles = RNStyleSheet.create({
         fontSize: TYPOGRAPHY.fontSize.md,
         color: THEME.textMuted,
         textAlign: 'center',
+        lineHeight: 22,
     },
 });
 
-export default SOSHistoryScreen;
+export default MyReportsScreen;

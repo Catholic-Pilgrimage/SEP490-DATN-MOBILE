@@ -3,6 +3,7 @@ import React from 'react';
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { COLORS } from '../../../../constants/theme.constants';
+import { useI18n } from '../../../../hooks/useI18n';
 
 interface SiteListCardProps {
   id: string;
@@ -19,19 +20,7 @@ interface SiteListCardProps {
   onVisitedPress?: () => void;
 }
 
-const SITE_TYPE_LABELS = {
-  church: 'Nhà thờ',
-  shrine: 'Đền thánh',
-  monastery: 'Tu viện',
-  center: 'Trung tâm',
-  other: 'Khác',
-};
 
-const REGION_LABELS = {
-  Bac: 'Miền Bắc',
-  Trung: 'Miền Trung',
-  Nam: 'Miền Nam',
-};
 
 export const SiteListCard: React.FC<SiteListCardProps> = ({
   name,
@@ -44,6 +33,25 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
   onPress,
   onFavoritePress,
 }) => {
+  const { t } = useI18n();
+
+  const getRegionLabel = (r?: string) => {
+    if (r === 'Bac') return t('explore.north', { defaultValue: 'Miền Bắc' });
+    if (r === 'Trung') return t('explore.central', { defaultValue: 'Miền Trung' });
+    if (r === 'Nam') return t('explore.south', { defaultValue: 'Miền Nam' });
+    return '';
+  };
+
+  const getSiteTypeLabel = (type: string) => {
+    switch (type) {
+      case 'church': return t('explore.typeChurch', { defaultValue: 'Nhà thờ' });
+      case 'shrine': return t('explore.typeShrine', { defaultValue: 'Đền thánh' });
+      case 'monastery': return t('explore.typeMonastery', { defaultValue: 'Tu viện' });
+      case 'center': return t('explore.typeCenter', { defaultValue: 'Trung tâm' });
+      default: return t('explore.typeOther', { defaultValue: 'Khác' });
+    }
+  };
+
   return (
     <TouchableOpacity
       style={styles.card}
@@ -60,7 +68,7 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
         {/* Badge Overlay */}
         <View style={styles.badgeContainer}>
           <Text style={styles.badgeText}>
-            {region ? REGION_LABELS[region] : SITE_TYPE_LABELS[siteType]}
+            {region ? getRegionLabel(region) : getSiteTypeLabel(siteType)}
           </Text>
         </View>
 
