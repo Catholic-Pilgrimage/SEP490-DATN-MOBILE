@@ -59,3 +59,8 @@ export const SITE_KEYS = {
     list: (params?: any) => [...SITE_KEYS.all, 'list', params] as const,
     detail: (id: string) => [...SITE_KEYS.all, 'detail', id] as const,
 };
+
+export const FRIENDSHIP_KEYS = {
+    all: ['friendships'] as const,
+    list: (params?: any) => [...FRIENDSHIP_KEYS.all, 'list', params] as const,
+};

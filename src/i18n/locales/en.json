@@ -1339,6 +1339,10 @@
   },
   "postDetail": {
     "title": "Post details",
+    "addFriend": "Add friend",
+    "friendRequestSent": "Friend request sent to {{name}}",
+    "friendRequestError": "Unable to send friend request",
+    "friendRequestDuplicate": "Friend request already sent",
     "prayersCount": "{{count}} Likes",
     "commentsCount": "{{count}} Comments",
     "commentsTitle": "Comments ({{count}})",
@@ -1783,7 +1787,18 @@
     "searchPlaceholder": "Search...",
     "cancel": "Cancel",
     "sendInvite": "Send Invite",
-    "yes": "Yes"
+    "yes": "Yes",
+    "acceptSuccess": "Accepted",
+    "rejectSuccess": "Rejected",
+    "respondError": "Update failed",
+    "respondErrorMsg": "Update relationship failed. Please try again later.",
+    "removeSuccess": "Unfriended",
+    "removeSuccessMsg": "Removed {{name}} from friends list.",
+    "removeError": "Unable to unfriend",
+    "requestSent": "Request sent",
+    "requestSentMsg": "Friend request has been sent.",
+    "requestError": "Send request failed",
+    "requestErrorMsg": "Unable to send friend request. Please check again."
   },
   "reports": {
     "title": "My Reports",

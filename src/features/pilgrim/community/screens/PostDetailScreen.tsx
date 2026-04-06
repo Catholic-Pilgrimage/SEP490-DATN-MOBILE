@@ -39,6 +39,7 @@ import {
   usePostDetail,
   useUpdateComment,
 } from "../../../../hooks/usePosts";
+import { useSendFriendRequest } from "../../../../hooks/useFriendship";
 import i18n from "../../../../i18n";
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import type { FeedPost, FeedPostComment } from "../../../../types/post.types";
@@ -1643,6 +1644,45 @@ export default function PostDetailScreen() {
   const updateCommentMutation = useUpdateComment(postId);
   const deleteCommentMutation = useDeleteComment(postId);
   const deletePostMutation = useDeletePost();
+  const sendFriendRequestMutation = useSendFriendRequest();
+
+  const handleAddFriend = React.useCallback(() => {
+    if (!activePostAction) return;
+
+    const targetUser = activePostAction.author;
+    const targetUserId = activePostAction.user_id;
+
+    setActivePostAction(null);
+
+    sendFriendRequestMutation.mutate(targetUserId, {
+      onSuccess: () => {
+        Toast.show({
+          type: "success",
+          text1: t("common.success", { defaultValue: "Thành công" }),
+          text2: t("postDetail.friendRequestSent", {
+            defaultValue: "Đã gửi lời mời kết bạn đến {{name}}",
+            name: targetUser.full_name,
+          }),
+        });
+      },
+      onError: (error: any) => {
+        const errorMessage =
+          error?.message === "Đã gửi lời mời kết bạn trước đó"
+            ? t("postDetail.friendRequestDuplicate")
+            : error?.message;
+
+        Toast.show({
+          type: "error",
+          text1: t("common.error", { defaultValue: "Lỗi" }),
+          text2:
+            errorMessage ||
+            t("postDetail.friendRequestError", {
+              defaultValue: "Không thể gửi lời mời kết bạn",
+            }),
+        });
+      },
+    });
+  }, [activePostAction, sendFriendRequestMutation, t]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2298,11 +2338,12 @@ export default function PostDetailScreen() {
           activePostAction?.user_id &&
           user.id === activePostAction.user_id
         )}
-        busy={deletePostMutation.isPending}
+        busy={deletePostMutation.isPending || sendFriendRequestMutation.isPending}
         onClose={() => setActivePostAction(null)}
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
+        onAddFriend={handleAddFriend}
       />
 
       <ReportPostModal

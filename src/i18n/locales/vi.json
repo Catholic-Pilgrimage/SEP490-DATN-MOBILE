@@ -1340,6 +1340,10 @@
   },
   "postDetail": {
     "title": "Chi tiết bài viết",
+    "addFriend": "Kết bạn",
+    "friendRequestSent": "Đã gửi lời mời kết bạn đến {{name}}",
+    "friendRequestError": "Không thể gửi lời mời kết bạn",
+    "friendRequestDuplicate": "Đã gửi lời mời kết bạn trước đó",
     "prayersCount": "{{count}} Thích",
     "commentsCount": "{{count}} Bình luận",
     "commentsTitle": "Bình luận ({{count}})",
@@ -1784,7 +1788,18 @@
     "searchPlaceholder": "Tìm kiếm...",
     "cancel": "Hủy",
     "sendInvite": "Gửi lời mời",
-    "yes": "Đồng ý"
+    "yes": "Đồng ý",
+    "acceptSuccess": "Đã chấp nhận",
+    "rejectSuccess": "Đã từ chối",
+    "respondError": "Thao tác thất bại",
+    "respondErrorMsg": "Cập nhật mối quan hệ thất bại. Vui lòng thử lại sau.",
+    "removeSuccess": "Đã hủy kết bạn",
+    "removeSuccessMsg": "Đã xóa {{name}} khỏi danh sách bạn bè.",
+    "removeError": "Không thể hủy kết bạn",
+    "requestSent": "Đã gửi yêu cầu",
+    "requestSentMsg": "Lời mời kết bạn đã được gửi đi.",
+    "requestError": "Gửi yêu cầu thất bại",
+    "requestErrorMsg": "Không thể gửi lời mời kết bạn. Vui lòng kiểm tra lại."
   },
   "reports": {
     "title": "Báo cáo của tôi",
