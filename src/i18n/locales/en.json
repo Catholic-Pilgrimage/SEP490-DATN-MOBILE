@@ -1676,6 +1676,7 @@
     "addMediaTitle": "Add photos/video to journal",
     "saving": "Saving...",
     "savePrivate": "Save Private",
+    "saveJournal": "Save Journal",
     "posting": "Posting...",
     "postPublic": "Post Public",
     "saveSuccessUpdate": "Journal updated{{shareMsg}}{{imagesMsg}}{{audioMsg}}",
