@@ -551,7 +551,9 @@
       "notifications": "Thông báo",
       "favorites": "Yêu thích",
       "wallet": "Ví & giao dịch",
+      "friends": "Bạn bè",
       "sosHistory": "Lịch sử Hỗ trợ",
+      "myReports": "Báo cáo của tôi",
       "offlineData": "Dữ liệu ngoại tuyến",
       "offlineDataSubtitle": "{{count}} kế hoạch • {{size}}",
       "offlineDataEmpty": "Quản lý kế hoạch đã tải",
@@ -1718,12 +1720,14 @@
     "libraryError": "Không thể mở thư viện"
   },
   "sos": {
+    "historyTitle": "Lịch sử Hỗ trợ",
     "detailTitle": "Chi tiết hỗ trợ",
-    "status": "Trạng thái",
+    "status": "TRẠNG THÁI",
+    "statusLabel": "Trạng thái",
     "requestInfo": "Thông tin yêu cầu",
     "location": "Địa điểm",
     "content": "Nội dung",
-    "sendTime": "Thời gian gửi",
+    "timeLabel": "Thời gian gửi",
     "helper": "Người hỗ trợ",
     "role": "Hỗ trợ viên",
     "confirmCancelTitle": "Xác nhận hủy",
@@ -1740,7 +1744,10 @@
     "statusResolved": "Đã hoàn thành",
     "statusCancelled": "Đã hủy",
     "statusUnknown": "Không xác định",
-    "confirmNo": "Không"
+    "confirmNo": "Không",
+    "emptyTitle": "Chưa có yêu cầu nào",
+    "emptyText": "Lịch sử các yêu cầu hỗ trợ của bạn sẽ xuất hiện tại đây.",
+    "unknownLocation": "Vị trí không xác định"
   },
   "friends": {
     "screenTitle": "Bạn bè",
@@ -1760,5 +1767,54 @@
     "cancel": "Hủy",
     "sendInvite": "Gửi lời mời",
     "yes": "Đồng ý"
+  },
+  "reports": {
+    "title": "Báo cáo của tôi",
+    "detailTitle": "Chi tiết báo cáo",
+    "emptyTitle": "Chưa có báo cáo nào",
+    "emptyText": "Những nội dung bạn đã báo cáo sẽ xuất hiện tại đây.",
+    "cancelBtn": "Hủy báo cáo",
+    "cancelConfirmTitle": "Hủy báo cáo",
+    "cancelConfirmMsg": "Bạn có chắc chắn muốn hủy báo cáo này không?",
+    "cancelError": "Không thể hủy báo cáo lúc này.",
+    "cancelSuccess": "Đã hủy báo cáo.",
+    "fetchError": "Không thể tải thông tin báo cáo.",
+    "status": "TRẠNG THÁI",
+    "statusLabel": "Trạng thái",
+    "requestInfo": "Thông tin báo cáo",
+    "targetInfo": "Thông tin yêu cầu",
+    "targetType": "Loại nội dung bị báo cáo",
+    "reason": "Lý do",
+    "description": "Mô tả thêm",
+    "noDescription": "Không có mô tả chi tiết.",
+    "timeLabel": "Thời gian gửi",
+    "violationLabel": "Vi phạm: ",
+    "targets": {
+      "post": "Bài viết",
+      "comment": "Bình luận",
+      "user": "Người dùng",
+      "other": "Khác"
+    },
+    "reasons": {
+      "spam": "Spam",
+      "harassment": "Quấy rối",
+      "hate_speech": "Ngôn từ kích động thù địch",
+      "violence": "Bạo lực",
+      "nudity": "Ảnh khỏa thân",
+      "false_information": "Thông tin sai lệch",
+      "scam": "Lừa đảo",
+      "other": "Khác",
+      "fallback": "Lý do khác"
+    },
+    "statuses": {
+      "pending": "Đang chờ xử lý",
+      "reviewed": "Đã xem xét",
+      "resolved": "Đã giải quyết",
+      "rejected": "Đã từ chối",
+      "cancelled": "Đã hủy",
+      "unknown": "Không xác định"
+    }
   }
 }
+
+

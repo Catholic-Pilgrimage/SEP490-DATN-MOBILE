@@ -13,7 +13,7 @@ export type ReportReason =
   | "scam"
   | "other";
 
-export type ReportStatus = "pending" | "reviewed" | "resolved" | "rejected";
+export type ReportStatus = "pending" | "reviewed" | "resolved" | "rejected" | "cancelled";
 
 export type ReportTargetType = "post" | "comment" | "user";
 
@@ -25,6 +25,7 @@ export interface ReportEntity {
   reason: ReportReason;
   description?: string;
   status: ReportStatus;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }

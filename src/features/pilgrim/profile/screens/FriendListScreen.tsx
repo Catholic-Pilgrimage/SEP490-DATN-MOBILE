@@ -13,6 +13,7 @@ import {
   Modal,
   Alert
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
@@ -24,6 +25,7 @@ type Tab = 'friends' | 'requests';
 
 export default function FriendListScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { confirm } = useConfirm();
   const [activeTab, setActiveTab] = useState<Tab>('friends');
   const [search, setSearch] = useState('');
@@ -59,10 +61,10 @@ export default function FriendListScreen({ navigation }: any) {
 
   const handleRemoveFriend = async (friendId: string, name: string) => {
     const isConfirmed = await confirm({
-      title: 'Hủy kết bạn?',
-      message: `Bạn có chắc muốn hủy kết bạn với ${name}?`,
-      confirmText: 'Đồng ý',
-      cancelText: 'Hủy',
+      title: t('friends.removeConfirmTitle'),
+      message: t('friends.removeConfirmMsg', { name }),
+      confirmText: t('common.confirm'),
+      cancelText: t('friends.cancel'),
       type: 'warning'
     });
 
@@ -73,19 +75,15 @@ export default function FriendListScreen({ navigation }: any) {
 
   const handleAddFriend = async () => {
     if (!addEmail.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập Email người bạn muốn kết nối");
+      Alert.alert(t('common.error'), t('friends.emailRequired'));
       return;
     }
     
     setIsSubmitting(true);
-    // Since we don't have a lookup API, we assume the backend handles lookup by email 
-    // but the current API takes addresseeId.
-    // Wait, the friendshipApi.sendFriendRequest takes addresseeId (UUID).
-    // If I can't find the ID from Email, I can't send the request.
-    
-    // Suggestion: The user should probably use a Search API.
-    // For now, I'll alert that this needs a Search User API.
-    Alert.alert("Tính năng đang phát triển", "Hiện tại cần API tìm kiếm người dùng theo Email để lấy ID. Bạn hãy kết bạn trực tiếp từ danh sách thành viên trong Lịch trình nhé!");
+    Alert.alert(
+      t('friends.featureComingSoonTitle'), 
+      t('friends.featureComingSoonMsg')
+    );
     setIsSubmitting(false);
     setShowAddModal(false);
   };
@@ -103,7 +101,7 @@ export default function FriendListScreen({ navigation }: any) {
         color="#D1D5DB" 
       />
       <Text style={styles.emptyText}>
-        {activeTab === 'friends' ? "Chưa có bạn bè nào" : "Không có lời mời kết bạn"}
+        {activeTab === 'friends' ? t('friends.emptyFriends') : t('friends.emptyRequests')}
       </Text>
     </View>
   );
@@ -117,7 +115,7 @@ export default function FriendListScreen({ navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bạn bè</Text>
+        <Text style={styles.headerTitle}>{t('friends.screenTitle')}</Text>
         <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.addBtn}>
           <Ionicons name="person-add-outline" size={24} color={COLORS.primary} />
         </TouchableOpacity>
@@ -128,7 +126,7 @@ export default function FriendListScreen({ navigation }: any) {
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#9CA3AF" />
           <TextInput
-            placeholder="Tìm kiếm..."
+            placeholder={t('friends.searchPlaceholder')}
             style={styles.searchInput}
             value={search}
             onChangeText={setSearch}
@@ -142,13 +140,13 @@ export default function FriendListScreen({ navigation }: any) {
           style={[styles.tab, activeTab === 'friends' && styles.activeTab]}
           onPress={() => setActiveTab('friends')}
         >
-          <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>Bạn bè</Text>
+          <Text style={[styles.tabText, activeTab === 'friends' && styles.activeTabText]}>{t('friends.tabFriends')}</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.tab, activeTab === 'requests' && styles.activeTab]}
           onPress={() => setActiveTab('requests')}
         >
-          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>Lời mời</Text>
+          <Text style={[styles.tabText, activeTab === 'requests' && styles.activeTabText]}>{t('friends.tabRequests')}</Text>
           {pendingRequests.length > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{pendingRequests.length}</Text>
@@ -185,12 +183,12 @@ export default function FriendListScreen({ navigation }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Thêm bạn mới</Text>
-            <Text style={styles.modalSub}>Nhập email người bạn muốn kết nối</Text>
+            <Text style={styles.modalTitle}>{t('friends.addFriend')}</Text>
+            <Text style={styles.modalSub}>{t('friends.emailSub')}</Text>
             
             <TextInput
               style={styles.modalInput}
-              placeholder="example@gmail.com"
+              placeholder={t('friends.emailPlaceholder')}
               value={addEmail}
               onChangeText={setAddEmail}
               keyboardType="email-address"
@@ -203,14 +201,14 @@ export default function FriendListScreen({ navigation }: any) {
                 style={[styles.modalBtn, styles.cancelBtn]} 
                 onPress={() => setShowAddModal(false)}
               >
-                <Text style={styles.cancelBtnText}>Hủy</Text>
+                <Text style={styles.cancelBtnText}>{t('friends.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.modalBtn, styles.submitBtn]} 
                 onPress={handleAddFriend}
                 disabled={isSubmitting}
               >
-                {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Gửi lời mời</Text>}
+                {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>{t('friends.sendInvite')}</Text>}
               </TouchableOpacity>
             </View>
           </View>

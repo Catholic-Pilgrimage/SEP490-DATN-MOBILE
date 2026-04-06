@@ -7,3 +7,5 @@ export { default as SOSHistoryScreen } from './SOSHistoryScreen';
 export { default as SOSDetailScreen } from './SOSDetailScreen';
 export { default as OfflineDownloadsScreen } from './OfflineDownloadsScreen';
 export { default as FriendListScreen } from './FriendListScreen';
+export { default as MyReportsScreen } from './MyReportsScreen';
+export { default as ReportDetailScreen } from './ReportDetailScreen';
