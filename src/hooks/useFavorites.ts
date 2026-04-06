@@ -11,6 +11,7 @@ import Toast from "react-native-toast-message";
 import { FAVORITE_KEYS } from "../constants/queryKeys";
 import { useAuth } from "../contexts/AuthContext";
 import pilgrimSiteApi from "../services/api/pilgrim/siteApi";
+import { useI18n } from "./useI18n";
 
 /**
  * Hook that provides:
@@ -22,6 +23,7 @@ import pilgrimSiteApi from "../services/api/pilgrim/siteApi";
 export function useFavorites() {
   const { isAuthenticated, isGuest } = useAuth();
   const queryClient = useQueryClient();
+  const { t } = useI18n();
 
   // Query: fetch all favorite site IDs
   const { data: favoriteIds = new Set<string>(), isLoading } = useQuery({
@@ -49,11 +51,11 @@ export function useFavorites() {
     mutationFn: async (siteId: string) => {
       const isCurrentlyFavorite = favoriteIds.has(siteId);
       if (isCurrentlyFavorite) {
-        const res = await pilgrimSiteApi.removeFavorite(siteId);
-        return { siteId, newState: false, message: res?.message };
+        await pilgrimSiteApi.removeFavorite(siteId);
+        return { siteId, newState: false };
       } else {
-        const res = await pilgrimSiteApi.addFavorite(siteId);
-        return { siteId, newState: true, message: res?.message };
+        await pilgrimSiteApi.addFavorite(siteId);
+        return { siteId, newState: true };
       }
     },
     // Optimistic update
@@ -84,12 +86,14 @@ export function useFavorites() {
       if (context?.previousIds) {
         queryClient.setQueryData(FAVORITE_KEYS.ids(), context.previousIds);
       }
-      Toast.show({ type: "error", text1: err?.message || "Error" });
+      Toast.show({ type: "error", text1: t("common.error", { defaultValue: "Có lỗi xảy ra" }), text2: err?.message || "" });
     },
     onSuccess: (data) => {
       Toast.show({
         type: "success",
-        text1: data.message || "Success",
+        text1: data.newState 
+          ? t("siteDetail.favoriteAdded", { defaultValue: "Đã thêm địa điểm vào danh sách yêu thích" })
+          : t("siteDetail.favoriteRemoved", { defaultValue: "Đã xóa địa điểm khỏi danh sách yêu thích" }),
       });
     },
     onSettled: () => {

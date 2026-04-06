@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useFavorites } from '../../../../hooks/useFavorites';
+import { useI18n } from '../../../../hooks/useI18n';
 import { useSites } from '../../../../hooks/useSites';
 import { VerticalSiteCard } from '../components/VerticalSiteCard';
 
@@ -30,6 +31,7 @@ const FILTERS = ['Tất cả', 'Gần tôi nhất', 'Đang mở cửa', 'Nhà th
 
 export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
     const { isAuthenticated, isGuest } = useAuth();
+    const { t } = useI18n();
     const [activeFilter, setActiveFilter] = useState('Tất cả');
     const [searchText, setSearchText] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +150,7 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                     >
                         <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Tất cả điểm đến</Text>
+                    <Text style={styles.headerTitle}>{t('allSites.title', { defaultValue: 'Tất cả điểm đến' })}</Text>
                     <TouchableOpacity
                         onPress={toggleSearch}
                         style={styles.searchButton}
@@ -171,7 +173,7 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                         <TextInput
                             ref={searchInputRef}
                             style={styles.searchInput}
-                            placeholder="Tìm kiếm địa điểm..."
+                            placeholder={t('allSites.searchPlaceholder', { defaultValue: "Tìm kiếm địa điểm..." })}
                             placeholderTextColor={COLORS.textTertiary}
                             value={searchText}
                             onChangeText={setSearchText}
@@ -198,7 +200,7 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                             style={styles.retryButton}
                             onPress={() => fetchSites({})}
                         >
-                            <Text style={styles.retryButtonText}>Thử lại</Text>
+                            <Text style={styles.retryButtonText}>{t('allSites.retry', { defaultValue: 'Thử lại' })}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -213,7 +215,11 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                                         onPress={() => setActiveFilter(filter)}
                                     >
                                         <Text style={[styles.filterText, activeFilter === filter && styles.filterTextActive]}>
-                                            {filter}
+                                            {filter === 'Tất cả' ? t('allSites.filterAll', { defaultValue: 'Tất cả' }) :
+                                             filter === 'Gần tôi nhất' ? t('allSites.filterNearest', { defaultValue: 'Gần tôi nhất' }) :
+                                             filter === 'Đang mở cửa' ? t('allSites.filterOpen', { defaultValue: 'Đang mở cửa' }) :
+                                             filter === 'Nhà thờ lớn' ? t('allSites.filterBigChurch', { defaultValue: 'Nhà thờ lớn' }) :
+                                             filter}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
@@ -251,7 +257,7 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                                     <View style={styles.emptyContainer}>
                                         <Ionicons name="map-outline" size={60} color="#D1D1D6" />
                                         <Text style={styles.emptyText}>
-                                            {searchQuery ? `Không tìm thấy "${searchQuery}"` : 'Chưa có địa điểm nào'}
+                                            {searchQuery ? t('allSites.emptySearch', { query: searchQuery, defaultValue: `Không tìm thấy "${searchQuery}"` }) : t('allSites.empty', { defaultValue: 'Chưa có địa điểm nào' })}
                                         </Text>
                                     </View>
                                 ) : null

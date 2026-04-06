@@ -25,6 +25,7 @@ import { useAuth } from '../../../../contexts/AuthContext';
 import { useFavorites } from '../../../../hooks/useFavorites';
 import { useNotifications } from '../../../../hooks/useNotifications';
 import { useSites } from '../../../../hooks/useSites';
+import { useI18n } from '../../../../hooks/useI18n';
 import notificationService from '../../../../services/notification/notificationService';
 import { SiteRegion } from '../../../../types/pilgrim';
 import { moderateScale } from '../../../../utils/responsive';
@@ -59,6 +60,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
 
     // Auth context
     const { isAuthenticated, isGuest } = useAuth();
+    const { t } = useI18n();
 
     // Notification logic
     const { unreadCount, fetchNotifications } = useNotifications();
@@ -187,7 +189,10 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                 styles.filterChipText,
                                 isActive && styles.filterChipTextActive
                             ]}>
-                                {region.label}
+                                {region.id === 'all' ? t('explore.allRegions', { defaultValue: 'Tất cả' }) :
+                                 region.id === 'bac' ? t('explore.north', { defaultValue: 'Miền Bắc' }) :
+                                 region.id === 'trung' ? t('explore.central', { defaultValue: 'Miền Trung' }) :
+                                 t('explore.south', { defaultValue: 'Miền Nam' })}
                             </Text>
                         </TouchableOpacity>
                     );
@@ -246,7 +251,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                 <Ionicons name="search" size={20} color={COLORS.primary} />
                                 <TextInput
                                     style={styles.searchInput}
-                                    placeholder="Tìm thánh đường, địa phận..."
+                                    placeholder={t('explore.searchPlaceholder', { defaultValue: "Tìm thánh đường, địa phận..." })}
                                     placeholderTextColor="#9CA3AF"
                                     autoFocus
                                     value={searchText}
@@ -267,7 +272,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     fetchSites({ region: selectedRegion, query: '' });
                                 }
                             }}>
-                                <Text style={styles.cancelText}>Hủy</Text>
+                                <Text style={styles.cancelText}>{t('explore.cancel', { defaultValue: 'Hủy' })}</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -281,7 +286,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     activeOpacity={0.9}
                                 >
                                     <Ionicons name="search" size={16} color={COLORS.textSecondary} />
-                                    <Text style={styles.dummySearchText}>Tìm thánh đường...</Text>
+                                    <Text style={styles.dummySearchText}>{t('explore.dummySearchPlaceholder', { defaultValue: 'Tìm thánh đường...' })}</Text>
                                 </TouchableOpacity>
                             </Animated.View>
 
@@ -364,8 +369,8 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                 {/* --- HERO TITLE & SEARCH TRIGGER (Visible initially) --- */}
                 {!isSearching && (
                     <View style={styles.largeHeaderContainer}>
-                        <Text style={styles.largeHeaderTitle}>Khám Phá</Text>
-                        <Text style={styles.largeHeaderSubtitle}>Hành trình đức tin của bạn</Text>
+                        <Text style={styles.largeHeaderTitle}>{t('explore.title', { defaultValue: 'Khám Phá' })}</Text>
+                        <Text style={styles.largeHeaderSubtitle}>{t('explore.subtitle', { defaultValue: 'Hành trình đức tin của bạn' })}</Text>
 
                         {/* Large Dummy Search Bar for initial view */}
                         <TouchableOpacity
@@ -374,7 +379,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                             activeOpacity={0.9}
                         >
                             <Ionicons name="search" size={20} color={COLORS.primary} />
-                            <Text style={styles.largeSearchPlaceHolder}>Tìm tên thánh đường, địa phận...</Text>
+                            <Text style={styles.largeSearchPlaceHolder}>{t('explore.searchPlaceholder', { defaultValue: 'Tìm tên thánh đường, địa phận...' })}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -413,17 +418,17 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                     ) : !sites || sites.length === 0 ? (
                         <View style={styles.emptyContainer}>
                             <Ionicons name="map-outline" size={60} color="#D1D1D6" />
-                            <Text style={styles.emptyText}>Chưa có địa điểm nào</Text>
+                            <Text style={styles.emptyText}>{t('explore.empty', { defaultValue: 'Chưa có địa điểm nào' })}</Text>
                         </View>
                     ) : (
                         <>
                             <View style={styles.sectionHeaderRow}>
-                                <Text style={styles.sectionTitle}>Điểm đến linh thiêng</Text>
+                                <Text style={styles.sectionTitle}>{t('explore.sacredDestinations', { defaultValue: 'Điểm đến linh thiêng' })}</Text>
                                 <TouchableOpacity
                                     onPress={() => navigation.navigate('AllSites')}
                                     style={styles.seeMoreBtn}
                                 >
-                                    <Text style={styles.seeMoreText}>Xem thêm</Text>
+                                    <Text style={styles.seeMoreText}>{t('explore.seeMore', { defaultValue: 'Xem thêm' })}</Text>
                                     <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
                                 </TouchableOpacity>
                             </View>

@@ -11,6 +11,7 @@ import {
     View
 } from 'react-native';
 import { SPACING } from '../../../../constants/theme.constants';
+import { useI18n } from '../../../../hooks/useI18n';
 import { moderateScale } from '../../../../utils/responsive'; // Adjust imports as per your structure
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -30,8 +31,16 @@ interface FeaturedCarouselProps {
 const LOOPS = 200;
 
 export const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({ sites, onSitePress }) => {
+    const { t } = useI18n();
     const flatListRef = useRef<FlatList>(null);
     const [currentIndex, setCurrentIndex] = useState(0); // This will grow indefinitely
+
+    const getRegionLabel = (r?: string) => {
+        if (r === 'Bac') return t('explore.north', { defaultValue: 'Miền Bắc' });
+        if (r === 'Trung') return t('explore.central', { defaultValue: 'Miền Trung' });
+        if (r === 'Nam') return t('explore.south', { defaultValue: 'Miền Nam' });
+        return '';
+    };
 
     // Filter top 5 first
     const baseSites = sites ? sites.slice(0, 5) : [];
@@ -82,7 +91,7 @@ export const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({ sites, onSit
 
     return (
         <View style={styles.container}>
-            <Text style={styles.sectionHeader}>Nổi bật nhất</Text>
+            <Text style={styles.sectionHeader}>{t('explore.featuredMost', { defaultValue: 'Nổi bật nhất' })}</Text>
             <FlatList
                 ref={flatListRef}
                 data={infiniteSites}
@@ -131,7 +140,7 @@ export const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({ sites, onSit
                                     <View style={styles.topRow}>
                                         <View style={styles.tagContainer}>
                                             <Text style={styles.tagText}>
-                                                {item.region === 'Bac' ? 'Miền Bắc' : item.region === 'Trung' ? 'Miền Trung' : 'Miền Nam'}
+                                                {getRegionLabel(item.region)}
                                             </Text>
                                         </View>
                                     </View>

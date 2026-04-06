@@ -17,6 +17,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Linking,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -112,6 +113,21 @@ const getInitials = (name?: string) => {
   const parts = name.trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+};
+
+const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371e3; // metres
+  const Q1 = lat1 * Math.PI / 180;
+  const Q2 = lat2 * Math.PI / 180;
+  const dQ = (lat2 - lat1) * Math.PI / 180;
+  const dL = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(dQ / 2) * Math.sin(dQ / 2) +
+            Math.cos(Q1) * Math.cos(Q2) *
+            Math.sin(dL / 2) * Math.sin(dL / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
 };
 
 const normalizeReviewErrorMessage = (error: unknown, t: any) => {
@@ -232,6 +248,22 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     setShowAddToPlan(true);
   };
 
+  const handleNavigateClick = () => {
+    if (!site?.latitude || !site?.longitude) return;
+    const url = Platform.select({
+      ios: `maps://app?daddr=${site.latitude},${site.longitude}`,
+      android: `google.navigation:q=${site.latitude},${site.longitude}`
+    });
+    if (url) {
+      Linking.openURL(url).catch(err => console.error("Error opening maps", err));
+    }
+  };
+
+  const handleCallClick = () => {
+    if (!site?.contactInfo?.phone) return;
+    Linking.openURL(`tel:${site.contactInfo.phone}`).catch(err => console.error("Error opening phone", err));
+  };
+
   // -- Data Processing --
 
   // Format mass schedules for display
@@ -239,18 +271,26 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     if (!schedules || schedules.length === 0)
       return { sunday: undefined, others: [] };
 
-    // Helper to format days (e.g., [0] -> "Chúa Nhật", [1,2,3,4,5,6] -> "Ngày thường")
+    // Helper to format days
     const formatDays = (days: DayOfWeek[]) => {
-      if (days.includes(0) && days.length === 1) return "Chúa Nhật";
-      if (days.length === 6 && !days.includes(0)) return "Ngày thường";
-      if (days.includes(6) && days.length === 1) return "Thứ Bảy";
+      const sundayStr = t("siteDetail.sunday", { defaultValue: "Chúa Nhật" });
+      const weekdaysStr = t("siteDetail.weekdays", { defaultValue: "Ngày thường" });
+      const saturdayStr = t("siteDetail.saturday", { defaultValue: "Thứ Bảy" });
+      const DAY_ABBR: Record<number, string> = {
+        0: t("siteDetail.sunAbbr", { defaultValue: "CN" }),
+        1: t("siteDetail.monAbbr", { defaultValue: "T2" }),
+        2: t("siteDetail.tueAbbr", { defaultValue: "T3" }),
+        3: t("siteDetail.wedAbbr", { defaultValue: "T4" }),
+        4: t("siteDetail.thuAbbr", { defaultValue: "T5" }),
+        5: t("siteDetail.friAbbr", { defaultValue: "T6" }),
+        6: t("siteDetail.satAbbr", { defaultValue: "T7" }),
+      };
 
-      return days
-        .map((d) => {
-          if (d === 0) return "CN";
-          return `T${d + 1}`;
-        })
-        .join(", ");
+      if (days.includes(0) && days.length === 1) return sundayStr;
+      if (days.length === 6 && !days.includes(0)) return weekdaysStr;
+      if (days.includes(6) && days.length === 1) return saturdayStr;
+
+      return days.map((d) => DAY_ABBR[d]).join(", ");
     };
 
     // Group by days
@@ -275,11 +315,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       times: times.sort(),
     }));
 
+    const sundayStr = t("siteDetail.sunday", { defaultValue: "Chúa Nhật" });
+    const sunAbbr = t("siteDetail.sunAbbr", { defaultValue: "CN" });
+
     return {
-      sunday: result.find((s) => s.day === "Chúa Nhật" || s.day === "CN"),
-      others: result.filter((s) => s.day !== "Chúa Nhật" && s.day !== "CN"),
+      sunday: result.find((s) => s.day === sundayStr || s.day === sunAbbr),
+      others: result.filter((s) => s.day !== sundayStr && s.day !== sunAbbr),
     };
-  }, [schedules]);
+  }, [schedules, t]);
 
   // Combine site images and media gallery for hero section slider
   const heroImages = useMemo(() => {
@@ -711,9 +754,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   if (!site) {
     return (
       <View style={[styles.container, styles.errorContainer]}>
-        <Text style={styles.errorText}>Không tìm thấy thông tin địa điểm</Text>
+        <Text style={styles.errorText}>{t('siteDetail.notFound', { defaultValue: 'Không tìm thấy thông tin địa điểm' })}</Text>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <Text style={styles.backButtonText}>Quay lại</Text>
+          <Text style={styles.backButtonText}>{t('siteDetail.back', { defaultValue: 'Quay lại' })}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -786,7 +829,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             <View style={styles.typeBadge}>
               <Ionicons name="business" size={12} color={COLORS.textPrimary} />
               <Text style={styles.typeBadgeText}>
-                {site.type === "church" ? "Nhà thờ" : site.type}
+                {site.type === "church" ? t('siteDetail.typeChurch', { defaultValue: 'Nhà thờ' }) : site.type}
               </Text>
             </View>
             <Text style={styles.heroTitle}>{site.name}</Text>
@@ -835,17 +878,16 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
         <View style={styles.contentContainer}>
           {/* Quick Actions Card */}
           <View style={styles.quickActionsCard}>
-            <QuickActionButton icon="navigate" label="Dẫn đường" />
+            <QuickActionButton icon="navigate" label={t('siteDetail.navigate', { defaultValue: 'Dẫn đường' })} onPress={handleNavigateClick} />
             {site.contactInfo?.phone && (
-              <QuickActionButton icon="call" label="Gọi điện" />
+              <QuickActionButton icon="call" label={t('siteDetail.call', { defaultValue: 'Gọi điện' })} onPress={handleCallClick} />
             )}
             {site.contactInfo?.website && (
-              <QuickActionButton icon="globe-outline" label="Website" />
+              <QuickActionButton icon="globe-outline" label={t('siteDetail.website', { defaultValue: 'Website' })} />
             )}
-            <QuickActionButton icon="gift-outline" label="Ủng hộ" />
             <QuickActionButton
               icon="alert-circle-outline"
-              label="Hỗ trợ"
+              label={t('siteDetail.support', { defaultValue: 'Hỗ trợ' })}
               onPress={() => setSOSModalVisible(true)}
             />
           </View>
@@ -866,7 +908,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                   />
                 </View>
                 <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Giờ mở cửa</Text>
+                  <Text style={styles.infoLabel}>{t('siteDetail.openingHours', { defaultValue: 'Giờ mở cửa' })}</Text>
                   <Text style={styles.infoValue}>
                     {site.openingHours?.open
                       ? site.openingHours.open.slice(0, 5)
@@ -883,12 +925,12 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
           {/* About Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Giới thiệu</Text>
+            <Text style={styles.sectionTitle}>{t('siteDetail.about', { defaultValue: 'Giới thiệu' })}</Text>
             <Text
               style={styles.descriptionText}
               numberOfLines={isDescriptionExpanded ? undefined : 4}
             >
-              {site.description || "Chưa có thông tin mô tả."}
+              {site.description || t('siteDetail.noDescription', { defaultValue: 'Chưa có thông tin mô tả.' })}
             </Text>
 
             {site.description && site.description.length > 150 && (
@@ -897,7 +939,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 onPress={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
               >
                 <Text style={styles.readMoreText}>
-                  {isDescriptionExpanded ? "Thu gọn" : "Đọc thêm"}
+                  {isDescriptionExpanded ? t('siteDetail.collapse', { defaultValue: 'Thu gọn' }) : t('siteDetail.readMore', { defaultValue: 'Đọc thêm' })}
                 </Text>
                 <Ionicons
                   name={isDescriptionExpanded ? "chevron-up" : "chevron-down"}
@@ -911,7 +953,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           {/* History Section - Only if distinct from description */}
           {site.history && site.history !== site.description && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Lịch sử hình thành</Text>
+              <Text style={styles.sectionTitle}>{t('siteDetail.history', { defaultValue: 'Lịch sử hình thành' })}</Text>
               <Text style={styles.descriptionText}>{site.history}</Text>
             </View>
           )}
@@ -920,9 +962,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           {media && media.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Hình ảnh & Video</Text>
+                <Text style={styles.sectionTitle}>{t('siteDetail.media', { defaultValue: 'Hình ảnh & Video' })}</Text>
                 <TouchableOpacity>
-                  <Text style={styles.seeAllText}>Xem tất cả</Text>
+                  <Text style={styles.seeAllText}>{t('siteDetail.seeAll', { defaultValue: 'Xem tất cả' })}</Text>
                 </TouchableOpacity>
               </View>
               <ScrollView
@@ -960,7 +1002,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <View style={styles.sectionIconContainer}>
                 <Ionicons name="calendar" size={24} color={COLORS.white} />
               </View>
-              <Text style={styles.sectionTitlePremium}>Lịch Phụng Vụ</Text>
+              <Text style={styles.sectionTitlePremium}>{t('siteDetail.liturgySchedule', { defaultValue: 'Lịch Phụng Vụ' })}</Text>
             </View>
 
             {formattedSchedules.sunday ||
@@ -977,7 +1019,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     >
                       <Ionicons name="sunny" size={20} color={COLORS.primary} />
                       <Text style={styles.sundayTitle}>
-                        Chúa Nhật / Lễ Trọng
+                        {t('siteDetail.sundaySpecial', { defaultValue: 'Chúa Nhật / Lễ Trọng' })}
                       </Text>
                     </LinearGradient>
                     <View style={styles.sundayTimesContainer}>
@@ -1023,7 +1065,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
                 <TouchableOpacity style={styles.viewFullScheduleButton}>
                   <Text style={styles.viewFullScheduleText}>
-                    XEM CHI TIẾT LỊCH LỄ
+                    {t('siteDetail.viewFullSchedule', { defaultValue: 'XEM CHI TIẾT LỊCH LỄ' })}
                   </Text>
                   <Ionicons
                     name="arrow-forward"
@@ -1034,7 +1076,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Đang cập nhật lịch lễ...</Text>
+                <Text style={styles.emptyText}>{t('siteDetail.updatingSchedule', { defaultValue: 'Đang cập nhật lịch lễ...' })}</Text>
               </View>
             )}
           </View>
@@ -1050,7 +1092,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               >
                 <Ionicons name="ticket" size={24} color={COLORS.white} />
               </View>
-              <Text style={styles.sectionTitlePremium}>Sự kiện sắp tới</Text>
+              <Text style={styles.sectionTitlePremium}>{t('siteDetail.upcomingEvents', { defaultValue: 'Sự kiện sắp tới' })}</Text>
             </View>
 
             {events && events.length > 0 ? (
@@ -1065,7 +1107,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                   // Clean date parsing for display
                   const eventDate = new Date(event.start_date);
                   const day = eventDate.getDate();
-                  const month = eventDate.getMonth() + 1;
+                  const locale = t('siteDetail.monthLocale', { defaultValue: 'vi-VN' });
+                  const monthStr = eventDate.toLocaleDateString(locale, { month: 'short' }).toUpperCase();
 
                   return (
                     <TouchableOpacity
@@ -1103,7 +1146,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       {/* Date Badge */}
                       <View style={styles.eventDateBadge}>
                         <Text style={styles.eventDateDay}>{day}</Text>
-                        <Text style={styles.eventDateMonth}>THG {month}</Text>
+                        <Text style={styles.eventDateMonth}>{monthStr}</Text>
                       </View>
 
                       {/* Content */}
@@ -1131,7 +1174,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               </ScrollView>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Chưa có sự kiện sắp tới.</Text>
+                <Text style={styles.emptyText}>{t('siteDetail.noUpcomingEvents', { defaultValue: 'Chưa có sự kiện sắp tới.' })}</Text>
               </View>
             )}
           </View>
@@ -1347,7 +1390,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
           {/* Around the Sanctuary */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Xung quanh nhà thờ</Text>
+            <Text style={styles.sectionTitle}>{t('siteDetail.aroundSite', { defaultValue: 'Xung quanh nhà thờ' })}</Text>
             <View style={styles.mapCard}>
               {/* Vietmap */}
               {site.latitude && site.longitude ? (
@@ -1418,36 +1461,52 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     color={COLORS.textTertiary}
                   />
                   <Text style={styles.mapNoLocationText}>
-                    Chưa có dữ liệu vị trí
+                    {t('siteDetail.noLocationData', { defaultValue: 'Chưa có dữ liệu vị trí' })}
                   </Text>
                 </View>
               )}
 
               {/* Nearby Places List */}
               {places && places.length > 0 ? (
-                places.map((place, index) => (
-                  <NearbyPlaceCard
-                    key={place.id || index}
-                    name={place.name}
-                    address={place.address}
-                    distance={`${Math.round(place.distance_meters / 100) / 10} km`}
-                    type={place.category as any}
-                    onDirections={() => {
-                      if (place.latitude && place.longitude && mapRef.current) {
-                        mapRef.current.flyTo(
-                          place.latitude,
-                          place.longitude,
-                          15,
-                        );
-                        mapRef.current.selectPin(place.id);
-                      }
-                    }}
-                  />
-                ))
+                places.map((place, index) => {
+                  let distanceStr = "0 m";
+                  if (site.latitude && site.longitude && place.latitude && place.longitude) {
+                    const distMeters = calculateDistanceMeters(site.latitude, site.longitude, place.latitude, place.longitude);
+                    if (distMeters < 1000) {
+                      distanceStr = `${Math.round(distMeters)} m`;
+                    } else {
+                      distanceStr = `${(distMeters / 1000).toFixed(1)} km`;
+                    }
+                  } else if (place.distance_meters) {
+                    distanceStr = place.distance_meters < 1000 
+                      ? `${Math.round(place.distance_meters)} m` 
+                      : `${(place.distance_meters / 1000).toFixed(1)} km`;
+                  }
+
+                  return (
+                    <NearbyPlaceCard
+                      key={place.id || index}
+                      name={place.name}
+                      address={place.address}
+                      distance={distanceStr}
+                      type={place.category as any}
+                      onDirections={() => {
+                        if (place.latitude && place.longitude && mapRef.current) {
+                          mapRef.current.flyTo(
+                            place.latitude,
+                            place.longitude,
+                            15,
+                          );
+                          mapRef.current.selectPin(place.id);
+                        }
+                      }}
+                    />
+                  );
+                })
               ) : (
                 <View style={{ padding: SPACING.md }}>
                   <Text style={{ color: COLORS.textSecondary }}>
-                    Không có địa điểm lân cận nào.
+                    {t('siteDetail.noNearbyPlaces', { defaultValue: 'Không có địa điểm lân cận nào.' })}
                   </Text>
                 </View>
               )}
@@ -1479,7 +1538,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             style={styles.addToPlanBtnGradient}
           >
             <Ionicons name="calendar" size={20} color="#fff" />
-            <Text style={styles.addToPlanBtnText}>Thêm vào lịch trình</Text>
+            <Text style={styles.addToPlanBtnText}>{t('siteDetail.addToPlan', { defaultValue: 'Thêm vào lịch trình' })}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </LinearGradient>
