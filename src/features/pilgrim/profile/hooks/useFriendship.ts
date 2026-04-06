@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import Toast from "react-native-toast-message";
+import { useTranslation } from "react-i18next";
 import { pilgrimFriendshipApi } from "../../../../services/api/pilgrim";
 import {
   FriendshipListItem,
@@ -7,6 +8,7 @@ import {
 } from "../../../../types/pilgrim";
 
 export const useFriendship = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [friends, setFriends] = useState<FriendshipListItem[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendshipListItem[]>([]);
@@ -61,8 +63,8 @@ export const useFriendship = () => {
         if (res.success) {
           Toast.show({
             type: "success",
-            text1: action === "accept" ? "Đã chấp nhận" : "Đã từ chối",
-            text2: "Cập nhật mối quan hệ thành công",
+            text1: action === "accept" ? t("friends.acceptSuccess") : t("friends.rejectSuccess"),
+            text2: t("friends.respondSuccessMsg", { defaultValue: "Cập nhật mối quan hệ thành công" }),
           });
           // Refresh lists
           await fetchPendingRequests();
@@ -73,13 +75,13 @@ export const useFriendship = () => {
       } catch (error) {
         Toast.show({
           type: "error",
-          text1: "Thao tác thất bại",
-          text2: "Vui lòng thử lại sau",
+          text1: t("friends.respondError"),
+          text2: t("friends.respondErrorMsg"),
         });
         return false;
       }
     },
-    [fetchFriends, fetchPendingRequests]
+    [fetchFriends, fetchPendingRequests, t]
   );
 
   const removeFriend = useCallback(
@@ -89,8 +91,8 @@ export const useFriendship = () => {
         if (res.success) {
           Toast.show({
             type: "success",
-            text1: "Đã hủy kết bạn",
-            text2: `Đã xóa ${name} khỏi danh sách bạn bè`,
+            text1: t("friends.removeSuccess"),
+            text2: t("friends.removeSuccessMsg", { name }),
           });
           await fetchFriends();
           return true;
@@ -99,13 +101,13 @@ export const useFriendship = () => {
       } catch (error) {
         Toast.show({
           type: "error",
-          text1: "Không thể hủy kết bạn",
-          text2: "Vui lòng thử lại sau",
+          text1: t("friends.removeError"),
+          text2: t("friends.respondErrorMsg"),
         });
         return false;
       }
     },
-    [fetchFriends]
+    [fetchFriends, t]
   );
 
   const sendRequest = useCallback(async (addresseeId: string) => {
@@ -114,8 +116,8 @@ export const useFriendship = () => {
       if (res.success) {
         Toast.show({
           type: "success",
-          text1: "Đã gửi yêu cầu",
-          text2: "Lời mời kết bạn đã được gửi đi",
+          text1: t("friends.requestSent"),
+          text2: t("friends.requestSentMsg"),
         });
         return true;
       }
@@ -123,12 +125,12 @@ export const useFriendship = () => {
     } catch (error) {
       Toast.show({
         type: "error",
-        text1: "Gửi yêu cầu thất bại",
-        text2: "Vui lòng kiểm tra lại",
+        text1: t("friends.requestError"),
+        text2: t("friends.requestErrorMsg"),
       });
       return false;
     }
-  }, []);
+  }, [t]);
 
   return {
     loading,

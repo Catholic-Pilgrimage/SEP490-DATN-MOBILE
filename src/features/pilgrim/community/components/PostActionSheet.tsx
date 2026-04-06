@@ -26,6 +26,8 @@ interface PostActionSheetProps {
   onDelete: () => void;
   onEdit: () => void;
   onReport: () => void;
+  /** Callback to send friend request to the post author */
+  onAddFriend?: () => void;
 }
 
 const PostActionSheet: React.FC<PostActionSheetProps> = ({
@@ -37,6 +39,7 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
   onDelete,
   onEdit,
   onReport,
+  onAddFriend,
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -104,17 +107,36 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
               </TouchableOpacity>
             </>
           ) : (
-            /* Non-owner action: Report only */
-            <TouchableOpacity
-              style={styles.action}
-              onPress={onReport}
-              disabled={busy}
-            >
-              <MaterialIcons name="flag" size={20} color={COLORS.textPrimary} />
-              <Text style={styles.actionText}>
-                {t("postDetail.reportPost", { defaultValue: "Report post" })}
-              </Text>
-            </TouchableOpacity>
+            /* Non-owner action: Friendship & Report */
+            <>
+              {onAddFriend && (
+                <TouchableOpacity
+                  style={styles.action}
+                  onPress={onAddFriend}
+                  disabled={busy}
+                >
+                  <MaterialIcons
+                    name="person-add-alt"
+                    size={20}
+                    color={COLORS.textPrimary}
+                  />
+                  <Text style={styles.actionText}>
+                    {t("postDetail.addFriend", { defaultValue: "Add friend" })}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.action}
+                onPress={onReport}
+                disabled={busy}
+              >
+                <MaterialIcons name="flag" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.actionText}>
+                  {t("postDetail.reportPost", { defaultValue: "Report post" })}
+                </Text>
+              </TouchableOpacity>
+            </>
           )}
 
           <TouchableOpacity

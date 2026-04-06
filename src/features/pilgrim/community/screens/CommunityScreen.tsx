@@ -24,6 +24,7 @@ import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useDeletePost, useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { useSendFriendRequest } from '../../../../hooks/useFriendship';
 import { useConfirm } from '../../../../hooks/useConfirm';
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from '../../../../services/api/pilgrim';
 import { FeedPost } from '../../../../types';
@@ -428,6 +429,7 @@ export default function CommunityScreen() {
         refetch,
     } = usePosts(10, { enabled: !requiresLogin });
     const deletePostMutation = useDeletePost();
+    const sendFriendRequestMutation = useSendFriendRequest();
 
     const handleLogin = React.useCallback(async () => {
         if (isGuest) {
@@ -787,6 +789,40 @@ export default function CommunityScreen() {
         setActivePostAction(null);
     }, [activePostAction]);
 
+    const handleAddFriend = React.useCallback(() => {
+        if (!activePostAction) return;
+
+        const targetUser = activePostAction.author;
+        const targetUserId = activePostAction.user_id;
+        setActivePostAction(null);
+
+        sendFriendRequestMutation.mutate(targetUserId, {
+            onSuccess: () => {
+                Toast.show({
+                    type: 'success',
+                    text1: t('common.success', { defaultValue: 'Thành công' }),
+                    text2: t('postDetail.friendRequestSent', {
+                        defaultValue: 'Đã gửi lời mời kết bạn đến {{name}}',
+                        name: targetUser.full_name,
+                    }),
+                });
+            },
+            onError: (error: any) => {
+                const errorMessage = error?.message === 'Đã gửi lời mời kết bạn trước đó' 
+                    ? t('postDetail.friendRequestDuplicate') 
+                    : error?.message;
+
+                Toast.show({
+                    type: 'error',
+                    text1: t('common.error', { defaultValue: 'Lỗi' }),
+                    text2: errorMessage || t('postDetail.friendRequestError', {
+                        defaultValue: 'Không thể gửi lời mời kết bạn',
+                    }),
+                });
+            },
+        });
+    }, [activePostAction, sendFriendRequestMutation, t]);
+
     const renderItem = ({ item }: { item: FeedPost }) => {
         const siteId = getFeedPostSiteId(item);
         const plannerLocationName = getFeedPostPlannerLocationName(item, plannerItemSiteNamesById);
@@ -936,11 +972,12 @@ export default function CommunityScreen() {
                     activePostAction?.user_id &&
                     user.id === activePostAction.user_id
                 )}
-                busy={deletePostMutation.isPending}
+                busy={deletePostMutation.isPending || sendFriendRequestMutation.isPending}
                 onClose={() => setActivePostAction(null)}
                 onEdit={handleEditPost}
                 onDelete={handleDeletePost}
                 onReport={handleReportPost}
+                onAddFriend={handleAddFriend}
             />
 
             <ReportPostModal
