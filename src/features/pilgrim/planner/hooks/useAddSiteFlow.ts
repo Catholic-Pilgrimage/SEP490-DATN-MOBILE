@@ -17,11 +17,13 @@ import vietmapService from '../../../../services/map/vietmapService';
 import type { SiteEvent } from '../../../../types/pilgrim';
 import type { PlanEntity, PlanItem } from '../../../../types/pilgrim/planner.types';
 import {
+  type DayEvent,
   type DaySchedule,
   type ScheduleInsight,
   type SuggestedArrival,
   generateInsight,
   getDateForLeg,
+  getEventsForDate,
   getMassTimesForDate,
   parseOpeningHours,
   suggestArrivalTime,
@@ -41,6 +43,7 @@ export interface SiteTravelData {
   openTime?: string;
   closeTime?: string;
   massTimesForDay: string[];
+  eventsForDay: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
   /** true when travel data comes from previous day's last item (cross-day) */
@@ -192,7 +195,25 @@ export function useAddSiteFlow(params: {
           // Mass schedule fetch failure is non-critical
         }
 
-        // 4. Get event info if applicable
+        // 4. Fetch site events for this site on legDate
+        let eventsForDay: DayEvent[] = [];
+        try {
+          const eventParams: any = { limit: 50 };
+          if (legDate) {
+            const dateStr = `${legDate.getFullYear()}-${String(legDate.getMonth() + 1).padStart(2, '0')}-${String(legDate.getDate()).padStart(2, '0')}`;
+            eventParams.start_date = dateStr;
+            eventParams.end_date = dateStr;
+          }
+          const evRes = await pilgrimSiteApi.getSiteEvents(siteId, eventParams);
+          if (flowId !== flowIdRef.current) return;
+          const evList = (evRes as any)?.data?.data || (evRes as any)?.data || [];
+          eventsForDay = getEventsForDate(evList, legDate);
+        } catch {
+          // Event fetch failure is non-critical
+        }
+
+        // 5. Get event info — prefer explicitly selected event, else pick first from fetched events
+        let resolvedEventId: string | null = eventId || null;
         let evtName: string | undefined;
         let evtStart: string | undefined;
         if (eventId) {
@@ -201,14 +222,21 @@ export function useAddSiteFlow(params: {
             evtName = ev.name;
             evtStart = ev.start_time || undefined;
           }
+        } else if (eventsForDay.length > 0) {
+          // Auto-detect: use the first event with a start time
+          const autoEvt = eventsForDay.find(e => e.startTime) || eventsForDay[0];
+          resolvedEventId = autoEvt.id;
+          evtName = autoEvt.name;
+          evtStart = autoEvt.startTime;
         }
 
-        // 5. Calculate route from previous item (same-day or cross-day)
+        // 6. Calculate route from previous item (same-day or cross-day)
         let travelData: SiteTravelData = {
           newSiteName: (newSite as any)?.name || 'Địa điểm mới',
           openTime,
           closeTime,
           massTimesForDay,
+          eventsForDay,
           eventStartTime: evtStart,
           eventName: evtName,
         };
@@ -308,6 +336,7 @@ export function useAddSiteFlow(params: {
 
         setState(prev => ({
           ...prev,
+          selectedEventId: resolvedEventId,
           estimatedTime,
           routeInfo,
           travelTimeMinutes,
@@ -334,6 +363,7 @@ export function useAddSiteFlow(params: {
           travelData: {
             newSiteName: 'Địa điểm',
             massTimesForDay: [],
+            eventsForDay: [],
           },
         }));
       }

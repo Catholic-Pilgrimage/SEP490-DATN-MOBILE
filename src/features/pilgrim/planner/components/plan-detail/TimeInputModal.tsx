@@ -10,12 +10,14 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "../../../../../config/toast.config";
-import type { ScheduleInsight, SuggestedArrival } from "../../utils/siteScheduleHelper";
+import type { DayEvent, ScheduleInsight, SuggestedArrival } from "../../utils/siteScheduleHelper";
 import { formatMinutesVi } from "../../utils/siteScheduleHelper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -52,6 +54,7 @@ interface TimeInputModalProps {
   openTime?: string;
   closeTime?: string;
   massTimesForDay?: string[];
+  eventsForDay?: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
 
@@ -95,6 +98,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     openTime,
     closeTime,
     massTimesForDay = [],
+    eventsForDay = [],
     eventStartTime,
     eventName,
     insight,
@@ -122,7 +126,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 20) }]}>
+      <View style={[styles.modalContainer, { paddingTop: Math.max(insets.top, 20), flex: 1 }]}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{t("planner.setTime")}</Text>
           <TouchableOpacity onPress={onClose}>
@@ -130,10 +134,15 @@ export default function TimeInputModal(props: TimeInputModalProps) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+            keyboardShouldPersistTaps="handled"
+          >
           <Text style={styles.timeInputLabel}>
             {t("planner.addLocationDay")} {selectedDay}
           </Text>
@@ -155,11 +164,12 @@ export default function TimeInputModal(props: TimeInputModalProps) {
           ) : null}
 
           {/* ── SITE SCHEDULE INFO ── */}
-          {!calculatingRoute && (openTime || closeTime || massTimesForDay.length > 0) && (
+          {!calculatingRoute && (openTime || closeTime || massTimesForDay.length > 0 || eventsForDay.length > 0) && (
             <SiteScheduleCard
               openTime={openTime}
               closeTime={closeTime}
               massTimesForDay={massTimesForDay}
+              eventsForDay={eventsForDay}
               eventStartTime={eventStartTime}
               eventName={eventName}
             />
@@ -383,12 +393,13 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             />
           </View>
         </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* ── CONFIRM BUTTON (STICKY BOTTOM) ── */}
         <View
           style={[
             localStyles.stickyFooter,
-            { paddingBottom: Math.max(insets.bottom, 16) },
+            { paddingBottom: Math.max(insets.bottom, 16) + 16 },
           ]}
         >
           <TouchableOpacity
@@ -437,10 +448,11 @@ function SiteScheduleCard(props: {
   openTime?: string;
   closeTime?: string;
   massTimesForDay: string[];
+  eventsForDay?: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
 }) {
-  const { openTime, closeTime, massTimesForDay, eventStartTime, eventName } = props;
+  const { openTime, closeTime, massTimesForDay, eventsForDay = [], eventStartTime, eventName } = props;
 
   return (
     <View style={localStyles.scheduleCard}>
@@ -462,12 +474,23 @@ function SiteScheduleCard(props: {
         <View style={localStyles.scheduleRow}>
           <Ionicons name="calendar-outline" size={14} color="#8B5CF6" />
           <Text style={localStyles.scheduleRowText}>
-            Thánh Lễ hôm nay: {massTimesForDay.join(", ")}
+            Giờ Lễ hôm nay: {massTimesForDay.join(", ")}
           </Text>
         </View>
       )}
 
-      {eventStartTime && (
+      {/* Show fetched events for the day */}
+      {eventsForDay.length > 0 && eventsForDay.map((evt) => (
+        <View key={evt.id} style={localStyles.scheduleRow}>
+          <Ionicons name="star" size={14} color="#D97706" />
+          <Text style={[localStyles.scheduleRowText, { fontWeight: "700", color: "#92400E" }]}>
+            {evt.name}{evt.startTime ? ` lúc ${evt.startTime}` : ""}{evt.endTime ? ` – ${evt.endTime}` : ""}
+          </Text>
+        </View>
+      ))}
+
+      {/* Fallback: show single event if explicitly selected but not in eventsForDay */}
+      {eventStartTime && eventsForDay.length === 0 && (
         <View style={localStyles.scheduleRow}>
           <Ionicons name="star" size={14} color="#D97706" />
           <Text style={[localStyles.scheduleRowText, { fontWeight: "700", color: "#92400E" }]}>
@@ -528,7 +551,7 @@ const localStyles = StyleSheet.create({
   },
   scheduleRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     paddingLeft: 2,
   },
@@ -537,6 +560,7 @@ const localStyles = StyleSheet.create({
     color: "#374151",
     fontWeight: "500",
     flex: 1,
+    flexShrink: 1,
   },
 
   // ── Travel Card ──
@@ -627,6 +651,8 @@ const localStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#991B1B",
+    flex: 1,
+    flexShrink: 1,
   },
   insightMessage: {
     fontSize: 13,

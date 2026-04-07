@@ -1,8 +1,10 @@
 /**
  * Site Schedule Helper
- * Parses opening hours, mass schedules, and suggests optimal arrival times.
+ * Parses opening hours, mass schedules, site events, and suggests optimal arrival times.
  * Supports all backend opening_hours formats (JSONB per-day, simple, or legacy string).
  */
+
+import type { SiteEvent } from '../../../../types/pilgrim';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,11 +20,21 @@ export interface SuggestedArrival {
   priority: 'event' | 'mass' | 'opening' | 'default';
 }
 
+/** Matched event for a specific day */
+export interface DayEvent {
+  id: string;
+  name: string;
+  startTime?: string; // "HH:MM"
+  endTime?: string;   // "HH:MM"
+  description?: string;
+}
+
 export interface SiteScheduleInfo {
   openTime?: string;
   closeTime?: string;
   isClosed?: boolean;
   massTimesForDay: string[];
+  eventsForDay: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
   suggestedArrival: SuggestedArrival;
@@ -168,6 +180,42 @@ export const getMassTimesForDate = (
     .sort();
 };
 
+// ─── Event Schedule Helper ────────────────────────────────────────────────────
+
+/**
+ * Filter site events that are active on a specific date.
+ * Returns DayEvent[] with time normalised to "HH:MM".
+ */
+export const getEventsForDate = (
+  events: SiteEvent[] | undefined,
+  date: Date | undefined,
+): DayEvent[] => {
+  if (!events?.length || !date) return [];
+
+  // Normalise target date to YYYY-MM-DD for comparison
+  const targetDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  return events
+    .filter(ev => {
+      if (!ev.start_date) return false;
+      const evStart = ev.start_date.substring(0, 10); // YYYY-MM-DD
+      const evEnd = ev.end_date ? ev.end_date.substring(0, 10) : evStart;
+      return targetDateStr >= evStart && targetDateStr <= evEnd;
+    })
+    .map(ev => ({
+      id: String(ev.id),
+      name: ev.name,
+      startTime: ev.start_time ? ev.start_time.substring(0, 5) : undefined,
+      endTime: ev.end_time ? ev.end_time.substring(0, 5) : undefined,
+      description: ev.description || undefined,
+    }))
+    .sort((a, b) => {
+      if (!a.startTime) return 1;
+      if (!b.startTime) return -1;
+      return a.startTime.localeCompare(b.startTime);
+    });
+};
+
 // ─── Smart Suggestion ─────────────────────────────────────────────────────────
 
 /**
@@ -196,7 +244,7 @@ export const suggestArrivalTime = (params: {
     };
   }
 
-  // Priority 2: Thánh lễ đầu tiên trong ngày (sau giờ có thể đến)
+  // Priority 2: Giờ Lễ đầu tiên trong ngày (sau giờ có thể đến)
   if (massTimesForDay.length > 0) {
     const attendableMass = massTimesForDay.find(
       t => timeToMinutes(t) - PRE_EVENT_BUFFER_MINUTES >= minArrival,
@@ -206,7 +254,7 @@ export const suggestArrivalTime = (params: {
       const suggestedMin = timeToMinutes(attendableMass) - PRE_EVENT_BUFFER_MINUTES;
       return {
         time: minutesToTime(suggestedMin),
-        reason: `Nên đến sớm ${PRE_EVENT_BUFFER_MINUTES} phút trước Thánh Lễ lúc ${attendableMass}`,
+        reason: `Nên đến sớm ${PRE_EVENT_BUFFER_MINUTES} phút trước Giờ Lễ lúc ${attendableMass}`,
         priority: 'mass',
       };
     }
@@ -310,27 +358,14 @@ export const generateInsight = (params: {
     }
   }
 
-  // ── P2: Arriving after closing — isBlocking ──
-  if (closeTime && selectedMin > timeToMinutes(closeTime)) {
-    return {
-      type: 'error_closed',
-      title: `Đã đóng cửa (${closeTime})`,
-      message: `Giờ bạn chọn (${estimatedTime}) muộn hơn giờ đóng cửa ${formatMinutesVi(selectedMin - timeToMinutes(closeTime))}.\nHãy dời sang sáng sớm hơn hoặc ngày khác.`,
-      color: '#BE123C',
-      bgColor: '#FFE4E6',
-      iconName: 'warning',
-      isBlocking: true,
-    };
-  }
-
-  // ── P3: Event/Thánh lễ timing ──
+  // ── P2: Event timing (takes priority over opening hours — backend skips opening hours when event exists) ──
   if (eventStartTime) {
     const eventMin = timeToMinutes(eventStartTime);
     const diffMin = eventMin - selectedMin;
     if (diffMin < 0) {
       return {
         type: 'event_late',
-        title: `Trễ hơn ${eventName || 'Thánh Lễ'} (${eventStartTime})`,
+        title: `Trễ hơn ${eventName || 'Sự kiện'} (${eventStartTime})`,
         message: `Giờ bạn chọn (${estimatedTime}) muộn hơn sự kiện ${formatMinutesVi(Math.abs(diffMin))}.\nHãy đi sớm hơn để kịp tham dự!`,
         color: '#BE123C',
         bgColor: '#FFE4E6',
@@ -339,7 +374,7 @@ export const generateInsight = (params: {
       };
     }
 
-    const eventLabel = eventName || 'Thánh Lễ';
+    const eventLabel = eventName || 'Sự kiện';
     const isEvent = eventLabel.toLowerCase().includes('sự kiện');
     const typeLabel = isEvent ? 'Sự kiện' : 'Lễ';
 
@@ -357,6 +392,19 @@ export const generateInsight = (params: {
     };
   }
 
+  // ── P3: Arriving after closing — isBlocking (skip when event exists) ──
+  if (!eventStartTime && closeTime && selectedMin > timeToMinutes(closeTime)) {
+    return {
+      type: 'error_closed',
+      title: `Đã đóng cửa (${closeTime})`,
+      message: `Giờ bạn chọn (${estimatedTime}) muộn hơn giờ đóng cửa ${formatMinutesVi(selectedMin - timeToMinutes(closeTime))}.\nHãy dời sang sáng sớm hơn hoặc ngày khác.`,
+      color: '#BE123C',
+      bgColor: '#FFE4E6',
+      iconName: 'warning',
+      isBlocking: true,
+    };
+  }
+
   // ── P3b: Mass schedule — warn if arriving after mass starts ──
   if (massTimesForDay.length > 0) {
     const nextMass = massTimesForDay.find(t => timeToMinutes(t) > selectedMin);
@@ -368,7 +416,7 @@ export const generateInsight = (params: {
       const late = selectedMin - timeToMinutes(currentMass);
       return {
         type: 'event_late',
-        title: `Thánh Lễ lúc ${currentMass} đã bắt đầu`,
+        title: `Giờ Lễ lúc ${currentMass} đã bắt đầu`,
         message: `Bạn sẽ đến muộn ${formatMinutesVi(late)} so với giờ lễ. Nên đến trước lúc ${subtractMinutes(currentMass, PRE_EVENT_BUFFER_MINUTES)}.`,
         color: '#D97706',
         bgColor: 'rgba(217, 119, 6, 0.08)',
@@ -382,7 +430,7 @@ export const generateInsight = (params: {
       if (buffer <= 120 && buffer > 0) {
         return {
           type: 'event_ok',
-          title: `Thánh Lễ diễn ra lúc ${nextMass}`,
+          title: `Giờ Lễ diễn ra lúc ${nextMass}`,
           message: `Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(buffer)}.`,
           color: '#1D4ED8',
           bgColor: 'rgba(29, 78, 216, 0.08)',
@@ -394,8 +442,8 @@ export const generateInsight = (params: {
     }
   }
 
-  // ── P4: Arriving before opening ──
-  if (openTime && selectedMin < timeToMinutes(openTime)) {
+  // ── P4: Arriving before opening (skip when event exists) ──
+  if (!eventStartTime && openTime && selectedMin < timeToMinutes(openTime)) {
     const waitMin = timeToMinutes(openTime) - selectedMin;
     return {
       type: 'early',
@@ -408,8 +456,8 @@ export const generateInsight = (params: {
     };
   }
 
-  // ── P5: Check if rest_duration goes past closing ──
-  if (closeTime && restDuration) {
+  // ── P5: Check if rest_duration goes past closing (skip when event exists) ──
+  if (!eventStartTime && closeTime && restDuration) {
     const leaveMin = selectedMin + restDuration;
     const closeMin = timeToMinutes(closeTime);
     if (leaveMin > closeMin) {
@@ -446,7 +494,7 @@ export const generateInsight = (params: {
       if (upcomingMass && massCountdown && massCountdown > 0) {
         return {
           type: 'event_ok',
-          title: `Thánh Lễ diễn ra lúc ${upcomingMass}`,
+          title: `Giờ Lễ diễn ra lúc ${upcomingMass}`,
           message: `Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(massCountdown)}.`,
           color: '#1D4ED8',
           bgColor: 'rgba(29, 78, 216, 0.08)',
@@ -491,7 +539,7 @@ export const generateInsight = (params: {
 
       return {
         type: 'first_stop',
-        title: `Thánh Lễ diễn ra lúc ${upcomingMass}`,
+        title: `Giờ Lễ diễn ra lúc ${upcomingMass}`,
         message: `${scheduleParts.length > 0 ? scheduleParts.join(' • ') + '. ' : ''}Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(massCountdown)}.`,
         color: '#1D4ED8',
         bgColor: 'rgba(29, 78, 216, 0.08)',
