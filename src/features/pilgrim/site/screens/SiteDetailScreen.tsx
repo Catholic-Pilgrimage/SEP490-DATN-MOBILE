@@ -1734,6 +1734,11 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
             </SafeAreaView>
           </KeyboardAvoidingView>
+          
+          {/* Internal Toast for Modal visibility on some Android versions */}
+          <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
+             <Toast />
+          </View>
         </View>
       </Modal>
 

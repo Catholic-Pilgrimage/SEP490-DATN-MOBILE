@@ -53,6 +53,7 @@ export interface SiteSummary {
   longitude?: number;
   /** Bổn mạng — dùng lọc/ghi chú khi thêm điểm vào kế hoạch nhóm. */
   patronSaint?: string;
+  openingHours?: { open?: string; close?: string };
 }
 
 export interface NearbySite extends SiteSummary {
@@ -323,6 +324,8 @@ export interface SearchSitesParams {
   page?: number;
   limit?: number;
   has_events?: "true" | "false";
+  has_mass_schedules?: "true" | "false";
+  is_open?: "true" | "false";
   start_date?: string;
   end_date?: string;
 }

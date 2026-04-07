@@ -100,20 +100,28 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
           </View>
         </View>
 
-        {/* Stats / Footer */}
         <View style={styles.footerRow}>
-          {reviewCount > 10 ? (
+          {reviewCount > 0 ? (
             <View style={styles.statItem}>
-              <Ionicons name="people" size={12} color={COLORS.primary} />
-              <Text style={styles.statText}>
-                {reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount} đang xem
-              </Text>
+              {reviewCount > 50 ? (
+                  <>
+                    <Ionicons name="sparkles" size={12} color="#EAB308" />
+                    <Text style={styles.statTextHighlight}>Nổi bật</Text>
+                  </>
+              ) : (
+                  <>
+                    <Ionicons name="star" size={12} color="#EAB308" />
+                    <Text style={styles.statText}>
+                      {reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount} lượt đánh giá
+                    </Text>
+                  </>
+              )}
             </View>
           ) : (
-            <View style={styles.statItem}>
-              <Ionicons name="sparkles" size={12} color="#EAB308" />
-              <Text style={styles.statTextHighlight}>Nổi bật</Text>
-            </View>
+             <View style={styles.statItem}>
+               <Ionicons name="leaf-outline" size={14} color={COLORS.primary} />
+               <Text style={styles.statText}>Khám phá ngay</Text>
+             </View>
           )}
 
           <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />

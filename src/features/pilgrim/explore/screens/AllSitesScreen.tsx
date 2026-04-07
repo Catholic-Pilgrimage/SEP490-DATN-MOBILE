@@ -27,7 +27,7 @@ import { VerticalSiteCard } from '../components/VerticalSiteCard';
 
 type Props = NativeStackScreenProps<any, 'AllSites'>;
 
-const FILTERS = ['Tất cả', 'Gần tôi nhất', 'Đang mở cửa', 'Nhà thờ lớn'];
+const FILTERS = ['Tất cả', 'Miền Bắc', 'Miền Trung', 'Miền Nam', 'Đang mở cửa', 'Có sự kiện'];
 
 export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
     const { isAuthenticated, isGuest } = useAuth();
@@ -92,6 +92,35 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
         setSearchText('');
         setSearchQuery('');
         fetchSites({});
+    };
+
+    const handleFilterPress = (filter: string) => {
+        setActiveFilter(filter);
+        const params: any = { query: searchQuery };
+        if (filter === 'Có sự kiện') params.has_events = 'true';
+        if (filter === 'Miền Bắc') params.region = 'Bac';
+        if (filter === 'Miền Trung') params.region = 'Trung';
+        if (filter === 'Miền Nam') params.region = 'Nam';
+        
+        fetchSites(params);
+    };
+
+    const isSiteOpen = (openingHours?: { open?: string; close?: string }) => {
+        if (!openingHours || !openingHours.open || !openingHours.close) return false;
+        try {
+            const now = new Date();
+            const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+            return currentTime >= openingHours.open && currentTime <= openingHours.close;
+        } catch (e) {
+            return false;
+        }
+    };
+
+    const getFilteredSites = () => {
+        if (activeFilter === 'Đang mở cửa') {
+            return sites.filter(s => isSiteOpen(s.openingHours));
+        }
+        return sites;
     };
 
     const toggleSearch = () => {
@@ -212,13 +241,15 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                                     <TouchableOpacity
                                         key={filter}
                                         style={[styles.filterChip, activeFilter === filter && styles.filterChipActive]}
-                                        onPress={() => setActiveFilter(filter)}
+                                        onPress={() => handleFilterPress(filter)}
                                     >
                                         <Text style={[styles.filterText, activeFilter === filter && styles.filterTextActive]}>
                                             {filter === 'Tất cả' ? t('allSites.filterAll', { defaultValue: 'Tất cả' }) :
-                                             filter === 'Gần tôi nhất' ? t('allSites.filterNearest', { defaultValue: 'Gần tôi nhất' }) :
+                                             filter === 'Miền Bắc' ? t('explore.north', { defaultValue: 'Miền Bắc' }) :
+                                             filter === 'Miền Trung' ? t('explore.central', { defaultValue: 'Miền Trung' }) :
+                                             filter === 'Miền Nam' ? t('explore.south', { defaultValue: 'Miền Nam' }) :
                                              filter === 'Đang mở cửa' ? t('allSites.filterOpen', { defaultValue: 'Đang mở cửa' }) :
-                                             filter === 'Nhà thờ lớn' ? t('allSites.filterBigChurch', { defaultValue: 'Nhà thờ lớn' }) :
+                                             filter === 'Có sự kiện' ? t('allSites.filterEvents', { defaultValue: 'Có sự kiện' }) :
                                              filter}
                                         </Text>
                                     </TouchableOpacity>
@@ -227,7 +258,7 @@ export const AllSitesScreen: React.FC<Props> = ({ navigation }) => {
                         </View>
 
                         <FlatList
-                            data={sites}
+                            data={getFilteredSites()}
                             keyExtractor={(item) => item.id}
                             contentContainerStyle={styles.listContainer}
                             showsVerticalScrollIndicator={false}
