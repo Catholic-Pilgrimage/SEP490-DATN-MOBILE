@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFocusEffect } from "@react-navigation/native";
 import React, {
   useCallback,
   useEffect,
@@ -46,6 +47,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const { user } = useAuth();
   const {
     plan,
+    setPlan,
     loading,
     error,
     sortedDays,
@@ -101,6 +103,12 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     }
   }, [sortedDays, todayIdx, selectedDay]);
 
+  useFocusEffect(
+    useCallback(() => {
+      refreshPlan();
+    }, [refreshPlan])
+  );
+
   const allItemsFlat = useMemo(() => {
     if (!plan?.items_by_day) return [];
     return Object.values(plan.items_by_day).flat();
@@ -120,6 +128,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     skippingItemId,
     checkIn,
     skipItem,
+    markVisited,
   } = useJourneyExecution(planId, refreshPlan, onCompleted);
   const { takePhoto, pickFromGallery } = useCheckinPhoto();
   const isOwner = useMemo(
@@ -137,10 +146,23 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     const items = Object.values(plan.items_by_day).flat();
     if (!items.length) return false;
     return items.every((item) => {
-      const st = String(item.status || "").toLowerCase();
-      return st === "visited" || st === "skipped";
+      return item.status === "visited" || item.status === "skipped";
     });
-  }, [plan]);
+  }, [plan?.items_by_day]);
+
+  // Vòng lặp silent tự động tải lại kế hoạch để các thành viên nhận thông tin thay đổi mới (nếu có)
+  useEffect(() => {
+    if (!planId) return;
+    const interval = setInterval(() => {
+      pilgrimPlannerApi.getPlanDetail(planId).then(res => {
+        if (res.success && res.data) {
+          setPlan(res.data);
+        }
+      }).catch(() => {});
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [planId, setPlan]);
+
 
   const hasVisitedStops = useMemo(() => {
     if (!plan?.items_by_day) return false;
@@ -215,16 +237,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   }, [planStatus, allStopsHandled, hasVisitedStops, isOwner, navigation, plan?.id, refreshPlan]);
 
   // Hide Bottom Tab Bar
-  useEffect(() => {
-    navigation.getParent()?.setOptions({
-      tabBarStyle: { display: "none" },
-    });
-    return () => {
+  useFocusEffect(
+    useCallback(() => {
       navigation.getParent()?.setOptions({
-        tabBarStyle: undefined,
+        tabBarStyle: { display: "none" },
       });
-    };
-  }, [navigation]);
+    }, [navigation])
+  );
 
   // Determine check-in button state
   const isAlreadyCheckedIn = firstItem ? checkedInIds.has(firstItem.id) : false;
@@ -362,6 +381,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
             <Text style={styles.timelineTitle}>Lịch trình chuyến đi</Text>
+            {isOwner && planStatus === "ongoing" && (
+              <TouchableOpacity
+                style={styles.editItineraryBtn}
+                onPress={() => navigation.navigate("PlanDetailScreen", { planId })}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={20} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
 
           {sortedDays.length > 0 ? (
@@ -590,6 +618,9 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   timelineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 12,
     paddingHorizontal: 4,
   },
@@ -598,6 +629,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#4B5563",
     letterSpacing: 0.3,
+  },
+  editItineraryBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface0,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(139, 115, 85, 0.15)",
   },
   timelineEmptyContainer: {
     flex: 1,

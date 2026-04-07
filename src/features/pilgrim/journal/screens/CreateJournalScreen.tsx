@@ -117,6 +117,17 @@ export default function CreateJournalScreen() {
   const { journalId, plannerItemId: paramPlannerItemId } = route.params || {};
   const insets = useSafeAreaInsets();
 
+  const handleBackNavigation = () => {
+    if (route.params?.from === "ActiveJourney" && route.params?.planId) {
+      navigation.navigate("Lich trinh", {
+        screen: "ActiveJourneyScreen",
+        params: { planId: route.params.planId }
+      });
+    } else {
+      navigation.goBack();
+    }
+  };
+
   // State
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -975,7 +986,7 @@ export default function CreateJournalScreen() {
         message: t("journal.loadError"),
         showCancel: false,
       });
-      navigation.goBack();
+      handleBackNavigation();
     } finally {
       setInitialLoading(false);
     }
@@ -1086,7 +1097,7 @@ export default function CreateJournalScreen() {
                 "Nhật ký này đã được chia sẻ lên cộng đồng trước đó.",
               position: "top",
             });
-            navigation.goBack();
+            handleBackNavigation();
             return;
           }
         }
@@ -1143,7 +1154,7 @@ export default function CreateJournalScreen() {
                 "Nhật ký này đã được chia sẻ lên cộng đồng trước đó.",
               position: "top",
             });
-            navigation.goBack();
+            handleBackNavigation();
             return;
           }
         }
@@ -1165,7 +1176,7 @@ export default function CreateJournalScreen() {
           position: "top",
         });
       }
-      navigation.goBack();
+      handleBackNavigation();
     } catch (error: any) {
       console.error(error);
       Toast.show({
@@ -1236,7 +1247,7 @@ export default function CreateJournalScreen() {
       >
         <TouchableOpacity
           style={styles.iconButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => handleBackNavigation()}
         >
           <MaterialIcons
             name="arrow-back"
