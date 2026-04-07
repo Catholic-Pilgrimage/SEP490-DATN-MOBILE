@@ -2058,13 +2058,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         restDurationStr = `${totalMinutes} minute${totalMinutes > 1 ? "s" : ""}`;
       }
 
+      // Use flow's selectedEventId (includes auto-detected events)
+      const flowEventId = addSiteFlow.selectedEventId;
+
       const localDraft = {
         site_id: siteId,
         day_number: selectedDay,
         note: note.trim() || undefined,
         estimated_time: estimatedTime,
         rest_duration: restDurationStr,
-        ...(selectedEventId ? { event_id: selectedEventId } : {}),
+        ...(flowEventId ? { event_id: flowEventId } : {}),
       };
 
       const apiPayload: AddPlanItemRequest = {
@@ -2073,7 +2076,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         estimated_time: estimatedTime,
         rest_duration: restDurationStr,
         ...(localDraft.note ? { note: localDraft.note } : {}),
-        ...(selectedEventId ? { event_id: selectedEventId } : {}),
+        ...(flowEventId ? { event_id: flowEventId } : {}),
         ...(travelTimeMinutes !== undefined
           ? { travel_time_minutes: travelTimeMinutes }
           : {}),
@@ -3680,8 +3683,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         addingItem={addingItem}
         alreadyAddedSiteIds={
           new Set(
-            Object.values(plan.items_by_day || {})
-              .flat()
+            (plan.items_by_day?.[selectedDay.toString()] || [])
               .map((it: any) => String(it?.site_id || it?.site?.id || ""))
               .filter(Boolean),
           )

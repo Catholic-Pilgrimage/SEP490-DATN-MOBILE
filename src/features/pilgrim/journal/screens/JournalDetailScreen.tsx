@@ -52,6 +52,22 @@ export default function JournalDetailScreen() {
     const { confirm: showConfirm } = useConfirm();
     const { user } = useAuth();
 
+    useEffect(() => {
+        const parent = navigation.getParent();
+        if (parent) {
+            parent.setOptions({
+                tabBarStyle: { display: 'none' },
+            });
+        }
+        return () => {
+            if (parent) {
+                parent.setOptions({
+                    tabBarStyle: undefined,
+                });
+            }
+        };
+    }, [navigation]);
+
     const [journal, setJournal] = useState<JournalEntry | null>(null);
     const [loading, setLoading] = useState(true);
     const [siteName, setSiteName] = useState<string | null>(null);

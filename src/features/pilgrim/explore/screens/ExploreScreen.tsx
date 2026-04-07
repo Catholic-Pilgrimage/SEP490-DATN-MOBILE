@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useScrollToTop } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
@@ -57,6 +57,8 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const [isSearching, setIsSearching] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showGuestLogin, setShowGuestLogin] = useState(false);
+    const [showRegionFilter, setShowRegionFilter] = useState(false);
+    const [filterHasEvents, setFilterHasEvents] = useState(false);
 
     // Auth context
     const { isAuthenticated, isGuest } = useAuth();
@@ -87,6 +89,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         filters: {
             region: selectedRegion,
             query: searchQuery,
+            has_events: filterHasEvents ? 'true' : undefined,
             page: 1,
             limit: 10
         },
@@ -106,7 +109,13 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     const handleRegionChange = (regionId: string) => {
         setSelectedRegionId(regionId);
         const region = REGIONS.find(r => r.id === regionId)?.value;
-        fetchSites({ region, query: searchQuery });
+        fetchSites({ region, query: searchQuery, has_events: filterHasEvents ? 'true' : undefined });
+    };
+
+    const toggleHasEvents = () => {
+        const newValue = !filterHasEvents;
+        setFilterHasEvents(newValue);
+        fetchSites({ region: selectedRegion, query: searchQuery, has_events: newValue ? 'true' : undefined });
     };
 
     const handleSearch = () => {
@@ -125,6 +134,14 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     // Derived Animations
     // Header Search Bar + Title Opacity
     // Trigger much later, when Large Header is mostly scrolled out
+    // Dynamic Featured Sites: Top 5 by Review Count
+    const featuredSites = useMemo(() => {
+        if (!sites || sites.length === 0) return [];
+        return [...sites]
+            .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0))
+            .slice(0, 5);
+    }, [sites]);
+
     const headerContentOpacity = scrollY.interpolate({
         inputRange: [120, 160], // Adjust this range based on Large Header Height
         outputRange: [0, 1],
@@ -137,22 +154,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         extrapolate: 'clamp',
     });
 
-    // Sticky Filter - Trigger when Normal Filters (below banner) are about to hit top
-    // Large Header (~150) + Banner (~250 + 32) -> ~432 total offset roughly
-    // Trigger around 400-420.
-    const STICKY_TRIGGER_VAL = 410;
-
-    const stickyFilterOpacity = scrollY.interpolate({
-        inputRange: [STICKY_TRIGGER_VAL - 20, STICKY_TRIGGER_VAL],
-        outputRange: [0, 1],
-        extrapolate: 'clamp',
-    });
-
-    const stickyFilterTranslateY = scrollY.interpolate({
-        inputRange: [STICKY_TRIGGER_VAL - 20, STICKY_TRIGGER_VAL],
-        outputRange: [20, 0],
-        extrapolate: 'clamp',
-    });
+    // Sticky Filter removed as requested
 
     // Derived Animations
     // Header Search Bar + Title Opacity
@@ -162,44 +164,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     // Renderers
     // Banner renderer removed (extracted to component)
 
-    const renderFilters = (isSticky = false) => (
-        <View style={[
-            styles.filterContainer,
-            isSticky && styles.stickyFilterContent
-        ]}>
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.filterScrollContent}
-            >
-                {REGIONS.map(region => {
-                    const isActive = region.id === selectedRegionId;
-                    return (
-                        <TouchableOpacity
-                            key={region.id}
-                            style={[
-                                styles.filterChip,
-                                isActive && styles.filterChipActive,
-                                isSticky && styles.filterChipSticky // Smaller styling for sticky
-                            ]}
-                            onPress={() => handleRegionChange(region.id)}
-                            activeOpacity={0.7}
-                        >
-                            <Text style={[
-                                styles.filterChipText,
-                                isActive && styles.filterChipTextActive
-                            ]}>
-                                {region.id === 'all' ? t('explore.allRegions', { defaultValue: 'Tất cả' }) :
-                                 region.id === 'bac' ? t('explore.north', { defaultValue: 'Miền Bắc' }) :
-                                 region.id === 'trung' ? t('explore.central', { defaultValue: 'Miền Trung' }) :
-                                 t('explore.south', { defaultValue: 'Miền Nam' })}
-                            </Text>
-                        </TouchableOpacity>
-                    );
-                })}
-            </ScrollView>
-        </View>
-    );
+
 
     return (
         <ImageBackground
@@ -264,6 +229,13 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     </TouchableOpacity>
                                 )}
                             </View>
+                            <TouchableOpacity 
+                                style={styles.headerFilterBtn} 
+                                onPress={() => setShowRegionFilter(true)}
+                            >
+                                <Ionicons name="options-outline" size={24} color={selectedRegionId !== 'all' ? COLORS.primary : COLORS.textSecondary} />
+                                {selectedRegionId !== 'all' && <View style={styles.filterActiveDot} />}
+                            </TouchableOpacity>
                             <TouchableOpacity onPress={() => {
                                 setIsSearching(false);
                                 setSearchText('');
@@ -315,19 +287,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                     )}
                 </View>
 
-                {/* --- STICKY FILTERS --- */}
-                <Animated.View
-                    style={[
-                        styles.stickyFilterContainer,
-                        {
-                            opacity: stickyFilterOpacity,
-                            transform: [{ translateY: stickyFilterTranslateY }],
-                            top: HEADER_HEIGHT,
-                        }
-                    ]}
-                >
-                    {renderFilters(true)}
-                </Animated.View>
+
             </Animated.View>
 
             <NotificationModal
@@ -339,6 +299,70 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                 visible={showGuestLogin}
                 onClose={() => setShowGuestLogin(false)}
             />
+
+            {showRegionFilter && (
+                <View style={styles.modalOverlay}>
+                    <TouchableOpacity style={styles.overlayDismiss} onPress={() => setShowRegionFilter(false)} />
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Bộ lọc tìm kiếm</Text>
+                            <TouchableOpacity onPress={() => setShowRegionFilter(false)}>
+                                <Ionicons name="close-circle" size={26} color="#D1D5DB" />
+                            </TouchableOpacity>
+                        </View>
+                        
+                        <View style={styles.filterSection}>
+                             <Text style={styles.filterSectionLabel}>Khu vực</Text>
+                             <View style={styles.regionGrid}>
+                                {REGIONS.map(region => {
+                                    const isActive = region.id === selectedRegionId;
+                                    return (
+                                        <TouchableOpacity
+                                            key={region.id}
+                                            style={[styles.regionChip, isActive && styles.regionChipActive]}
+                                            onPress={() => handleRegionChange(region.id)}
+                                        >
+                                            <Text style={[styles.regionChipText, isActive && styles.regionChipTextActive]}>
+                                                {region.id === 'all' ? 'Tất cả' :
+                                                 region.id === 'bac' ? 'Miền Bắc' :
+                                                 region.id === 'trung' ? 'Miền Trung' : 'Miền Nam'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                             </View>
+                        </View>
+
+                        <View style={styles.filterSection}>
+                            <Text style={styles.filterSectionLabel}>Tính năng</Text>
+                            <TouchableOpacity 
+                                style={[styles.optionRow, filterHasEvents && styles.optionRowActive]}
+                                onPress={toggleHasEvents}
+                            >
+                                <View style={styles.optionRowLeft}>
+                                    <View style={[styles.optionIconBox, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
+                                        <Ionicons name="calendar" size={20} color="#EF4444" />
+                                    </View>
+                                    <View>
+                                        <Text style={styles.optionRowTitle}>Có sự kiện</Text>
+                                        <Text style={styles.optionRowSub}>Hiện các địa điểm đang có lễ hội/sự kiện</Text>
+                                    </View>
+                                </View>
+                                <View style={[styles.toggleBase, filterHasEvents && styles.toggleBaseActive]}>
+                                    <View style={[styles.toggleCircle, filterHasEvents && styles.toggleCircleActive]} />
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity 
+                            style={styles.applyBtn}
+                            onPress={() => setShowRegionFilter(false)}
+                        >
+                            <Text style={styles.applyBtnText}>Áp dụng</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
 
             {/* --- MAIN SCROLLVIEW --- */}
             <Animated.ScrollView
@@ -372,31 +396,41 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                         <Text style={styles.largeHeaderTitle}>{t('explore.title', { defaultValue: 'Khám Phá' })}</Text>
                         <Text style={styles.largeHeaderSubtitle}>{t('explore.subtitle', { defaultValue: 'Hành trình đức tin của bạn' })}</Text>
 
-                        {/* Large Dummy Search Bar for initial view */}
-                        <TouchableOpacity
-                            style={styles.largesearchTrigger}
-                            onPress={() => setIsSearching(true)}
-                            activeOpacity={0.9}
-                        >
-                            <Ionicons name="search" size={20} color={COLORS.primary} />
-                            <Text style={styles.largeSearchPlaceHolder}>{t('explore.searchPlaceholder', { defaultValue: 'Tìm tên thánh đường, địa phận...' })}</Text>
-                        </TouchableOpacity>
+                        <View style={styles.pillContainer}>
+                            <TouchableOpacity
+                                style={styles.pillSearchSection}
+                                onPress={() => setIsSearching(true)}
+                                activeOpacity={0.9}
+                            >
+                                <Ionicons name="search" size={20} color={COLORS.primary} />
+                                <Text style={styles.pillSearchText} numberOfLines={1}>
+                                    {t('explore.searchPlaceholder', { defaultValue: 'Tìm thánh đường, địa phận...' })}
+                                </Text>
+                            </TouchableOpacity>
+                            
+                            <View style={styles.pillDivider} />
+                            
+                            <TouchableOpacity 
+                                style={styles.pillFilterSection}
+                                onPress={() => setShowRegionFilter(true)}
+                            >
+                                <Ionicons name="options-outline" size={22} color={selectedRegionId !== 'all' ? COLORS.primary : COLORS.textSecondary} />
+                                {selectedRegionId !== 'all' && <View style={styles.filterActiveDot} />}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
 
                 {/* --- BANNER --- */}
                 {/* Extracted to FeaturedCarousel */}
-                {sites && sites.length > 0 && (
+                {featuredSites && featuredSites.length > 0 && (
                     <FeaturedCarousel
-                        sites={sites}
+                        sites={featuredSites}
                         onSitePress={(siteId) => navigation.navigate('SiteDetail', { siteId })}
                     />
                 )}
 
-                {/* --- NORMAL FILTERS --- */}
-                <View style={styles.normalFilterSection}>
-                    {renderFilters(false)}
-                </View>
+
 
                 {/* --- LIST --- */}
                 <View style={styles.listContainer}>
@@ -448,11 +482,6 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
                                     onFavoritePress={() => handleFavoriteToggle(site.id)}
                                 />
                             ))}
-                            {isFetchingMore && (
-                                <View style={styles.loadingMore}>
-                                    <ActivityIndicator size="small" color={COLORS.primary} />
-                                </View>
-                            )}
                         </>
                     )}
                 </View>
@@ -576,27 +605,7 @@ const styles = StyleSheet.create({
         fontStyle: 'italic',
         marginBottom: 10, // Reduced closer to search bar
     },
-    largesearchTrigger: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderRadius: 16,
-        gap: 12,
-        // Soft Gold Shadow
-        shadowColor: "rgba(189, 157, 88, 0.2)",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 1,
-        shadowRadius: 20,
-        elevation: 6,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.6)',
-    },
-    largeSearchPlaceHolder: {
-        color: '#6B7280',
-        fontSize: 15,
-    },
+
     sectionHeaderRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -741,5 +750,235 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 9,
         fontWeight: 'bold',
+    },
+    headerFilterBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginHorizontal: 8,
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    pillContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 28, // Pill shape
+        height: 56,
+        // Soft Shadow
+        shadowColor: "rgba(0, 0, 0, 0.1)",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 1,
+        shadowRadius: 12,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.6)',
+        paddingHorizontal: 6,
+    },
+    pillSearchSection: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        gap: 12,
+        height: '100%',
+    },
+    pillSearchText: {
+        color: '#9CA3AF',
+        fontSize: 15,
+        flex: 1,
+    },
+    pillDivider: {
+        width: 1,
+        height: 24,
+        backgroundColor: '#E5E7EB',
+        marginHorizontal: 4,
+    },
+    pillFilterSection: {
+        width: 44,
+        height: 44,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 22,
+    },
+    filterActiveDot: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#EF4444',
+        borderWidth: 1.5,
+        borderColor: '#fff',
+    },
+    modalOverlay: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        zIndex: 1000,
+        justifyContent: 'flex-end',
+    },
+    overlayDismiss: {
+        flex: 1,
+    },
+    modalContent: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 32,
+        borderTopRightRadius: 32,
+        padding: 24,
+        paddingBottom: 40,
+        // Premium shadow
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 20,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 28,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: '800',
+        color: '#1A1A1A',
+        fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+    },
+    filterSection: {
+        marginBottom: 32,
+    },
+    filterSectionLabel: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#4B5563',
+        marginBottom: 16,
+    },
+    regionGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    regionChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    regionChipActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    regionChipText: {
+        fontSize: 14,
+        color: '#4B5563',
+        fontWeight: '600',
+    },
+    regionChipTextActive: {
+        color: '#FFFFFF',
+    },
+    optionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 16,
+        backgroundColor: '#F9FAFB',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#F3F4F6',
+    },
+    optionRowActive: {
+        borderColor: COLORS.primary,
+        backgroundColor: 'rgba(189, 157, 88, 0.05)',
+    },
+    optionRowLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    optionIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    optionRowTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2937',
+    },
+    optionRowSub: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 2,
+    },
+    toggleBase: {
+        width: 48,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: '#E5E7EB',
+        padding: 2,
+    },
+    toggleBaseActive: {
+        backgroundColor: COLORS.primary,
+    },
+    toggleCircle: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        backgroundColor: '#FFFFFF',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    toggleCircleActive: {
+        alignSelf: 'flex-end',
+    },
+    applyBtn: {
+        backgroundColor: COLORS.primary,
+        height: 56,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 8,
+    },
+    applyBtnText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    regionOption: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+    },
+    regionOptionActive: {
+        backgroundColor: 'rgba(189, 157, 88, 0.05)',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        borderBottomWidth: 0,
+    },
+    regionOptionText: {
+        fontSize: 16,
+        color: '#4B5563',
+        fontWeight: '500',
+    },
+    regionOptionTextActive: {
+        color: COLORS.primary,
+        fontWeight: '700',
     },
 });

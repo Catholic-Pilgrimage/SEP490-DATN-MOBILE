@@ -279,7 +279,24 @@ export default function CreateJournalScreen() {
   useEffect(() => {
     setPendingEditSelection(null);
     setEditSelectionInitialized(false);
-  }, [journalId]);
+
+    // Hide bottom tab bar
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.setOptions({
+        tabBarStyle: { display: "none" },
+      });
+    }
+
+    return () => {
+      // Show bottom tab bar on unmount
+      if (parent) {
+        parent.setOptions({
+          tabBarStyle: undefined, // Or { display: 'flex' } depending on global settings
+        });
+      }
+    };
+  }, [journalId, navigation]);
 
   useEffect(() => {
     return () => {

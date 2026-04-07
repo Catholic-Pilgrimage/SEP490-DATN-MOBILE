@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useRef, useState } from 'react';
-import { Dimensions, FlatList, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React from 'react';
+import { Dimensions, Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { useI18n } from '../../../../hooks/useI18n';
 
@@ -44,45 +44,16 @@ export const VerticalSiteCard: React.FC<VerticalSiteCardProps> = ({
         return t('explore.typeOther', { defaultValue: 'Khác' });
     };
 
-    // Mock multiple images for the carousel effect if only 1 is provided
-    const images = [
-        validCoverImage,
-        'https://images.unsplash.com/photo-1548625361-ec853bdcf95b?q=80&w=800&auto=format&fit=crop',
-        'https://images.unsplash.com/photo-1519782483188-3cae7417e2e3?q=80&w=800&auto=format&fit=crop'
-    ];
-
-    const [activeIndex, setActiveIndex] = useState(0);
-
-    const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-        if (viewableItems.length > 0) {
-            setActiveIndex(viewableItems[0].index || 0);
-        }
-    }).current;
-
-    const viewabilityConfig = useRef({
-        itemVisiblePercentThreshold: 50
-    }).current;
-
     return (
         <View style={styles.container}>
-            {/* Top: Image Carousel */}
-            <View style={styles.imageSection}>
-                <FlatList
-                    data={images}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onViewableItemsChanged={onViewableItemsChanged}
-                    viewabilityConfig={viewabilityConfig}
-                    keyExtractor={(_, index) => `img-${index}`}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
-                            <Image
-                                source={{ uri: item }}
-                                style={styles.image}
-                            />
-                        </TouchableOpacity>
-                    )}
+            <TouchableOpacity 
+                style={styles.imageSection} 
+                activeOpacity={0.9} 
+                onPress={onPress}
+            >
+                <Image
+                    source={{ uri: validCoverImage }}
+                    style={styles.image}
                 />
 
                 {/* Favorite Button Overlay */}
@@ -123,20 +94,7 @@ export const VerticalSiteCard: React.FC<VerticalSiteCardProps> = ({
                         </View>
                     </View>
                 </LinearGradient>
-
-                {/* Pagination Dots Overlay */}
-                <View style={styles.paginationContainer} pointerEvents="none">
-                    {images.map((_, index) => (
-                        <View
-                            key={index}
-                            style={[
-                                styles.dot,
-                                activeIndex === index ? styles.dotActive : styles.dotInactive
-                            ]}
-                        />
-                    ))}
-                </View>
-            </View>
+            </TouchableOpacity>
         </View>
     );
 };
@@ -173,14 +131,11 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.35)', // Defined circular background
         justifyContent: 'center',
         alignItems: 'center',
-        // Subtle shadow to make it pop on white backgrounds
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 5,
+        zIndex: 20,
+        // Remove messy shadow on transparent bg
     },
     badgeContainer: {
         position: 'absolute',
@@ -209,34 +164,6 @@ const styles = StyleSheet.create({
         paddingBottom: 36, // Leave room for pagination dots
         borderBottomLeftRadius: 16,
         borderBottomRightRadius: 16,
-    },
-    paginationContainer: {
-        position: 'absolute',
-        bottom: 12,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 6,
-    },
-    dot: {
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#FFF',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.5,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    dotActive: {
-        width: 6,
-        opacity: 1,
-    },
-    dotInactive: {
-        width: 6,
-        opacity: 0.5,
     },
     textSection: {
         // Handled by gradient padding
