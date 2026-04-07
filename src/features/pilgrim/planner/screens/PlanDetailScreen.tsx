@@ -1,12 +1,12 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   AppState,
   Image,
   Platform,
@@ -15,7 +15,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,12 +44,12 @@ import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
+import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import { PlannerCalendarSyncResult } from "../../../../services/calendar/calendarService";
-import vietmapService from "../../../../services/map/vietmapService";
 import type { LngLat, RoutePoint } from "../../../../services/map/vietmapService";
-import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
+import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
   createOfflinePlannerItemId,
@@ -79,13 +79,13 @@ import InvitePreviewCard from "../components/plan-detail/InvitePreviewCard";
 import ItemDetailModal from "../components/plan-detail/ItemDetailModal";
 import NearbyPlacesModal from "../components/plan-detail/NearbyPlacesModal";
 import SiteEventsModal from "../components/plan-detail/SiteEventsModal";
+import SwapPreviewModal from "../components/plan-detail/SwapPreviewModal";
 import TimeInputModal from "../components/plan-detail/TimeInputModal";
 import { PlannerTransactionsModal } from "../components/shared/PlannerTransactionsModal";
 import { SharePlanModal } from "../components/shared/SharePlanModal";
-import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useAddSiteFlow } from "../hooks/useAddSiteFlow";
+import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useSwapPreview } from "../hooks/useSwapPreview";
-import SwapPreviewModal from "../components/plan-detail/SwapPreviewModal";
 import {
   MAX_DEPOSIT_VND,
   parsePenaltyPercent,
@@ -113,8 +113,7 @@ import {
   parseDurationToMinutesRaw,
 } from "../utils/planDetailTime.utils";
 import {
-  getGroupPatronConstraintFromPlan,
-  sitePatronMatchesGroup,
+  getGroupPatronConstraintFromPlan
 } from "../utils/planPatronScope.utils";
 import styles from "./PlanDetailScreen.styles";
 
@@ -437,22 +436,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     string | undefined
   >();
 
-  useEffect(() => {
-    // Attempt to hide bottom tab
-    navigation.getParent()?.setOptions({
-      tabBarStyle: { display: "none" },
-    });
-    return () => {
+  useFocusEffect(
+    useCallback(() => {
+      // Attempt to hide bottom tab strictly when focused
       navigation.getParent()?.setOptions({
-        tabBarStyle: { display: "flex" },
+        tabBarStyle: { display: "none" },
       });
-    };
-  }, [navigation]);
+    }, [navigation])
+  );
 
   // Handle returning from browser payment (PayOS)
   useEffect(() => {
     if (!isInvitePendingView) return;
-    
+
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active") {
         // App has come to the foreground, reload to check if payment succeeded
@@ -785,9 +781,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             setPlan((prev) =>
               prev && prev.id === nextPlan.id
                 ? {
-                    ...prev,
-                    members: memRes.data!.members as unknown[],
-                  }
+                  ...prev,
+                  members: memRes.data!.members as unknown[],
+                }
                 : prev,
             );
           }
@@ -946,9 +942,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             transportation: editPlanTransportation,
             ...(editPlanPeople > 1
               ? {
-                  deposit_amount: depositAmount,
-                  penalty_percentage: penaltyPct,
-                }
+                deposit_amount: depositAmount,
+                penalty_percentage: penaltyPct,
+              }
               : { deposit_amount: 0, penalty_percentage: 0 }),
           });
         }
@@ -1129,17 +1125,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const title = isStart
       ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu hành hương" })
       : t("planner.completeJourneyTitle", {
-          defaultValue: "Kết thúc chuyến đi",
-        });
+        defaultValue: "Kết thúc chuyến đi",
+      });
     const msg = isStart
       ? t("planner.startJourneyMsg", {
-          defaultValue:
-            "Bạn có chắc muốn bắt đầu hành hương? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
-        })
+        defaultValue:
+          "Bạn có chắc muốn bắt đầu hành hương? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
+      })
       : t("planner.completeJourneyMsg", {
-          defaultValue:
-            "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
-        });
+        defaultValue:
+          "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
+      });
 
     const confirmed = await confirm({
       type: isStart ? "info" : "warning",
@@ -1163,11 +1159,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           text1: title,
           text2: isStart
             ? t("planner.startJourneySuccess", {
-                defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 b\u1eaft \u0111\u1ea7u!",
-              })
+              defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 b\u1eaft \u0111\u1ea7u!",
+            })
             : t("planner.completeJourneySuccess", {
-                defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 ho\u00e0n th\u00e0nh!",
-              }),
+              defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 ho\u00e0n th\u00e0nh!",
+            }),
           visibilityTime: 3000,
         });
         await loadPlan();
@@ -1596,7 +1592,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error("Delete item error:", error);
+      console.warn("Delete item error:", error?.message || error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -1906,11 +1902,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     } catch (error: any) {
       const respData = error?.response?.data;
       const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
-      
+
       if (isValidationError) {
         console.warn("[API] Validation error saving edit:", JSON.stringify(respData));
       } else {
-        console.error("Save edit serious error:", error);
+        console.warn("Save edit serious error:", error?.message || error);
       }
 
       Toast.show({
@@ -2017,6 +2013,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       return;
     }
 
+    // Modal confirmation if plan is ongoing
+    const currentStatus = String(plan?.status || "").toLowerCase();
+    if (currentStatus === "ongoing") {
+      const isConfirmed = await confirm({
+        title: "Xác nhận thêm địa điểm",
+        message: "Hành trình này đang diễn ra. Khi thêm mới bạn sẽ KHÔNG THỂ xóa hay chỉnh sửa lại địa điểm này nữa! Bạn chắc chắn muốn thêm?",
+        confirmText: "Thêm địa điểm",
+        cancelText: "Hủy",
+        type: "warning",
+      });
+      if (!isConfirmed) return;
+    }
+
     try {
       setAddingItem(true);
 
@@ -2084,13 +2093,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               ...localDraft,
               site: siteSnapshot
                 ? {
-                    id: siteSnapshot.id,
-                    name: siteSnapshot.name,
-                    address: siteSnapshot.address,
-                    cover_image: siteSnapshot.coverImage,
-                    latitude: siteSnapshot.latitude,
-                    longitude: siteSnapshot.longitude,
-                  }
+                  id: siteSnapshot.id,
+                  name: siteSnapshot.name,
+                  address: siteSnapshot.address,
+                  cover_image: siteSnapshot.coverImage,
+                  latitude: siteSnapshot.latitude,
+                  longitude: siteSnapshot.longitude,
+                }
                 : undefined,
             }),
         );
@@ -2121,20 +2130,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             ),
           createdItemId
             ? () =>
-                offlinePlannerService.addPlannerItem(planId, {
-                  id: createdItemId,
-                  ...localDraft,
-                  site: siteSnapshot
-                    ? {
-                        id: siteSnapshot.id,
-                        name: siteSnapshot.name,
-                        address: siteSnapshot.address,
-                        cover_image: siteSnapshot.coverImage,
-                        latitude: siteSnapshot.latitude,
-                        longitude: siteSnapshot.longitude,
-                      }
-                    : undefined,
-                })
+              offlinePlannerService.addPlannerItem(planId, {
+                id: createdItemId,
+                ...localDraft,
+                site: siteSnapshot
+                  ? {
+                    id: siteSnapshot.id,
+                    name: siteSnapshot.name,
+                    address: siteSnapshot.address,
+                    cover_image: siteSnapshot.coverImage,
+                    latitude: siteSnapshot.latitude,
+                    longitude: siteSnapshot.longitude,
+                  }
+                  : undefined,
+              })
             : undefined,
         );
         addSiteFlow.closeTimeModal();
@@ -2151,11 +2160,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     } catch (error: any) {
       const respData = error?.response?.data;
       const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
-      
+
       if (isValidationError) {
         console.warn("[API] Validation error adding item:", JSON.stringify(respData));
       } else {
-        console.error("Add item serious error:", error);
+        console.warn("Add item serious error:", error?.message || error);
       }
 
       const errMsg =
@@ -2171,11 +2180,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         type: "error",
         text1: patronErr
           ? t("planner.patronConstraintToastTitle", {
-              defaultValue: "Không cùng bổn mạng đoàn",
-            })
+            defaultValue: "Không cùng bổn mạng đoàn",
+          })
           : t("planner.addItemFailedTitle", {
-              defaultValue: "Không thể thêm địa điểm",
-            }),
+            defaultValue: "Không thể thêm địa điểm",
+          }),
         text2: errMsg,
         visibilityTime: patronErr ? 6500 : 4000,
       });
@@ -2329,12 +2338,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     const fromApi = Array.isArray((plan as any)?.members)
       ? (plan as any).members
-          .map((m: any) => ({
-            id: String(m?.id ?? m?.user_id ?? ""),
-            name: String(m?.full_name || m?.user?.full_name || ""),
-            avatar: String(m?.avatar_url || m?.user?.avatar_url || ""),
-          }))
-          .filter((m: any) => !!m.name || !!m.avatar)
+        .map((m: any) => ({
+          id: String(m?.id ?? m?.user_id ?? ""),
+          name: String(m?.full_name || m?.user?.full_name || ""),
+          avatar: String(m?.avatar_url || m?.user?.avatar_url || ""),
+        }))
+        .filter((m: any) => !!m.name || !!m.avatar)
       : [];
 
     const list: Array<{ name: string; avatar: string }> = [];
@@ -2411,7 +2420,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     (plan.items_by_day ? Object.keys(plan.items_by_day).length : 1);
   const sortedDays = Array.from({ length: totalDays }, (_, i) => String(i + 1));
   const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
-  const isCompletedPlan = (plan.status || "").toLowerCase() === "completed";
+  const planStatusStr = (plan?.status || "").toLowerCase();
+  const isCompletedPlan = planStatusStr === "completed";
+  const isOngoingPlan = planStatusStr === "ongoing";
 
   return (
     <View style={styles.container}>
@@ -2929,8 +2940,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             )}
           </TouchableOpacity>
 
-          {/* Nút thành viên: ẩn cho owner và cho người đang preview lời mời (API trả 403) */}
-          {!isPlanOwner && !isInvitePendingView && (
+          {/* Nút thành viên: hiển thị cho member bình thường, hoặc owner khi ongoing */}
+          {!isInvitePendingView && (!isPlanOwner || isOngoingPlan) && (
             <TouchableOpacity
               style={[
                 styles.quickActionButton,
@@ -2944,7 +2955,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             </TouchableOpacity>
           )}
 
-          {isPlanOwner && (
+          {isPlanOwner && !isOngoingPlan && (
             <TouchableOpacity
               style={[
                 styles.quickActionButton,
@@ -3030,7 +3041,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 Đồng ý tham gia
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={{
                 width: "100%",
@@ -3103,13 +3114,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   >
                     {isOffline
                       ? t("planner.pendingActionsWillSync", {
-                          defaultValue:
-                            "Cac thay doi offline se duoc dong bo khi ban co mang.",
-                        })
+                        defaultValue:
+                          "Cac thay doi offline se duoc dong bo khi ban co mang.",
+                      })
                       : t("planner.pendingActionsReadyToSync", {
-                          defaultValue:
-                            "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
-                        })}
+                        defaultValue:
+                          "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
+                      })}
                   </Text>
                 </View>
               </View>
@@ -3574,7 +3585,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                         </View>
                       );
                     })}
-                    {isPlanOwner && (
+                    {isPlanOwner && (String(plan?.status || "").toLowerCase() === "planning" || String(plan?.status || "").toLowerCase() === "ongoing") && (
                       <TouchableOpacity
                         style={styles.addSmallButton}
                         onPress={() => openAddModal(Number(dayKey))}
@@ -3603,24 +3614,26 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             >
               {t("planner.noLocationsInPlan")}
             </Text>
-            <TouchableOpacity
-              style={{
-                paddingHorizontal: 32,
-                paddingVertical: 14,
-                backgroundColor: COLORS.accent,
-                borderRadius: 24,
-                shadowColor: COLORS.accent,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 6,
-              }}
-              onPress={() => openAddModal(1)}
-            >
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-                + Thêm địa điểm đầu tiên
-              </Text>
-            </TouchableOpacity>
+            {isPlanOwner && (String(plan?.status || "").toLowerCase() === "planning" || String(plan?.status || "").toLowerCase() === "ongoing") && (
+              <TouchableOpacity
+                style={{
+                  paddingHorizontal: 32,
+                  paddingVertical: 14,
+                  backgroundColor: COLORS.accent,
+                  borderRadius: 24,
+                  shadowColor: COLORS.accent,
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 6,
+                }}
+                onPress={() => openAddModal(1)}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                  + Thêm địa điểm đầu tiên
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -3672,10 +3685,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         onSelectEvent={(ev) => {
           const dateStr = ev.start_date
             ? new Date(ev.start_date).toLocaleDateString("vi-VN", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })
             : "";
           const endStr =
             ev.end_date && ev.end_date !== ev.start_date
@@ -3740,9 +3753,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           savingEdit,
           onOpenNearbyPlaces: editingItem
             ? () => {
-                setShowEditItemModal(false);
-                setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
-              }
+              setShowEditItemModal(false);
+              setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
+            }
             : undefined,
         } satisfies EditItemModalProps)}
       />

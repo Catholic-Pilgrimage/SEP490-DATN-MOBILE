@@ -8,6 +8,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -28,6 +29,7 @@ import type {
 import { useAuth } from "../../../../hooks/useAuth";
 import { useFriendship } from "../../profile/hooks/useFriendship";
 import { FriendshipListItem } from "../../../../types/pilgrim";
+import MemberHistoryList from "../components/shared/MemberHistoryList";
 
 type Props = {
   route: { params?: { planId?: string; planName?: string } };
@@ -44,8 +46,12 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<PlannerMemberApiRow[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [progressMap, setProgressMap] = useState<Record<string, PlannerProgressMember>>({});
   const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [allItems, setAllItems] = useState<any[]>([]);
+  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
+  const [planStatus, setPlanStatus] = useState<string>("");
   const [summary, setSummary] = useState<{
     total_slots?: number;
     current_members?: number;
@@ -62,13 +68,22 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const loadMembers = useCallback(async () => {
     if (!planId) return;
     try {
-      let planStatus: string | undefined;
+      let planStatusStr: string | undefined;
 
       try {
         const detailRes = await pilgrimPlannerApi.getPlanDetail(planId);
         if (detailRes?.success && detailRes.data) {
           setOwnerId(detailRes.data.user_id);
-          planStatus = detailRes.data.status;
+          planStatusStr = detailRes.data.status;
+          setPlanStatus(planStatusStr || "");
+
+          let items: any[] = [];
+          if ((detailRes.data as any).items_by_day) {
+             items = Object.values((detailRes.data as any).items_by_day).flat();
+          } else if (detailRes.data.items) {
+             items = detailRes.data.items;
+          }
+          setAllItems(items);
         }
       } catch (err) {
         console.warn("Failed to fetch plan detail (might be pending invite)", err);
@@ -77,7 +92,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       const membersRes = await pilgrimPlannerApi.getPlanMembers(planId);
 
       let progressRes: any = null;
-      if (planStatus === "ongoing") {
+      if (planStatusStr === "ongoing" || planStatusStr === "completed") {
         try {
           progressRes = await pilgrimPlannerApi.getPlannerProgress(planId);
         } catch (e) {
@@ -145,6 +160,16 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     return `${cur} người`;
   }, [members.length, summary]);
 
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return members;
+    const lowerQuery = searchQuery.toLowerCase();
+    return members.filter((m) => {
+      const nameMatch = m.full_name?.toLowerCase().includes(lowerQuery);
+      const emailMatch = m.email?.toLowerCase().includes(lowerQuery);
+      return nameMatch || emailMatch;
+    });
+  }, [members, searchQuery]);
+
   const handleSendFriendRequest = async (userId: string) => {
     const success = await sendRequest(userId);
     if (success) {
@@ -171,6 +196,23 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         </View>
       </View>
 
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color={COLORS.textTertiary} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm thành viên..."
+          placeholderTextColor={COLORS.textTertiary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          autoCapitalize="none"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery("")}>
+            <Ionicons name="close-circle" size={20} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.accent} />
@@ -194,87 +236,118 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                 Danh sách sẽ hiển thị khi có người tham gia.
               </Text>
             </View>
+          ) : filteredMembers.length === 0 ? (
+            <View style={styles.empty}>
+              <Ionicons name="search" size={34} color={COLORS.textTertiary} />
+              <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
+              <Text style={styles.emptySub}>
+                Không có thành viên nào khớp với tìm kiếm của bạn.
+              </Text>
+            </View>
           ) : (
-            members.map((m) => {
+            filteredMembers.map((m) => {
               const progress = progressMap[m.id];
               const isOwner = m.id === ownerId;
               const progressPercent = progress?.percent || 0;
+              const isRowExpanded = !!expandedRowIds[m.id];
+              const canShowProgressDetail = (planStatus === "ongoing" || planStatus === "completed") && progress;
 
               return (
                 <View key={m.id} style={styles.memberCard}>
-                  <View style={styles.memberRow}>
-                    <View style={styles.avatar}>
-                      {m.avatar_url ? (
-                        <Image source={{ uri: m.avatar_url }} style={styles.avatarImage} />
-                      ) : (
-                        <View style={styles.initialsAvatar}>
-                           <Text style={styles.initialsText}>{(() => {
-                              const name = m.full_name || "";
-                              const parts = name.trim().split(" ");
-                              if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-                              return name.substring(0, 2).toUpperCase();
-                           })()}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.memberName} numberOfLines={1}>
-                          {m.full_name || "—"}
-                        </Text>
-                        <View style={[styles.roleBadge, isOwner ? styles.leaderBadge : styles.memberBadge]}>
-                          <Text style={[styles.roleBadgeText, isOwner ? styles.leaderBadgeText : styles.memberBadgeText]}>
-                            {isOwner ? "Trưởng đoàn" : "Thành viên"}
-                          </Text>
-                        </View>
-                      </View>
-                      {m.email ? (
-                        <Text style={styles.memberEmail} numberOfLines={1}>
-                          {m.email}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    {m.id !== currentUser?.id && (
-                      <View style={styles.actionBtnContainer}>
-                        {friends.some(f => f.user.id === m.id) ? (
-                           <View style={styles.friendBadge}>
-                            <Ionicons name="people" size={14} color={COLORS.success} />
-                            <Text style={styles.friendBadgeText}>Bạn bè</Text>
-                          </View>
-                        ) : (pendingRequests.some(r => r.user.id === m.id) || sessionSentRequestIds.has(m.id)) ? (
-                          <View style={styles.pendingBadge}>
-                            <Text style={styles.pendingBadgeText}>Đã gửi yêu cầu</Text>
-                          </View>
+                  <TouchableOpacity activeOpacity={canShowProgressDetail ? 0.7 : 1} onPress={() => {
+                    if (canShowProgressDetail) {
+                       setExpandedRowIds(prev => ({ ...prev, [m.id]: !prev[m.id] }));
+                    }
+                  }}>
+                    <View style={styles.memberRow}>
+                      <View style={styles.avatar}>
+                        {m.avatar_url ? (
+                          <Image source={{ uri: m.avatar_url }} style={styles.avatarImage} />
                         ) : (
-                          <TouchableOpacity 
-                            style={styles.addFriendBtn} 
-                            onPress={() => handleSendFriendRequest(m.id)}
-                          >
-                            <Ionicons name="person-add" size={16} color="#fff" />
-                            <Text style={styles.addFriendBtnText}>Kết bạn</Text>
-                          </TouchableOpacity>
+                          <View style={styles.initialsAvatar}>
+                             <Text style={styles.initialsText}>{(() => {
+                                const name = m.full_name || "";
+                                const parts = name.trim().split(" ");
+                                if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                                return name.substring(0, 2).toUpperCase();
+                             })()}</Text>
+                          </View>
                         )}
                       </View>
-                    )}
-                  </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.memberName} numberOfLines={1}>
+                            {m.full_name || "—"}
+                          </Text>
+                          <View style={[styles.roleBadge, isOwner ? styles.leaderBadge : styles.memberBadge]}>
+                            <Text style={[styles.roleBadgeText, isOwner ? styles.leaderBadgeText : styles.memberBadgeText]}>
+                              {isOwner ? "Trưởng đoàn" : "Thành viên"}
+                            </Text>
+                          </View>
+                        </View>
+                        {m.email ? (
+                          <Text style={styles.memberEmail} numberOfLines={1}>
+                            {m.email}
+                          </Text>
+                        ) : null}
+                      </View>
 
-                  {progress && progress.total_items > 0 && (
-                    <View style={styles.progressSection}>
-                      <View style={styles.progressHeader}>
-                        <Text style={styles.progressLabel}>Tiến độ check-in</Text>
-                        <Text style={styles.progressValue}>
-                          {progress.checked_in}/{progress.total_items} điểm ({Math.round(progressPercent)}%)
-                        </Text>
-                      </View>
-                      <View style={styles.progressBarBg}>
-                        <View 
-                          style={[
-                            styles.progressBarFill, 
-                            { width: `${progressPercent}%` }
-                          ]} 
+                      {m.id !== currentUser?.id && (
+                        <View style={styles.actionBtnContainer}>
+                          {friends.some(f => f.user.id === m.id) ? (
+                             <View style={styles.friendBadge}>
+                              <Ionicons name="people" size={14} color={COLORS.success} />
+                              <Text style={styles.friendBadgeText}>Bạn bè</Text>
+                            </View>
+                          ) : (pendingRequests.some(r => r.user.id === m.id) || sessionSentRequestIds.has(m.id)) ? (
+                            <View style={styles.pendingBadge}>
+                              <Text style={styles.pendingBadgeText}>Đã gửi</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity 
+                              style={styles.addFriendBtn} 
+                              onPress={() => handleSendFriendRequest(m.id)}
+                            >
+                              <Ionicons name="person-add" size={16} color="#fff" />
+                              <Text style={styles.addFriendBtnText}>Kết bạn</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+
+                      {canShowProgressDetail && (
+                        <Ionicons 
+                          name={isRowExpanded ? "chevron-up" : "chevron-down"} 
+                          size={20} 
+                          color={COLORS.textTertiary} 
+                          style={{ marginLeft: 8 }} 
                         />
+                      )}
+                    </View>
+
+                    {progress && progress.total_items > 0 && (
+                      <View style={styles.progressSection}>
+                        <View style={styles.progressHeader}>
+                          <Text style={styles.progressLabel}>Tiến độ check-in</Text>
+                          <Text style={styles.progressValue}>
+                            {progress.checked_in}/{progress.total_items} ({Math.round(progressPercent)}%)
+                          </Text>
+                        </View>
+                        <View style={styles.progressBarBg}>
+                          <View 
+                            style={[
+                              styles.progressBarFill, 
+                              { width: `${progressPercent}%` }
+                            ]} 
+                          />
+                        </View>
                       </View>
+                    )}
+                  </TouchableOpacity>
+
+                  {isRowExpanded && canShowProgressDetail && (
+                    <View style={styles.historyList}>
+                      <MemberHistoryList allItems={allItems} history={progress.history || []} />
                     </View>
                   )}
                 </View>
@@ -313,6 +386,25 @@ const styles = StyleSheet.create({
     fontFamily: TYPOGRAPHY.fontFamily.display,
   },
   subtitle: { marginTop: 2, fontSize: 12, color: COLORS.textSecondary },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    marginHorizontal: SPACING.lg,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    height: 44,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.subtle,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   content: { padding: SPACING.lg, paddingBottom: SPACING.xl },
   empty: {
@@ -485,6 +577,13 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     fontSize: 11,
     fontWeight: "600",
+  },
+  historyList: {
+    marginTop: 12,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    paddingTop: 12,
   },
 });
 

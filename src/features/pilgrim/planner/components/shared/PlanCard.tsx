@@ -15,6 +15,7 @@ import {
     PlanSummary,
     TransportationType,
 } from "../../../../../types/pilgrim/planner.types";
+import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
 
 export interface PlanUI extends PlanSummary {
   isShared?: boolean;
@@ -71,6 +72,30 @@ const getTransportLabel = (type: TransportationType, t: any): string => {
 export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEdit }) => {
   const { t } = useTranslation();
   
+  // N+1 fallback: nếu API list không có số lượng, ta tự fetch detail để đếm.
+  const [realStopCount, setRealStopCount] = React.useState<number>(plan.stopCount);
+
+  React.useEffect(() => {
+    if (plan.stopCount === 0 && plan.id && plan.status !== 'planning') {
+      let isMounted = true;
+      pilgrimPlannerApi.getPlanDetail(plan.id).then(res => {
+        if (isMounted && res.success && res.data) {
+          const detail = res.data as any;
+          let count = 0;
+          if (detail.items_by_day) {
+            count = Object.values(detail.items_by_day).flat().length;
+          } else if (detail.items) {
+            count = detail.items.length;
+          }
+          if (count > 0) setRealStopCount(count);
+        }
+      }).catch(() => {});
+      return () => { isMounted = false; };
+    } else {
+      setRealStopCount(plan.stopCount);
+    }
+  }, [plan.id, plan.stopCount, plan.status]);
+
   // Animation value for scale effect on press
   const scaleValue = useRef(new Animated.Value(1)).current;
 
@@ -94,28 +119,65 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
   const getStatusDisplay = (status?: string) => {
     const s = (status || "planning").toLowerCase();
     if (s === "ongoing") {
-      return { text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"), color: "#FFF8E1", bg: "rgba(90, 60, 20, 0.75)", icon: "rocket-outline" };
+      return { 
+        text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"), 
+        color: "#FFFFFF", 
+        bg: "#5C6B52", 
+        icon: "rocket-outline" 
+      };
     }
     if (s === "locked") {
-      return { text: t("planner.statusLocked", "SẴN SÀNG KHỞI HÀNH"), color: "#FFF8E1", bg: "rgba(90, 60, 20, 0.75)", icon: "lock-closed-outline" };
+      return { 
+        text: t("planner.statusLocked", "SẴN SÀNG KHỞI HÀNH"), 
+        color: "#FFFFFF", 
+        bg: "#5C6B52", 
+        icon: "lock-closed-outline" 
+      };
     }
     if (s === "completed") {
-      return { text: t("planner.statusCompleted", "HOÀN THÀNH"), color: "#FFF8E1", bg: "rgba(60, 90, 40, 0.75)", icon: "checkmark-circle-outline" };
+      return { 
+        text: t("planner.statusCompleted", "HOÀN THÀNH"), 
+        color: "#FFFFFF", 
+        bg: "#4A6B58", 
+        icon: "checkmark-circle-outline" 
+      };
     }
     if (s === "cancelled") {
-      return { text: t("planner.statusCancelled", "ĐÃ HỦY"), color: "#FFF8E1", bg: "rgba(120, 50, 30, 0.75)", icon: "close-circle-outline" };
+      return { 
+        text: t("planner.statusCancelled", "ĐÃ HỦY"), 
+        color: "#FFFFFF", 
+        bg: "#8B5344", 
+        icon: "close-circle-outline" 
+      };
     }
     // Default to planning/draft
-    return { text: t("planner.statusPlanning", "CHUẨN BỊ"), color: "#FFF8E1", bg: "rgba(90, 60, 20, 0.75)", icon: "create-outline" };
+    return { 
+      text: t("planner.statusPlanning", "ĐANG LÊN KẾ HOẠCH"), 
+      color: "#FFFFFF", 
+      bg: "#9E7B55", 
+      icon: "create-outline" 
+    };
   };
 
   const statusDisplay = getStatusDisplay(plan.status);
 
   // Duration computation
-  const start = new Date(plan.startDate);
-  const end = new Date(plan.endDate);
-  const durationDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-  const dateStr = `${start.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })} - ${end.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" })}`;
+  const start = plan.startDate ? new Date(plan.startDate) : null;
+  const end = plan.endDate ? new Date(plan.endDate) : null;
+  const durationDays =
+    start && end
+      ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      : null;
+  const dateStr =
+    start && end
+      ? `${start.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        })} - ${end.toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+        })}`
+      : "";
 
   // Transport details
   const primaryTransport = (plan.transportation && plan.transportation?.length > 0) ? plan.transportation[0] : "car";
@@ -194,15 +256,17 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
             <View style={styles.cornerTL} />
             <View style={styles.cornerTR} />
 
-            <View style={styles.headerTopRow}>
-              <Text style={styles.planTitle} numberOfLines={2}>{plan.title}</Text>
+            <View style={styles.badgesRow}>
+              <View style={{ flex: 1 }} />
               <View style={[styles.statusBadge, { backgroundColor: statusDisplay.bg }]}>
-                <Ionicons name={statusDisplay.icon as any} size={14} color={statusDisplay.color} style={{ marginRight: 4 }} />
+                <Ionicons name={statusDisplay.icon as any} size={13} color={statusDisplay.color} />
                 <Text style={[styles.statusBadgeText, { color: statusDisplay.color }]}>
                   {statusDisplay.text}
                 </Text>
               </View>
             </View>
+
+            <Text style={styles.planTitle} numberOfLines={2}>{plan.title}</Text>
           </View>
 
           {/* Divider ornament */}
@@ -215,19 +279,23 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
           {/* Card Body content */}
           <View style={styles.bodyArea}>
             
-            <View style={styles.infoSection}>
-              <View style={styles.sectionHeaderRow}>
-                <View style={styles.sectionLine} />
-                <Text style={styles.sectionTitle}>Thời gian</Text>
+            {durationDays != null && dateStr ? (
+              <View style={styles.infoSection}>
+                <View style={styles.sectionHeaderRow}>
+                  <View style={styles.sectionLine} />
+                  <Text style={styles.sectionTitle}>Thời gian</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Ionicons name="calendar" size={16} color="#4A7A95" />
+                  <Text style={styles.infoText}>
+                    <Text style={{ fontWeight: "700", color: "#2C5F73" }}>
+                      {durationDays} NGÀY{" "}
+                    </Text>
+                    <Text style={{ color: "#6B8CA3" }}>({dateStr})</Text>
+                  </Text>
+                </View>
               </View>
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar" size={18} color="#6B4E0A" />
-                <Text style={styles.infoText}>
-                  <Text style={{ fontWeight: "700", color: "#5C3D0E" }}>{durationDays} NGÀY </Text>
-                  <Text style={{ color: "#8B7355" }}>({dateStr})</Text>
-                </Text>
-              </View>
-            </View>
+            ) : null}
 
             <View style={styles.infoSection}>
               <View style={styles.sectionHeaderRow}>
@@ -238,7 +306,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
               <View style={styles.infoRowDetails}>
                 <View style={styles.infoItem}>
                   <Ionicons name="location" size={18} color="#8B3A1A" />
-                  <Text style={styles.infoTextVal}>{plan.stopCount || 0} địa điểm</Text>
+                  <Text style={styles.infoTextVal}>{realStopCount || 0} địa điểm</Text>
                 </View>
                 <View style={styles.infoItem}>
                   <Ionicons name={getTransportIcon(primaryTransport)} size={18} color="#5A3D0E" />
@@ -310,18 +378,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1.5,
     borderColor: "#C9A96E",
+    marginBottom: SPACING.sm,
+    marginHorizontal: 2,
   },
   tornEdgeTop: {
-    height: 4,
+    height: 3,
     backgroundColor: "#E8D5B0",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(139, 105, 20, 0.15)",
     borderStyle: "dashed" as any,
   },
   headerArea: {
-    padding: SPACING.md,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
     backgroundColor: "#EDD9A3",
     borderBottomWidth: 0,
   },
@@ -377,58 +447,57 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
+    paddingVertical: 4,
     backgroundColor: "#F0DDB8",
   },
   ornamentLine: {
     flex: 1,
     height: 1,
     backgroundColor: "#C9A96E",
-    marginHorizontal: 10,
+    marginHorizontal: 8,
     opacity: 0.6,
   },
-  headerTopRow: {
+  badgesRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    width: "100%",
+    marginBottom: 6,
   },
   planTitle: {
-    flex: 1,
-    fontSize: 22,
+    fontSize: 19,
     fontFamily: TYPOGRAPHY.fontFamily.display,
     fontWeight: "800",
     color: "#4A3110",
-    lineHeight: 28,
-    marginRight: 10,
+    lineHeight: 24,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: "rgba(90, 60, 20, 0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(139, 105, 20, 0.3)",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    gap: 4,
   },
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "800",
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   bodyArea: {
-    padding: SPACING.lg,
-    paddingBottom: SPACING.md,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
     backgroundColor: "#F5E6C8",
   },
   infoSection: {
-    marginBottom: SPACING.md,
+    marginBottom: 10,
   },
   sectionHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   sectionLine: {
     width: 12,
@@ -451,8 +520,8 @@ const styles = StyleSheet.create({
   infoRowDetails: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
-    gap: 16,
+    marginBottom: 4,
+    gap: 10,
   },
   infoItem: {
     flexDirection: "row",
@@ -460,10 +529,10 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   infoText: {
-    fontSize: 14,
+    fontSize: 13,
   },
   infoTextVal: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#4A3110",
     fontWeight: "600",
   },
@@ -506,23 +575,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   actionContainer: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.lg,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    paddingTop: 6,
     backgroundColor: "#F5E6C8",
-    gap: 10,
+    gap: 8,
   },
   actionRowTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    gap: 8,
   },
   actionBtnOutline: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
+    gap: 5,
+    paddingVertical: 8,
     borderRadius: 10,
     backgroundColor: "rgba(232, 213, 176, 0.7)",
     borderWidth: 1,
@@ -540,16 +610,17 @@ const styles = StyleSheet.create({
   },
   actionBtnPrimaryGradient: {
     width: "100%",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   actionMainText: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#FFF8E1",
     fontWeight: "800",
     textShadowColor: "rgba(0,0,0,0.2)",
-    textShadowOffset: {width: 0, height: 1},
+    textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   swipeActionLeft: {
@@ -559,7 +630,7 @@ const styles = StyleSheet.create({
     width: 80,
     borderTopLeftRadius: 14,
     borderBottomLeftRadius: 14,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   swipeActionRight: {
     backgroundColor: "#A0845E",
@@ -568,7 +639,7 @@ const styles = StyleSheet.create({
     width: 80,
     borderTopRightRadius: 14,
     borderBottomRightRadius: 14,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   swipeActionText: {
     color: "#FFFFFF",

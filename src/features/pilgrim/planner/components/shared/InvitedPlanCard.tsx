@@ -17,6 +17,7 @@ import {
 } from "../../../../../constants/theme.constants";
 import { TransportationType } from "../../../../../types/pilgrim/planner.types";
 import { PlanUI } from "./PlanCard";
+import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
 
 export interface InvitedPlanUI extends PlanUI {
   ownerName?: string;
@@ -117,6 +118,31 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
   onChat,
 }) => {
   const { t } = useTranslation();
+  
+  // N+1 fallback: nếu API list không có số lượng, ta tự fetch detail để đếm.
+  const [realStopCount, setRealStopCount] = React.useState<number>(plan.stopCount);
+
+  React.useEffect(() => {
+    if (plan.stopCount === 0 && plan.id && plan.status !== 'planning') {
+      let isMounted = true;
+      pilgrimPlannerApi.getPlanDetail(plan.id).then(res => {
+        if (isMounted && res.success && res.data) {
+          const detail = res.data as any;
+          let count = 0;
+          if (detail.items_by_day) {
+            count = Object.values(detail.items_by_day).flat().length;
+          } else if (detail.items) {
+            count = detail.items.length;
+          }
+          if (count > 0) setRealStopCount(count);
+        }
+      }).catch(() => {});
+      return () => { isMounted = false; };
+    } else {
+      setRealStopCount(plan.stopCount);
+    }
+  }, [plan.id, plan.stopCount, plan.status]);
+
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -358,7 +384,7 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
               <View style={styles.infoItem}>
                 <Ionicons name="location" size={16} color="#8B3A1A" />
                 <Text style={styles.infoTextVal}>
-                  {plan.stopCount || 0}{" "}
+                  {realStopCount || 0}{" "}
                   {t("planner.sites", "địa điểm")}
                 </Text>
               </View>

@@ -202,36 +202,43 @@ function normalizePlannerTransport(raw: unknown): TransportationType {
     return 'car';
 }
 
-function countStopsFromPlannerSummary(pl: {
-    items_by_day?: Record<string, unknown[]>;
-    item_count?: number;
-}): number {
+function countStopsFromPlannerSummary(pl: any): number {
+    if (!pl) return 0;
+    
+    // Check array lengths
+    if (pl.items && Array.isArray(pl.items)) {
+        return pl.items.length;
+    }
+    if (pl.planner_items && Array.isArray(pl.planner_items)) {
+        return pl.planner_items.length;
+    }
     if (pl.items_by_day && Object.keys(pl.items_by_day).length > 0) {
         return Object.values(pl.items_by_day).reduce(
-            (acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0),
+            (acc: number, arr: any) => acc + (Array.isArray(arr) ? arr.length : 0),
             0,
         );
     }
-    if (typeof pl.item_count === 'number' && pl.item_count >= 0) {
-        return pl.item_count;
+
+    // Check count properties
+    if (typeof pl.item_count === 'number' && pl.item_count >= 0) return pl.item_count;
+    if (typeof pl.items_count === 'number' && pl.items_count >= 0) return pl.items_count;
+    if (typeof pl.total_items === 'number' && pl.total_items >= 0) return pl.total_items;
+    if (typeof pl.stopCount === 'number' && pl.stopCount >= 0) return pl.stopCount;
+    if (typeof pl.total_stops === 'number' && pl.total_stops >= 0) return pl.total_stops;
+    if (typeof pl.locations_count === 'number' && pl.locations_count >= 0) return pl.locations_count;
+    
+    // Check nested _count properties (prisma/ORM specific)
+    if (pl._count) {
+        if (typeof pl._count.items === 'number' && pl._count.items >= 0) return pl._count.items;
+        if (typeof pl._count.planner_items === 'number' && pl._count.planner_items >= 0) return pl._count.planner_items;
     }
+
     return 0;
 }
 
 // ─── Map PlanEntity → PlanUI helper ──────────────────────────
 const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
-    let totalItems = 0;
-    if (entity.items) {
-        totalItems = entity.items.length;
-    } else if (entity.items_by_day) {
-        totalItems = Object.values(entity.items_by_day).flat().length;
-    } else if ((entity as any).item_count !== undefined) {
-        totalItems = (entity as any).item_count;
-    } else if ((entity as any).total_items !== undefined) {
-        totalItems = (entity as any).total_items;
-    } else if ((entity as any).stopCount !== undefined) {
-        totalItems = (entity as any).stopCount;
-    }
+    const totalItems = countStopsFromPlannerSummary(entity);
 
     return {
         id: entity.id,
@@ -485,10 +492,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                 const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
                 if (res.success && res.data && res.data.planner) {
                     const planner = res.data.planner;
-                    let totalItems = 0;
-                    if (planner.items_by_day) {
-                        totalItems = Object.values(planner.items_by_day).flat().length;
-                    }
+                    const totalItems = countStopsFromPlannerSummary(planner);
                     
                     const mapped: InvitedPlanUI = {
                         id: planner.id || '',
@@ -527,6 +531,8 @@ export const PlannerScreen = ({ navigation, route }: any) => {
 
     useFocusEffect(
         useCallback(() => {
+            navigation.getParent()?.setOptions({ tabBarStyle: undefined });
+
             if (!isGuest) {
                 fetchAllPlans();
             } else {
