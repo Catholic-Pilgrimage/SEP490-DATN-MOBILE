@@ -2842,65 +2842,72 @@ export default function CreateJournalScreen() {
         statusBarTranslucent
         onRequestClose={() => setAiBottomSheetVisible(false)}
       >
-        <View style={styles.aiModalOverlay}>
-          <TouchableWithoutFeedback
-            onPress={() => setAiBottomSheetVisible(false)}
-          >
-            <View style={styles.aiModalBackdrop} />
-          </TouchableWithoutFeedback>
-
-          <SafeAreaView edges={["bottom"]} style={styles.aiModalSafeArea}>
-            <TouchableWithoutFeedback>
-              <View style={[styles.aiBottomSheet, { paddingBottom: SPACING.lg }]}>
-                <View style={styles.aiModalHandleWrap}>
-                  <View style={styles.aiModalHandle} />
-                </View>
-
-                <View style={styles.aiSheetHeader}>
-                  <View style={styles.aiSheetHeaderIcon}>
-                    <AISparkles
-                      size={20}
-                      color={COLORS.accent}
-                      isAnimating={!prayerLoading}
-                    />
-                  </View>
-
-                  <View style={styles.aiSheetHeaderContent}>
-                    <Text style={styles.aiSheetTitle}>
-                      {t("journal.aiPrayerTitle")}
-                    </Text>
-                    <Text style={styles.aiSheetSubtitle}>
-                      {prayerLoading
-                        ? t("journal.aiPrayerLoadingHint")
-                        : t("journal.aiPrayerSubtitle")}
-                    </Text>
-                  </View>
-
-                  <TouchableOpacity
-                    style={styles.aiSheetCloseButton}
-                    onPress={() => setAiBottomSheetVisible(false)}
-                    activeOpacity={0.85}
-                  >
-                    <MaterialIcons
-                      name="close"
-                      size={20}
-                      color={COLORS.textSecondary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView
-                  style={styles.aiSheetScrollView}
-                  contentContainerStyle={styles.aiSheetScrollContent}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  {renderAIPrayerSheetBody()}
-                </ScrollView>
-              </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.aiModalOverlay}>
+            <TouchableWithoutFeedback
+              onPress={() => setAiBottomSheetVisible(false)}
+            >
+              <View style={styles.aiModalBackdrop} />
             </TouchableWithoutFeedback>
-          </SafeAreaView>
-        </View>
+
+            <SafeAreaView edges={["bottom"]} style={styles.aiModalSafeArea}>
+              <TouchableWithoutFeedback>
+                <View
+                  style={[styles.aiBottomSheet, { paddingBottom: SPACING.lg }]}
+                >
+                  <View style={styles.aiModalHandleWrap}>
+                    <View style={styles.aiModalHandle} />
+                  </View>
+
+                  <View style={styles.aiSheetHeader}>
+                    <View style={styles.aiSheetHeaderIcon}>
+                      <AISparkles
+                        size={20}
+                        color={COLORS.accent}
+                        isAnimating={!prayerLoading}
+                      />
+                    </View>
+
+                    <View style={styles.aiSheetHeaderContent}>
+                      <Text style={styles.aiSheetTitle}>
+                        {t("journal.aiPrayerTitle")}
+                      </Text>
+                      <Text style={styles.aiSheetSubtitle}>
+                        {prayerLoading
+                          ? t("journal.aiPrayerLoadingHint")
+                          : t("journal.aiPrayerSubtitle")}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.aiSheetCloseButton}
+                      onPress={() => setAiBottomSheetVisible(false)}
+                      activeOpacity={0.85}
+                    >
+                      <MaterialIcons
+                        name="close"
+                        size={20}
+                        color={COLORS.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    style={styles.aiSheetScrollView}
+                    contentContainerStyle={styles.aiSheetScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    {renderAIPrayerSheetBody()}
+                  </ScrollView>
+                </View>
+              </TouchableWithoutFeedback>
+            </SafeAreaView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -3501,7 +3508,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.xs,
-    maxHeight: "82%",
+    maxHeight: "88%",
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
