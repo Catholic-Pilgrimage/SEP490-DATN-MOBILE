@@ -439,10 +439,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   useFocusEffect(
     useCallback(() => {
       // Attempt to hide bottom tab strictly when focused
-      navigation.getParent()?.setOptions({
+      const parent = navigation.getParent();
+      parent?.setOptions({
         tabBarStyle: { display: "none" },
       });
-    }, [navigation])
+
+      return () => {
+        parent?.setOptions({
+          tabBarStyle: {
+            height: 60 + (insets.bottom || 10),
+            paddingBottom: insets.bottom || 10,
+            paddingTop: 8,
+            backgroundColor: COLORS.white,
+            borderTopWidth: 1,
+            borderTopColor: COLORS.border,
+            display: "flex"
+           },
+        });
+      };
+    }, [navigation, insets])
   );
 
   // Handle returning from browser payment (PayOS)

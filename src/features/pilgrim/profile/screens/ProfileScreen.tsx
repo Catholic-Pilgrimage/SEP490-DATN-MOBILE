@@ -343,6 +343,7 @@ const ProfileScreen = () => {
       item.route === "Wallet" ||
       item.route === "FriendList" ||
       item.route === "Settings" ||
+      item.route === "History" ||
       item.route === "VerificationRequest"
     ) {
       navigation.navigate(item.route);
