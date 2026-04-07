@@ -21,7 +21,7 @@ import {
     TouchableWithoutFeedback,
     View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING } from '../../../../constants/theme.constants';
 import { useConfirm } from '../../../../hooks/useConfirm';
@@ -249,7 +249,7 @@ export default function JournalDetailScreen() {
     /* ─── Guards ─── */
     if (loading) {
         return (
-            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={s.root} resizeMode="cover">
+            <ImageBackground source={require('../../../../../assets/images/journal-bg.png')} style={s.root} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <View style={[s.center, { paddingTop: insets.top + 80 }]}>
                     <Text style={{ color: COLORS.textSecondary }}>{t('journal.loading')}</Text>
@@ -259,7 +259,7 @@ export default function JournalDetailScreen() {
     }
     if (!journal) {
         return (
-            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={s.root} resizeMode="cover">
+            <ImageBackground source={require('../../../../../assets/images/journal-bg.png')} style={s.root} resizeMode="cover">
                 <StatusBar barStyle="dark-content" />
                 <View style={[s.center, { paddingTop: insets.top + 80 }]}>
                     <Text style={{ marginBottom: 16, color: COLORS.textPrimary }}>{t('journal.notFound')}</Text>
@@ -284,7 +284,7 @@ export default function JournalDetailScreen() {
 
     return (
         <>
-            <ImageBackground source={require('../../../../../assets/images/bg3.jpg')} style={s.root} resizeMode="cover">
+            <ImageBackground source={require('../../../../../assets/images/journal-bg.png')} style={s.root} resizeMode="cover">
                 <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
                 {/* ── Floating Header ── */}
@@ -352,7 +352,7 @@ export default function JournalDetailScreen() {
                             </View>
 
                             {/* Title */}
-                            <Text style={s.title}>"{journal.title}"</Text>
+                            <Text style={s.title}>{`"${journal.title}"`}</Text>
 
                             {/* Divider with ornament */}
                             <View style={s.ornamentRow}>
@@ -476,30 +476,32 @@ export default function JournalDetailScreen() {
                     <View style={s.backdrop} />
                 </TouchableWithoutFeedback>
                 <Animated.View style={[s.actionSheet, { transform: [{ translateY: slideAnim }] }]}>
-                    <View style={s.sheetHandle} />
-                    <View style={s.sheetHeader}>
-                        <Text style={s.sheetTitle}>{t('journal.menuTitle')}</Text>
-                        {journal?.title && (
-                            <Text style={s.sheetSubtitle} numberOfLines={2}>"{journal.title}"</Text>
-                        )}
-                    </View>
-                    <View style={s.sheetDivider} />
-                    <TouchableOpacity style={s.sheetAction} onPress={() => hideMenu(() => navigation.navigate('CreateJournalScreen', { journalId }))}>
-                        <View style={s.sheetActionIcon}><MaterialIcons name="edit" size={20} color={COLORS.textPrimary} /></View>
-                        <Text style={s.sheetActionLabel}>{t('journal.editJournal')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.sheetAction} onPress={doShare}>
-                        <View style={s.sheetActionIcon}><MaterialIcons name="public" size={20} color={COLORS.textPrimary} /></View>
-                        <Text style={s.sheetActionLabel}>{t('journal.shareJournal')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={s.sheetAction} onPress={askDelete}>
-                        <View style={[s.sheetActionIcon, s.sheetIconDanger]}><MaterialIcons name="delete-outline" size={20} color={COLORS.danger} /></View>
-                        <Text style={[s.sheetActionLabel, { color: COLORS.danger }]}>{t('journal.deleteJournal')}</Text>
-                    </TouchableOpacity>
-                    <View style={s.sheetDivider} />
-                    <TouchableOpacity style={s.sheetCancel} onPress={() => hideMenu()}>
-                        <Text style={s.sheetCancelText}>{t('common.cancel')}</Text>
-                    </TouchableOpacity>
+                    <SafeAreaView edges={['bottom']} style={s.actionSheetSafeArea}>
+                        <View style={s.sheetHandle} />
+                        <View style={s.sheetHeader}>
+                            <Text style={s.sheetTitle}>{t('journal.menuTitle')}</Text>
+                            {journal?.title && (
+                                <Text style={s.sheetSubtitle} numberOfLines={2}>{`"${journal.title}"`}</Text>
+                            )}
+                        </View>
+                        <View style={s.sheetDivider} />
+                        <TouchableOpacity style={s.sheetAction} onPress={() => hideMenu(() => navigation.navigate('CreateJournalScreen', { journalId }))}>
+                            <View style={s.sheetActionIcon}><MaterialIcons name="edit" size={20} color={COLORS.textPrimary} /></View>
+                            <Text style={s.sheetActionLabel}>{t('journal.editJournal')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.sheetAction} onPress={doShare}>
+                            <View style={s.sheetActionIcon}><MaterialIcons name="public" size={20} color={COLORS.textPrimary} /></View>
+                            <Text style={s.sheetActionLabel}>{t('journal.shareJournal')}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.sheetAction} onPress={askDelete}>
+                            <View style={[s.sheetActionIcon, s.sheetIconDanger]}><MaterialIcons name="delete-outline" size={20} color={COLORS.danger} /></View>
+                            <Text style={[s.sheetActionLabel, { color: COLORS.danger }]}>{t('journal.deleteJournal')}</Text>
+                        </TouchableOpacity>
+                        <View style={s.sheetDivider} />
+                        <TouchableOpacity style={s.sheetCancel} onPress={() => hideMenu()}>
+                            <Text style={s.sheetCancelText}>{t('common.cancel')}</Text>
+                        </TouchableOpacity>
+                    </SafeAreaView>
                 </Animated.View>
             </Modal>
         </>
@@ -664,7 +666,12 @@ const s = StyleSheet.create({
     actionSheet: {
         position: 'absolute', bottom: 0, left: 0, right: 0,
         backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        paddingBottom: 32, ...SHADOWS.medium,
+        overflow: 'hidden',
+        ...SHADOWS.medium,
+    },
+    actionSheetSafeArea: {
+        backgroundColor: '#fff',
+        paddingBottom: 16,
     },
     sheetHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(0,0,0,0.15)', alignSelf: 'center', marginTop: 12, marginBottom: 4 },
     sheetHeader: { paddingHorizontal: 20, paddingVertical: 16 },

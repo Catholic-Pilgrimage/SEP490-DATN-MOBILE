@@ -1677,6 +1677,7 @@
     "addMediaTitle": "Thêm ảnh/video vào nhật ký",
     "saving": "Đang lưu...",
     "savePrivate": "Lưu riêng tư",
+    "saveJournal": "Lưu nhật ký",
     "posting": "Đang đăng...",
     "postPublic": "Đăng công khai",
     "saveSuccessUpdate": "Đã cập nhật nhật ký{{shareMsg}}{{imagesMsg}}{{audioMsg}}",

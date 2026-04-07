@@ -247,7 +247,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: GUIDE_COLORS.creamBorder,
     paddingHorizontal: GUIDE_SPACING.sm,
-    minHeight: 48,
+    minHeight: 72, // Increased to allow text wrapping
   },
   /** Multiline: cột, full width — cuộn nội bộ khi vượt maxHeight */
   inputContainerMultiline: {
@@ -255,12 +255,13 @@ export const styles = StyleSheet.create({
     alignItems: "stretch",
     paddingVertical: GUIDE_SPACING.sm,
   },
-  /** Mô tả: tối thiểu ~4 dòng, tối đa cố định — dài hơn thì cuộn trong ô */
+  /** Mô tả: tối thiểu ~4 dòng, tự động expand theo content */
   inputMultiline: {
     flex: 0,
     alignSelf: "stretch",
     width: "100%",
     minHeight: 120,
+    maxHeight: 300,
     textAlignVertical: "top",
   },
   inputDisabled: {
@@ -306,25 +307,6 @@ export const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
     color: GUIDE_COLORS.error,
     flex: 1,
-  },
-
-  // ============================================
-  // DATE RANGE HINT
-  // ============================================
-  dateRangeHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: GUIDE_SPACING.xs,
-    backgroundColor: GUIDE_COLORS.successLight,
-    paddingHorizontal: GUIDE_SPACING.sm,
-    paddingVertical: GUIDE_SPACING.xs,
-    borderRadius: GUIDE_BORDER_RADIUS.sm,
-    marginBottom: GUIDE_SPACING.md,
-  },
-  dateRangeHintText: {
-    fontSize: GUIDE_TYPOGRAPHY.fontSizeXS,
-    color: GUIDE_COLORS.successDark,
-    fontWeight: GUIDE_TYPOGRAPHY.fontWeightMedium,
   },
 
   // ============================================
@@ -547,6 +529,54 @@ export const styles = StyleSheet.create({
     fontSize: GUIDE_TYPOGRAPHY.fontSizeMD,
     fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
     color: "#3D2000",
+  },
+
+  // ============================================
+  // AI COMPACT BANNER
+  // ============================================
+  aiCompactBanner: {
+    marginBottom: GUIDE_SPACING.md,
+    borderRadius: GUIDE_BORDER_RADIUS.md,
+    overflow: 'hidden',
+    ...GUIDE_SHADOWS.sm,
+  },
+  aiCompactBannerGradient: {
+    paddingVertical: GUIDE_SPACING.sm,
+    paddingHorizontal: GUIDE_SPACING.md,
+  },
+  aiCompactBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  aiCompactBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: GUIDE_SPACING.xs,
+  },
+  aiCompactBannerText: {
+    fontSize: GUIDE_TYPOGRAPHY.fontSizeSM,
+    fontWeight: GUIDE_TYPOGRAPHY.fontWeightSemiBold,
+    color: "#3D2000",
+  },
+
+  // ============================================
+  // AI BOTTOM SHEET
+  // ============================================
+  aiBottomSheetWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  aiBottomSheet: {
+    backgroundColor: GUIDE_COLORS.creamBg,
+    borderTopLeftRadius: GUIDE_BORDER_RADIUS.xl,
+    borderTopRightRadius: GUIDE_BORDER_RADIUS.xl,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.sm,
+    paddingBottom: GUIDE_SPACING.xl,
+    gap: GUIDE_SPACING.md,
   },
 
   // ============================================

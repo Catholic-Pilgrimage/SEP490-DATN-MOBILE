@@ -44,7 +44,6 @@ import {
 import Toast from "react-native-toast-message";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
 import { AISparkles } from "../../../../components/ui/AISparkles";
-import ReviewTrackingInfo from "../../components/ReviewTrackingInfo";
 import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useI18n } from "../../../../hooks/useI18n";
@@ -67,6 +66,7 @@ import {
   validateEventFullForm,
   validateEventStep,
 } from "../../../../utils/validation";
+import ReviewTrackingInfo from "../../components/ReviewTrackingInfo";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   CATEGORY_GROUP_GRADIENTS,
@@ -244,6 +244,7 @@ const InputField: React.FC<InputFieldProps> = ({
   error,
 }) => {
   const multilineMinHeight = 120;
+  const multilineMaxHeight = 300;
   const [multilineHeight, setMultilineHeight] = useState(multilineMinHeight);
 
   const handleContentSizeChange = (
@@ -253,7 +254,10 @@ const InputField: React.FC<InputFieldProps> = ({
 
     const nextHeight = Math.max(
       multilineMinHeight,
-      Math.ceil(event.nativeEvent.contentSize.height) + GUIDE_SPACING.sm,
+      Math.min(
+        multilineMaxHeight,
+        Math.ceil(event.nativeEvent.contentSize.height) + GUIDE_SPACING.sm
+      )
     );
 
     setMultilineHeight((prev) =>
@@ -275,7 +279,7 @@ const InputField: React.FC<InputFieldProps> = ({
           !!error && styles.inputError,
         ]}
       >
-        {/* Icon only for single-line inputs (not textarea) */}
+        {/* Icon only for single-line inputs */}
         {icon && !multiline && (
           <MaterialIcons
             name={icon}
@@ -307,7 +311,7 @@ const InputField: React.FC<InputFieldProps> = ({
           textAlignVertical={multiline ? "top" : "center"}
           editable={editable}
           maxLength={maxLength}
-          scrollEnabled={false}
+          scrollEnabled={multiline && multilineHeight >= multilineMaxHeight}
         />
       </View>
       {/* Inline error message */}
@@ -648,6 +652,7 @@ export const EventDetailScreen: React.FC = () => {
     useState<SuggestEventsResponse["data"] | null>(null);
   const [isAISuggestionModalVisible, setIsAISuggestionModalVisible] =
     useState(false);
+  const [aiBottomSheetVisible, setAiBottomSheetVisible] = useState(false);
   const aiSuggestionSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -892,6 +897,7 @@ export const EventDetailScreen: React.FC = () => {
       setLocation(suggestion.location?.trim() || "");
       setFieldErrors({});
       setIsAISuggestionModalVisible(false);
+      setAiBottomSheetVisible(false); // Close bottom sheet too
 
       showToast(
         "success",
@@ -1211,21 +1217,6 @@ export const EventDetailScreen: React.FC = () => {
                 />
               </View>
             </View>
-
-            {/* Visual connection between start and end date */}
-            {startDate && endDate && !fieldErrors.endDate && (
-              <View style={styles.dateRangeHint}>
-                <MaterialIcons
-                  name="date-range"
-                  size={16}
-                  color={GUIDE_COLORS.success}
-                />
-                <Text style={styles.dateRangeHintText}>
-                  {startDate.toLocaleDateString("vi-VN")} →{" "}
-                  {endDate.toLocaleDateString("vi-VN")}
-                </Text>
-              </View>
-            )}
 
             <View style={styles.row}>
               <View style={styles.halfField}>
@@ -1598,20 +1589,6 @@ export const EventDetailScreen: React.FC = () => {
           </View>
         </View>
 
-        {startDate && endDate && !fieldErrors.endDate && (
-          <View style={styles.dateRangeHint}>
-            <MaterialIcons
-              name="date-range"
-              size={16}
-              color={GUIDE_COLORS.success}
-            />
-            <Text style={styles.dateRangeHintText}>
-              {startDate.toLocaleDateString("vi-VN")} →{" "}
-              {endDate.toLocaleDateString("vi-VN")}
-            </Text>
-          </View>
-        )}
-
         <View style={styles.row}>
           <View style={styles.halfField}>
             <DateTimeField
@@ -1817,7 +1794,40 @@ export const EventDetailScreen: React.FC = () => {
           nestedScrollEnabled
           bounces
         >
-          {(isCreateMode || isEditing) && renderAIAssistCard()}
+          {/* Compact AI Banner - only show when editing */}
+          {(isCreateMode || isEditing) && (
+            <TouchableOpacity
+              style={styles.aiCompactBanner}
+              onPress={async () => {
+                if (Platform.OS === 'ios') {
+                  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }
+                setAiBottomSheetVisible(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <LinearGradient
+                colors={["#F4E4BA", "#D4AF37"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.aiCompactBannerGradient}
+              >
+                <View style={styles.aiCompactBannerContent}>
+                  <View style={styles.aiCompactBannerLeft}>
+                    <AISparkles size={18} color="#3D2000" isAnimating={true} />
+                    <Text style={styles.aiCompactBannerText}>
+                      {t("eventDetail.aiAssistTitle")}
+                    </Text>
+                  </View>
+                  <MaterialIcons
+                    name="arrow-forward-ios"
+                    size={14}
+                    color="#3D2000"
+                  />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
           {isCreateMode ? renderStepContent : renderFullForm()}
 
           {/* Step Navigation Buttons (create mode) */}
@@ -1869,6 +1879,135 @@ export const EventDetailScreen: React.FC = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      {/* AI Assist Bottom Sheet */}
+      <Modal
+        visible={aiBottomSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAiBottomSheetVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.aiModalOverlay}
+          activeOpacity={1}
+          onPress={() => setAiBottomSheetVisible(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+            style={styles.aiBottomSheetWrapper}
+          >
+            <View style={[styles.aiBottomSheet, { paddingBottom: GUIDE_SPACING.xl + insets.bottom }]}>
+              <View style={styles.aiModalHandle} />
+              
+              {/* AI Assist Content */}
+              <View style={styles.aiAssistContent}>
+                <View style={styles.aiAssistIconBadge}>
+                  <AISparkles size={20} color={GUIDE_COLORS.primary} isAnimating={!isAISuggesting} />
+                </View>
+                <View style={styles.aiAssistTextWrap}>
+                  <Text style={styles.aiAssistTitle}>{t("eventDetail.aiAssistTitle")}</Text>
+                  <Text style={styles.aiAssistSubtitle}>
+                    {isAISuggesting
+                      ? t("eventDetail.aiAssistLoadingHint", {
+                          defaultValue: "AI đang chuẩn bị đề xuất phù hợp cho form hiện tại.",
+                        })
+                      : t("eventDetail.aiAssistSubtitle")}
+                  </Text>
+                </View>
+              </View>
+
+              {isAISuggesting && (
+                <View style={styles.aiAssistLoadingBox}>
+                  <View style={styles.aiAssistLoadingRow}>
+                    <ActivityIndicator size="small" color={GUIDE_COLORS.primaryDark} />
+                    <Text style={styles.aiAssistLoadingTitle}>
+                      {t("eventDetail.aiAssistLoadingLabel", {
+                        defaultValue: "Đang tạo gợi ý sự kiện...",
+                      })}
+                    </Text>
+                  </View>
+                  <Text style={styles.aiAssistLoadingDescription}>
+                    {isAISuggestionSlow
+                      ? t("eventDetail.aiAssistSlowInlineMessage", {
+                          defaultValue:
+                            "Phản hồi đang chậm hơn bình thường. Bạn vẫn có thể tiếp tục điền form trong lúc chờ.",
+                        })
+                      : t("eventDetail.aiAssistLoadingDescription", {
+                          defaultValue:
+                            "AI đang phân tích mùa phụng vụ, thời gian và bối cảnh phù hợp cho sự kiện của bạn.",
+                        })}
+                  </Text>
+                </View>
+              )}
+
+              {!!aiSuggestionRetryMessage && !isAISuggesting && (
+                <View style={styles.aiAssistRetryBox}>
+                  <View style={styles.aiAssistRetryContent}>
+                    <MaterialIcons
+                      name="refresh"
+                      size={18}
+                      color={GUIDE_COLORS.warning}
+                    />
+                    <Text style={styles.aiAssistRetryText}>
+                      {t("eventDetail.aiAssistRetryDescription", {
+                        defaultValue: "Chưa lấy được gợi ý. Bạn có thể thử lại ngay.",
+                      })}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.aiAssistRetryButton}
+                    onPress={() => {
+                      void handleSuggestEvents();
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.aiAssistRetryButtonText}>
+                      {t("common.retry", { defaultValue: "Thử lại" })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={[styles.aiAssistButton, isAISuggesting && styles.buttonDisabled]}
+                onPress={async () => {
+                  if (Platform.OS === 'ios') {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }
+                  handleSuggestEvents();
+                }}
+                disabled={isAISuggesting || saving || deleting}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={["#F4E4BA", "#D4AF37"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.aiAssistButtonGradient,
+                    isAISuggesting && styles.aiAssistButtonGradientDisabled,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={isAISuggesting ? "hourglass-top" : "auto-awesome"}
+                    size={18}
+                    color="#3D2000"
+                  />
+                  <Text style={styles.aiAssistButtonText}>
+                    {isAISuggesting
+                      ? t("common.pleaseWait", {
+                          defaultValue: "Vui lòng chờ",
+                        })
+                      : t("eventDetail.aiAssistButton")}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* AI Suggestion Results Modal */}
       <Modal
         visible={isAISuggestionModalVisible}
         transparent
