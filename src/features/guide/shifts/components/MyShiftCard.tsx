@@ -1,6 +1,7 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GUIDE_BORDER_RADIUS, GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 import { ShiftSubmission } from '../../../../types/guide/shiftSubmission.types';
@@ -11,34 +12,34 @@ interface MyShiftCardProps {
     onPress?: (submission: ShiftSubmission) => void;
 }
 
-const getStatusConfig = (status: string) => {
+const getStatusConfig = (status: string, t: any) => {
     switch (status) {
         case 'pending':
             return {
                 color: '#E67E22', // Orange
                 bg: '#FEF3C7',
-                label: 'Chờ duyệt',
+                label: t('shifts.status_pending'),
                 icon: 'access-time' as const
             };
         case 'approved':
             return {
                 color: '#27AE60', // Green
                 bg: '#D1FAE5',
-                label: 'Đã duyệt',
+                label: t('shifts.status_approved'),
                 icon: 'check-circle' as const
             };
         case 'rejected':
             return {
                 color: '#E74C3C', // Red
                 bg: '#FEE2E2',
-                label: 'Từ chối',
+                label: t('shifts.status_rejected'),
                 icon: 'cancel' as const
             };
         case 'completed':
             return {
                 color: '#2980B9', // Blue
                 bg: '#D6EAF8',
-                label: 'Hoàn thành',
+                label: t('shifts.status_completed'),
                 icon: 'task-alt' as const
             };
         default:
@@ -51,13 +52,24 @@ const getStatusConfig = (status: string) => {
     }
 };
 
-const getDayLabel = (day: number) => {
-    const map = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-    return map[day] || `T${day}`;
+const getDayLabels = (t: any) => [
+    t('common.days.sun'),
+    t('common.days.mon'),
+    t('common.days.tue'),
+    t('common.days.wed'),
+    t('common.days.thu'),
+    t('common.days.fri'),
+    t('common.days.sat')
+];
+
+const getDayLabel = (day: number, t: any) => {
+    const labels = getDayLabels(t);
+    return labels[day] || `${t('common.dayLabel', { defaultValue: 'Ngày' })} ${day}`;
 };
 
 export const MyShiftCard: React.FC<MyShiftCardProps> = ({ submission, onCancel, onPress }) => {
-    const statusConfig = getStatusConfig(submission.status);
+    const { t } = useTranslation();
+    const statusConfig = getStatusConfig(submission.status, t);
     const canCancel = submission.status === 'pending';
 
     // Format Week Date
@@ -65,7 +77,10 @@ export const MyShiftCard: React.FC<MyShiftCardProps> = ({ submission, onCancel, 
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    const weekString = `Tuần ${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}/${weekStart.getFullYear()}`;
+    const weekString = t('shifts.summary_week_range', { 
+        start: `${weekStart.getDate()}/${weekStart.getMonth() + 1}`,
+        end: `${weekEnd.getDate()}/${weekEnd.getMonth() + 1}/${weekStart.getFullYear()}`
+    });
 
     // Calculate actual date for each shift (helper)
     const getShiftDateStr = (dayOfWeek: number) => {
@@ -113,18 +128,18 @@ export const MyShiftCard: React.FC<MyShiftCardProps> = ({ submission, onCancel, 
                             <View key={index} style={styles.shiftRow}>
                                 <Text style={styles.bullet}>•</Text>
                                 <Text style={styles.shiftText}>
-                                    <Text style={styles.boldText}>{getDayLabel(shift.day_of_week)}</Text>
+                                    <Text style={styles.boldText}>{getDayLabel(shift.day_of_week, t)}</Text>
                                     {` (${getShiftDateStr(shift.day_of_week)}): `}
                                     {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
                                 </Text>
                             </View>
                         ))
                     ) : (
-                        <Text style={styles.noShiftText}>Không có thông tin ca</Text>
+                        <Text style={styles.noShiftText}>{t('shifts.empty_no_registrations')}</Text>
                     )}
 
                     <Text style={styles.totalText}>
-                        Tổng: {submission.shifts?.length || 0} ca
+                        {t('shifts.summary_total', { count: submission.shifts?.length || 0 })}
                     </Text>
                 </View>
 
@@ -136,7 +151,7 @@ export const MyShiftCard: React.FC<MyShiftCardProps> = ({ submission, onCancel, 
                             onPress={() => onCancel(submission.id)}
                             activeOpacity={0.7}
                         >
-                            <Text style={styles.cancelText}>Hủy yêu cầu</Text>
+                            <Text style={styles.cancelText}>{t('shifts.details_cancel_registration')}</Text>
                         </TouchableOpacity>
                     </View>
                 )}

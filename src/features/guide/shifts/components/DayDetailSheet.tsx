@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GUIDE_BORDER_RADIUS, GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 import { SiteScheduleShift } from '../../../../types/guide/dashboard-home.types';
@@ -38,21 +39,29 @@ interface DayDetailSheetProps {
 // HELPERS
 // ============================================
 
-const getDayOfWeekFull = (date: Date): string => {
-    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+const getDayOfWeekFull = (date: Date, t: any): string => {
+    const days = [
+        t('common.days.sun_full'),
+        t('common.days.mon_full'),
+        t('common.days.tue_full'),
+        t('common.days.wed_full'),
+        t('common.days.thu_full'),
+        t('common.days.fri_full'),
+        t('common.days.sat_full')
+    ];
     return days[date.getDay()];
 };
 
-const getMonthName = (month: number) => `Tháng ${month + 1}`;
+const getMonthName = (month: number, t: any) => `${t('shifts.calendar_month')} ${month + 1}`;
 
-const getShiftPeriod = (startTime: string): { label: string; icon: string; color: string; bg: string } => {
+const getShiftPeriod = (startTime: string, t: any): { label: string; icon: string; color: string; bg: string } => {
     const hour = parseInt(startTime.split(':')[0], 10);
     if (hour < 12) {
-        return { label: 'Ca sáng', icon: 'wb-sunny', color: '#F59E0B', bg: '#FFFBEB' };
+        return { label: t('shifts.reg_morning'), icon: 'wb-sunny', color: '#F59E0B', bg: '#FFFBEB' };
     } else if (hour < 17) {
-        return { label: 'Ca chiều', icon: 'wb-twilight', color: '#3B82F6', bg: '#EFF6FF' };
+        return { label: t('shifts.reg_afternoon'), icon: 'wb-twilight', color: '#3B82F6', bg: '#EFF6FF' };
     } else {
-        return { label: 'Ca tối', icon: 'nightlight', color: '#6366F1', bg: '#EEF2FF' };
+        return { label: t('shifts.reg_evening'), icon: 'nightlight', color: '#6366F1', bg: '#EEF2FF' };
     }
 };
 
@@ -71,9 +80,10 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
     onClose,
     onRegister,
 }) => {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const bottomSafe = Math.max(insets.bottom, Platform.OS === 'android' ? 20 : 16);
-    const formattedDate = `${getDayOfWeekFull(date)}, ${date.getDate()} ${getMonthName(date.getMonth())}`;
+    const formattedDate = `${getDayOfWeekFull(date, t)}, ${date.getDate()} ${getMonthName(date.getMonth(), t)}`;
     const myShifts = shifts.filter(s => s.is_mine);
     const otherShifts = shifts.filter(s => !s.is_mine);
 
@@ -89,13 +99,13 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
     // Build summary chips
     const summaryChips: { label: string; color: string; bg: string; icon: string }[] = [];
     if (myShifts.length > 0) {
-        summaryChips.push({ label: `${myShifts.length} ca của bạn`, color: '#92400E', bg: '#FEF3C7', icon: 'person' });
+        summaryChips.push({ label: t('shifts.summary_my_shifts_count', { count: myShifts.length }), color: '#92400E', bg: '#FEF3C7', icon: 'person' });
     }
     if (otherShifts.length > 0) {
-        summaryChips.push({ label: `${otherShifts.length} ca khác`, color: '#1E40AF', bg: '#DBEAFE', icon: 'group' });
+        summaryChips.push({ label: t('shifts.summary_other_shifts_count', { count: otherShifts.length }), color: '#1E40AF', bg: '#DBEAFE', icon: 'group' });
     }
     if (events.length > 0) {
-        summaryChips.push({ label: `${events.length} sự kiện`, color: '#065F46', bg: '#D1FAE5', icon: 'event' });
+        summaryChips.push({ label: t('shifts.summary_events_count', { count: events.length }), color: '#065F46', bg: '#D1FAE5', icon: 'event' });
     }
 
     return (
@@ -139,7 +149,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                                         ))}
                                     </View>
                                 ) : (
-                                    <Text style={styles.headerSubtitle}>Không có lịch</Text>
+                                    <Text style={styles.headerSubtitle}>{t('shifts.empty_no_registrations')}</Text>
                                 )}
                             </View>
                         </View>
@@ -158,18 +168,18 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                         {isLoading ? (
                             <View style={styles.loadingContainer}>
                                 <ActivityIndicator size="large" color={GUIDE_COLORS.primary} />
-                                <Text style={styles.loadingText}>Đang tải dữ liệu...</Text>
+                                <Text style={styles.loadingText}>{t('common.loading')}</Text>
                             </View>
                         ) : totalItems === 0 ? (
                             <View style={styles.emptyContainer}>
                                 <View style={styles.emptyIconBg}>
                                     <MaterialIcons name="event-available" size={32} color={GUIDE_COLORS.gray400} />
                                 </View>
-                                <Text style={styles.emptyTitle}>Chưa có lịch</Text>
+                                <Text style={styles.emptyTitle}>{t('shifts.empty_no_registrations')}</Text>
                                 <Text style={styles.emptySubtitle}>
                                     {isPast
-                                        ? 'Ngày này không có ca trực hay sự kiện nào.'
-                                        : 'Bạn có thể đăng ký ca trực cho ngày này.'}
+                                        ? t('shifts.empty_desc_filtered')
+                                        : t('shifts.empty_desc_all')}
                                 </Text>
                             </View>
                         ) : (
@@ -180,7 +190,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                                         <View style={styles.sectionHeader}>
                                             <View style={styles.sectionHeaderLeft}>
                                                 <View style={[styles.sectionDot, { backgroundColor: '#10B981' }]} />
-                                                <Text style={styles.sectionTitle}>Sự kiện</Text>
+                                                <Text style={styles.sectionTitle}>{t('shifts.summary_events_count', { count: 0 }).replace('0 ', '')}</Text>
                                             </View>
                                             <View style={[styles.sectionBadge, { backgroundColor: '#D1FAE5' }]}>
                                                 <Text style={[styles.sectionBadgeText, { color: '#065F46' }]}>{events.length}</Text>
@@ -198,7 +208,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                                         <View style={styles.sectionHeader}>
                                             <View style={styles.sectionHeaderLeft}>
                                                 <View style={[styles.sectionDot, { backgroundColor: GUIDE_COLORS.primary }]} />
-                                                <Text style={styles.sectionTitle}>Ca trực của bạn</Text>
+                                                <Text style={styles.sectionTitle}>{t('shifts.tab_my')}</Text>
                                             </View>
                                             <View style={styles.sectionBadge}>
                                                 <Text style={styles.sectionBadgeText}>{myShifts.length}</Text>
@@ -216,7 +226,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                                         <View style={styles.sectionHeader}>
                                             <View style={styles.sectionHeaderLeft}>
                                                 <View style={[styles.sectionDot, { backgroundColor: GUIDE_COLORS.info }]} />
-                                                <Text style={styles.sectionTitle}>Ca trực khác</Text>
+                                                <Text style={styles.sectionTitle}>{t('shifts.summary_other_shifts')}</Text>
                                             </View>
                                             <View style={[styles.sectionBadge, { backgroundColor: GUIDE_COLORS.infoLight }]}>
                                                 <Text style={[styles.sectionBadgeText, { color: GUIDE_COLORS.info }]}>{otherShifts.length}</Text>
@@ -240,7 +250,7 @@ export const DayDetailSheet: React.FC<DayDetailSheetProps> = ({
                                 activeOpacity={0.85}
                             >
                                 <MaterialIcons name="add-circle-outline" size={20} color={GUIDE_COLORS.textDark} />
-                                <Text style={styles.registerBtnText}>Đăng ký ca tuần</Text>
+                                <Text style={styles.registerBtnText}>{t('shifts.reg_title')}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -292,7 +302,8 @@ const EventCard: React.FC<{ event: EventItem }> = ({ event }) => {
 // ============================================
 
 const ShiftCard: React.FC<{ shift: SiteScheduleShift; isMine: boolean }> = ({ shift, isMine }) => {
-    const period = getShiftPeriod(shift.start_time);
+    const { t } = useTranslation();
+    const period = getShiftPeriod(shift.start_time, t);
 
     return (
         <View style={[
@@ -325,18 +336,18 @@ const ShiftCard: React.FC<{ shift: SiteScheduleShift; isMine: boolean }> = ({ sh
                         />
                     </View>
                     <Text style={[styles.guideName, isMine && styles.guideNameMine]} numberOfLines={1}>
-                        {shift.guide_name || 'Hướng dẫn viên'}
+                        {shift.guide_name || t('common.notAssigned')}
                     </Text>
                     {shift.status === 'approved' && (
                         <View style={styles.approvedTag}>
                             <MaterialIcons name="check-circle" size={10} color={GUIDE_COLORS.successDark} />
-                            <Text style={styles.approvedTagText}>Duyệt</Text>
+                            <Text style={styles.approvedTagText}>{t('shifts.status_approved')}</Text>
                         </View>
                     )}
                     {shift.status === 'pending' && (
                         <View style={[styles.approvedTag, { backgroundColor: GUIDE_COLORS.warningLight }]}>
                             <MaterialIcons name="hourglass-empty" size={10} color="#92400E" />
-                            <Text style={[styles.approvedTagText, { color: '#92400E' }]}>Chờ duyệt</Text>
+                            <Text style={[styles.approvedTagText, { color: '#92400E' }]}>{t('shifts.status_pending')}</Text>
                         </View>
                     )}
                 </View>

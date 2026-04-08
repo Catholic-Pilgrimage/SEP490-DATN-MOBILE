@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,6 +30,7 @@ import { ShiftRegistrationModal } from "./ShiftRegistrationModal";
 import { ShiftSubmissionDetailModal } from "./ShiftSubmissionDetailModal";
 
 export const MyShiftsTab: React.FC = () => {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { confirm, ConfirmModal } = useConfirm();
   const [filter, setFilter] = useState<
@@ -50,11 +52,11 @@ export const MyShiftsTab: React.FC = () => {
         type,
         title,
         message,
-        confirmText: "OK",
+        confirmText: t('common.done'),
         showCancel: false,
       });
     },
-    [confirm],
+    [confirm, t],
   );
 
   const { data: response, isLoading, refetch } = useQuery({
@@ -71,7 +73,7 @@ export const MyShiftsTab: React.FC = () => {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteShiftSubmission(id),
     onSuccess: () => {
-      void showInfoDialog("Thành công", "Đã hủy đăng ký ca trực.");
+      void showInfoDialog(t('common.success'), t('shifts.reg_toast_success_delete'));
       queryClient.invalidateQueries({
         queryKey: GUIDE_KEYS.shiftSubmissions.all,
       });
@@ -79,8 +81,8 @@ export const MyShiftsTab: React.FC = () => {
     },
     onError: (error: any) => {
       void showInfoDialog(
-        "Lỗi",
-        error?.message || "Không thể hủy đăng ký.",
+        t('common.error'),
+        error?.message || t('shifts.reg_error_cancel_failed'),
         "warning",
       );
     },
@@ -90,17 +92,17 @@ export const MyShiftsTab: React.FC = () => {
     async (id: string) => {
       const confirmed = await confirm({
         type: "danger",
-        title: "Xác nhận hủy",
-        message: "Bạn có chắc chắn muốn hủy đăng ký này?",
-        confirmText: "Hủy đăng ký",
-        cancelText: "Không",
+        title: t('common.confirm'),
+        message: t('shifts.reg_toast_confirm_delete_msg'),
+        confirmText: t('shifts.details_cancel_registration'),
+        cancelText: t('common.cancel'),
       });
 
       if (confirmed) {
         deleteMutation.mutate(id);
       }
     },
-    [confirm, deleteMutation],
+    [confirm, deleteMutation, t],
   );
 
   const filteredList = useMemo(() => {
@@ -160,10 +162,10 @@ export const MyShiftsTab: React.FC = () => {
           contentContainerStyle={styles.filterContainer}
           style={{ flexGrow: 0 }}
         >
-          {renderFilterChip("all", "Tất cả")}
-          {renderFilterChip("pending", "Chờ duyệt")}
-          {renderFilterChip("approved", "Sắp diễn ra")}
-          {renderFilterChip("history", "Lịch sử")}
+          {renderFilterChip("all", t('shifts.filter_all'))}
+          {renderFilterChip("pending", t('shifts.filter_pending'))}
+          {renderFilterChip("approved", t('shifts.filter_approved'))}
+          {renderFilterChip("history", t('shifts.filter_history'))}
         </ScrollView>
       </View>
 
@@ -198,11 +200,11 @@ export const MyShiftsTab: React.FC = () => {
               color={GUIDE_COLORS.primary}
             />
           </View>
-          <Text style={styles.emptyText}>Chưa có đăng ký nào</Text>
+          <Text style={styles.emptyText}>{t('shifts.empty_no_registrations')}</Text>
           <Text style={styles.emptySubText}>
             {filter === "all"
-              ? "Bạn chưa đăng ký ca trực nào."
-              : "Không tìm thấy đăng ký nào theo bộ lọc này."}
+              ? t('shifts.empty_desc_all')
+              : t('shifts.empty_desc_filtered')}
           </Text>
         </View>
       )}
@@ -298,3 +300,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+export default MyShiftsTab;

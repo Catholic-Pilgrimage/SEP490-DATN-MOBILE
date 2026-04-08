@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -52,24 +53,20 @@ type TimePreset = {
   end: string;
 };
 
-const DAYS = [
-  { value: 1, label: "Thứ 2" },
-  { value: 2, label: "Thứ 3" },
-  { value: 3, label: "Thứ 4" },
-  { value: 4, label: "Thứ 5" },
-  { value: 5, label: "Thứ 6" },
-  { value: 6, label: "Thứ 7" },
-  { value: 0, label: "Chủ nhật" },
-];
+const formatShortDate = (date: Date | string | null | undefined, t: any) => {
+  if (!date) return null;
+  const parsed = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(parsed.getTime())) return null;
 
-const PRESETS: TimePreset[] = [
-  { key: "morning", label: "Sáng", start: "08:00:00", end: "12:00:00" },
-  { key: "afternoon", label: "Chiều", start: "13:00:00", end: "17:00:00" },
-  { key: "full", label: "Ca dài", start: "08:00:00", end: "17:00:00" },
-];
+  return parsed.toLocaleDateString(t('common.languageCode', { defaultValue: 'vi-VN' }), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
 
 const formatTime = (time: string) => time.slice(0, 5);
-const getDayLabel = (day: number) => DAYS.find((item) => item.value === day)?.label ?? `Ngày ${day}`;
+
 const hoursOf = (shift: { start_time: string; end_time: string }) => {
   const start = new Date(`2000-01-01T${shift.start_time}`);
   const end = new Date(`2000-01-01T${shift.end_time}`);
@@ -103,24 +100,12 @@ const groupByDay = <T extends { day_of_week: number }>(items: T[]) =>
     return acc;
   }, {});
 
-const statusUi = (status?: ShiftSubmission["status"]) => {
-  switch (status) {
-    case "pending":
-      return { title: "Đã gửi chờ duyệt", color: "#B45309", bg: "#FFF7E8", border: "#F5C97B", icon: "schedule" as const };
-    case "approved":
-      return { title: "Đã được duyệt", color: "#166534", bg: "#ECFDF3", border: "#A7F3D0", icon: "check-circle" as const };
-    case "rejected":
-      return { title: "Bị từ chối", color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA", icon: "cancel" as const };
-    default:
-      return { title: "Chưa có đăng ký", color: GUIDE_COLORS.textSecondary, bg: "#F8F7F4", border: GUIDE_COLORS.borderLight, icon: "info-outline" as const };
-  }
-};
-
 export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   visible,
   onClose,
   weekStartDate: initialWeekStart,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { confirm, ConfirmModal } = useConfirm();
   const queryClient = useQueryClient();
@@ -131,6 +116,37 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
   const [editingShiftIndex, setEditingShiftIndex] = useState<number | null>(null);
   const [editingTimeType, setEditingTimeType] = useState<"start" | "end" | null>(null);
   const [tempTime, setTempTime] = useState(new Date());
+
+  const DAYS = useMemo(() => [
+    { value: 1, label: t('common.days.mon') },
+    { value: 2, label: t('common.days.tue') },
+    { value: 3, label: t('common.days.wed') },
+    { value: 4, label: t('common.days.thu') },
+    { value: 5, label: t('common.days.fri') },
+    { value: 6, label: t('common.days.sat') },
+    { value: 0, label: t('common.days.sun') },
+  ], [t]);
+
+  const PRESETS: TimePreset[] = useMemo(() => [
+    { key: "morning", label: t('shifts.reg_morning'), start: "08:00:00", end: "12:00:00" },
+    { key: "afternoon", label: t('shifts.reg_afternoon'), start: "13:00:00", end: "17:00:00" },
+    { key: "full", label: t('shifts.reg_long'), start: "08:00:00", end: "17:00:00" },
+  ], [t]);
+
+  const getDayLabel = (day: number) => DAYS.find((item) => item.value === day)?.label ?? `${t('shifts.summary_week_label')} ${day}`;
+
+  const statusUi = (status?: ShiftSubmission["status"]) => {
+    switch (status) {
+      case "pending":
+        return { title: t('shifts.status_pending'), color: "#B45309", bg: "#FFF7E8", border: "#F5C97B", icon: "schedule" as const };
+      case "approved":
+        return { title: t('shifts.status_approved'), color: "#166534", bg: "#ECFDF3", border: "#A7F3D0", icon: "check-circle" as const };
+      case "rejected":
+        return { title: t('shifts.status_rejected'), color: "#B91C1C", bg: "#FEF2F2", border: "#FECACA", icon: "cancel" as const };
+      default:
+        return { title: t('shifts.empty_no_registrations'), color: GUIDE_COLORS.textSecondary, bg: "#F8F7F4", border: GUIDE_COLORS.borderLight, icon: "info-outline" as const };
+    }
+  };
 
   useEffect(() => {
     if (visible) setWeekStart(new Date(initialWeekStart));
@@ -200,12 +216,12 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     onSuccess: () => {
       Toast.show({
         type: "success",
-        text1: "Thành công",
+        text1: t('common.success'),
         text2: isEditingExistingSubmission
-          ? "Đã cập nhật đăng ký lịch làm việc."
+          ? t('shifts.registration.toasts.success_update')
           : isChangeRequestMode
-            ? "Đã gửi yêu cầu thay đổi lịch."
-            : "Đã gửi đăng ký lịch làm việc.",
+            ? t('shifts.reg_toast_success_change_request')
+            : t('shifts.reg_toast_success_submit'),
       });
       onClose();
       setShifts([]);
@@ -214,19 +230,19 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       queryClient.invalidateQueries({ queryKey: GUIDE_KEYS.dashboard.activeShift(weekStartStr) });
     },
     onError: (error: any) => {
-      const submitErrorMessage = getApiErrorMessage(error, "Vui lòng thử lại.");
+      const submitErrorMessage = getApiErrorMessage(error, t('common.error'));
       if (submitErrorMessage) {
         Toast.show({
           type: "error",
-          text1: "Không gửi được",
+          text1: t('shifts.reg_error_submit_failed'),
           text2: submitErrorMessage,
         });
         return;
       }
       Toast.show({
         type: "error",
-        text1: "Không gửi được",
-        text2: error?.message || "Vui lòng thử lại.",
+        text1: t('shifts.reg_error_submit_failed'),
+        text2: error?.message || t('common.error'),
       });
     },
   });
@@ -235,8 +251,11 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     const start = new Date(weekStart);
     const end = new Date(weekStart);
     end.setDate(end.getDate() + 6);
-    return `Tuần ${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
-  }, [weekStart]);
+    return t('shifts.summary_week_range', {
+        start: `${start.getDate()}/${start.getMonth() + 1}`,
+        end: `${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`
+    });
+  }, [weekStart, t]);
 
   const shiftsByDay = useMemo(() => groupByDay(shifts), [shifts]);
   const existingByDay = useMemo(() => groupByDay(referenceSubmission?.shifts ?? []), [referenceSubmission]);
@@ -280,8 +299,8 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     if (isPastDay(candidate.day_of_week)) {
       Toast.show({
         type: "info",
-        text1: "Ngày đã qua",
-        text2: "Chỉ có thể đăng ký ca từ hôm nay trở đi.",
+        text1: t('shifts.reg_error_past_day'),
+        text2: t('shifts.reg_error_past_day_desc', { defaultValue: t('shifts.reg_error_past_day') }),
       });
       return false;
     }
@@ -289,11 +308,11 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
     const start = new Date(`2000-01-01T${candidate.start_time}`);
     const end = new Date(`2000-01-01T${candidate.end_time}`);
     if (end <= start) {
-      Toast.show({ type: "error", text1: "Giờ chưa hợp lệ", text2: "Giờ kết thúc phải sau giờ bắt đầu." });
+      Toast.show({ type: "error", text1: t('shifts.reg_error_invalid_time'), text2: t('shifts.reg_error_invalid_time') });
       return false;
     }
     if (hoursOf(candidate) > 12) {
-      Toast.show({ type: "error", text1: "Ca làm quá dài", text2: "Mỗi ca tối đa 12 giờ." });
+      Toast.show({ type: "error", text1: t('shifts.reg_error_too_long'), text2: t('shifts.reg_error_too_long') });
       return false;
     }
     const overlap = shifts.some((shift, index) => {
@@ -302,7 +321,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
       return candidate.start_time < shift.end_time && candidate.end_time > shift.start_time;
     });
     if (overlap) {
-      Toast.show({ type: "error", text1: "Bị trùng giờ", text2: "Ca này đang bị chồng lên với ca khác trong cùng ngày." });
+      Toast.show({ type: "error", text1: t('shifts.reg_error_overlap'), text2: t('shifts.reg_error_overlap') });
       return false;
     }
     return true;
@@ -372,27 +391,27 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
   const handleSubmit = async () => {
     if (!shifts.length) {
-      Toast.show({ type: "info", text1: "Chưa có ca làm", text2: "Hãy thêm ít nhất 1 ca trước khi gửi." });
+      Toast.show({ type: "info", text1: t('shifts.registration.labels.draft_empty'), text2: t('shifts.registration.labels.draft_empty_desc') });
       return;
     }
     if (submissionShifts.length < 3 || submissionShifts.length > 21) {
       Toast.show({
         type: "info",
-        text1: "Số ca chưa hợp lệ",
-        text2: "Mỗi tuần cần đăng ký từ 3 đến 21 ca làm việc.",
+        text1: t('common.error'),
+        text2: t('shifts.reg_error_min_shifts'),
       });
       return;
     }
     if (shifts.some((shift) => isPastDay(shift.day_of_week))) {
       Toast.show({
         type: "info",
-        text1: "Ngày đã qua",
-        text2: "Vui lòng xóa các ca thuộc ngày đã qua trước khi gửi.",
+        text1: t('shifts.reg_error_past_day'),
+        text2: t('shifts.reg_error_past_day_desc', { defaultValue: t('shifts.reg_error_past_day') }),
       });
       return;
     }
     if (isChangeRequestMode && !changeReason.trim()) {
-      Toast.show({ type: "info", text1: "Cần lý do thay đổi", text2: "Hãy ghi lý do để quản lý dễ duyệt." });
+      Toast.show({ type: "info", text1: t('shifts.reg_error_reason_required'), text2: t('shifts.reg_error_reason_required') });
       return;
     }
 
@@ -413,14 +432,20 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
     const confirmed = await confirm({
       type: "warning",
-      title: "Xác nhận gửi lịch",
-      message: `Bạn sẽ gửi ${submissionShifts.length} ca (${submittedTotalHours.toFixed(1)} giờ) cho ${weekRangeText.toLowerCase()}.`, 
+      title: t('shifts.reg_title'),
+      message: t('shifts.reg_toast_confirm_msg', { 
+        defaultValue: `Bạn sẽ gửi ${submissionShifts.length} ca (${submittedTotalHours.toFixed(1)} giờ) cho ${weekRangeText.toLowerCase()}.`,
+        count: submissionShifts.length,
+        hours: submittedTotalHours.toFixed(1),
+        week: weekRangeText.toLowerCase(),
+        weekStart: formatShortDate(weekStart, t) 
+      }),
       confirmText: isEditingExistingSubmission
-        ? "Cập nhật"
+        ? t('common.save')
         : isChangeRequestMode
-          ? "Gửi thay đổi"
-          : "Gửi yêu cầu",
-      cancelText: "Hủy",
+          ? t('shifts.reg_toast_success_change_request')
+          : t('common.confirm'),
+      cancelText: t('common.cancel'),
     });
 
     if (confirmed) {
@@ -446,10 +471,10 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
           </TouchableOpacity>
           <Text style={styles.title}>
             {isEditingExistingSubmission
-              ? "Cập nhật đăng ký lịch làm việc"
+              ? t('shifts.registration.update_title')
               : isChangeRequestMode
-                ? "Điều chỉnh lịch làm việc"
-                : "Đăng ký lịch làm việc"}
+                ? t('shifts.reg_adjust_title')
+                : t('shifts.reg_title')}
           </Text>
           <View style={styles.iconButton} />
         </View>
@@ -459,7 +484,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             <MaterialIcons name="chevron-left" size={24} color={GUIDE_COLORS.textSecondary} />
           </TouchableOpacity>
           <View style={styles.weekInfo}>
-            <Text style={styles.weekEyebrow}>Đang chọn</Text>
+            <Text style={styles.weekEyebrow}>{t('common.sortBy')}</Text>
             <Text style={styles.weekText}>{weekRangeText}</Text>
           </View>
           <TouchableOpacity onPress={() => changeWeek(1)} style={styles.weekNavButton}>
@@ -475,24 +500,24 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
           <View style={styles.summaryCard}>
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{Object.keys(shiftsByDay).length}</Text>
-              <Text style={styles.summaryLabel}>Ngày đã chọn</Text>
+              <Text style={styles.summaryLabel}>{t('shifts.reg_label_days_selected')}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{shifts.length}</Text>
-              <Text style={styles.summaryLabel}>Ca đang sửa</Text>
+              <Text style={styles.summaryLabel}>{t('shifts.reg_label_editing')}</Text>
             </View>
             <View style={styles.summaryDivider} />
             <View style={styles.summaryBlock}>
               <Text style={styles.summaryValue}>{totalHours.toFixed(1)}</Text>
-              <Text style={styles.summaryLabel}>Tổng giờ</Text>
+              <Text style={styles.summaryLabel}>{t('shifts.summary_total_hours')}</Text>
             </View>
           </View>
 
           {isExistingLoading ? (
             <View style={styles.noticeCard}>
               <ActivityIndicator color={GUIDE_COLORS.primary} />
-              <Text style={styles.noticeText}>Đang tải đăng ký của tuần này...</Text>
+              <Text style={styles.noticeText}>{t('common.loading')}</Text>
             </View>
           ) : referenceSubmission ? (
             <View
@@ -509,13 +534,13 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                   </Text>
                 </View>
                 <Text style={[styles.referenceMeta, { color: statusConfig.color }]}>
-                  {referenceSubmission.shifts?.length || 0} ca
+                  {referenceSubmission.shifts?.length || 0} {t('shifts.calendar_shift_count')}
                 </Text>
               </View>
 
               {referenceSubmission.rejection_reason ? (
                 <Text style={[styles.referenceReason, { color: statusConfig.color }]}>
-                  Lý do: {referenceSubmission.rejection_reason}
+                  {t('shifts.reg_label_reason')}: {referenceSubmission.rejection_reason}
                 </Text>
               ) : null}
 
@@ -530,11 +555,11 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
               {editableSubmission?.status === "pending" ? (
                 <Text style={styles.referenceHint}>
-                  Yêu cầu của tuần này đang chờ duyệt. Bạn vẫn có thể cập nhật lại chính đăng ký này trước khi quản lý xử lý.
+                  {t('shifts.reg_label_pending_notice')}
                 </Text>
               ) : editableSubmission?.status === "rejected" ? (
                 <Text style={styles.referenceHint}>
-                  Đăng ký trước đó đã bị từ chối. Hãy chỉnh lại các ca làm và cập nhật để gửi xét duyệt lại.
+                  {t('shifts.reg_label_rejected_notice')}
                 </Text>
               ) : null}
             </View>
@@ -542,7 +567,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             <View style={styles.noticeCard}>
               <MaterialIcons name="info-outline" size={18} color={GUIDE_COLORS.textSecondary} />
               <Text style={styles.noticeText}>
-                Tuần này chưa có đăng ký cũ. Bạn có thể thêm ngày và ca làm ngay bên dưới.
+                {t('shifts.reg_label_existing_notice')}
               </Text>
             </View>
           )}
@@ -552,9 +577,9 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
               <View style={styles.emptyIcon}>
                 <MaterialIcons name="event-note" size={34} color={GUIDE_COLORS.primary} />
               </View>
-              <Text style={styles.emptyTitle}>Chưa có ca nào trong bản nháp</Text>
+              <Text style={styles.emptyTitle}>{t('shifts.reg_label_draft_empty')}</Text>
               <Text style={styles.emptyDescription}>
-                Chọn ngày trước, sau đó thêm nhanh ca sáng, chiều hoặc ca dài.
+                {t('shifts.reg_label_draft_empty_desc')}
               </Text>
             </View>
           ) : null}
@@ -572,8 +597,8 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                       {getDayLabel(day)} ({getFormattedDate(day)})
                     </Text>
                     <Text style={styles.daySubtitle}>
-                      {dayShifts.length} ca trong bản nháp
-                      {referenceShifts.length ? ` • đã có ${referenceShifts.length} ca` : ""}
+                      {t('shifts.reg_label_draft_items', { count: dayShifts.length })}
+                      {referenceShifts.length ? ` • ${t('shifts.summary_total', { count: referenceShifts.length })}` : ""}
                     </Text>
                   </View>
 
@@ -605,9 +630,9 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                         style={styles.shiftCard}
                       >
                         <View style={styles.shiftCardHeader}>
-                          <Text style={styles.shiftCardLabel}>Ca {localIndex + 1}</Text>
+                          <Text style={styles.shiftCardLabel}>{t('shifts.reg_label_shift_label', { index: localIndex + 1 })}</Text>
                           <Text style={styles.shiftCardHours}>
-                            {hoursOf(shift).toFixed(1)} giờ
+                            {t('shifts.summary_hours_count', { count: Number(hoursOf(shift).toFixed(1)) })}
                           </Text>
                         </View>
 
@@ -659,15 +684,15 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
           <TouchableOpacity style={styles.addDayButton} onPress={() => setShowDayPicker(true)}>
             <MaterialIcons name="add-circle-outline" size={22} color={GUIDE_COLORS.primary} />
-            <Text style={styles.addDayText}>Thêm ngày để đăng ký</Text>
+            <Text style={styles.addDayText}>{t('shifts.reg_label_add_day')}</Text>
           </TouchableOpacity>
 
           {isChangeRequestMode ? (
             <View style={styles.reasonCard}>
-              <Text style={styles.reasonTitle}>Lý do thay đổi lịch</Text>
+              <Text style={styles.reasonTitle}>{t('shifts.reg_label_reason')}</Text>
               <TextInput
                 style={styles.reasonInput}
-                placeholder="Ví dụ: Đổi sang ca sáng để phù hợp lịch site..."
+                placeholder={t('shifts.reg_placeholder_change_reason')}
                 placeholderTextColor={GUIDE_COLORS.textMuted}
                 multiline
                 value={changeReason}
@@ -679,7 +704,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
 
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) + 8 }]}>
           <Text style={styles.footerText}>
-            {`${shifts.length} ca • ${totalHours.toFixed(1)} giờ`}
+            {`${shifts.length} ${t('shifts.calendar_shift_count')} • ${t('shifts.summary_hours_count', { count: Number(totalHours.toFixed(1)) })}`}
           </Text>
           <TouchableOpacity
             style={[
@@ -694,10 +719,10 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
             ) : (
               <Text style={styles.submitButtonText}>
                 {isEditingExistingSubmission
-                  ? "Cập nhật đăng ký"
+                  ? t('common.save')
                   : isChangeRequestMode
-                    ? "Gửi yêu cầu thay đổi"
-                    : "Gửi yêu cầu đăng ký"}
+                    ? t('shifts.reg_toast_success_change_request')
+                    : t('common.confirm')}
               </Text>
             )}
           </TouchableOpacity>
@@ -711,9 +736,9 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
         >
           <View style={styles.overlay}>
             <View style={styles.dayPickerCard}>
-              <Text style={styles.dayPickerTitle}>Chọn ngày cần đăng ký</Text>
+              <Text style={styles.dayPickerTitle}>{t('shifts.reg_label_add_day')}</Text>
               <Text style={styles.dayPickerSubtitle}>
-                Mỗi ngày sẽ được tạo sẵn 1 ca sáng, bạn có thể đổi giờ sau.
+                {t('shifts.reg_label_draft_empty_desc')}
               </Text>
               <View style={styles.dayGrid}>
                 {DAYS.map((day) => {
@@ -755,7 +780,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                           isDisabled && styles.dayGridTextDisabled,
                         ]}
                       >
-                        {isDisabled ? "Đã qua" : `Nháp: ${shiftsByDay[day.value]?.length ?? 0}`}
+                        {isDisabled ? t('shifts.reg_error_past_day') : `${t('shifts.reg_label_editing')}: ${shiftsByDay[day.value]?.length ?? 0}`}
                       </Text>
                       <Text
                         style={[
@@ -764,14 +789,14 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
                           isDisabled && styles.dayGridTextDisabled,
                         ]}
                       >
-                        Đã có: {existingByDay[day.value]?.length ?? 0}
+                        {t('shifts.status_approved')}: {existingByDay[day.value]?.length ?? 0}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
               <TouchableOpacity style={styles.dayPickerClose} onPress={() => setShowDayPicker(false)}>
-                <Text style={styles.dayPickerCloseText}>Đóng</Text>
+                <Text style={styles.dayPickerCloseText}>{t('common.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -790,7 +815,7 @@ export const ShiftRegistrationModal: React.FC<ShiftRegistrationModalProps> = ({
         {Platform.OS === "ios" && editingTimeType ? (
           <View style={styles.iosToolbar}>
             <TouchableOpacity onPress={() => setEditingTimeType(null)}>
-              <Text style={styles.iosToolbarText}>Xong</Text>
+              <Text style={styles.iosToolbarText}>{t('common.done')}</Text>
             </TouchableOpacity>
           </View>
         ) : null}
