@@ -2,6 +2,7 @@ import type { TFunction } from "i18next";
 
 const TYPE_FALLBACK_VI: Record<string, string> = {
   withdraw: "Rút tiền",
+  topup: "Nạp tiền",
   escrow_lock: "Giữ cọc kế hoạch",
   escrow_refund: "Hoàn cọc",
   penalty_applied: "Phạt (trừ ví)",
