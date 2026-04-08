@@ -5,6 +5,7 @@
 /** Query `type` trên GET /wallet/transactions */
 export type WalletTransactionTypeFilter =
   | "withdraw"
+  | "topup"
   | "escrow_lock"
   | "escrow_refund"
   | "penalty_applied"
@@ -66,6 +67,20 @@ export interface WalletWithdrawRequest {
   account_number: string;
   account_name: string;
   bank_code: string;
+}
+
+export interface WalletTopupRequest {
+  amount: number;
+}
+
+export interface WalletTopupResponse {
+  transaction_id: string;
+  transaction_code: string;
+  wallet_id: string;
+  amount: number;
+  order_code: number;
+  checkout_url: string;
+  qr_code?: string;
 }
 
 export interface WalletTransactionsQuery {

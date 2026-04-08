@@ -15,6 +15,8 @@ import {
   WalletTransactionsQuery,
   WalletTransactionsResult,
   WalletWithdrawRequest,
+  WalletTopupRequest,
+  WalletTopupResponse,
 } from "../../../types/pilgrim/wallet.types";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -62,11 +64,22 @@ export const getWalletBanks = async (): Promise<ApiResponse<WalletBankOption[]>>
   return response.data;
 };
 
+export const requestWalletTopup = async (
+  body: WalletTopupRequest,
+): Promise<ApiResponse<WalletTopupResponse>> => {
+  const response = await apiClient.post<ApiResponse<WalletTopupResponse>>(
+    PILGRIM_ENDPOINTS.WALLET.TOPUP,
+    body,
+  );
+  return response.data;
+};
+
 const pilgrimWalletApi = {
   getWalletInfo,
   getWalletTransactions,
   getWalletTransactionById,
   requestWalletWithdrawal,
+  requestWalletTopup,
   getWalletBanks,
 };
 

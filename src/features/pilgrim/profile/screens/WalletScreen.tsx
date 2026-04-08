@@ -4,18 +4,22 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   ImageBackground,
   Modal,
   RefreshControl,
   ScrollView,
+  Linking,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import {
   SafeAreaView,
@@ -29,6 +33,7 @@ import {
   getWalletTransactionById,
   getWalletTransactions,
   requestWalletWithdrawal,
+  requestWalletTopup,
 } from "../../../../services/api/pilgrim/walletApi";
 import type {
   WalletBankOption,
@@ -40,6 +45,23 @@ import {
   walletTransactionStatusLabel,
   walletTransactionTypeLabel,
 } from "../../../../utils/walletTransactionLabels";
+
+// ─── Icon/Color by transaction type ────────────────────────────────────────
+
+const TX_ICON_MAP: Record<string, { icon: string; color: string; bg: string }> = {
+  withdraw: { icon: "arrow-up-circle", color: "#DC2626", bg: "rgba(220,38,38,0.08)" },
+  topup: { icon: "arrow-down-circle", color: "#2563EB", bg: "rgba(37,99,235,0.08)" },
+  escrow_lock: { icon: "lock-closed", color: "#D97706", bg: "rgba(217,119,6,0.08)" },
+  escrow_refund: { icon: "lock-open", color: "#059669", bg: "rgba(5,150,105,0.08)" },
+  penalty_applied: { icon: "remove-circle", color: "#DC2626", bg: "rgba(220,38,38,0.08)" },
+  penalty_received: { icon: "add-circle", color: "#059669", bg: "rgba(5,150,105,0.08)" },
+  penalty_refunded: { icon: "refresh-circle", color: "#2563EB", bg: "rgba(37,99,235,0.08)" },
+};
+const TX_DEFAULT_ICON = { icon: "swap-horizontal", color: COLORS.textSecondary, bg: "rgba(0,0,0,0.04)" };
+
+const getTxMeta = (type?: string) => TX_ICON_MAP[type || ""] || TX_DEFAULT_ICON;
+
+// ─── Main Component ────────────────────────────────────────────────────────
 
 const WalletScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -57,17 +79,24 @@ const WalletScreen: React.FC = () => {
   const [banks, setBanks] = useState<WalletBankOption[]>([]);
   const [bankPickerOpen, setBankPickerOpen] = useState(false);
   const [banksLoading, setBanksLoading] = useState(false);
-  const [selectedBank, setSelectedBank] = useState<WalletBankOption | null>(
-    null,
-  );
+  const [selectedBank, setSelectedBank] = useState<WalletBankOption | null>(null);
   const [amountStr, setAmountStr] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [bankSearch, setBankSearch] = useState("");
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] =
-    useState<WalletTransaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<WalletTransaction | null>(null);
+
+  // ── Topup state ──
+  const [topupOpen, setTopupOpen] = useState(false);
+  const [topupAmountStr, setTopupAmountStr] = useState("");
+  const [topupSubmitting, setTopupSubmitting] = useState(false);
+  const [topupError, setTopupError] = useState<string | null>(null);
+
+  // ── Data loading ──
 
   const loadAll = useCallback(async () => {
     const [wRes, txRes] = await Promise.all([
@@ -76,1382 +105,921 @@ const WalletScreen: React.FC = () => {
     ]);
 
     let walletFailed = true;
-    if (wRes.success && wRes.data) {
-      setWallet(wRes.data);
-      walletFailed = false;
-    } else {
-      setWallet(null);
-    }
-
+    if (wRes.success && wRes.data) { setWallet(wRes.data); walletFailed = false; } else { setWallet(null); }
     let txFailed = true;
-    if (txRes.success && txRes.data && Array.isArray(txRes.data.transactions)) {
-      setTransactions(txRes.data.transactions);
-      txFailed = false;
-    } else {
-      setTransactions([]);
-    }
-
-    return {
-      walletFailed,
-      txFailed,
-      walletMessage: wRes.message,
-      txMessage: txRes.message,
-    };
+    if (txRes.success && txRes.data && Array.isArray(txRes.data.transactions)) { setTransactions(txRes.data.transactions); txFailed = false; } else { setTransactions([]); }
+    return { walletFailed, txFailed, walletMessage: wRes.message, txMessage: txRes.message };
   }, []);
 
   const bootstrap = useCallback(async () => {
-    setLoading(true);
-    setScreenError(null);
-    setTxListWarn(null);
+    setLoading(true); setScreenError(null); setTxListWarn(null);
     try {
       const r = await loadAll();
-      if (r.walletFailed) {
-        setScreenError(
-          r.walletMessage ||
-            t("wallet.loadFailed", {
-              defaultValue: "Không tải được ví. Kiểm tra mạng và thử lại.",
-            }),
-        );
-      } else if (r.txFailed) {
-        setTxListWarn(
-          r.txMessage ||
-            t("wallet.transactionsLoadFailed", {
-              defaultValue:
-                "Không tải được lịch sử giao dịch. Kéo xuống để làm mới.",
-            }),
-        );
-      }
-    } catch (e: unknown) {
-      setScreenError(
-        e instanceof Error
-          ? e.message
-          : t("wallet.loadFailed", {
-              defaultValue: "Không tải được ví. Kiểm tra mạng và thử lại.",
-            }),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [loadAll, t]);
+      if (r.walletFailed) setScreenError(r.walletMessage || "Không tải được ví. Kiểm tra mạng và thử lại.");
+      else if (r.txFailed) setTxListWarn(r.txMessage || "Không tải được lịch sử giao dịch.");
+    } catch (e: unknown) { setScreenError(e instanceof Error ? e.message : "Không tải được ví."); }
+    finally { setLoading(false); }
+  }, [loadAll]);
 
-  React.useEffect(() => {
-    void bootstrap();
-  }, [bootstrap]);
+  React.useEffect(() => { void bootstrap(); }, [bootstrap]);
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    setTxListWarn(null);
+    setRefreshing(true); setTxListWarn(null);
     try {
       const r = await loadAll();
-      if (r.walletFailed) {
-        setScreenError(
-          r.walletMessage ||
-            t("wallet.loadFailed", {
-              defaultValue: "Không tải được ví. Kiểm tra mạng và thử lại.",
-            }),
-        );
-      } else {
-        setScreenError(null);
-        if (r.txFailed) {
-          setTxListWarn(
-            r.txMessage ||
-              t("wallet.transactionsLoadFailed", {
-                defaultValue:
-                  "Không tải được lịch sử giao dịch. Kéo xuống để làm mới.",
-              }),
-          );
-        }
-      }
-    } catch (e: unknown) {
-      setScreenError(
-        e instanceof Error
-          ? e.message
-          : t("wallet.loadFailed", {
-              defaultValue: "Không tải được ví. Kiểm tra mạng và thử lại.",
-            }),
-      );
-    } finally {
-      setRefreshing(false);
-    }
+      if (r.walletFailed) setScreenError(r.walletMessage || "Không tải được ví.");
+      else { setScreenError(null); if (r.txFailed) setTxListWarn(r.txMessage || "Không tải được lịch sử giao dịch."); }
+    } catch (e: unknown) { setScreenError(e instanceof Error ? e.message : "Không tải được ví."); }
+    finally { setRefreshing(false); }
   };
+
+  // ── Withdraw ──
 
   const openWithdraw = async () => {
-    setWithdrawOpen(true);
-    setBanksLoading(true);
+    setWithdrawOpen(true); setBanksLoading(true);
     try {
       const res = await getWalletBanks();
-      if (res.success && Array.isArray(res.data)) {
-        setBanks(res.data);
-      } else {
-        setBanks([]);
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2: t("wallet.banksLoadFailed", {
-            defaultValue: "Không tải được danh sách ngân hàng",
-          }),
-        });
-      }
-    } catch {
-      setBanks([]);
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("wallet.banksLoadFailed", {
-          defaultValue: "Không tải được danh sách ngân hàng",
-        }),
-      });
-    } finally {
-      setBanksLoading(false);
-    }
+      if (res.success && Array.isArray(res.data)) setBanks(res.data);
+      else { setBanks([]); Toast.show({ type: "error", text1: t("common.error"), text2: "Không tải được danh sách ngân hàng" }); }
+    } catch { setBanks([]); Toast.show({ type: "error", text1: t("common.error"), text2: "Không tải được danh sách ngân hàng" }); }
+    finally { setBanksLoading(false); }
   };
 
+
   const submitWithdraw = async () => {
-    const amount = parseFloat(amountStr.replace(/\s/g, "").replace(/,/g, ""));
-    if (!selectedBank) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("wallet.selectBank", { defaultValue: "Chọn ngân hàng" }),
-      });
-      return;
-    }
-    if (!Number.isFinite(amount) || amount < 2000 || amount > 50_000_000) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("wallet.amountRangeInvalid", {
-          defaultValue: "Số tiền từ 2.000 đến 50.000.000 ₫",
-        }),
-      });
-      return;
-    }
+    setWithdrawError(null);
+    const amount = parseFloat(amountStr.replace(/[\s\.,]/g, ""));
+    if (!selectedBank) { setWithdrawError("Vui lòng chọn ngân hàng."); return; }
+    if (!Number.isFinite(amount) || amount < 2000 || amount > 50_000_000) { setWithdrawError("Số tiền rút từ 2.000 đến 50.000.000 ₫."); return; }
+    if (amount > (wallet?.balance ?? 0)) { setWithdrawError(`Số dư khả dụng không đủ. Hiện có ${fmt(wallet?.balance ?? 0)}.`); return; }
     const acc = accountNumber.trim();
     const name = accountName.trim();
-    if (
-      acc.length < 5 ||
-      acc.length > 30 ||
-      name.length < 2 ||
-      name.length > 100
-    ) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("wallet.accountFieldsInvalid", {
-          defaultValue:
-            "Số TK 5–30 ký tự; tên chủ TK 2–100 ký tự (theo hệ thống).",
-        }),
-      });
+    if (acc.length < 5 || acc.length > 30) { setWithdrawError("Số tài khoản phải từ 5–30 ký tự."); return; }
+    if (name.length < 2 || name.length > 100) { setWithdrawError("Tên chủ tài khoản phải từ 2–100 ký tự."); return; }
+    try {
+      setSubmitting(true);
+      const res = await requestWalletWithdrawal({ amount, account_number: acc, account_name: name, bank_code: selectedBank.bin });
+      if (res.success) {
+        setWithdrawOpen(false); setAmountStr(""); setAccountNumber(""); setAccountName(""); setSelectedBank(null); setWithdrawError(null);
+        Toast.show({ type: "success", text1: "Thành công", text2: res.message || "Đã gửi yêu cầu rút tiền" });
+        await loadAll();
+      } else {
+        let cleanMsg = res.message || "Rút tiền thất bại. Thử lại sau.";
+        if (cleanMsg.includes("HTTP 200") || cleanMsg.includes("code: 607")) {
+          cleanMsg = "Tài khoản nhận không đúng hoặc không hỗ trợ nhận tiền.";
+        } else {
+          cleanMsg = cleanMsg.replace(/HTTP \d+,?\s*/g, "").replace(/\(code: \d+\)/g, "").trim();
+        }
+        Toast.show({ type: "error", text1: "Giao dịch không thành công", text2: cleanMsg });
+      }
+    } catch (e: unknown) {
+      let cleanMsg = e instanceof Error ? e.message : "Rút tiền thất bại. Thử lại sau.";
+      if (cleanMsg.includes("HTTP 200") || cleanMsg.includes("code: 607")) {
+        cleanMsg = "Tài khoản nhận không đúng hoặc không hỗ trợ nhận tiền.";
+      } else {
+        cleanMsg = cleanMsg.replace(/HTTP \d+,?\s*/g, "").replace(/\(code: \d+\)/g, "").trim();
+      }
+      Toast.show({ type: "error", text1: "Giao dịch không thành công", text2: cleanMsg });
+    }
+    finally { setSubmitting(false); }
+  };
+
+  // ── Topup ──
+
+  const submitTopup = async () => {
+    setTopupError(null);
+    const amount = parseFloat(topupAmountStr.replace(/[\s\.,]/g, ""));
+    if (!Number.isFinite(amount) || amount < 2000 || amount > 50_000_000) {
+      setTopupError(t("wallet.topupAmountInvalid", { defaultValue: "Số tiền nạp từ 2.000 đến 50.000.000 ₫." }));
       return;
     }
     try {
-      setSubmitting(true);
-      const res = await requestWalletWithdrawal({
-        amount,
-        account_number: acc,
-        account_name: name,
-        bank_code: selectedBank.bin,
-      });
-      if (res.success) {
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2:
-            res.message ||
-            t("wallet.withdrawSubmitted", {
-              defaultValue: "Đã gửi yêu cầu rút tiền",
-            }),
-        });
-        setWithdrawOpen(false);
-        setAmountStr("");
-        setAccountNumber("");
-        setAccountName("");
-        setSelectedBank(null);
-        await loadAll();
+      setTopupSubmitting(true);
+      const res = await requestWalletTopup({ amount });
+      if (res.success && res.data?.checkout_url) {
+        setTopupOpen(false);
+        setTopupAmountStr("");
+        setTopupError(null);
+        const payUrl = res.data.checkout_url;
+        const canOpen = await Linking.canOpenURL(payUrl);
+        if (canOpen) {
+          await Linking.openURL(payUrl);
+          Toast.show({
+            type: "info",
+            text1: t("wallet.topupPaymentOpened", { defaultValue: "Đang mở trang thanh toán" }),
+            text2: t("wallet.topupPaymentHint", { defaultValue: "Quay lại app và kéo làm mới sau khi thanh toán." }),
+          });
+        } else {
+          Alert.alert(
+            t("wallet.topupLinkTitle", { defaultValue: "Link thanh toán" }),
+            payUrl,
+            [{ text: t("common.ok") }]
+          );
+        }
       } else {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2:
-            res.message ||
-            t("wallet.withdrawFailed", { defaultValue: "Rút tiền thất bại" }),
-        });
+        setTopupError(res.message || t("wallet.topupFailed", { defaultValue: "Nạp tiền thất bại. Thử lại sau." }));
       }
     } catch (e: unknown) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2:
-          e instanceof Error
-            ? e.message
-            : t("wallet.withdrawFailed", { defaultValue: "Rút tiền thất bại" }),
-      });
+      setTopupError(e instanceof Error ? e.message : t("wallet.topupFailed", { defaultValue: "Nạp tiền thất bại. Thử lại sau." }));
     } finally {
-      setSubmitting(false);
+      setTopupSubmitting(false);
     }
   };
 
-  const fmt = (n: number) =>
-    `${(Number.isFinite(n) ? n : 0).toLocaleString("vi-VN")} ₫`;
+  // ── Formatting helpers ──
 
-  const formatDateTime = (value?: string) =>
-    value ? new Date(value).toLocaleString("vi-VN") : "—";
+  const fmt = (n: number) => `${(Number.isFinite(n) ? n : 0).toLocaleString("vi-VN")} ₫`;
+  const formatDateTime = (value?: string) => value ? new Date(value).toLocaleString("vi-VN") : "—";
+
+  const handleAmountInput = (text: string, setter: (val: string) => void) => {
+    const numericVal = text.replace(/[^0-9]/g, "");
+    if (!numericVal) {
+      setter("");
+      return;
+    }
+    const parsed = parseInt(numericVal, 10);
+    setter(parsed.toLocaleString("vi-VN"));
+  };
 
   const getStatusTone = (status?: string) => {
     switch (status) {
-      case "completed":
-        return {
-          bg: "rgba(82, 196, 26, 0.12)",
-          text: "#2E7D32",
-        };
-      case "failed":
-        return {
-          bg: "rgba(220, 76, 76, 0.12)",
-          text: "#C62828",
-        };
-      case "pending":
-        return {
-          bg: "rgba(230, 126, 34, 0.12)",
-          text: "#B85C00",
-        };
-      case "cancelled":
-        return {
-          bg: "rgba(137, 127, 97, 0.12)",
-          text: COLORS.textSecondary,
-        };
-      default:
-        return {
-          bg: "rgba(26, 40, 69, 0.08)",
-          text: COLORS.primary,
-        };
+      case "completed": return { bg: "rgba(5, 150, 105, 0.10)", text: "#059669" };
+      case "failed": return { bg: "rgba(220, 38, 38, 0.10)", text: "#DC2626" };
+      case "pending": return { bg: "rgba(217, 119, 6, 0.10)", text: "#D97706" };
+      case "cancelled": return { bg: "rgba(107, 114, 128, 0.10)", text: "#6B7280" };
+      default: return { bg: "rgba(26, 40, 69, 0.08)", text: COLORS.primary };
     }
   };
 
+  // ── Transaction detail ──
+
   const openTransactionDetail = async (tx: WalletTransaction) => {
-    setSelectedTransaction(tx);
-    setDetailOpen(true);
-    setDetailLoading(true);
+    setSelectedTransaction(tx); setDetailOpen(true); setDetailLoading(true);
     try {
-      if (!banks.length) {
-        const bankRes = await getWalletBanks();
-        if (bankRes.success && Array.isArray(bankRes.data)) {
-          setBanks(bankRes.data);
-        }
-      }
+      if (!banks.length) { const bankRes = await getWalletBanks(); if (bankRes.success && Array.isArray(bankRes.data)) setBanks(bankRes.data); }
       const res = await getWalletTransactionById(tx.id);
-      if (res.success && res.data) {
-        setSelectedTransaction(res.data);
-      } else {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2:
-            res.message ||
-            t("wallet.transactionsLoadFailed", {
-              defaultValue: "Không tải được chi tiết giao dịch",
-            }),
-        });
-      }
-    } catch (e: unknown) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2:
-          e instanceof Error
-            ? e.message
-            : t("wallet.transactionsLoadFailed", {
-                defaultValue: "Không tải được chi tiết giao dịch",
-              }),
-      });
-    } finally {
-      setDetailLoading(false);
-    }
+      if (res.success && res.data) setSelectedTransaction(res.data);
+      else Toast.show({ type: "error", text1: t("common.error"), text2: res.message || "Không tải được chi tiết" });
+    } catch (e: unknown) { Toast.show({ type: "error", text1: t("common.error"), text2: e instanceof Error ? e.message : "Không tải được chi tiết" }); }
+    finally { setDetailLoading(false); }
   };
 
   const findBankMeta = (bankCode?: string) => {
-    const normalized = bankCode?.trim();
-    if (!normalized) {
-      return null;
-    }
-
-    return (
-      banks.find(
-        (bank) =>
-          bank.bin === normalized ||
-          bank.code === normalized ||
-          bank.short_name === normalized,
-      ) || null
-    );
+    const n = bankCode?.trim();
+    if (!n) return null;
+    return banks.find(b => b.bin === n || b.code === n || b.short_name === n) || null;
   };
-
   const detailBank = findBankMeta(selectedTransaction?.bank_info?.bank_code);
+
+  const canWithdraw = (wallet?.balance ?? 0) >= 2000;
+
+  // ── RENDER ──
 
   return (
     <ImageBackground
       source={require("../../../../../assets/images/profile-bg.jpg")}
-      style={[styles.root, { paddingTop: insets.top }]}
+      style={[s.root, { paddingTop: insets.top }]}
       resizeMode="cover"
       fadeDuration={0}
     >
-      <StatusBar
-        barStyle="dark-content"
-        backgroundColor="transparent"
-        translucent
-      />
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+
+      {/* ── Header ── */}
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={s.backBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {t("wallet.title", { defaultValue: "Ví của tôi" })}
-        </Text>
+        <Text style={s.headerTitle}>Ví của tôi</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={COLORS.accent} />
-        </View>
+        <View style={s.centered}><ActivityIndicator size="large" color={COLORS.accent} /></View>
       ) : screenError && !wallet ? (
-        <View style={[styles.centered, styles.errorPad]}>
-          <Ionicons
-            name="cloud-offline-outline"
-            size={48}
-            color={COLORS.textTertiary}
-          />
-          <Text style={styles.errorTitle}>
-            {t("wallet.loadFailedTitle", {
-              defaultValue: "Không tải được ví",
-            })}
-          </Text>
-          <Text style={styles.errorSub}>{screenError}</Text>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() => void bootstrap()}
-          >
-            <Text style={styles.retryBtnText}>
-              {t("wallet.retry", { defaultValue: "Thử lại" })}
-            </Text>
+        <View style={[s.centered, { paddingHorizontal: SPACING.xl }]}>
+          <Ionicons name="cloud-offline-outline" size={48} color={COLORS.textTertiary} />
+          <Text style={s.errorTitle}>Không tải được ví</Text>
+          <Text style={s.errorSub}>{screenError}</Text>
+          <TouchableOpacity style={s.retryBtn} onPress={() => void bootstrap()}>
+            <Text style={s.retryBtnText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{
-            padding: SPACING.lg,
-            paddingBottom: insets.bottom + 24,
-          }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>
-              {t("wallet.available", { defaultValue: "Khả dụng" })}
-            </Text>
-            <Text style={styles.balance}>{fmt(wallet?.balance ?? 0)}</Text>
-            <View style={styles.rowMeta}>
-              <Text style={styles.metaText}>
-                {t("wallet.locked", { defaultValue: "Đang giữ" })}:{" "}
-                {fmt(wallet?.locked_balance ?? 0)}
-              </Text>
-              <Text style={styles.metaText}>
-                {t("wallet.total", { defaultValue: "Tổng" })}:{" "}
-                {fmt(wallet?.total_balance ?? 0)}
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.withdrawBtn} onPress={openWithdraw}>
-              <Ionicons
-                name="arrow-down-circle-outline"
-                size={22}
-                color="#fff"
-              />
-              <Text style={styles.withdrawBtnText}>
-                {t("wallet.withdraw", { defaultValue: "Rút tiền" })}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* ─── Balance Card ─── */}
+          <View style={s.balanceSection}>
+            <View style={s.balanceCard}>
+              {/* Top: Available balance */}
+              <View style={s.balanceTop}>
+                <Text style={s.balanceLabel}>Số dư khả dụng</Text>
+                <Text style={s.balanceAmount}>{fmt(wallet?.balance ?? 0)}</Text>
+              </View>
 
-          <Text style={styles.topUpHint}>
-            {t("wallet.topUpHint", {
-              defaultValue:
-                "Số dư tăng khi có hoàn tiền hoặc giao dịch liên quan đoàn. Đặt cọc kế hoạch qua liên kết trong chi tiết kế hoạch — không có nút nạp ví riêng.",
-            })}
-          </Text>
-
-          <Text style={styles.sectionTitle}>
-            {t("wallet.history", { defaultValue: "Lịch sử giao dịch" })}
-          </Text>
-          {txListWarn ? <Text style={styles.txWarn}>{txListWarn}</Text> : null}
-          {transactions.length === 0 && !txListWarn ? (
-            <Text style={styles.empty}>
-              {t("wallet.noTransactions", {
-                defaultValue: "Chưa có giao dịch",
-              })}
-            </Text>
-          ) : (
-            transactions.map((tx) => {
-              const refHint = walletReferenceContextLabel(tx.reference_type, t);
-              const sub =
-                (tx.description && tx.description.trim()) || refHint || "";
-              const tone = getStatusTone(tx.status);
-              return (
-                <TouchableOpacity
-                  key={tx.id}
-                  style={styles.txRow}
-                  activeOpacity={0.85}
-                  onPress={() => void openTransactionDetail(tx)}
-                >
-                  <View style={styles.txHeaderRow}>
-                    <Text style={styles.txType}>
-                      {walletTransactionTypeLabel(tx.type, t)}
-                    </Text>
-                    <View
-                      style={[
-                        styles.txStatusBadge,
-                        { backgroundColor: tone.bg },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.txStatusBadgeText, { color: tone.text }]}
-                      >
-                        {walletTransactionStatusLabel(tx.status, t)}
-                      </Text>
-                    </View>
-                  </View>
-                  {tx.code ? (
-                    <Text style={styles.txCode}>Mã: {tx.code}</Text>
-                  ) : null}
-                  {sub ? (
-                    <Text style={styles.txDesc} numberOfLines={2}>
-                      {sub}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.txAmount}>{fmt(tx.amount)}</Text>
-                  <View style={styles.txFooterRow}>
-                    <Text style={styles.txStatus}>
-                      {formatDateTime(tx.created_at)}
-                    </Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={16}
-                      color={COLORS.textTertiary}
-                    />
-                  </View>
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </ScrollView>
-      )}
-
-      <Modal
-        visible={withdrawOpen}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setWithdrawOpen(false)}
-      >
-        <ImageBackground
-          source={require("../../../../../assets/images/profile-bg.jpg")}
-          style={[styles.modalRoot, { paddingTop: insets.top }]}
-          resizeMode="cover"
-          fadeDuration={0}
-        >
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setWithdrawOpen(false)}>
-              <Text style={styles.modalClose}>{t("common.cancel")}</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {t("wallet.withdraw", { defaultValue: "Rút tiền" })}
-            </Text>
-            <View style={{ width: 56 }} />
-          </View>
-          <ScrollView
-            contentContainerStyle={{
-              padding: SPACING.lg,
-              paddingBottom: insets.bottom + 24,
-            }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Text style={styles.inputLabel}>
-              {t("wallet.amount", { defaultValue: "Số tiền (VND)" })}
-            </Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="decimal-pad"
-              placeholder="20000"
-              value={amountStr}
-              onChangeText={setAmountStr}
-            />
-            <Text style={styles.inputLabel}>
-              {t("wallet.bank", { defaultValue: "Ngân hàng" })}
-            </Text>
-            <TouchableOpacity
-              style={styles.input}
-              onPress={() => setBankPickerOpen(true)}
-            >
-              {selectedBank ? (
-                <View style={styles.selectedBankRow}>
-                  {selectedBank.logo ? (
-                    <Image
-                      source={{ uri: selectedBank.logo }}
-                      style={styles.bankLogo}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <View style={styles.bankLogoFallback}>
-                      <Text style={styles.bankLogoFallbackText}>
-                        {(selectedBank.short_name || selectedBank.code || "B")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={styles.selectedBankInfo}>
-                    <Text style={styles.selectedBankName} numberOfLines={1}>
-                      {selectedBank.short_name || selectedBank.name}
-                    </Text>
-                    <Text style={styles.selectedBankCode}>
-                      {selectedBank.code}
-                    </Text>
+              {/* Breakdown row */}
+              <View style={s.breakdownRow}>
+                <View style={s.breakdownItem}>
+                  <View style={[s.breakdownDot, { backgroundColor: "#D97706" }]} />
+                  <View>
+                    <Text style={s.breakdownLabel}>Đang giữ cọc</Text>
+                    <Text style={s.breakdownValue}>{fmt(wallet?.locked_balance ?? 0)}</Text>
                   </View>
                 </View>
-              ) : (
-                <Text style={{ color: COLORS.textTertiary }}>
-                  {t("wallet.selectBank", { defaultValue: "Chọn ngân hàng" })}
+                <View style={s.breakdownDivider} />
+                <View style={s.breakdownItem}>
+                  <View style={[s.breakdownDot, { backgroundColor: "#059669" }]} />
+                  <View>
+                    <Text style={s.breakdownLabel}>Tổng cộng</Text>
+                    <Text style={s.breakdownValue}>{fmt(wallet?.total_balance ?? 0)}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Action buttons row */}
+              <View style={s.actionRow}>
+                <TouchableOpacity
+                  style={[s.actionBtn, s.topupBtn]}
+                  onPress={() => { setTopupError(null); setTopupAmountStr(""); setTopupOpen(true); }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                  <Text style={s.actionBtnText}>{t("wallet.topupCta", { defaultValue: "Nạp tiền" })}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[s.actionBtn, s.withdrawActionBtn, !canWithdraw && s.withdrawBtnDisabled]}
+                  onPress={canWithdraw ? openWithdraw : undefined}
+                  disabled={!canWithdraw}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="arrow-up-circle-outline" size={20} color={canWithdraw ? "#fff" : "rgba(255,255,255,0.5)"} />
+                  <Text style={[s.actionBtnText, !canWithdraw && { opacity: 0.5 }]}>{t("wallet.withdraw", { defaultValue: "Rút tiền" })}</Text>
+                </TouchableOpacity>
+              </View>
+
+              {!canWithdraw && (
+                <Text style={s.withdrawHint}>
+                  {t("wallet.withdrawMinHint", { defaultValue: "Cần tối thiểu 2.000 ₫ khả dụng để rút tiền." })}
                 </Text>
               )}
-            </TouchableOpacity>
-            <Text style={styles.inputLabel}>
-              {t("wallet.accountNumber", { defaultValue: "Số tài khoản" })}
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-              autoCapitalize="none"
-              maxLength={30}
-            />
-            <Text style={styles.inputLabel}>
-              {t("wallet.accountName", { defaultValue: "Tên chủ tài khoản" })}
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={accountName}
-              onChangeText={setAccountName}
-              maxLength={100}
-            />
-            <TouchableOpacity
-              style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
-              disabled={submitting || banksLoading}
-              onPress={() => void submitWithdraw()}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.submitBtnText}>{t("common.confirm")}</Text>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </ImageBackground>
-      </Modal>
-
-      <Modal
-        visible={detailOpen}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setDetailOpen(false)}
-      >
-        <TouchableOpacity
-          style={styles.detailOverlay}
-          activeOpacity={1}
-          onPress={() => setDetailOpen(false)}
-        >
-          <TouchableOpacity
-            activeOpacity={1}
-            onPress={() => {}}
-            style={[
-              styles.detailSheet,
-              { paddingBottom: Math.max(insets.bottom, 16) + 12 },
-            ]}
-          >
-            <View style={styles.detailHandle} />
-            <View style={styles.detailSheetHeader}>
-              <Text style={styles.detailSheetTitle}>
-                {t("wallet.transactionDetail", {
-                  defaultValue: "Chi tiết giao dịch",
-                })}
-              </Text>
-              <TouchableOpacity
-                style={styles.detailCloseBtn}
-                onPress={() => setDetailOpen(false)}
-              >
-                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
-              </TouchableOpacity>
-              {/*
-              <Text style={styles.modalClose}>{t("common.close", { defaultValue: "Đóng" })}</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>
-              {t("wallet.transactionDetail", { defaultValue: "Chi tiết giao dịch" })}
-            </Text>
-            <View style={{ width: 56 }} />
-              */}
             </View>
-            <ScrollView
-              contentContainerStyle={styles.detailScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {detailLoading && !selectedTransaction ? (
-                <View style={styles.centered}>
-                  <ActivityIndicator size="large" color={COLORS.accent} />
-                </View>
-              ) : selectedTransaction ? (
-                <>
-                  <View style={styles.detailSummaryCard}>
-                    <View style={styles.detailSummaryHeader}>
-                      <View style={styles.detailSummaryTextWrap}>
-                        <Text style={styles.detailTitle}>
-                          {walletTransactionTypeLabel(
-                            selectedTransaction.type,
-                            t,
-                          )}
-                        </Text>
-                        <Text style={styles.detailCodeChip}>
-                          {selectedTransaction.code || selectedTransaction.id}
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.txStatusBadge,
-                          {
-                            backgroundColor: getStatusTone(
-                              selectedTransaction.status,
-                            ).bg,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.txStatusBadgeText,
-                            {
-                              color: getStatusTone(selectedTransaction.status)
-                                .text,
-                            },
-                          ]}
-                        >
-                          {walletTransactionStatusLabel(
-                            selectedTransaction.status,
-                            t,
-                          )}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.detailAmount}>
-                      {fmt(selectedTransaction.amount)}
-                    </Text>
-                    <Text style={styles.detailMetaLine}>
-                      {formatDateTime(selectedTransaction.created_at)}
-                    </Text>
-                  </View>
+          </View>
 
-                  <View style={styles.detailSectionCard}>
-                    <Text style={styles.detailSectionTitle}>
-                      Thông tin giao dịch
-                    </Text>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailRowLabel}>Mã giao dịch</Text>
-                      <Text style={styles.detailRowValue}>
-                        {selectedTransaction.code || selectedTransaction.id}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailRowLabel}>Loại tham chiếu</Text>
-                      <Text style={styles.detailRowValue}>
-                        {selectedTransaction.reference_type || "—"}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailRowLabel}>Mã tham chiếu</Text>
-                      <Text style={styles.detailRowValue}>
-                        {selectedTransaction.reference_id || "—"}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text style={styles.detailRowLabel}>Tạo lúc</Text>
-                      <Text style={styles.detailRowValue}>
-                        {formatDateTime(selectedTransaction.created_at)}
-                      </Text>
-                    </View>
-                    <View style={[styles.detailRow, styles.detailRowLast]}>
-                      <Text style={styles.detailRowLabel}>Cập nhật</Text>
-                      <Text style={styles.detailRowValue}>
-                        {formatDateTime(selectedTransaction.updated_at)}
-                      </Text>
-                    </View>
-                  </View>
+          {/* ─── Info banner ─── */}
+          <View style={s.infoBanner}>
+            <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} style={{ marginTop: 1 }} />
+            <Text style={s.infoBannerText}>
+              {t("wallet.topUpHintNew", { defaultValue: "Nạp tiền qua PayOS. Số dư cũng tăng khi có hoàn cọc hoặc giao dịch liên quan đoàn." })}
+            </Text>
+          </View>
 
-                  {selectedTransaction.description ? (
-                    <View style={styles.detailSectionCard}>
-                      <Text style={styles.detailSectionTitle}>Mô tả</Text>
-                      <View style={styles.detailDescriptionBox}>
-                        <Text style={styles.detailDescriptionText}>
-                          {selectedTransaction.description}
-                        </Text>
+          {/* ─── Transactions ─── */}
+          <View style={s.txSection}>
+            <Text style={s.sectionTitle}>Lịch sử giao dịch</Text>
+            {txListWarn ? <Text style={s.txWarn}>{txListWarn}</Text> : null}
+            {transactions.length === 0 && !txListWarn ? (
+              <View style={s.emptyState}>
+                <Ionicons name="receipt-outline" size={44} color="rgba(201,165,114,0.3)" />
+                <Text style={s.emptyText}>Chưa có giao dịch nào</Text>
+              </View>
+            ) : (
+              transactions.map((tx) => {
+                const meta = getTxMeta(tx.type);
+                const tone = getStatusTone(tx.status);
+                const refHint = walletReferenceContextLabel(tx.reference_type, t);
+                const desc = (tx.description && tx.description.trim()) || refHint || "";
+                return (
+                  <TouchableOpacity
+                    key={tx.id}
+                    style={s.txCard}
+                    activeOpacity={0.85}
+                    onPress={() => void openTransactionDetail(tx)}
+                  >
+                    <View style={s.txRow}>
+                      <View style={[s.txIcon, { backgroundColor: meta.bg }]}>
+                        <Ionicons name={meta.icon as any} size={22} color={meta.color} />
                       </View>
-                    </View>
-                  ) : null}
-
-                  {selectedTransaction.bank_info ? (
-                    <View style={styles.detailSectionCard}>
-                      <Text style={styles.detailSectionTitle}>
-                        Thông tin nhận tiền
-                      </Text>
-                      {detailBank ? (
-                        <View style={styles.detailBankIdentity}>
-                          {detailBank.logo ? (
-                            <Image
-                              source={{ uri: detailBank.logo }}
-                              style={styles.bankLogo}
-                              resizeMode="contain"
-                            />
-                          ) : (
-                            <View style={styles.bankLogoFallback}>
-                              <Text style={styles.bankLogoFallbackText}>
-                                {(
-                                  detailBank.short_name ||
-                                  detailBank.code ||
-                                  "B"
-                                )
-                                  .slice(0, 2)
-                                  .toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                          <View style={styles.detailBankMeta}>
-                            <Text style={styles.detailBankName}>
-                              {detailBank.short_name || detailBank.name}
-                            </Text>
-                            <Text style={styles.detailBankCode}>
-                              {[
-                                detailBank.code,
-                                selectedTransaction.bank_info.bank_code,
-                              ]
-                                .filter(Boolean)
-                                .join(" • ")}
+                      <View style={s.txContent}>
+                        <View style={s.txHeaderRow}>
+                          <Text style={s.txType} numberOfLines={1}>
+                            {walletTransactionTypeLabel(tx.type, t)}
+                          </Text>
+                          <View style={[s.txBadge, { backgroundColor: tone.bg }]}>
+                            <Text style={[s.txBadgeText, { color: tone.text }]}>
+                              {walletTransactionStatusLabel(tx.status, t)}
                             </Text>
                           </View>
                         </View>
-                      ) : null}
-                      {/*
-                    <Text style={styles.detailSectionTitle}>
-                      Thông tin nhận tiền
+                        {desc ? <Text style={s.txDesc} numberOfLines={2}>{desc}</Text> : null}
+                        <View style={s.txFooter}>
+                          <Text style={s.txAmount}>{fmt(tx.amount)}</Text>
+                          <Text style={s.txDate}>{formatDateTime(tx.created_at)}</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(201,165,114,0.4)" style={{ marginLeft: 4 }} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+      )}
+
+      {/* ═══════════════════ WITHDRAW MODAL ═══════════════════ */}
+      <Modal visible={withdrawOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setWithdrawOpen(false)}>
+        <ImageBackground
+          source={require("../../../../../assets/images/profile-bg.jpg")}
+          style={[s.modalRoot, { paddingTop: insets.top }]}
+          resizeMode="cover"
+          fadeDuration={0}
+        >
+          <View style={s.modalHeader}>
+            <TouchableOpacity onPress={() => setWithdrawOpen(false)}>
+              <Text style={s.modalClose}>Hủy</Text>
+            </TouchableOpacity>
+            <Text style={s.modalTitle}>Rút tiền</Text>
+            <View style={{ width: 56 }} />
+          </View>
+
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: Math.max(insets.bottom, 24) + 240 }} keyboardShouldPersistTaps="handled">
+              {/* Available balance reminder */}
+              <View style={s.withdrawBalanceCard}>
+                <Text style={s.withdrawBalanceLabel}>Khả dụng</Text>
+                <Text style={s.withdrawBalanceAmount}>{fmt(wallet?.balance ?? 0)}</Text>
+              </View>
+
+              <Text style={s.fieldLabel}>Số tiền rút (VND)</Text>
+              <TextInput style={s.input} keyboardType="decimal-pad" placeholder="Tối thiểu 2.000 ₫" placeholderTextColor="rgba(0,0,0,0.25)" value={amountStr} onChangeText={(t) => handleAmountInput(t, setAmountStr)} />
+
+              <Text style={s.fieldLabel}>Ngân hàng</Text>
+              <TouchableOpacity style={s.input} onPress={() => setBankPickerOpen(true)}>
+                {selectedBank ? (
+                  <View style={s.selectedBankRow}>
+                    {selectedBank.logo ? (
+                      <Image source={{ uri: selectedBank.logo }} style={s.bankLogo} resizeMode="contain" />
+                    ) : (
+                      <View style={s.bankLogoFallback}>
+                        <Text style={s.bankLogoFallbackText}>{(selectedBank.short_name || selectedBank.code || "B").slice(0, 2).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    <View style={s.selectedBankInfo}>
+                      <Text style={s.selectedBankName} numberOfLines={1}>{selectedBank.short_name || selectedBank.name}</Text>
+                      <Text style={s.selectedBankCode}>{selectedBank.code}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <Text style={{ color: "rgba(0,0,0,0.25)" }}>Chọn ngân hàng</Text>
+                )}
+              </TouchableOpacity>
+
+              <Text style={s.fieldLabel}>Số tài khoản</Text>
+              <TextInput style={s.input} value={accountNumber} onChangeText={setAccountNumber} autoCapitalize="none" maxLength={30} placeholder="Nhập số tài khoản" placeholderTextColor="rgba(0,0,0,0.25)" />
+
+              <Text style={s.fieldLabel}>Tên chủ tài khoản</Text>
+              <TextInput
+                style={s.input}
+                value={accountName}
+                onChangeText={(text) => setAccountName(text.toUpperCase())}
+                maxLength={100}
+                placeholder="VD: NGUYEN VAN A"
+                placeholderTextColor="rgba(0,0,0,0.25)"
+                autoCapitalize="characters"
+              />
+              <Text style={s.fieldHint}>Viết HOA, KHÔNG DẤU — theo đúng tên trên tài khoản ngân hàng</Text>
+
+              {/* Inline error */}
+              {withdrawError ? (
+                <View style={s.inlineError}>
+                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                  <Text style={s.inlineErrorText}>{withdrawError}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[s.submitBtn, submitting && { opacity: 0.7 }]}
+                disabled={submitting || banksLoading}
+                onPress={() => void submitWithdraw()}
+              >
+                {submitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={s.submitBtnText}>Xác nhận rút tiền</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </ImageBackground>
+      </Modal>
+
+      {/* ═══════════════════ TOPUP MODAL ═══════════════════ */}
+      <Modal visible={topupOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setTopupOpen(false)}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={s.topupModalRoot}
+        >
+          <View style={[s.topupModalHeader, { paddingTop: Math.max(insets.top, 8) }]}>
+            <TouchableOpacity onPress={() => setTopupOpen(false)}>
+              <Text style={[s.modalClose, { color: COLORS.textPrimary }]}>{t("common.cancel", { defaultValue: "Hủy" })}</Text>
+            </TouchableOpacity>
+            <Text style={s.modalTitle}>{t("wallet.topupTitle", { defaultValue: "Nạp tiền vào ví" })}</Text>
+            <View style={{ width: 56 }} />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={{ padding: SPACING.lg, paddingBottom: Math.max(insets.bottom, 24) + 180 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Amount */}
+            <Text style={s.fieldLabel}>{t("wallet.topupAmountLabel", { defaultValue: "Số tiền nạp (VND)" })}</Text>
+            <TextInput
+              style={s.input}
+              keyboardType="decimal-pad"
+              placeholder={t("wallet.topupAmountPlaceholder", { defaultValue: "Tối thiểu 2.000 ₫" })}
+              placeholderTextColor="rgba(0,0,0,0.25)"
+              value={topupAmountStr}
+              onChangeText={(t) => handleAmountInput(t, setTopupAmountStr)}
+            />
+
+            {/* Quick amount chips — Grid 2x3 */}
+            <View style={s.quickAmountRow}>
+              {[5000, 10000, 20000].map((val) => {
+                const valStr = val.toLocaleString("vi-VN");
+                return (
+                  <TouchableOpacity
+                    key={val}
+                    style={[s.quickAmountChip, topupAmountStr === valStr && s.quickAmountChipActive]}
+                    onPress={() => setTopupAmountStr(valStr)}
+                  >
+                    <Text style={[s.quickAmountText, topupAmountStr === valStr && s.quickAmountTextActive]}>
+                      {(val / 1000).toLocaleString("vi-VN")}K
                     </Text>
-                    */}
-                      {!detailBank ? (
-                        <View style={styles.detailRow}>
-                          <Text style={styles.detailRowLabel}>
-                            Mã ngân hàng
-                          </Text>
-                          <Text style={styles.detailRowValue}>
-                            {selectedTransaction.bank_info.bank_code || "—"}
-                          </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={[s.quickAmountRow, { marginTop: 8 }]}>
+              {[50000, 100000, 200000].map((val) => {
+                const valStr = val.toLocaleString("vi-VN");
+                return (
+                  <TouchableOpacity
+                    key={val}
+                    style={[s.quickAmountChip, topupAmountStr === valStr && s.quickAmountChipActive]}
+                    onPress={() => setTopupAmountStr(valStr)}
+                  >
+                    <Text style={[s.quickAmountText, topupAmountStr === valStr && s.quickAmountTextActive]}>
+                      {(val / 1000).toLocaleString("vi-VN")}K
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Info */}
+            <View style={s.topupInfoBox}>
+              <Ionicons name="shield-checkmark-outline" size={16} color="#2563EB" />
+              <Text style={s.topupInfoText}>
+                {t("wallet.topupInfoSecurity", { defaultValue: "Thanh toán an toàn qua PayOS. Số dư được cộng ngay sau khi thanh toán thành công." })}
+              </Text>
+            </View>
+
+            {/* Inline error */}
+            {topupError ? (
+              <View style={s.inlineError}>
+                <Ionicons name="alert-circle" size={16} color="#DC2626" />
+                <Text style={s.inlineErrorText}>{topupError}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity
+              style={[s.topupSubmitBtn, topupSubmitting && { opacity: 0.7 }]}
+              disabled={topupSubmitting}
+              onPress={() => void submitTopup()}
+            >
+              {topupSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={s.submitBtnText}>{t("wallet.topupConfirm", { defaultValue: "Nạp tiền" })}</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ═══════════════════ DETAIL MODAL ═══════════════════ */}
+      <Modal visible={detailOpen} animationType="fade" transparent onRequestClose={() => setDetailOpen(false)}>
+        <TouchableOpacity style={s.detailOverlay} activeOpacity={1} onPress={() => setDetailOpen(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={[s.detailSheet, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
+            <View style={s.detailHandle} />
+            <View style={s.detailSheetHeader}>
+              <Text style={s.detailSheetTitle}>Chi tiết giao dịch</Text>
+              <TouchableOpacity style={s.detailCloseBtn} onPress={() => setDetailOpen(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={s.detailScrollContent} showsVerticalScrollIndicator={false}>
+              {detailLoading && !selectedTransaction ? (
+                <View style={s.centered}><ActivityIndicator size="large" color={COLORS.accent} /></View>
+              ) : selectedTransaction ? (
+                <>
+                  {/* Summary card */}
+                  <View style={s.detailSummaryCard}>
+                    <View style={s.detailSummaryHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.detailTitle}>{walletTransactionTypeLabel(selectedTransaction.type, t)}</Text>
+                        <Text style={s.detailCodeChip}>{selectedTransaction.code || selectedTransaction.id}</Text>
+                      </View>
+                      <View style={[s.txBadge, { backgroundColor: getStatusTone(selectedTransaction.status).bg }]}>
+                        <Text style={[s.txBadgeText, { color: getStatusTone(selectedTransaction.status).text }]}>
+                          {walletTransactionStatusLabel(selectedTransaction.status, t)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={s.detailAmount}>{fmt(selectedTransaction.amount)}</Text>
+                    <Text style={s.detailMetaLine}>{formatDateTime(selectedTransaction.created_at)}</Text>
+                  </View>
+
+                  {/* Info card */}
+                  <View style={s.detailSectionCard}>
+                    <Text style={s.detailSectionTitle}>Thông tin giao dịch</Text>
+                    <DetailRow label="Mã giao dịch" value={selectedTransaction.code || selectedTransaction.id} />
+                    <DetailRow label="Loại tham chiếu" value={selectedTransaction.reference_type || "—"} />
+                    <DetailRow label="Mã tham chiếu" value={selectedTransaction.reference_id || "—"} />
+                    <DetailRow label="Tạo lúc" value={formatDateTime(selectedTransaction.created_at)} />
+                    <DetailRow label="Cập nhật" value={formatDateTime(selectedTransaction.updated_at)} last />
+                  </View>
+
+                  {/* Description */}
+                  {selectedTransaction.description ? (
+                    <View style={s.detailSectionCard}>
+                      <Text style={s.detailSectionTitle}>Mô tả</Text>
+                      <View style={s.detailDescBox}>
+                        <Text style={s.detailDescText}>{selectedTransaction.description}</Text>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  {/* Bank info */}
+                  {selectedTransaction.bank_info ? (
+                    <View style={s.detailSectionCard}>
+                      <Text style={s.detailSectionTitle}>Thông tin nhận tiền</Text>
+                      {detailBank ? (
+                        <View style={s.detailBankIdentity}>
+                          {detailBank.logo ? (
+                            <Image source={{ uri: detailBank.logo }} style={s.bankLogo} resizeMode="contain" />
+                          ) : (
+                            <View style={s.bankLogoFallback}>
+                              <Text style={s.bankLogoFallbackText}>{(detailBank.short_name || detailBank.code || "B").slice(0, 2).toUpperCase()}</Text>
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.detailBankName}>{detailBank.short_name || detailBank.name}</Text>
+                            <Text style={s.detailBankCode}>{[detailBank.code, selectedTransaction.bank_info.bank_code].filter(Boolean).join(" • ")}</Text>
+                          </View>
                         </View>
                       ) : null}
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailRowLabel}>Số tài khoản</Text>
-                        <Text style={styles.detailRowValue}>
-                          {selectedTransaction.bank_info.account_number || "—"}
-                        </Text>
-                      </View>
-                      <View style={[styles.detailRow, styles.detailRowLast]}>
-                        <Text style={styles.detailRowLabel}>Chủ tài khoản</Text>
-                        <Text style={styles.detailRowValue}>
-                          {selectedTransaction.bank_info.account_name || "—"}
-                        </Text>
-                      </View>
+                      {!detailBank ? <DetailRow label="Mã ngân hàng" value={selectedTransaction.bank_info.bank_code || "—"} /> : null}
+                      <DetailRow label="Số tài khoản" value={selectedTransaction.bank_info.account_number || "—"} />
+                      <DetailRow label="Chủ tài khoản" value={selectedTransaction.bank_info.account_name || "—"} last />
                     </View>
                   ) : null}
                 </>
               ) : null}
-              {/*
-            {detailLoading && !selectedTransaction ? (
-              <View style={styles.centered}>
-                <ActivityIndicator size="large" color={COLORS.accent} />
-              </View>
-            ) : selectedTransaction ? (
-              <View style={styles.detailCard}>
-                <View style={styles.detailTopRow}>
-                  <Text style={styles.detailTitle}>
-                    {walletTransactionTypeLabel(selectedTransaction.type, t)}
-                  </Text>
-                  <View
-                    style={[
-                      styles.txStatusBadge,
-                      {
-                        backgroundColor: getStatusTone(selectedTransaction.status).bg,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.txStatusBadgeText,
-                        {
-                          color: getStatusTone(selectedTransaction.status).text,
-                        },
-                      ]}
-                    >
-                      {walletTransactionStatusLabel(selectedTransaction.status, t)}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.detailAmount}>{fmt(selectedTransaction.amount)}</Text>
-
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Mã giao dịch</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedTransaction.code || selectedTransaction.id}
-                  </Text>
-                </View>
-
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>Mô tả</Text>
-                  <Text style={styles.detailValue}>
-                    {selectedTransaction.description || "—"}
-                  </Text>
-                </View>
-
-                <View style={styles.detailGrid}>
-                  <View style={styles.detailField}>
-                    <Text style={styles.detailLabel}>Loại tham chiếu</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.reference_type || "—"}
-                    </Text>
-                  </View>
-                  <View style={styles.detailField}>
-                    <Text style={styles.detailLabel}>Mã tham chiếu</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.reference_id || "—"}
-                    </Text>
-                  </View>
-                  <View style={styles.detailField}>
-                    <Text style={styles.detailLabel}>Tạo lúc</Text>
-                    <Text style={styles.detailValue}>
-                      {formatDateTime(selectedTransaction.created_at)}
-                    </Text>
-                  </View>
-                  <View style={styles.detailField}>
-                    <Text style={styles.detailLabel}>Cập nhật</Text>
-                    <Text style={styles.detailValue}>
-                      {formatDateTime(selectedTransaction.updated_at)}
-                    </Text>
-                  </View>
-                </View>
-
-                {selectedTransaction.bank_info ? (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>Thông tin nhận tiền</Text>
-                    <Text style={styles.detailValue}>
-                      {selectedTransaction.bank_info.bank_code || "—"}
-                    </Text>
-                    <Text style={styles.detailSubValue}>
-                      {selectedTransaction.bank_info.account_number || "—"}
-                    </Text>
-                    <Text style={styles.detailSubValue}>
-                      {selectedTransaction.bank_info.account_name || "—"}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-            */}
             </ScrollView>
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
 
-      <Modal visible={bankPickerOpen} animationType="fade" transparent>
+      {/* ═══════════════════ BANK PICKER ═══════════════════ */}
+      <Modal
+        visible={bankPickerOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => { setBankPickerOpen(false); setBankSearch(""); }}
+      >
         <TouchableOpacity
-          style={styles.pickerOverlay}
+          style={s.pickerOverlay}
           activeOpacity={1}
-          onPress={() => setBankPickerOpen(false)}
+          onPress={() => { setBankPickerOpen(false); setBankSearch(""); }}
         >
-          <View style={styles.pickerSheet}>
-            <Text style={styles.pickerTitle}>
-              {t("wallet.selectBank", { defaultValue: "Chọn ngân hàng" })}
-            </Text>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}} style={[s.pickerSheet, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+            <View style={s.pickerHandle} />
+            <Text style={s.pickerTitle}>Chọn ngân hàng</Text>
+
+            {/* Search */}
+            <View style={s.bankSearchWrap}>
+              <Ionicons name="search" size={18} color={COLORS.textTertiary} />
+              <TextInput
+                style={s.bankSearchInput}
+                placeholder="Tìm ngân hàng..."
+                placeholderTextColor="rgba(0,0,0,0.25)"
+                value={bankSearch}
+                onChangeText={setBankSearch}
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {bankSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setBankSearch("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Ionicons name="close-circle" size={18} color={COLORS.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
             <FlatList
-              data={banks}
+              data={banks.filter((b) => {
+                if (!bankSearch.trim()) return true;
+                const q = bankSearch.trim().toLowerCase();
+                return (
+                  (b.name || "").toLowerCase().includes(q) ||
+                  (b.short_name || "").toLowerCase().includes(q) ||
+                  (b.code || "").toLowerCase().includes(q) ||
+                  (b.bin || "").includes(q)
+                );
+              })}
               keyExtractor={(b) => b.code + b.bin}
               style={{ maxHeight: 400 }}
+              keyboardShouldPersistTaps="handled"
+              ListEmptyComponent={
+                <View style={{ paddingVertical: 28, alignItems: "center" }}>
+                  <Ionicons name="search-outline" size={32} color="rgba(201,165,114,0.3)" />
+                  <Text style={{ fontSize: 13, color: COLORS.textTertiary, marginTop: 8 }}>Không tìm thấy ngân hàng</Text>
+                </View>
+              }
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={styles.bankRow}
-                  onPress={() => {
-                    setSelectedBank(item);
-                    setBankPickerOpen(false);
-                  }}
+                  style={s.bankRow}
+                  onPress={() => { setSelectedBank(item); setBankPickerOpen(false); setBankSearch(""); }}
                 >
                   {item.logo ? (
-                    <Image
-                      source={{ uri: item.logo }}
-                      style={styles.bankLogo}
-                      resizeMode="contain"
-                    />
+                    <Image source={{ uri: item.logo }} style={s.bankLogo} resizeMode="contain" />
                   ) : (
-                    <View style={styles.bankLogoFallback}>
-                      <Text style={styles.bankLogoFallbackText}>
-                        {(item.short_name || item.code || "B")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </Text>
+                    <View style={s.bankLogoFallback}>
+                      <Text style={s.bankLogoFallbackText}>{(item.short_name || item.code || "B").slice(0, 2).toUpperCase()}</Text>
                     </View>
                   )}
-                  <View style={styles.bankTextWrap}>
-                    <Text style={styles.bankName}>{item.name}</Text>
-                    <Text style={styles.bankCode}>
-                      {item.short_name || item.code}
-                    </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.bankName}>{item.name}</Text>
+                    <Text style={s.bankCode}>{item.short_name || item.code}</Text>
                   </View>
                 </TouchableOpacity>
               )}
             />
-            <SafeAreaView edges={["bottom"]} style={styles.pickerSafeArea} />
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </ImageBackground>
   );
 };
 
-const styles = StyleSheet.create({
+// ─── Sub-components ────────────────────────────────────────────────────────
+
+function DetailRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <View style={[s.detailRow, last && s.detailRowLast]}>
+      <Text style={s.detailRowLabel}>{label}</Text>
+      <Text style={s.detailRowValue}>{value}</Text>
+    </View>
+  );
+}
+
+// ─── Styles ────────────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.background },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
+
+  // Header
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   backBtn: { width: 40, height: 40, justifyContent: "center" },
   headerTitle: { fontSize: 18, fontWeight: "700", color: COLORS.textPrimary },
+
+  // Loading / Error
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  errorPad: { paddingHorizontal: SPACING.xl },
-  errorTitle: {
-    marginTop: SPACING.md,
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    textAlign: "center",
-  },
-  errorSub: {
-    marginTop: SPACING.sm,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-  },
-  retryBtn: {
-    marginTop: SPACING.lg,
-    backgroundColor: COLORS.accent,
-    paddingVertical: 12,
-    paddingHorizontal: SPACING.xl,
-    borderRadius: 12,
-  },
+  errorTitle: { marginTop: SPACING.md, fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, textAlign: "center" },
+  errorSub: { marginTop: SPACING.sm, fontSize: 14, color: COLORS.textSecondary, textAlign: "center" },
+  retryBtn: { marginTop: SPACING.lg, backgroundColor: COLORS.accent, paddingVertical: 12, paddingHorizontal: SPACING.xl, borderRadius: 12 },
   retryBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  card: {
+
+  // ── Balance Card ──
+  balanceSection: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg },
+  balanceCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.lg,
-  },
-  cardLabel: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 4 },
-  balance: { fontSize: 28, fontWeight: "800", color: COLORS.textPrimary },
-  rowMeta: { marginTop: 12, gap: 4 },
-  metaText: { fontSize: 13, color: COLORS.textSecondary },
-  withdrawBtn: {
-    marginTop: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: COLORS.accent,
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  withdrawBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  topUpHint: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.lg,
-    paddingHorizontal: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 12,
-  },
-  empty: { color: COLORS.textSecondary, fontSize: 14 },
-  txWarn: {
-    fontSize: 13,
-    color: COLORS.accent,
-    marginBottom: SPACING.sm,
-  },
-  txRow: {
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.88)",
-    borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.14)",
-  },
-  txHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: SPACING.sm,
-  },
-  txType: { fontWeight: "600", color: COLORS.textPrimary },
-  txStatusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  txStatusBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  txCode: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-    marginTop: 6,
-  },
-  txDesc: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 4,
-    lineHeight: 18,
-  },
-  txAmount: { fontSize: 15, marginTop: 4, color: COLORS.accent },
-  txStatus: { fontSize: 12, color: COLORS.textTertiary, marginTop: 4 },
-  txFooterRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  modalRoot: { flex: 1, backgroundColor: COLORS.background },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  modalTitle: { fontSize: 17, fontWeight: "700" },
-  modalClose: { fontSize: 16, color: COLORS.accent },
-  detailOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(17, 24, 39, 0.28)",
-    justifyContent: "flex-end",
-  },
-  detailSheet: {
-    backgroundColor: "#FFF9EE",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    maxHeight: "84%",
-    paddingTop: 10,
-    borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.18)",
-  },
-  detailHandle: {
-    alignSelf: "center",
-    width: 44,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "rgba(138, 122, 96, 0.28)",
-    marginBottom: 14,
-  },
-  detailSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.lg,
-    marginBottom: 14,
-  },
-  detailSheetTitle: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: COLORS.textPrimary,
-    flex: 1,
-  },
-  detailCloseBtn: {
-    width: 40,
-    height: 40,
     borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.9)",
+    padding: 20,
     borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.16)",
+    borderColor: "rgba(201, 165, 114, 0.2)",
+    shadowColor: "rgba(201, 165, 114, 0.3)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  detailScrollContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: 8,
-  },
-  detailSummaryCard: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.18)",
-    padding: SPACING.lg,
-  },
-  detailSummaryHeader: {
+  balanceTop: { marginBottom: 16 },
+  balanceLabel: { fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  balanceAmount: { fontSize: 34, fontWeight: "800", color: COLORS.textPrimary },
+
+  breakdownRow: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(201, 165, 114, 0.06)", borderRadius: 14, padding: 14, marginBottom: 16 },
+  breakdownItem: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10 },
+  breakdownDot: { width: 8, height: 8, borderRadius: 4 },
+  breakdownLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.3 },
+  breakdownValue: { fontSize: 14, fontWeight: "700", color: COLORS.textPrimary, marginTop: 2 },
+  breakdownDivider: { width: 1, height: 32, backgroundColor: "rgba(201, 165, 114, 0.2)", marginHorizontal: 12 },
+
+  actionRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: SPACING.sm,
-  },
-  detailSummaryTextWrap: {
-    flex: 1,
-  },
-  detailCodeChip: {
-    marginTop: 8,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(201, 165, 114, 0.12)",
-    color: COLORS.accentDark,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  detailMetaLine: {
-    marginTop: 8,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  detailSectionCard: {
-    marginTop: SPACING.md,
-    backgroundColor: "rgba(255,255,255,0.88)",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.14)",
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-  },
-  detailSectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    marginBottom: 8,
-  },
-  detailRow: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(201, 165, 114, 0.14)",
-  },
-  detailRowLast: {
-    borderBottomWidth: 0,
-    paddingBottom: 0,
-  },
-  detailRowLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-    marginBottom: 4,
-  },
-  detailRowValue: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: COLORS.textPrimary,
-  },
-  detailDescriptionBox: {
-    backgroundColor: "rgba(201, 165, 114, 0.08)",
-    borderRadius: 14,
-    padding: SPACING.md,
-  },
-  detailDescriptionText: {
-    fontSize: 15,
-    lineHeight: 24,
-    color: COLORS.textPrimary,
-  },
-  detailBankIdentity: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: SPACING.md,
-    marginBottom: 12,
-    borderRadius: 16,
-    backgroundColor: "rgba(201, 165, 114, 0.08)",
-  },
-  detailBankMeta: {
-    flex: 1,
-  },
-  detailBankName: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-  detailBankCode: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 3,
-  },
-  detailCard: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(201, 165, 114, 0.16)",
-    padding: SPACING.lg,
-  },
-  detailTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: SPACING.sm,
-  },
-  detailTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-  },
-  detailAmount: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: COLORS.accentDark,
-    marginTop: SPACING.md,
-  },
-  detailSection: {
-    marginTop: SPACING.lg,
-    gap: 6,
-  },
-  detailGrid: {
-    marginTop: SPACING.lg,
-    gap: SPACING.md,
-  },
-  detailField: {
-    gap: 4,
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-  },
-  detailValue: {
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-  },
-  detailSubValue: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    backgroundColor: COLORS.white,
-    justifyContent: "center",
-  },
-  selectedBankRow: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 10,
   },
-  selectedBankInfo: {
+  actionBtn: {
     flex: 1,
-  },
-  selectedBankName: {
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    fontWeight: "600",
-  },
-  selectedBankCode: {
-    fontSize: 12,
-    color: COLORS.textTertiary,
-    marginTop: 2,
-  },
-  submitBtn: {
-    marginTop: 24,
-    backgroundColor: COLORS.accent,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  submitBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  pickerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  pickerSafeArea: {
-    backgroundColor: COLORS.white,
-  },
-  pickerSheet: {
-    backgroundColor: COLORS.white,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: SPACING.lg,
-    maxHeight: "70%",
-  },
-  pickerTitle: { fontSize: 17, fontWeight: "700", marginBottom: 12 },
-  bankRow: {
-    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  topupBtn: {
+    backgroundColor: "#2563EB",
+  },
+  withdrawActionBtn: {
+    backgroundColor: COLORS.accent,
+  },
+  actionBtnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  withdrawBtnDisabled: { backgroundColor: "rgba(201, 165, 114, 0.35)" },
+  withdrawHint: { marginTop: 10, fontSize: 12, color: COLORS.textTertiary, textAlign: "center", lineHeight: 17, paddingHorizontal: 8 },
+
+  // ── Topup modal ──
+  topupModalRoot: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  topupModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  bankLogo: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "#fff",
+  quickAmountRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
   },
-  bankLogoFallback: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: "rgba(201, 165, 114, 0.16)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankLogoFallbackText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: COLORS.accentDark,
-  },
-  bankTextWrap: {
+  quickAmountChip: {
     flex: 1,
+    backgroundColor: "rgba(37, 99, 235, 0.08)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.16)",
   },
+  quickAmountChipActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  quickAmountText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  quickAmountTextActive: {
+    color: "#fff",
+  },
+  topupInfoBox: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: "rgba(37, 99, 235, 0.06)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.12)",
+  },
+  topupInfoText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#5f5341", // Darkened explicitly from COLORS.textSecondary for higher contrast
+  },
+  topupSubmitBtn: {
+    marginTop: 20,
+    backgroundColor: "#2563EB",
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+
+  // ── Info banner ──
+  infoBanner: { flexDirection: "row", gap: 8, alignItems: "flex-start", marginHorizontal: SPACING.lg, marginTop: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "rgba(201, 165, 114, 0.06)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(201, 165, 114, 0.1)" },
+  infoBannerText: { flex: 1, fontSize: 12, lineHeight: 18, color: COLORS.textSecondary },
+
+  // ── Transactions section ──
+  txSection: { paddingHorizontal: SPACING.lg, marginTop: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: "800", color: COLORS.textPrimary, marginBottom: 14 },
+  txWarn: { fontSize: 13, color: COLORS.accent, marginBottom: SPACING.sm },
+
+  emptyState: { alignItems: "center", paddingVertical: 40, gap: 10 },
+  emptyText: { fontSize: 14, color: COLORS.textTertiary },
+
+  txCard: {
+    marginBottom: 10,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(201, 165, 114, 0.12)",
+    padding: 14,
+  },
+  txRow: { flexDirection: "row", alignItems: "center" },
+  txIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  txContent: { flex: 1 },
+  txHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
+  txType: { fontWeight: "700", color: COLORS.textPrimary, fontSize: 14, flex: 1 },
+  txBadge: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  txBadgeText: { fontSize: 11, fontWeight: "700" },
+  txDesc: { fontSize: 12, color: COLORS.textSecondary, marginTop: 4, lineHeight: 17 },
+  txFooter: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 6 },
+  txAmount: { fontSize: 15, fontWeight: "700", color: COLORS.accentDark },
+  txDate: { fontSize: 11, color: COLORS.textTertiary },
+
+  // ── Withdraw modal ──
+  modalRoot: { flex: 1, backgroundColor: COLORS.background },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.md, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  modalTitle: { fontSize: 17, fontWeight: "700" },
+  modalClose: { fontSize: 16, color: COLORS.accent },
+
+  withdrawBalanceCard: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(5, 150, 105, 0.06)", borderRadius: 14, paddingHorizontal: 16, paddingVertical: 14, marginBottom: 16, borderWidth: 1, borderColor: "rgba(5, 150, 105, 0.12)" },
+  withdrawBalanceLabel: { fontSize: 13, fontWeight: "600", color: "#059669" },
+  withdrawBalanceAmount: { fontSize: 18, fontWeight: "800", color: "#059669" },
+
+  fieldLabel: { fontSize: 13, fontWeight: "700", color: COLORS.textSecondary, marginBottom: 6, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.3 },
+  fieldHint: { fontSize: 11, color: COLORS.textTertiary, marginTop: 4, lineHeight: 16 },
+  fieldLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  lookupBtn: { fontSize: 13, fontWeight: "700", color: COLORS.accent, marginTop: 14, marginBottom: 6 },
+  inlineError: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 14, padding: 12, backgroundColor: "rgba(220, 38, 38, 0.06)", borderRadius: 12, borderWidth: 1, borderColor: "rgba(220, 38, 38, 0.12)" },
+  inlineErrorText: { flex: 1, fontSize: 13, color: "#DC2626", lineHeight: 19 },
+  input: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16, color: COLORS.textPrimary, backgroundColor: COLORS.white, justifyContent: "center" },
+
+  selectedBankRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  selectedBankInfo: { flex: 1 },
+  selectedBankName: { fontSize: 15, color: COLORS.textPrimary, fontWeight: "600" },
+  selectedBankCode: { fontSize: 12, color: COLORS.textTertiary, marginTop: 2 },
+
+  submitBtn: { marginTop: 24, backgroundColor: COLORS.accent, paddingVertical: 15, borderRadius: 14, alignItems: "center" },
+  submitBtnText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+
+  // ── Bank picker ──
+  pickerOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  pickerSheet: { backgroundColor: COLORS.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: SPACING.lg, maxHeight: "70%", paddingTop: 12 },
+  pickerHandle: { alignSelf: "center", width: 44, height: 5, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.12)", marginBottom: 14 },
+  pickerTitle: { fontSize: 17, fontWeight: "700", marginBottom: 12 },
+
+  bankSearchWrap: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(0,0,0,0.04)", borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 12 },
+  bankSearchInput: { flex: 1, fontSize: 15, color: COLORS.textPrimary, paddingVertical: 0 },
+
+  bankRow: { paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  bankLogo: { width: 40, height: 40, borderRadius: 10, backgroundColor: "#fff" },
+  bankLogoFallback: { width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(201, 165, 114, 0.16)", alignItems: "center", justifyContent: "center" },
+  bankLogoFallbackText: { fontSize: 12, fontWeight: "700", color: COLORS.accentDark },
   bankName: { fontSize: 15, color: COLORS.textPrimary },
   bankCode: { fontSize: 12, color: COLORS.textTertiary, marginTop: 2 },
+
+  // ── Detail modal ──
+  detailOverlay: { flex: 1, backgroundColor: "rgba(17, 24, 39, 0.28)", justifyContent: "flex-end" },
+  detailSheet: { backgroundColor: "#FFF9EE", borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: "84%", paddingTop: 10, borderWidth: 1, borderColor: "rgba(201, 165, 114, 0.18)" },
+  detailHandle: { alignSelf: "center", width: 44, height: 5, borderRadius: 999, backgroundColor: "rgba(138, 122, 96, 0.28)", marginBottom: 14 },
+  detailSheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: SPACING.lg, marginBottom: 14 },
+  detailSheetTitle: { fontSize: 24, fontWeight: "800", color: COLORS.textPrimary, flex: 1 },
+  detailCloseBtn: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.9)", borderWidth: 1, borderColor: "rgba(201, 165, 114, 0.16)" },
+  detailScrollContent: { paddingHorizontal: SPACING.lg, paddingBottom: 8 },
+
+  detailSummaryCard: { backgroundColor: "rgba(255,255,255,0.9)", borderRadius: 22, borderWidth: 1, borderColor: "rgba(201, 165, 114, 0.18)", padding: SPACING.lg },
+  detailSummaryHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: SPACING.sm },
+  detailTitle: { flex: 1, fontSize: 18, fontWeight: "700", color: COLORS.textPrimary },
+  detailCodeChip: { marginTop: 8, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "rgba(201, 165, 114, 0.12)", overflow: "hidden", color: COLORS.accentDark, fontSize: 12, fontWeight: "700" },
+  detailAmount: { fontSize: 28, fontWeight: "800", color: COLORS.accentDark, marginTop: SPACING.md },
+  detailMetaLine: { marginTop: 8, fontSize: 13, color: COLORS.textSecondary },
+
+  detailSectionCard: { marginTop: SPACING.md, backgroundColor: "rgba(255,255,255,0.88)", borderRadius: 18, borderWidth: 1, borderColor: "rgba(201, 165, 114, 0.14)", paddingHorizontal: SPACING.md, paddingVertical: SPACING.md },
+  detailSectionTitle: { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 8 },
+
+  detailRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "rgba(201, 165, 114, 0.14)" },
+  detailRowLast: { borderBottomWidth: 0, paddingBottom: 0 },
+  detailRowLabel: { fontSize: 12, fontWeight: "700", color: COLORS.textSecondary, textTransform: "uppercase", marginBottom: 4, letterSpacing: 0.3 },
+  detailRowValue: { fontSize: 15, lineHeight: 22, color: COLORS.textPrimary },
+
+  detailDescBox: { backgroundColor: "rgba(201, 165, 114, 0.08)", borderRadius: 14, padding: SPACING.md },
+  detailDescText: { fontSize: 15, lineHeight: 24, color: COLORS.textPrimary },
+
+  detailBankIdentity: { flexDirection: "row", alignItems: "center", gap: 12, padding: SPACING.md, marginBottom: 12, borderRadius: 16, backgroundColor: "rgba(201, 165, 114, 0.08)" },
+  detailBankName: { fontSize: 15, fontWeight: "700", color: COLORS.textPrimary },
+  detailBankCode: { fontSize: 12, color: COLORS.textSecondary, marginTop: 3 },
 });
 
 export default WalletScreen;

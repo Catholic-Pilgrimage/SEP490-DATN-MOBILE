@@ -224,6 +224,7 @@ export const PILGRIM_ENDPOINTS = {
     TRANSACTIONS: `${API_BASE}/wallet/transactions`,
     TRANSACTION_DETAIL: (id: string) => `${API_BASE}/wallet/transactions/${id}`,
     WITHDRAW: `${API_BASE}/wallet/withdraw`,
+    TOPUP: `${API_BASE}/wallet/topup`,
     BANKS: `${API_BASE}/wallet/banks`,
   },
 } as const;
