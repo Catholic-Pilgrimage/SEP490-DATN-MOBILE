@@ -297,12 +297,7 @@ const FeedItemActions = ({
                 </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionButton}>
-                <MaterialIcons name="share" size={20} color={COLORS.textSecondary} />
-                <Text style={styles.actionText}>
-                    {t('community.share', { defaultValue: 'Share' })}
-                </Text>
-            </TouchableOpacity>
+
         </View>
     );
 };
@@ -977,7 +972,7 @@ export default function CommunityScreen() {
                 onEdit={handleEditPost}
                 onDelete={handleDeletePost}
                 onReport={handleReportPost}
-                onAddFriend={handleAddFriend}
+                onAddFriend={isGuideViewer ? undefined : handleAddFriend}
             />
 
             <ReportPostModal
