@@ -96,6 +96,31 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         autoFetch: true
     });
 
+    // Fetch a larger pool of sites to determine the featured top 5 locally
+    const {
+        sites: featuredCandidateSites,
+    } = useSites({
+        filters: {
+            page: 1,
+            limit: 50
+        },
+        autoFetch: true
+    });
+
+    // Dynamic Featured Sites: Top 5 by weighted score (Rating & Review Count)
+    const featuredSites = useMemo(() => {
+        if (!featuredCandidateSites || featuredCandidateSites.length === 0) return [];
+        return [...featuredCandidateSites]
+            .sort((a, b) => {
+                // Weighted score: balances rating value and number of reviews
+                const scoreA = (a.rating || 0) * Math.log10((a.reviewCount || 0) + 1);
+                const scoreB = (b.rating || 0) * Math.log10((b.reviewCount || 0) + 1);
+                
+                return scoreB - scoreA;
+            })
+            .slice(0, 5);
+    }, [featuredCandidateSites]);
+
     // Centralized favorites
     const { isFavorite, toggleFavorite } = useFavorites();
 
@@ -132,16 +157,6 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
     };
 
     // Derived Animations
-    // Header Search Bar + Title Opacity
-    // Trigger much later, when Large Header is mostly scrolled out
-    // Dynamic Featured Sites: Top 5 by Review Count
-    const featuredSites = useMemo(() => {
-        if (!sites || sites.length === 0) return [];
-        return [...sites]
-            .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0))
-            .slice(0, 5);
-    }, [sites]);
-
     const headerContentOpacity = scrollY.interpolate({
         inputRange: [120, 160], // Adjust this range based on Large Header Height
         outputRange: [0, 1],
