@@ -43,81 +43,92 @@ type ShiftSubmissionDetailLike = ShiftSubmission & {
   reviewer?: ApproverShape | null;
 };
 
-const STATUS_CONFIG: Record<
-  string,
-  {
-    color: string;
-    background: string;
-    icon: keyof typeof MaterialIcons.glyphMap;
-    label: string;
-  }
-> = {
-  pending: {
-    color: '#B45309',
-    background: '#FFF7E8',
-    icon: 'schedule',
-    label: 'Chờ duyệt',
-  },
-  approved: {
-    color: '#27AE60',
-    background: '#E8F5E9',
-    icon: 'check-circle',
-    label: 'Đã duyệt',
-  },
-  rejected: {
-    color: '#E74C3C',
-    background: '#FDECEC',
-    icon: 'cancel',
-    label: 'Từ chối',
-  },
-  completed: {
-    color: '#2980B9',
-    background: '#EAF4FD',
-    icon: 'task-alt',
-    label: 'Hoàn thành',
-  },
-  default: {
-    color: GUIDE_COLORS.creamLabel,
-    background: GUIDE_COLORS.creamElevated,
-    icon: 'info-outline',
-    label: 'Không xác định',
-  },
+const getStatusConfig = (status: string, t: any) => {
+  const configs: Record<
+    string,
+    {
+      color: string;
+      background: string;
+      icon: keyof typeof MaterialIcons.glyphMap;
+      label: string;
+    }
+  > = {
+    pending: {
+      color: '#B45309',
+      background: '#FFF7E8',
+      icon: 'schedule',
+      label: t('shifts.status_pending'),
+    },
+    approved: {
+      color: '#27AE60',
+      background: '#E8F5E9',
+      icon: 'check-circle',
+      label: t('shifts.status_approved'),
+    },
+    rejected: {
+      color: '#E74C3C',
+      background: '#FDECEC',
+      icon: 'cancel',
+      label: t('shifts.status_rejected'),
+    },
+    completed: {
+      color: '#2980B9',
+      background: '#EAF4FD',
+      icon: 'task-alt',
+      label: t('shifts.status_completed'),
+    },
+    default: {
+      color: GUIDE_COLORS.creamLabel,
+      background: GUIDE_COLORS.creamElevated,
+      icon: 'info-outline',
+      label: t('common.noData'),
+    },
+  };
+  return configs[status] ?? configs.default;
 };
 
-const DAY_LABELS = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+const getDayLabels = (t: any) => [
+  t('common.days.sun'),
+  t('common.days.mon'),
+  t('common.days.tue'),
+  t('common.days.wed'),
+  t('common.days.thu'),
+  t('common.days.fri'),
+  t('common.days.sat')
+];
 
-const formatShortDate = (dateString?: string | null) => {
+const formatShortDate = (dateString: string | null | undefined, t: any) => {
   if (!dateString) return null;
 
   const parsed = new Date(dateString);
   if (Number.isNaN(parsed.getTime())) return null;
 
-  return parsed.toLocaleDateString('vi-VN', {
+  return parsed.toLocaleDateString(t('common.languageCode', { defaultValue: 'vi-VN' }), {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
 };
 
-const formatDateOnly = (dateString?: string | null) => {
-  const shortDate = formatShortDate(dateString);
+const formatDateOnly = (dateString: string | null | undefined, t: any) => {
+  const shortDate = formatShortDate(dateString, t);
   if (!shortDate) return null;
 
   const parsed = new Date(dateString as string);
   if (Number.isNaN(parsed.getTime())) return shortDate;
 
-  const weekday = parsed.toLocaleDateString('vi-VN', { weekday: 'long' });
+  const weekday = parsed.toLocaleDateString(t('common.languageCode', { defaultValue: 'vi-VN' }), { weekday: 'long' });
   return `${weekday}, ${shortDate}`;
 };
 
-const formatDateTime = (dateString?: string | null) => {
+const formatDateTime = (dateString: string | null | undefined, t: any) => {
   if (!dateString) return null;
 
   const parsed = new Date(dateString);
   if (Number.isNaN(parsed.getTime())) return null;
 
-  const datePart = formatShortDate(dateString);
-  const timePart = parsed.toLocaleTimeString('vi-VN', {
+  const datePart = formatShortDate(dateString, t);
+  const timePart = parsed.toLocaleTimeString(t('common.languageCode', { defaultValue: 'vi-VN' }), {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -125,21 +136,25 @@ const formatDateTime = (dateString?: string | null) => {
   return datePart ? `${datePart} • ${timePart}` : timePart;
 };
 
-const getDayName = (day: number) => DAY_LABELS[day] ?? `Thứ ${day}`;
+const getDayName = (day: number, t: any) => {
+  const labels = getDayLabels(t);
+  return labels[day] ?? `${t('common.dayLabel', { defaultValue: 'Ngày' })} ${day}`;
+};
 
-const getRegistrationDateLabel = (submission: ShiftSubmissionDetailLike) => {
-  const createdAt = formatDateTime(submission.createdAt ?? submission.created_at);
+const getRegistrationDateLabel = (submission: ShiftSubmissionDetailLike, t: any) => {
+  const createdAt = formatDateTime(submission.createdAt ?? submission.created_at, t);
   if (createdAt) return createdAt;
 
   const firstShiftCreatedAt = formatDateTime(
     submission.shifts?.find((shift) => shift.created_at)?.created_at,
+    t,
   );
   if (firstShiftCreatedAt) return firstShiftCreatedAt;
 
-  const weekStartDate = formatDateOnly(submission.week_start_date);
+  const weekStartDate = formatDateOnly(submission.week_start_date, t);
   if (weekStartDate) return weekStartDate;
 
-  return 'Chưa có dữ liệu';
+  return t('common.noData');
 };
 
 const getApproverName = (submission: ShiftSubmissionDetailLike) => {
@@ -205,17 +220,18 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
     weekEndDate.getTime() >= today.getTime();
   const editButtonText =
     effectiveSubmission.status === 'approved'
-      ? 'Điều chỉnh lịch'
-      : 'Chỉnh sửa đăng ký';
-  const statusConfig = STATUS_CONFIG[effectiveSubmission.status] ?? STATUS_CONFIG.default;
+      ? t('shifts.reg_adjust_title')
+      : t('shifts.reg_edit_title');
+  const statusConfig = getStatusConfig(effectiveSubmission.status, t);
   const registrationCode =
     effectiveSubmission.code || effectiveSubmission.id.slice(0, 8).toUpperCase();
-  const registrationDateLabel = getRegistrationDateLabel(effectiveSubmission);
+  const registrationDateLabel = getRegistrationDateLabel(effectiveSubmission, t);
   const approverName = getApproverName(effectiveSubmission);
   const approvedAtLabel =
     formatGuideReviewDateTime(
       effectiveSubmission.reviewed_at ?? effectiveSubmission.approved_at,
-    ) || 'Chưa có dữ liệu';
+      reviewLocale,
+    ) || t('common.noData');
   const localizedApprovedAtLabel =
     formatGuideReviewDateTime(
       effectiveSubmission.reviewed_at ?? effectiveSubmission.approved_at,
@@ -241,7 +257,7 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
           <View style={styles.dragIndicator} />
 
           <View style={styles.header}>
-            <Text style={styles.title}>Chi tiết đăng ký</Text>
+            <Text style={styles.title}>{t('shifts.details_title')}</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <MaterialIcons name='close' size={24} color={GUIDE_COLORS.creamLabel} />
             </TouchableOpacity>
@@ -251,7 +267,7 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
             <View style={styles.topMetaRow}>
               <View style={styles.codeChip}>
                 <MaterialIcons name='badge' size={16} color={GUIDE_COLORS.primaryDark} />
-                <Text style={styles.codeChipText}>Mã đăng ký: {registrationCode}</Text>
+                <Text style={styles.codeChipText}>{t('shifts.details_registration_code')}: {registrationCode}</Text>
               </View>
               {canEdit ? (
                 <TouchableOpacity
@@ -275,13 +291,13 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
               <Text style={[styles.statusLabel, { color: statusConfig.color }]}>
                 {statusConfig.label}
               </Text>
-              <Text style={styles.submissionDate}>Đăng ký ngày {registrationDateLabel}</Text>
+              <Text style={styles.submissionDate}>{t('shifts.details_submitted_on', { date: registrationDateLabel })}</Text>
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Danh sách ca làm việc</Text>
+              <Text style={styles.cardTitle}>{t('shifts.details_shifts_list')}</Text>
               <Text style={styles.weekInfo}>
-                Tuần bắt đầu: {formatShortDate(effectiveSubmission.week_start_date) || 'Chưa có dữ liệu'}
+                {t('shifts.reg_week_start_date')}: {formatShortDate(effectiveSubmission.week_start_date, t) || t('common.noData')}
               </Text>
 
               <View style={styles.divider} />
@@ -296,7 +312,7 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
                       <MaterialIcons name='schedule' size={20} color={GUIDE_COLORS.primary} />
                     </View>
                     <View style={styles.shiftDetails}>
-                      <Text style={styles.shiftDay}>{getDayName(shift.day_of_week)}</Text>
+                      <Text style={styles.shiftDay}>{getDayName(shift.day_of_week, t)}</Text>
                       <Text style={styles.shiftTime}>
                         {shift.start_time.substring(0, 5)} - {shift.end_time.substring(0, 5)}
                       </Text>
@@ -304,7 +320,7 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
                   </View>
                 ))
               ) : (
-                <Text style={styles.emptyText}>Không có ca làm việc nào.</Text>
+                <Text style={styles.emptyText}>{t('shifts.empty_no_registrations')}</Text>
               )}
             </View>
 
@@ -398,7 +414,7 @@ export const ShiftSubmissionDetailModal: React.FC<ShiftSubmissionDetailModalProp
                   }}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.cancelButtonText}>Hủy đăng ký</Text>
+                  <Text style={styles.cancelButtonText}>{t('shifts.details_cancel_registration')}</Text>
                 </TouchableOpacity>
               </View>
             </SafeAreaView>

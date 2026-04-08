@@ -1,5 +1,6 @@
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING, GUIDE_TYPOGRAPHY } from '../../../../constants/guide.constants';
 
@@ -14,6 +15,8 @@ export const ShiftCalendar: React.FC<ShiftCalendarProps> = ({
     onSelectDate,
     shiftData = {},
 }) => {
+    const { t } = useTranslation();
+    
     // Generate next 14 days
     const days = useMemo(() => {
         const result = [];
@@ -30,8 +33,17 @@ export const ShiftCalendar: React.FC<ShiftCalendarProps> = ({
     const formatDateKey = (date: Date) => date.toISOString().split('T')[0];
 
     const getDayName = (date: Date) => {
-        const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-        return days[date.getDay()];
+        const dayIndex = date.getDay();
+        const days = [
+            t('common.days.sun'),
+            t('common.days.mon'),
+            t('common.days.tue'),
+            t('common.days.wed'),
+            t('common.days.thu'),
+            t('common.days.fri'),
+            t('common.days.sat')
+        ];
+        return days[dayIndex];
     };
 
     return (

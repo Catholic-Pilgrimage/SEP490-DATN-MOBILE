@@ -1,6 +1,7 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     StatusBar,
     StyleSheet,
@@ -20,6 +21,7 @@ const PREMIUM_COLORS = {
 };
 
 export const ShiftsScreen: React.FC = () => {
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState<'find' | 'my'>('find');
     const { openModal } = useNotificationContext();
@@ -34,8 +36,8 @@ export const ShiftsScreen: React.FC = () => {
                 <View style={styles.header}>
                     <View style={styles.headerTop}>
                         <View>
-                            <Text style={styles.headerTitle}>Lịch làm việc</Text>
-                            <Text style={styles.headerSubtitle}>Quản lý ca trực & đăng ký</Text>
+                            <Text style={styles.headerTitle}>{t('shifts.title')}</Text>
+                            <Text style={styles.headerSubtitle}>{t('shifts.subtitle')}</Text>
                         </View>
                         <View style={styles.headerActions}>
                             <TouchableOpacity style={styles.notificationButton} onPress={openModal} activeOpacity={0.85}>
@@ -66,7 +68,7 @@ export const ShiftsScreen: React.FC = () => {
                                 color={activeTab === 'find' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
                             />
                             <Text style={[styles.segmentText, activeTab === 'find' && styles.segmentTextActive]}>
-                                Lịch toàn Site
+                                {t('shifts.tab_available')}
                             </Text>
                         </TouchableOpacity>
 
@@ -81,7 +83,7 @@ export const ShiftsScreen: React.FC = () => {
                                 color={activeTab === 'my' ? GUIDE_COLORS.textPrimary : GUIDE_COLORS.textSecondary}
                             />
                             <Text style={[styles.segmentText, activeTab === 'my' && styles.segmentTextActive]}>
-                                Đăng ký của tôi
+                                {t('shifts.tab_my')}
                             </Text>
                         </TouchableOpacity>
                     </View>

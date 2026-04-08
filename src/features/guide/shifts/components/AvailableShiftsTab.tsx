@@ -2,6 +2,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import React, { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, View } from 'react-native';
 import { GUIDE_KEYS } from '../../../../constants/queryKeys';
 import { dashboardApi, getShiftSubmissions, guideEventApi } from '../../../../services/api/guide';
@@ -13,6 +14,7 @@ import { DayData, MonthCalendar } from './MonthCalendar';
 import { ShiftRegistrationModal } from './ShiftRegistrationModal';
 
 export const AvailableShiftsTab: React.FC = () => {
+    const { t } = useTranslation();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [isDetailVisible, setDetailVisible] = useState(false);
@@ -209,7 +211,7 @@ export const AvailableShiftsTab: React.FC = () => {
                         submission_id: myShift.submission_id,
                         start_time: myShift.start_time,
                         end_time: myShift.end_time,
-                        guide_name: 'Bạn',
+                        guide_name: t('common.you'),
                         is_mine: true,
                         status: 'approved',
                         guide_avatar: undefined,

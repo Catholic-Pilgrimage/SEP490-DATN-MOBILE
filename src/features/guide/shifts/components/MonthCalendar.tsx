@@ -1,6 +1,7 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { GUIDE_COLORS, GUIDE_SHADOWS, GUIDE_SPACING } from '../../../../constants/guide.constants';
 import { CALENDAR_LAYOUT } from '../../../../utils/calendarLayout';
@@ -50,21 +51,22 @@ const DATE_RADIUS = DATE_SIZE / 2;
 // HELPERS
 // ============================================
 
-const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+const getWeekdayLabels = (t: any) => [
+    t('common.days.mon'),
+    t('common.days.tue'),
+    t('common.days.wed'),
+    t('common.days.thu'),
+    t('common.days.fri'),
+    t('common.days.sat'),
+    t('common.days.sun')
+];
 
 const isSameDay = (d1: Date, d2: Date) =>
     d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
 
-const getMonthName = (month: number) => {
-    const names = [
-        'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4',
-        'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8',
-        'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
-    ];
-    return names[month];
-};
+const getMonthName = (month: number, t: any) => `${t('shifts.calendar_month')} ${month + 1}`;
 
 // ============================================
 // COMPONENT
@@ -77,7 +79,9 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
     onSelectDate,
     onChangeMonth,
 }) => {
+    const { t } = useTranslation();
     const today = useMemo(() => new Date(), []);
+    const weekdayLabels = getWeekdayLabels(t);
 
     // Generate calendar grid
     const calendarWeeks = useMemo(() => {
@@ -124,7 +128,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
 
     const currentYear = currentMonth.getFullYear();
     const currentMonthIdx = currentMonth.getMonth();
-    const monthLabel = `${getMonthName(currentMonthIdx)}, ${currentYear}`;
+    const monthLabel = `${getMonthName(currentMonthIdx, t)}, ${currentYear}`;
 
     const renderDayCell = (date: Date | null, index: number) => {
         if (!date) {
@@ -183,7 +187,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                                     styles.shiftBadgeText,
                                     hasMyShift ? styles.shiftBadgeTextMine : styles.shiftBadgeTextOther,
                                 ]}>
-                                    {shiftCount} ca
+                                    {shiftCount} {t('shifts.calendar_shift_count')}
                                 </Text>
                             </View>
                         )}
@@ -200,7 +204,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                         {/* More indicator (only if screen has space) */}
                         {SHOW_MORE_TEXT && (eventNames.length > 1 || (eventNames.length >= 1 && shiftCount > 0)) && (
                             <Text style={styles.moreText}>
-                                +{eventNames.length > 1 ? eventNames.length - 1 : 0} thêm
+                                +{eventNames.length > 1 ? eventNames.length - 1 : 0} {t('shifts.calendar_more')}
                             </Text>
                         )}
 
@@ -245,7 +249,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
                     <Text style={styles.monthLabel}>{monthLabel}</Text>
                     {!isSameDay(today, selectedDate) && (
                         <View style={styles.todayBtn}>
-                            <Text style={styles.todayBtnText}>Hôm nay</Text>
+                            <Text style={styles.todayBtnText}>{t('common.today')}</Text>
                         </View>
                     )}
                 </TouchableOpacity>
@@ -261,7 +265,7 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
 
             {/* Weekday Headers */}
             <View style={styles.weekdayRow}>
-                {WEEKDAY_LABELS.map((label, i) => (
+                {weekdayLabels.map((label, i) => (
                     <View key={i} style={styles.weekdayCell}>
                         <Text style={[
                             styles.weekdayText,
@@ -286,15 +290,15 @@ export const MonthCalendar: React.FC<MonthCalendarProps> = ({
             <View style={styles.legendRow}>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: GUIDE_COLORS.primary }]} />
-                    <Text style={styles.legendText}>Ca của bạn</Text>
+                    <Text style={styles.legendText}>{t('shifts.calendar_legend_my_shift')}</Text>
                 </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: GUIDE_COLORS.info }]} />
-                    <Text style={styles.legendText}>Ca trực khác</Text>
+                    <Text style={styles.legendText}>{t('shifts.calendar_legend_other_shift')}</Text>
                 </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDotRect, { backgroundColor: '#10B981' }]} />
-                    <Text style={styles.legendText}>Sự kiện</Text>
+                    <Text style={styles.legendText}>{t('shifts.calendar_legend_event')}</Text>
                 </View>
             </View>
         </View>

@@ -402,19 +402,7 @@ const FeedItemActions = ({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.actionButton}>
-        <MaterialIcons name="share" size={20} color={COLORS.textSecondary} />
-        <Text
-          style={{
-            color: COLORS.textSecondary,
-            fontWeight: "500",
-            fontSize: 14,
-            marginLeft: 6,
-          }}
-        >
-          {t("postDetail.share", { defaultValue: "Share" })}
-        </Text>
-      </TouchableOpacity>
+
     </View>
   );
 };
@@ -893,6 +881,8 @@ const ClonePlanModal = ({
 const JourneyAttachment = ({ journey }: { journey: any }) => {
   const { t, i18n } = useTranslation();
   const navigation = useNavigation<any>();
+  const { user } = useAuth();
+  const isGuide = user?.role === "local_guide";
 
   if (!journey) return null;
 
@@ -1113,7 +1103,7 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
           ))}
         </View>
 
-        {journey.id && (
+        {journey.id && !isGuide && (
           <TouchableOpacity
             style={[styles.cloneBtn, isCloning && { opacity: 0.7 }]}
             onPress={handleCloneJourney}
@@ -2343,7 +2333,7 @@ export default function PostDetailScreen() {
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
-        onAddFriend={handleAddFriend}
+        onAddFriend={isCurrentUserGuide ? undefined : handleAddFriend}
       />
 
       <ReportPostModal
@@ -3096,6 +3086,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     backgroundColor: COLORS.backgroundSoft,
   },
+  siteNoteContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+  },
   siteImage: {
     width: '100%',
     height: '100%',
@@ -3186,6 +3182,10 @@ const styles = StyleSheet.create({
     padding: SPACING.lg,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
+  },
+  cloneCloseBtn: {
+    padding: 8,
+    marginLeft: -8,
   },
   cloneCloseText: {
     color: COLORS.textSecondary,
@@ -3395,6 +3395,9 @@ const styles = StyleSheet.create({
   },
   cloneCalendarDayDisabled: {
     opacity: 0.3,
+  },
+  cloneCalendarDayTextDisabled: {
+    color: COLORS.textTertiary,
   },
   cloneCalendarDayText: {
     fontSize: 13,
