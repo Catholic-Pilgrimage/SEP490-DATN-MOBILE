@@ -287,6 +287,16 @@ export interface PlanEntity {
   penalty_percentage?: number;
   /** Khớp cột `is_locked` trên BE (nhóm, giai đoạn lập kế hoạch) */
   is_locked?: boolean;
+  /** Thời điểm khoá chỉnh sửa (edit lock). Nhóm only. */
+  edit_lock_at?: string | null;
+  /** Thời điểm hệ thống tự chốt kế hoạch (status lock). */
+  planner_lock_at?: string | null;
+  /** Thời điểm lần mời đầu tiên (dùng để tính thời gian thảo luận). */
+  first_invite_at?: string | null;
+  /** Thời điểm sớm nhất có thể đặt edit_lock_at (sau 12h thảo luận). */
+  edit_lock_available_at?: string | null;
+  /** Có thể đặt edit_lock_at hay không (backend đã tính sẵn). */
+  can_set_edit_lock_at?: boolean;
   /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
   shared_to_community?: boolean;
 }
@@ -362,6 +372,8 @@ export interface UpdatePlanRequest {
   status?: string;
   deposit_amount?: number;
   penalty_percentage?: number;
+  /** Thời điểm khoá chỉnh sửa (nhóm). null = huỷ, ISO string = đặt trước. */
+  edit_lock_at?: string | null;
 }
 
 /** Body POST /api/planners/:id/items — BE validate `leg_number` (không dùng `day_number`). */

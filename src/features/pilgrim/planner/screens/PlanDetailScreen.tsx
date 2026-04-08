@@ -313,6 +313,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [savingPlan, setSavingPlan] = useState(false);
   const [showEditStartDatePicker, setShowEditStartDatePicker] = useState(false);
   const [showEditEndDatePicker, setShowEditEndDatePicker] = useState(false);
+  const [editLockAt, setEditLockAt] = useState<string | null>(null);
+  const [isLockScheduleExpanded, setIsLockScheduleExpanded] = useState(true);
 
   // Menu Dropdown state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -398,7 +400,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           );
         }
       } catch (err) {
-        console.warn("Route calculation failed:", err);
+        console.log("Route calculation failed:", err);
         setRouteSummary("");
       } finally {
         setRouteLoading(false);
@@ -632,7 +634,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       try {
         cachedPlan = await cacheUpdater();
       } catch (error) {
-        console.warn("Failed to persist offline planner mutation:", error);
+        console.log("Failed to persist offline planner mutation:", error);
       }
     }
 
@@ -693,7 +695,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setFavorites(mappedFavorites);
       }
     } catch (error) {
-      console.error("Fetch favorites error:", error);
+      console.log("Fetch favorites error:", error);
     } finally {
       setIsLoadingFavorites(false);
     }
@@ -830,7 +832,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         // In invite preview mode, we expect the protected detail endpoint is not used.
         // Keep logs quiet and just fallback to offline / toast.
       } else {
-        console.error("Load plan detail error:", error);
+        console.log("Load plan detail error:", error);
         if (inviteToken) {
           try {
             const loadedFromInvite = await loadPlanFromInvitePreview();
@@ -850,7 +852,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       Toast.show({
         type: "error",
         text1: t("common.error"),
-        text2: t("planner.loadDetailFailed", {
+        text2: t("planner.loadPlanFailed", {
           defaultValue: "Tải chi tiết kế hoạch thất bại",
         }),
       });
@@ -882,6 +884,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         ? String(Math.round(pp))
         : "0",
     );
+    setEditLockAt(plan.edit_lock_at || null);
     setShowEditPlanModal(true);
   };
 
@@ -942,7 +945,14 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         number_of_people: editPlanPeople,
         transportation: editPlanTransportation,
         ...(editPlanPeople > 1
-          ? { deposit_amount: depositAmount, penalty_percentage: penaltyPct }
+          ? {
+              deposit_amount: depositAmount,
+              penalty_percentage: penaltyPct,
+              // Chỉ gửi edit_lock_at nếu giá trị thay đổi so với ban đầu
+              ...(editLockAt !== (plan?.edit_lock_at || null)
+                ? { edit_lock_at: editLockAt }
+                : {}),
+            }
           : { deposit_amount: 0, penalty_percentage: 0 }),
       };
 
@@ -1019,7 +1029,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }
       setHasLoadedEventSites(true);
     } catch (e) {
-      console.error("Fetch event sites error:", e);
+      console.log("Fetch event sites error:", e);
     } finally {
       setIsLoadingEventSites(false);
     }
@@ -1048,7 +1058,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setSiteEvents(res.data.data);
       }
     } catch (e) {
-      console.error("Load site events error:", e);
+      console.log("Load site events error:", e);
     } finally {
       setIsLoadingEvents(false);
     }
@@ -1108,7 +1118,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error("Share planner to community error:", error);
+      console.log("Share planner to community error:", error);
       const errMsg =
         error?.response?.data?.error?.message ||
         error?.response?.data?.message ||
@@ -1129,42 +1139,194 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  const handleUpdatePlannerStatus = async (targetStatus: "ongoing" | "completed") => {
+  const handleManualLockEdit = async () => {
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
     }
     if (!isPlanOwner) return;
 
-    const isStart = targetStatus === "ongoing";
-    const title = isStart
-      ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu hành hương" })
-      : t("planner.completeJourneyTitle", {
-        defaultValue: "Kết thúc chuyến đi",
+    // Check if there is at least a first invite AT
+    if (!plan?.first_invite_at) {
+      Toast.show({
+        type: "error",
+        text1: "Không thể khoá chỉnh sửa",
+        text2: "Cần mời ít nhất 1 thành viên trước khi có thể khoá chỉnh sửa.",
+        visibilityTime: 4000,
       });
-    const msg = isStart
-      ? t("planner.startJourneyMsg", {
-        defaultValue:
-          "Bạn có chắc muốn bắt đầu hành hương? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
-      })
-      : t("planner.completeJourneyMsg", {
-        defaultValue:
-          "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
-      });
+      return;
+    }
 
     const confirmed = await confirm({
-      type: isStart ? "info" : "warning",
-      iconName: isStart ? "rocket-outline" : "flag-outline",
-      title,
-      message: msg,
-      confirmText: isStart ? "Bắt đầu" : title,
-      cancelText: t("common.cancel", { defaultValue: "H\u1ee7y" }),
+      type: "info",
+      iconName: "lock-closed-outline",
+      title: "Khoá chỉnh sửa lộ trình?",
+      message:
+        "Bạn có chắc muốn khoá lộ trình ngay bây giờ? Việc này sẽ ghi đè lịch trình tự động. Sau khi khoá, lộ trình sẽ được cố định để thành viên tham khảo, nhưng chưa khoá danh sách người đi.",
+      confirmText: "Khoá ngay",
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
     if (!confirmed) return;
 
     setUpdatingPlanStatus(true);
     try {
+      const res = await pilgrimPlannerApi.updatePlannerLock(planId, {
+        locked: true,
+      });
+      if (res.success) {
+        Toast.show({
+          type: "success",
+          text1: "Đã khoá chỉnh sửa",
+          text2: "Lộ trình đã được khoá cố định.",
+          visibilityTime: 3000,
+        });
+        await loadPlan();
+      } else {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: res.message || "Không thể khoá chỉnh sửa.",
+        });
+      }
+    } catch (error: any) {
+      const errMsg =
+        error?.response?.data?.error?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        "Không thể khoá chỉnh sửa.";
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: errMsg,
+        visibilityTime: 4000,
+      });
+    } finally {
+      setUpdatingPlanStatus(false);
+    }
+  };
+
+  const handleUpdatePlannerStatus = async (
+    targetStatus: "locked" | "ongoing" | "completed"
+  ) => {
+    if (isOffline) {
+      showConnectionRequiredAlert();
+      return;
+    }
+    if (!isPlanOwner) return;
+
+    const isLock = targetStatus === "locked";
+    const isStart = targetStatus === "ongoing";
+    const isComplete = targetStatus === "completed";
+
+    // Validate schedule completion locally before any API calls for 'locked' or 'ongoing':
+    if ((isStart || isLock) && plan) {
+      let totalDays = 0;
+      if (plan.start_date && plan.end_date) {
+        const start = new Date(plan.start_date);
+        const end = new Date(plan.end_date);
+        totalDays =
+          Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) +
+          1;
+      } else {
+        const itemsMap = plan.items_by_day || {};
+        const numericKeys = Object.keys(itemsMap)
+          .map(Number)
+          .filter((d) => !isNaN(d));
+        totalDays = numericKeys.length > 0 ? Math.max(...numericKeys) : 1;
+      }
+
+      const missingDays = [];
+      const itemsMap = plan.items_by_day || {};
+      for (let i = 1; i <= totalDays; i++) {
+        const dayStr = String(i);
+        if (!itemsMap[dayStr] || itemsMap[dayStr].length === 0) {
+          missingDays.push(i);
+        }
+      }
+
+      if (missingDays.length > 0) {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: `Vui lòng thêm điểm viếng cho ngày ${missingDays.join(", ")} trước khi ${isLock ? "chốt kế hoạch" : "bắt đầu hành hương"}.`,
+          visibilityTime: 4000,
+        });
+        return;
+      }
+    }
+
+    const title = isLock
+      ? t("planner.lockPlanTitle", { defaultValue: "Chốt kế hoạch" })
+      : isStart
+        ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu hành hương" })
+        : t("planner.completeJourneyTitle", {
+          defaultValue: "Kết thúc chuyến đi",
+        });
+
+    let msg = isLock
+      ? t("planner.lockPlanMsg", {
+          defaultValue:
+            "Bạn có chắc muốn chốt kế hoạch này? Sau khi chốt, danh sách thành viên sẽ bị khoá và có thể bắt đầu hành hương cùng mọi người.",
+        })
+      : isStart
+        ? t("planner.startJourneyMsg", {
+            defaultValue:
+              "Bạn có chắc muốn bắt đầu hành hương? Trạng thái sẽ chuyển thành 'Đang thực hiện'.",
+          })
+        : t("planner.completeJourneyMsg", {
+            defaultValue:
+              "Bạn có chắc muốn kết thúc chuyến đi? Trạng thái sẽ chuyển thành 'Hoàn thành'.",
+          });
+
+    let confirmType: "info" | "warning" = isComplete ? "warning" : "info";
+
+    // 12-hour warning check for Group Lock Plan
+    if (
+      isLock &&
+      Number(plan?.number_of_people || 1) > 1 &&
+      plan?.is_locked &&
+      plan?.edit_lock_at
+    ) {
+      const lockEditTime = new Date(plan.edit_lock_at).getTime();
+      const now = new Date().getTime();
+      const hoursSinceLock = (now - lockEditTime) / (1000 * 60 * 60);
+
+      if (hoursSinceLock < 12) {
+        msg =
+          "Lịch trình chỉ mới khoá chỉnh sửa chưa đầy 12h, một số thành viên có thể chưa kịp xem để xác nhận đi hay không. Bạn có chắc chắn muốn chốt danh sách người tham gia ngay bây giờ không?";
+        confirmType = "warning";
+      }
+    }
+
+    const confirmed = await confirm({
+      type: confirmType,
+      iconName: isLock
+        ? "lock-closed-outline"
+        : isStart
+          ? "rocket-outline"
+          : "flag-outline",
+      title,
+      message: msg,
+      confirmText: isLock ? "Chốt ngay" : isStart ? "Bắt đầu" : title,
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!confirmed) return;
+
+    setUpdatingPlanStatus(true);
+    try {
+      // Solo planner: auto-lock status before starting (backend requires 'locked' before 'ongoing')
+      const isSolo = Number(plan?.number_of_people || 1) <= 1;
+      const currentStatus = (plan?.status || "").toLowerCase();
+
+      if (isStart && isSolo && currentStatus === "planning") {
+        await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "locked" });
+      }
+
+      // Group planner: if owner wants to lock status but edit is not locked yet, lock edit first
+      // Update: Edit lock logic holds its own separate CTA button (Khoá lộ trình), so we no longer do it here.
+
       const res = await pilgrimPlannerApi.updatePlannerStatus(planId, {
         status: targetStatus,
       });
@@ -1172,23 +1334,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         Toast.show({
           type: "success",
           text1: title,
-          text2: isStart
-            ? t("planner.startJourneySuccess", {
-              defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 b\u1eaft \u0111\u1ea7u!",
-            })
-            : t("planner.completeJourneySuccess", {
-              defaultValue: "Chuy\u1ebfn \u0111i \u0111\u00e3 ho\u00e0n th\u00e0nh!",
-            }),
+          text2: isLock
+            ? t("planner.lockPlanSuccess", {
+                defaultValue: "Kế hoạch đã được chốt!",
+              })
+            : isStart
+              ? t("planner.startJourneySuccess", {
+                  defaultValue: "Chuyến đi đã bắt đầu!",
+                })
+              : t("planner.completeJourneySuccess", {
+                  defaultValue: "Chuyến đi đã hoàn thành!",
+                }),
           visibilityTime: 3000,
         });
         await loadPlan();
         if (isStart) {
-          navigation.replace(
-            "ActiveJourneyScreen",
-            {
-              planId,
-            }
-          );
+          navigation.replace("ActiveJourneyScreen", {
+            planId,
+          });
         }
       } else {
         Toast.show({
@@ -1197,19 +1360,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           text2:
             res.message ||
             t("planner.statusUpdateFailed", {
-              defaultValue: "Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i.",
+              defaultValue: "Không thể cập nhật trạng thái.",
             }),
           visibilityTime: 4000,
         });
       }
     } catch (error: any) {
-      console.error("Update planner status error:", error);
       const errMsg =
         error?.response?.data?.error?.message ||
         error?.response?.data?.message ||
         error?.message ||
         t("planner.statusUpdateFailed", {
-          defaultValue: "Kh\u00f4ng th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i.",
+          defaultValue: "Không thể cập nhật trạng thái.",
         });
       Toast.show({
         type: "error",
@@ -1270,7 +1432,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error) {
-      console.error("Delete plan error:", error);
+      console.log("Delete plan error:", error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -1340,7 +1502,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.error("Clear all items error:", error);
+      console.log("Clear all items error:", error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -1607,7 +1769,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
       }
     } catch (error: any) {
-      console.warn("Delete item error:", error?.message || error);
+      console.log("Delete item error:", error?.message || error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -1736,7 +1898,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       swapPreview.close();
       loadPlan();
     } catch (error: any) {
-      console.error("Swap error:", error);
+      console.log("Swap error:", error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
@@ -1919,9 +2081,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
 
       if (isValidationError) {
-        console.warn("[API] Validation error saving edit:", JSON.stringify(respData));
+        console.log("[API] Validation error saving edit:", JSON.stringify(respData));
       } else {
-        console.warn("Save edit serious error:", error?.message || error);
+        console.log("Save edit serious error:", error?.message || error);
       }
 
       Toast.show({
@@ -2180,9 +2342,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
 
       if (isValidationError) {
-        console.warn("[API] Validation error adding item:", JSON.stringify(respData));
+        console.log("[API] Validation error adding item:", JSON.stringify(respData));
       } else {
-        console.warn("Add item serious error:", error?.message || error);
+        console.log("Add item serious error:", error?.message || error);
       }
 
       const errMsg =
@@ -2237,7 +2399,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setNearbyPlaces(response.data.data);
       }
     } catch (error) {
-      console.error("Load nearby places error:", error);
+      console.log("Load nearby places error:", error);
     } finally {
       setLoadingNearby(false);
     }
@@ -2441,6 +2603,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const planStatusStr = (plan?.status || "").toLowerCase();
   const isCompletedPlan = planStatusStr === "completed";
   const isOngoingPlan = planStatusStr === "ongoing";
+  const isSoloPlan = Number(plan?.number_of_people || 1) <= 1;
 
   return (
     <View style={styles.container}>
@@ -2938,28 +3101,30 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.quickActionsRow}>
-          {/* Nút chat planner member luôn hiển thị bên trái */}
-          <TouchableOpacity
-            style={[
-              styles.quickActionButton,
-              isOnlineOnlyActionDisabled && styles.disabledAction,
-            ]}
-            onPress={handleOpenChat}
-            disabled={isOnlineOnlyActionDisabled}
-          >
-            <Ionicons name="chatbubbles-outline" size={18} color="#FFF8E7" />
-            <Text style={styles.quickActionText}>Chat nhóm</Text>
-            {unreadChatCount > 0 && (
-              <View style={styles.quickActionBadge}>
-                <Text style={styles.quickActionBadgeText}>
-                  {unreadChatCount > 99 ? "99+" : unreadChatCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          {/* Chat nhóm — chỉ hiện cho nhóm */}
+          {!isSoloPlan && (
+            <TouchableOpacity
+              style={[
+                styles.quickActionButton,
+                isOnlineOnlyActionDisabled && styles.disabledAction,
+              ]}
+              onPress={handleOpenChat}
+              disabled={isOnlineOnlyActionDisabled}
+            >
+              <Ionicons name="chatbubbles-outline" size={18} color="#FFF8E7" />
+              <Text style={styles.quickActionText}>Chat nhóm</Text>
+              {unreadChatCount > 0 && (
+                <View style={styles.quickActionBadge}>
+                  <Text style={styles.quickActionBadgeText}>
+                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
 
-          {/* Nút thành viên: hiển thị cho member bình thường, hoặc owner khi ongoing */}
-          {!isInvitePendingView && (!isPlanOwner || isOngoingPlan) && (
+          {/* Tiến độ (solo) / Thành viên (nhóm) — hiện khi ongoing hoặc completed */}
+          {!isInvitePendingView && (!isPlanOwner || isOngoingPlan || isCompletedPlan) && (
             <TouchableOpacity
               style={[
                 styles.quickActionButton,
@@ -2968,12 +3133,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               onPress={handleOpenMembers}
               disabled={isOnlineOnlyActionDisabled}
             >
-              <Ionicons name="people-outline" size={18} color="#FFF8E7" />
-              <Text style={styles.quickActionText}>Thành viên</Text>
+              <Ionicons
+                name={isSoloPlan ? "analytics-outline" : "people-outline"}
+                size={18}
+                color="#FFF8E7"
+              />
+              <Text style={styles.quickActionText}>
+                {isSoloPlan ? "Tiến độ" : "Thành viên"}
+              </Text>
             </TouchableOpacity>
           )}
 
-          {isPlanOwner && !isOngoingPlan && (
+          {/* Mời bạn bè (nhóm, planning/locked) / Chia sẻ cộng đồng (completed) */}
+          {isPlanOwner && !isOngoingPlan && (!isSoloPlan || isCompletedPlan) && (
             <TouchableOpacity
               style={[
                 styles.quickActionButton,
@@ -2993,9 +3165,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               }
             >
               <Ionicons
-                name={
-                  isCompletedPlan ? "share-social-outline" : "qr-code-outline"
-                }
+                name={isCompletedPlan ? "share-social-outline" : "qr-code-outline"}
                 size={18}
                 color="#FFF8E7"
               />
@@ -3018,23 +3188,57 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               (plan?.number_of_people || 1) - 1,
               0,
             )}
+            editLockAt={plan?.edit_lock_at}
+            plannerLockAt={(plan as any)?.planner_lock_at}
+            isEditLocked={plan?.is_locked}
+            planStatusStr={planStatusStr}
+            planStartDate={plan?.start_date}
           />
         )}
 
         {/* 2. Cụm nút Quyết định (Ra quyết định sau khu đọc) */}
         {isInvitePendingView && (
           <View
-            style={{ marginHorizontal: SPACING.lg, marginBottom: SPACING.md, alignItems: "center" }}
+            style={{ flexDirection: "row", marginHorizontal: SPACING.lg, marginBottom: SPACING.md, gap: 12 }}
           >
             <TouchableOpacity
               style={{
-                width: "100%",
+                flex: 1,
+                paddingVertical: 14,
+                alignItems: "center",
+                opacity: respondingInvite ? 0.6 : 1,
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                borderRadius: BORDER_RADIUS.md,
+                backgroundColor: "#FFFFFF",
+              }}
+              onPress={async () => {
+                const confirmed = await confirm({
+                  type: "danger",
+                  iconName: "close-circle-outline",
+                  title: "T\u1eeb ch\u1ed1i l\u1eddi m\u1eddi",
+                  message: "B\u1ea1n ch\u1eafc ch\u1eafn mu\u1ed1n t\u1eeb ch\u1ed1i l\u1eddi m\u1eddi tham gia k\u1ebf ho\u1ea1ch n\u00e0y? Thao t\u00e1c n\u00e0y kh\u00f4ng th\u1ec3 ho\u00e0n t\u00e1c.",
+                  confirmText: "T\u1eeb ch\u1ed1i",
+                  cancelText: "Quay l\u1ea1i",
+                });
+                if (confirmed) handleRejectInvite();
+              }}
+              disabled={respondingInvite || isOffline}
+              activeOpacity={0.85}
+            >
+              <Text style={{ fontWeight: "600", color: COLORS.textSecondary, fontSize: 15 }}>
+                Từ chối
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1,
                 backgroundColor: COLORS.accent,
                 borderRadius: BORDER_RADIUS.md,
                 paddingVertical: 14,
                 alignItems: "center",
                 opacity: respondingInvite ? 0.6 : 1,
-                marginBottom: 12,
               }}
               onPress={async () => {
                 const depositText = depositAmount != null && Number(depositAmount) > 0
@@ -3055,39 +3259,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               disabled={respondingInvite || isOffline}
               activeOpacity={0.85}
             >
-              <Text style={{ fontWeight: "700", color: COLORS.textPrimary, fontSize: 16 }}>
-                Đồng ý tham gia
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={{
-                width: "100%",
-                paddingVertical: 14,
-                paddingHorizontal: 16,
-                alignItems: "center",
-                opacity: respondingInvite ? 0.6 : 1,
-                borderWidth: 1,
-                borderColor: "#E5E7EB", // Light gray border
-                borderRadius: BORDER_RADIUS.md,
-                backgroundColor: "#FFFFFF", // Explicit background for clarity
-              }}
-              onPress={async () => {
-                const confirmed = await confirm({
-                  type: "danger",
-                  iconName: "close-circle-outline",
-                  title: "T\u1eeb ch\u1ed1i l\u1eddi m\u1eddi",
-                  message: "B\u1ea1n ch\u1eafc ch\u1eafn mu\u1ed1n t\u1eeb ch\u1ed1i l\u1eddi m\u1eddi tham gia k\u1ebf ho\u1ea1ch n\u00e0y? Thao t\u00e1c n\u00e0y kh\u00f4ng th\u1ec3 ho\u00e0n t\u00e1c.",
-                  confirmText: "T\u1eeb ch\u1ed1i",
-                  cancelText: "Quay l\u1ea1i",
-                });
-                if (confirmed) handleRejectInvite();
-              }}
-              disabled={respondingInvite || isOffline}
-              activeOpacity={0.85}
-            >
-              <Text style={{ fontWeight: "600", color: COLORS.textSecondary, fontSize: 14 }}>
-                Từ chối lời mời
+              <Text style={{ fontWeight: "700", color: COLORS.textPrimary, fontSize: 15 }}>
+                Tham gia
               </Text>
             </TouchableOpacity>
           </View>
@@ -3205,53 +3378,264 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           </View>
         )}
 
-        {/* Journey Status Actions — Bắt đầu / Kết thúc chuyến đi */}
-        {isPlanOwner && (
+        {/* Lock Schedule Info — Chỉ hiện cho Nhóm khi planning hoặc locked */}
+        {!isSoloPlan &&
+          !isInvitePendingView &&
+          (planStatusStr === "planning" || planStatusStr === "locked") && (
           <View
-            style={{ marginBottom: SPACING.md, paddingHorizontal: SPACING.lg }}
+            style={{
+              marginBottom: SPACING.md,
+              marginHorizontal: SPACING.lg,
+              backgroundColor: "#F0F4FF",
+              borderRadius: BORDER_RADIUS.lg,
+              padding: 14,
+              borderWidth: 1,
+              borderColor: "#D6E0F5",
+            }}
           >
-            {(plan.status || "").toLowerCase() === "locked" && (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setIsLockScheduleExpanded(!isLockScheduleExpanded)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: isLockScheduleExpanded ? 10 : 0,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons
+                  name="timer-outline"
+                  size={18}
+                  color="#2563EB"
+                  style={{ marginRight: 8 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontWeight: "700",
+                    color: "#1E40AF",
+                  }}
+                >
+                  Lịch khoá kế hoạch
+                </Text>
+              </View>
+              <Ionicons
+                name={isLockScheduleExpanded ? "chevron-up" : "chevron-down"}
+                size={20}
+                color="#64748B"
+              />
+            </TouchableOpacity>
+
+            {isLockScheduleExpanded && (
               <View>
-                <TouchableOpacity
-                  onPress={() => handleUpdatePlannerStatus("ongoing")}
-                  disabled={updatingPlanStatus}
-                  activeOpacity={0.85}
+                {/* Edit Lock */}
+                <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: COLORS.accent,
-                    width: "100%",
-                    alignSelf: "stretch",
-                    paddingVertical: 14,
-                    borderRadius: BORDER_RADIUS.lg,
-                    opacity: updatingPlanStatus ? 0.7 : 1,
+                    marginBottom: 6,
                   }}
                 >
-                  {updatingPlanStatus ? (
-                    <ActivityIndicator
-                      size="small"
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                  ) : (
-                    <Ionicons
-                      name="rocket-outline"
-                      size={20}
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                  )}
-                  <Text
-                    style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
-                  >
-                    {t("planner.startJourneyCta", {
-                      defaultValue: "Bắt đầu hành hương",
-                    })}
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor: plan?.is_locked ? "#16A34A" : "#F59E0B",
+                      marginRight: 8,
+                    }}
+                  />
+                  <Text style={{ fontSize: 13, color: "#374151", flex: 1 }}>
+                    <Text style={{ fontWeight: "600", color: "#4B5563" }}>Khoá chỉnh sửa: </Text>
+                    {plan?.is_locked ? (
+                      <Text style={{ fontWeight: "700", color: "#16A34A" }}>Đã khoá ✓</Text>
+                    ) : plan?.edit_lock_at ? (
+                      <Text style={{ fontWeight: "800", color: "#D97706" }}>
+                        {new Date(plan.edit_lock_at).toLocaleString("vi-VN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    ) : (
+                      <Text style={{ fontWeight: "600", color: "#6B7280" }}>Tự động (24h trước ngày đi)</Text>
+                    )}
                   </Text>
-                </TouchableOpacity>
+                </View>
+
+                {/* Status Lock */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 6,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 4,
+                      backgroundColor:
+                        planStatusStr === "locked" ? "#16A34A" : "#F59E0B",
+                      marginRight: 8,
+                    }}
+                  />
+                  <Text style={{ fontSize: 13, color: "#374151", flex: 1 }}>
+                    <Text style={{ fontWeight: "600", color: "#4B5563" }}>Chốt kế hoạch: </Text>
+                    {planStatusStr === "locked" ? (
+                      <Text style={{ fontWeight: "700", color: "#16A34A" }}>Đã chốt ✓</Text>
+                    ) : (plan as any)?.planner_lock_at ? (
+                      <Text style={{ fontWeight: "800", color: "#D97706" }}>
+                        {new Date((plan as any).planner_lock_at).toLocaleString("vi-VN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </Text>
+                    ) : (
+                      <Text style={{ fontWeight: "600", color: "#6B7280" }}>Tự động (12h trước ngày đi)</Text>
+                    )}
+                  </Text>
+                </View>
+
+                {/* Hint */}
+                {planStatusStr === "planning" && (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: "#6B7280",
+                      marginTop: 4,
+                      lineHeight: 16,
+                    }}
+                  >
+                    💡 Hệ thống sẽ tự động khoá theo lịch trên. Bạn có thể sử dụng nút bên dưới để thực hiện thủ công ngay lập tức.
+                  </Text>
+                )}
+
+                {/* CTA: Khoá lộ trình / Chốt kế hoạch — Gộp vào trong thẻ cho Owner */}
+                {isPlanOwner && planStatusStr === "planning" && (
+                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "#D6E0F5" }}>
+                    {!plan?.is_locked ? (
+                      <TouchableOpacity
+                        onPress={handleManualLockEdit}
+                        disabled={updatingPlanStatus}
+                        activeOpacity={0.85}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#F59E0B", // Amber/Orange to indicate early action
+                          paddingVertical: 12,
+                          borderRadius: BORDER_RADIUS.lg,
+                          opacity: updatingPlanStatus ? 0.7 : 1,
+                        }}
+                      >
+                        {updatingPlanStatus ? (
+                          <ActivityIndicator
+                            size="small"
+                            color="#fff"
+                            style={{ marginRight: 8 }}
+                          />
+                        ) : (
+                          <Ionicons
+                            name="settings-outline"
+                            size={18}
+                            color="#fff"
+                            style={{ marginRight: 8 }}
+                          />
+                        )}
+                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                          Khoá lộ trình
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleUpdatePlannerStatus("locked")}
+                        disabled={updatingPlanStatus}
+                        activeOpacity={0.85}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: "#2563EB", // Blue for final lock plan
+                          paddingVertical: 12,
+                          borderRadius: BORDER_RADIUS.lg,
+                          opacity: updatingPlanStatus ? 0.7 : 1,
+                        }}
+                      >
+                        {updatingPlanStatus ? (
+                          <ActivityIndicator
+                            size="small"
+                            color="#fff"
+                            style={{ marginRight: 8 }}
+                          />
+                        ) : (
+                          <Ionicons
+                            name="lock-closed-outline"
+                            size={18}
+                            color="#fff"
+                            style={{ marginRight: 8 }}
+                          />
+                        )}
+                        <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
+                          {t("planner.lockPlanCta", { defaultValue: "Chốt kế hoạch" })}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
               </View>
             )}
+          </View>
+        )}
+
+        {/* CTA: Bắt đầu hành hương — Solo: từ planning | Group: từ locked */}
+        {isPlanOwner &&
+          (planStatusStr === "locked" ||
+            (isSoloPlan && planStatusStr === "planning")) && (
+          <View
+            style={{ marginBottom: SPACING.md, paddingHorizontal: SPACING.lg }}
+          >
+            <TouchableOpacity
+              onPress={() => handleUpdatePlannerStatus("ongoing")}
+              disabled={updatingPlanStatus}
+              activeOpacity={0.85}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: COLORS.accent,
+                paddingVertical: 14,
+                borderRadius: BORDER_RADIUS.lg,
+                opacity: updatingPlanStatus ? 0.7 : 1,
+              }}
+            >
+              {updatingPlanStatus ? (
+                <ActivityIndicator
+                  size="small"
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+              ) : (
+                <Ionicons
+                  name="rocket-outline"
+                  size={20}
+                  color="#fff"
+                  style={{ marginRight: 8 }}
+                />
+              )}
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+                {t("planner.startJourneyCta", {
+                  defaultValue: "Bắt đầu hành hương",
+                })}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -3869,6 +4253,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         setShowEditStartDatePicker={setShowEditStartDatePicker}
         showEditEndDatePicker={showEditEndDatePicker}
         setShowEditEndDatePicker={setShowEditEndDatePicker}
+        editLockAt={editLockAt}
+        setEditLockAt={setEditLockAt}
+        canSetEditLockAt={plan?.can_set_edit_lock_at}
+        editLockAvailableAt={plan?.edit_lock_available_at}
+        plannerLockAt={plan?.planner_lock_at}
+        isLocked={plan?.is_locked}
       />
 
       {/* Full Map Modal */}

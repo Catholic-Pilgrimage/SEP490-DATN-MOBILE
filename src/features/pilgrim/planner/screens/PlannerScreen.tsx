@@ -412,7 +412,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                     invitedView: true,
                 });
             } catch (e) {
-                console.error(e);
+                console.log(e);
             } finally {
                 setInvitedLoading(false);
             }
@@ -476,7 +476,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                 setInvitedPlans(memberPlansData);
             }
         } catch (error) {
-            console.error('Failed to fetch plans:', error);
+            console.log('Failed to fetch plans:', error);
         } finally {
             setLoading(false);
             setInvitedLoading(false);
@@ -522,7 +522,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                 setInvitedPlans([]);
             }
         } catch (error) {
-            console.error('Failed to load guest invite plan:', error);
+            console.log('Failed to load guest invite plan:', error);
             setInvitedPlans([]);
         } finally {
             setInvitedLoading(false);

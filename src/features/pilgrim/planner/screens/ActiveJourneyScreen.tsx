@@ -26,6 +26,7 @@ import {
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
+import { getPlannerRosterCount } from "../utils/planDetailMap.utils";
 import CheckinPhotoSheet from "../components/active-journey/CheckinPhotoSheet";
 import ItemActionSheet from "../components/active-journey/ItemActionSheet";
 import MarkVisitedModal from "../components/active-journey/MarkVisitedModal";
@@ -139,6 +140,10 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const planStatus = useMemo(
     () => String(plan?.status || "").toLowerCase(),
     [plan?.status],
+  );
+  const isSoloPlan = useMemo(
+    () => Number(plan?.number_of_people || 1) <= 1,
+    [plan?.number_of_people],
   );
 
   const allStopsHandled = useMemo(() => {
@@ -297,17 +302,21 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             {plan?.name || "Kế hoạch"}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.topBtn}
-          onPress={() =>
-            navigation.navigate("PlanChatScreen", {
-              planId: plan.id,
-              planName: plan.name,
-            })
-          }
-        >
-          <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+        {!isSoloPlan ? (
+          <TouchableOpacity
+            style={styles.topBtn}
+            onPress={() =>
+              navigation.navigate("PlanChatScreen", {
+                planId: plan.id,
+                planName: plan.name,
+              })
+            }
+          >
+            <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 44 }} />
+        )}
       </View>
 
       {/* SCROLLABLE CONTENT */}
@@ -319,7 +328,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         {/* BANNER */}
         <PlanHeader plan={plan} firstItem={firstItem} />
 
-        {/* TOOLBAR: 4 Quick-Access Buttons */}
+        {/* TOOLBAR: Quick-Access Buttons */}
         <View style={styles.toolbar}>
           <TouchableOpacity
             style={styles.toolbarBtn}
@@ -352,6 +361,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <Text style={styles.toolbarBtnText}>Bản đồ</Text>
           </TouchableOpacity>
 
+          {/* Solo: Tiến độ | Group: Thành viên */}
           <TouchableOpacity
             style={styles.toolbarBtn}
             onPress={() =>
@@ -360,9 +370,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             activeOpacity={0.7}
           >
             <View style={styles.toolbarIconBox}>
-              <Ionicons name="people-outline" size={22} color="#8B7355" />
+              <Ionicons
+                name={isSoloPlan ? "analytics-outline" : "people-outline"}
+                size={22}
+                color="#8B7355"
+              />
             </View>
-            <Text style={styles.toolbarBtnText}>Thành viên</Text>
+            <Text style={styles.toolbarBtnText}>
+              {isSoloPlan ? "Tiến độ" : "Thành viên"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity

@@ -37,6 +37,17 @@ interface EditPlanModalProps {
   setShowEditStartDatePicker: (v: boolean) => void;
   showEditEndDatePicker: boolean;
   setShowEditEndDatePicker: (v: boolean) => void;
+  /** Thời gian edit lock hiện tại (ISO string hoặc null). */
+  editLockAt?: string | null;
+  setEditLockAt?: (v: string | null) => void;
+  /** Backend đã tính: có thể set edit_lock_at hay không */
+  canSetEditLockAt?: boolean;
+  /** Thời điểm sớm nhất có thể set edit lock (12h sau first invite) */
+  editLockAvailableAt?: string | null;
+  /** Planner lock at (tự động, 12h trước ngày đi) */
+  plannerLockAt?: string | null;
+  /** Có đang khoá edit hay không */
+  isLocked?: boolean;
 }
 
 export default function EditPlanModal(props: EditPlanModalProps) {
@@ -64,7 +75,16 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     setShowEditStartDatePicker,
     showEditEndDatePicker,
     setShowEditEndDatePicker,
+    editLockAt,
+    setEditLockAt,
+    canSetEditLockAt,
+    editLockAvailableAt,
+    plannerLockAt,
+    isLocked,
   } = props;
+
+  const [showEditLockPicker, setShowEditLockPicker] = React.useState(false);
+  const isGroup = editPlanPeople > 1;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -323,6 +343,175 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 </Text>
               </View>
             ) : null}
+
+            {/* Lock Schedule — Nhóm only */}
+            {isGroup && (
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontWeight: "600",
+                    color: COLORS.textSecondary,
+                    marginBottom: 6,
+                  }}
+                >
+                  ⏱ Lịch khoá chỉnh sửa
+                </Text>
+
+                {isLocked ? (
+                  <View
+                    style={{
+                      backgroundColor: "#F0FDF4",
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#BBF7D0",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: "#166534",
+                        fontWeight: "600",
+                      }}
+                    >
+                      ✓ Chỉnh sửa đã được khoá
+                    </Text>
+                  </View>
+                ) : canSetEditLockAt && setEditLockAt ? (
+                  <View>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: COLORS.textSecondary,
+                        marginBottom: 8,
+                        lineHeight: 17,
+                      }}
+                    >
+                      Đặt thời gian khoá chỉnh sửa. Sau thời điểm này, không ai
+                      có thể thêm/xoá/sửa điểm viếng.
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowEditLockPicker(true)}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
+                        borderRadius: 12,
+                        paddingHorizontal: 14,
+                        paddingVertical: 12,
+                        backgroundColor: "#FAFAFA",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Ionicons
+                        name="lock-closed-outline"
+                        size={16}
+                        color="#2563EB"
+                      />
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          color: editLockAt
+                            ? COLORS.textPrimary
+                            : COLORS.textSecondary,
+                          flex: 1,
+                        }}
+                      >
+                        {editLockAt
+                          ? new Date(editLockAt).toLocaleString("vi-VN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : "Chọn thời gian khoá"}
+                      </Text>
+                      {editLockAt && (
+                        <TouchableOpacity
+                          onPress={() => setEditLockAt(null)}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Ionicons
+                            name="close-circle"
+                            size={18}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+
+                    {showEditLockPicker && (
+                      <DateTimePicker
+                        value={
+                          editLockAt
+                            ? new Date(editLockAt)
+                            : editLockAvailableAt
+                              ? new Date(editLockAvailableAt)
+                              : new Date()
+                        }
+                        mode="datetime"
+                        display={
+                          Platform.OS === "ios" ? "spinner" : "default"
+                        }
+                        onChange={(_, selectedDate) => {
+                          setShowEditLockPicker(Platform.OS === "ios");
+                          if (selectedDate) {
+                            setEditLockAt(selectedDate.toISOString());
+                          }
+                        }}
+                        minimumDate={
+                          editLockAvailableAt
+                            ? new Date(editLockAvailableAt)
+                            : new Date()
+                        }
+                        maximumDate={
+                          plannerLockAt
+                            ? new Date(plannerLockAt)
+                            : editPlanStartDate
+                              ? new Date(editPlanStartDate)
+                              : undefined
+                        }
+                        locale="vi"
+                      />
+                    )}
+
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: COLORS.textSecondary,
+                        marginTop: 6,
+                      }}
+                    >
+                      Nếu không đặt, hệ thống sẽ tự khoá 24h trước ngày đi.
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      backgroundColor: "#FFFBEB",
+                      padding: 12,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#FDE68A",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        color: "#92400E",
+                        lineHeight: 17,
+                      }}
+                    >
+                      Cần mời ít nhất 1 thành viên và đợi 12h thảo luận trước
+                      khi có thể đặt lịch khoá chỉnh sửa.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, marginBottom: 8, marginTop: 4 }}>
               {t("planner.transportation")}
