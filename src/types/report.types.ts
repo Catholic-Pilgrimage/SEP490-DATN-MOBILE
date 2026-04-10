@@ -8,7 +8,7 @@ export type ReportReason =
   | "harassment"
   | "hate_speech"
   | "violence"
-  | "nudity"
+  | "inappropriate"
   | "false_information"
   | "scam"
   | "other";

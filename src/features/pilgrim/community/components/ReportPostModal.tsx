@@ -83,10 +83,10 @@ const getReportReasons = (t: TFunction): ReasonOption[] => [
     }),
   },
   {
-    value: 'nudity',
+    value: 'inappropriate',
     icon: 'visibility-off',
-    label: t('report.reasons.nudity.label', { defaultValue: 'Inappropriate content' }),
-    description: t('report.reasons.nudity.description', {
+    label: t('report.reasons.inappropriate.label', { defaultValue: 'Inappropriate content' }),
+    description: t('report.reasons.inappropriate.description', {
       defaultValue: 'Sexual, explicit, or sensitive imagery/content',
     }),
   },

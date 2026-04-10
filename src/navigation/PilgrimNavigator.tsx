@@ -139,6 +139,7 @@ const ProfileStackNavigator = () => (
     <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
     <ProfileStack.Screen name="Wallet" component={WalletScreen} />
     <ProfileStack.Screen name="MyReports" component={MyReportsScreen} />
+    <ProfileStack.Screen name="ReportDetail" component={ReportDetailScreen} />
     <ProfileStack.Screen name="History" component={HistoryScreen} />
     <ProfileStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
   </ProfileStack.Navigator>

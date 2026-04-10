@@ -1615,7 +1615,7 @@
         "label": "Violence",
         "description": "Violent content or incitement to violence"
       },
-      "nudity": {
+      "inappropriate": {
         "label": "Inappropriate content",
         "description": "Sexual, explicit, or sensitive imagery/content"
       },
@@ -1864,7 +1864,7 @@
       "harassment": "Harassment",
       "hate_speech": "Hate speech",
       "violence": "Violence",
-      "nudity": "Nudity",
+      "inappropriate": "Inappropriate content",
       "false_information": "False information",
       "scam": "Scam",
       "other": "Other",
