@@ -174,7 +174,8 @@ export const MyReportsScreen = () => {
                 </View>
                 <View style={styles.cardActions}>
                     <StatusBadge status={item.status} />
-                    {item.is_active !== false && item.status !== 'cancelled' && (
+                    {item.is_active !== false &&
+                        !['resolved', 'rejected', 'cancelled'].includes(item.status) && (
                         <TouchableOpacity 
                             style={styles.deleteButton} 
                             onPress={(e) => handleCancel(item.id, e)}
