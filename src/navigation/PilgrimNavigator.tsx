@@ -96,8 +96,6 @@ const PlannerStackNavigator = () => (
     <PlannerStack.Screen name="PlannerMain" component={PlannerScreen} />
     <PlannerStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
     <PlannerStack.Screen name="ActiveJourneyScreen" component={ActiveJourneyScreen} />
-    <PlannerStack.Screen name="PlanChatScreen" component={PlanChatScreen} />
-    <PlannerStack.Screen name="PlannerMembersScreen" component={PlannerMembersScreen} />
     <PlannerStack.Screen name="PlannerMapScreen" component={PlannerMapScreen} />
     <PlannerStack.Screen
       name="CreatePlanScreen"
@@ -251,6 +249,20 @@ export const PilgrimNavigator = () => {
   return (
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="MainTabs" component={BottomTabNavigator} />
+      <MainStack.Screen
+        name="PlanChatScreen"
+        component={PlanChatScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        }}
+      />
+      <MainStack.Screen
+        name="PlannerMembersScreen"
+        component={PlannerMembersScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        }}
+      />
       <MainStack.Screen
         name="SiteDetail"
         component={SiteDetailScreen}

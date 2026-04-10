@@ -2,7 +2,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import React from "react";
+import React, { useState } from "react";
 import {
     ActivityIndicator,
     Image,
@@ -21,24 +21,42 @@ import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constan
 import { SACRED_COLORS } from "../../../../constants/sacred-theme.constants";
 import { getFontSize } from "../../../../utils/responsive";
 import { useGuideSOSActions, useGuideSOSDetail } from "../hooks/useGuideSOS";
+import { FullMapModal } from "../../../../components/map/FullMapModal";
+import { MapPin } from "../../../../components/map/VietmapView";
+import vietmapService from "../../../../services/map/vietmapService";
+import locationService from "../../../../services/location/locationService";
 
 // Navigation Types
 type RootStackParamList = {
     SOSList: undefined;
 };
 
-type SOSDetailScreenRouteProp = RouteProp<{ params: { id: string } }, 'params'>;
+type SOSDetailScreenRouteProp = RouteProp<{ params: { id: string; autoOpenMap?: boolean } }, 'params'>;
 type SOSDetailNavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const SOSDetailScreen = () => {
     const navigation = useNavigation<SOSDetailNavigationProp>();
     const route = useRoute<SOSDetailScreenRouteProp>();
     const insets = useSafeAreaInsets();
-    const { id } = route.params;
+    const { id, autoOpenMap } = route.params;
 
     const { data: sos, isLoading } = useGuideSOSDetail(id);
     const { assignSOS, resolveSOS, isAssigning, isResolving } = useGuideSOSActions();
     const processing = isAssigning || isResolving;
+
+    // Map States
+    const [mapVisible, setMapVisible] = useState(false);
+    const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>([]);
+    const [routeSummary, setRouteSummary] = useState<string>('');
+    const [routeLoading, setRouteLoading] = useState(false);
+    const [guideLocation, setGuideLocation] = useState<{latitude: number; longitude: number} | null>(null);
+
+    // Auto open map effect
+    React.useEffect(() => {
+        if (autoOpenMap && sos?.latitude && sos?.longitude) {
+            openMap();
+        }
+    }, [autoOpenMap, sos?.latitude, sos?.longitude]);
 
     const handleAssign = async () => {
         try {
@@ -58,16 +76,29 @@ export const SOSDetailScreen = () => {
         }
     };
 
-    const openMap = () => {
-        if (sos?.latitude && sos?.longitude) {
-            const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-            const latLng = `${sos.latitude},${sos.longitude}`;
-            const label = 'Vị trí người cần hỗ trợ';
-            const url = Platform.select({
-                ios: `${scheme}${label}@${latLng}`,
-                android: `${scheme}${latLng}(${label})`
-            });
-            if (url) Linking.openURL(url);
+    const openMap = async () => {
+        if (!sos?.latitude || !sos?.longitude) return;
+        setMapVisible(true);
+        setRouteLoading(true);
+
+        try {
+            // Get guide's current location to draw route
+            const userLoc = await locationService.getCurrentLocation();
+            setGuideLocation(userLoc);
+
+            // Calculate Vietmap route
+            const route = await vietmapService.calculateRouteWithGeometry(
+                { latitude: userLoc.latitude, longitude: userLoc.longitude },
+                { latitude: Number(sos.latitude), longitude: Number(sos.longitude) }
+            );
+
+            setRouteCoordinates(route.coordinates);
+            setRouteSummary(`${route.distanceKm.toFixed(2)} km • ${route.durationText}`);
+        } catch (error: any) {
+            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không thể tính toán dẫn đường trên Vietmap' });
+            // Even if route fails, map is visible with pins
+        } finally {
+            setRouteLoading(false);
         }
     };
 
@@ -76,6 +107,33 @@ export const SOSDetailScreen = () => {
         if (phone) {
             Linking.openURL(`tel:${phone}`);
         }
+    };
+
+    const getMapPins = (): MapPin[] => {
+        const pins: MapPin[] = [];
+        if (sos?.latitude && sos?.longitude) {
+            pins.push({
+                id: 'sos_location',
+                latitude: Number(sos.latitude),
+                longitude: Number(sos.longitude),
+                title: '🆘 Người gặp nạn',
+                subtitle: sos.message || 'Cần hỗ trợ tại đây',
+                color: SACRED_COLORS.danger,
+                icon: '🆘'
+            });
+        }
+        if (guideLocation) {
+            pins.push({
+                id: 'guide_location',
+                latitude: guideLocation.latitude,
+                longitude: guideLocation.longitude,
+                title: '📍 Vị trí của bạn',
+                subtitle: 'Gần nhất thu thập được',
+                color: GUIDE_COLORS.primary,
+                icon: '📍'
+            });
+        }
+        return pins;
     };
 
     if (isLoading) {
@@ -173,38 +231,42 @@ export const SOSDetailScreen = () => {
                     </View>
                 </View>
 
-                {/* Location Map with Mini Map Visual */}
+                {/* Location Box */}
                 {sos.latitude && sos.longitude && (
-                    <View style={styles.mapContainer}>
-                        <View style={styles.sectionHeader}>
-                            <MaterialIcons name="location-on" size={20} color={SACRED_COLORS.gold} />
-                            <Text style={styles.sectionTitle}>Vị trí</Text>
+                    <View style={styles.locationCard}>
+                        <View style={[styles.sectionHeader, { justifyContent: 'space-between', marginBottom: 12 }]}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <MaterialIcons name="my-location" size={20} color={GUIDE_COLORS.primary} />
+                                <Text style={styles.sectionTitle}>Vị trí cứu trợ</Text>
+                            </View>
+                            <TouchableOpacity 
+                                style={styles.compactMapButton} 
+                                onPress={openMap}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name="map" size={14} color="#FFF" />
+                                <Text style={styles.compactMapText}>Mở bản đồ</Text>
+                            </TouchableOpacity>
                         </View>
-
-                        {/* Mini Map Visual Placeholder */}
-                        <View style={styles.miniMapVisual}>
-                            {/* In a real app, use MapView here. For now, simulate map look */}
-                            <View style={styles.mapGridHorizontal} />
-                            <View style={styles.mapGridVertical} />
-                            <View style={styles.mapPin}>
-                                <Image
-                                    source={{ uri: sos.pilgrim?.avatar_url || "https://ui-avatars.com/api/?name=User" }}
-                                    style={styles.mapPinAvatar}
-                                />
-                                <View style={styles.mapPinTriangle} />
+                        
+                        <View style={styles.coordinatesWrapper}>
+                            <View style={styles.coordinateItem}>
+                                <Text style={styles.coordinateLabel}>Vĩ độ (Lat)</Text>
+                                <Text style={styles.coordinateValue}>{Number(sos.latitude).toFixed(6)}</Text>
+                            </View>
+                            <View style={styles.coordinateDivider} />
+                            <View style={styles.coordinateItem}>
+                                <Text style={styles.coordinateLabel}>Kinh độ (Lng)</Text>
+                                <Text style={styles.coordinateValue}>{Number(sos.longitude).toFixed(6)}</Text>
                             </View>
                         </View>
-
-                        <TouchableOpacity style={styles.floatingMapButton} onPress={openMap}>
-                            <Ionicons name="map" size={20} color={SACRED_COLORS.charcoal} />
-                            <Text style={styles.floatingMapText}>Mở bản đồ chỉ đường</Text>
-                        </TouchableOpacity>
                     </View>
                 )}
+            <View style={{ height: 100 }} />
             </ScrollView>
 
-            {/* Action Buttons */}
-            <View style={[styles.footer, { paddingBottom: Math.max(GUIDE_SPACING.lg, insets.bottom) }]}>
+            {/* Action Buttons Floating Footer */}
+            <View style={[styles.footer, { bottom: insets.bottom + 16 }]}>
                 {sos.status === 'pending' && (
                     <TouchableOpacity
                         style={[styles.actionButton, styles.buttonPrimary]}
@@ -215,8 +277,8 @@ export const SOSDetailScreen = () => {
                             <ActivityIndicator color="#FFF" />
                         ) : (
                             <>
-                                <MaterialIcons name="assignment-turned-in" size={20} color="#FFF" />
-                                <Text style={styles.buttonText}>Nhận xử lý</Text>
+                                <MaterialIcons name="assignment-turned-in" size={24} color="#FFF" />
+                                <Text style={styles.buttonText}>Nhận xử lý ngay</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -232,8 +294,8 @@ export const SOSDetailScreen = () => {
                             <ActivityIndicator color="#FFF" />
                         ) : (
                             <>
-                                <MaterialIcons name="check-circle" size={20} color="#FFF" />
-                                <Text style={styles.buttonText}>Hoàn tất xử lý</Text>
+                                <MaterialIcons name="check-circle" size={24} color="#FFF" />
+                                <Text style={styles.buttonText}>Hoàn tất hỗ trợ</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -246,6 +308,18 @@ export const SOSDetailScreen = () => {
                     </View>
                 )}
             </View>
+
+            {/* Map Modal */}
+            <FullMapModal
+                visible={mapVisible}
+                onClose={() => setMapVisible(false)}
+                pins={getMapPins()}
+                title="Dẫn đường cứu trợ (Vietmap)"
+                routeCoordinates={routeCoordinates}
+                routeSummary={routeSummary}
+                routeLoading={routeLoading}
+                showUserLocation={true}
+            />
         </View>
     );
 };
@@ -253,7 +327,7 @@ export const SOSDetailScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: GUIDE_COLORS.background,
+        backgroundColor: SACRED_COLORS.parchment,
     },
     loadingContainer: {
         flex: 1,
@@ -392,132 +466,119 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    mapContainer: {
+    locationCard: {
         backgroundColor: GUIDE_COLORS.surface,
         padding: GUIDE_SPACING.lg,
         borderRadius: 12,
         marginBottom: GUIDE_SPACING.lg,
         borderWidth: 1,
-        borderColor: GUIDE_COLORS.borderLight,
-        overflow: 'hidden',
+        borderColor: GUIDE_COLORS.primary + '30', // Soft primary border
+        shadowColor: GUIDE_COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    miniMapVisual: {
-        height: 180,
-        backgroundColor: '#E5E9F2',
-        borderRadius: 8,
-        marginBottom: 12,
-        position: 'relative',
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#D1D5DB',
-    },
-    mapGridHorizontal: {
-        position: 'absolute',
-        top: '50%',
-        left: 0,
-        right: 0,
-        height: 8,
-        backgroundColor: '#FFFFFF',
-        opacity: 0.7,
-    },
-    mapGridVertical: {
-        position: 'absolute',
-        left: '50%',
-        top: 0,
-        bottom: 0,
-        width: 8,
-        backgroundColor: '#FFFFFF',
-        opacity: 0.7,
-    },
-    mapPin: {
-        position: 'absolute',
-        top: '35%',
-        left: '45%',
-        alignItems: 'center',
-    },
-    mapPinAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        borderWidth: 2,
-        borderColor: '#FFF',
-    },
-    mapPinTriangle: {
-        width: 0,
-        height: 0,
-        backgroundColor: 'transparent',
-        borderStyle: 'solid',
-        borderLeftWidth: 6,
-        borderRightWidth: 6,
-        borderBottomWidth: 8,
-        borderLeftColor: 'transparent',
-        borderRightColor: 'transparent',
-        borderBottomColor: '#FFF',
-        transform: [{ rotate: '180deg' }],
-        marginTop: -2,
-    },
-    floatingMapButton: {
+    coordinatesWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: SACRED_COLORS.gold,
-        paddingVertical: 12,
+        backgroundColor: GUIDE_COLORS.background,
         borderRadius: 8,
-        gap: 8,
-        shadowColor: SACRED_COLORS.gold,
+        padding: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: GUIDE_COLORS.borderLight,
+    },
+    coordinateItem: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    coordinateLabel: {
+        fontSize: getFontSize(12),
+        color: GUIDE_COLORS.textSecondary,
+        marginBottom: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    coordinateValue: {
+        fontSize: getFontSize(16),
+        fontWeight: 'bold',
+        color: GUIDE_COLORS.textPrimary,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    coordinateDivider: {
+        width: 1,
+        height: '80%',
+        backgroundColor: GUIDE_COLORS.borderLight,
+        marginHorizontal: 12,
+    },
+    compactMapButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: GUIDE_COLORS.primary,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        borderRadius: 20,
+        gap: 4,
+        shadowColor: GUIDE_COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
+        shadowOpacity: 0.2,
         shadowRadius: 4,
         elevation: 3,
     },
-    floatingMapText: {
-        color: SACRED_COLORS.charcoal,
+    compactMapText: {
+        fontSize: getFontSize(12),
         fontWeight: 'bold',
-        fontSize: 14,
+        color: '#FFF',
     },
 
     footer: {
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: GUIDE_COLORS.surface,
-        padding: GUIDE_SPACING.lg,
-        borderTopWidth: 1,
-        borderTopColor: GUIDE_COLORS.borderLight,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 5,
+        left: GUIDE_SPACING.lg,
+        right: GUIDE_SPACING.lg,
+        bottom: 20,
+        borderRadius: 100,
+        backgroundColor: 'transparent',
     },
     actionButton: {
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 14,
-        borderRadius: 8,
+        justifyContent: 'center',
+        paddingVertical: 18,
+        borderRadius: 100,
         gap: 8,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 8,
     },
     buttonPrimary: {
-        backgroundColor: GUIDE_COLORS.primary,
+        backgroundColor: SACRED_COLORS.gold,
     },
     buttonSuccess: {
         backgroundColor: SACRED_COLORS.success,
     },
     buttonText: {
-        color: '#FFF',
         fontSize: getFontSize(16),
         fontWeight: 'bold',
+        color: '#FFF',
+        textTransform: 'uppercase',
     },
     completedMessage: {
         flexDirection: 'row',
-        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 10,
+        justifyContent: 'center',
         gap: 8,
+        backgroundColor: SACRED_COLORS.success + '15',
+        padding: GUIDE_SPACING.md,
+        borderRadius: 100,
+        borderWidth: 1,
+        borderColor: SACRED_COLORS.success,
     },
     completedText: {
+        fontSize: getFontSize(16),
+        fontWeight: '600',
         color: SACRED_COLORS.success,
         fontSize: getFontSize(16),
         fontWeight: '600',

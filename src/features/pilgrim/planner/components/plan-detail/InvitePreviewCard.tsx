@@ -19,6 +19,8 @@ interface InvitePreviewCardProps {
   isEditLocked?: boolean;
   planStatusStr?: string;
   planStartDate?: string | null;
+  /** Friend invite = miễn cọc, tham gia ngay */
+  isFriendInvite?: boolean;
 }
 
 export default function InvitePreviewCard({
@@ -33,6 +35,7 @@ export default function InvitePreviewCard({
   isEditLocked,
   planStatusStr,
   planStartDate,
+  isFriendInvite = false,
 }: InvitePreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -79,18 +82,26 @@ export default function InvitePreviewCard({
             {ownerName || "—"}
             {ownerEmail ? ` (${ownerEmail})` : ""}
           </Text>
+
+          {/* Tiền cọc: bạn bè miễn cọc, external hiện số tiền */}
           <Text style={{ marginTop: 6, color: "#1F2937", fontSize: 14 }}>
             <Text style={{ fontWeight: "600", color: COLORS.textPrimary }}>Tiền cọc: </Text>
-            {depositAmount != null && Number(depositAmount) > 0
+            {isFriendInvite ? (
+              <Text style={{ fontWeight: "700", color: "#16A34A" }}>Miễn cọc (bạn bè) ✓</Text>
+            ) : depositAmount != null && Number(depositAmount) > 0
               ? `${Math.round(Number(depositAmount)).toLocaleString("vi-VN")} ₫`
               : "Không có"}
           </Text>
-          <Text style={{ marginTop: 6, color: "#1F2937", fontSize: 14 }}>
-            <Text style={{ fontWeight: "600", color: COLORS.textPrimary }}>Phạt rời nhóm: </Text>
-            {penaltyPercentage != null && Number(penaltyPercentage) > 0
-              ? `${Math.round(Number(penaltyPercentage))}%`
-              : "Không phạt"}
-          </Text>
+
+          {/* Phạt rời nhóm: ẩn cho friend invite */}
+          {!isFriendInvite && (
+            <Text style={{ marginTop: 6, color: "#1F2937", fontSize: 14 }}>
+              <Text style={{ fontWeight: "600", color: COLORS.textPrimary }}>Phạt rời nhóm: </Text>
+              {penaltyPercentage != null && Number(penaltyPercentage) > 0
+                ? `${Math.round(Number(penaltyPercentage))}%`
+                : "Không phạt"}
+            </Text>
+          )}
           <Text style={{ marginTop: 6, color: "#1F2937", fontSize: 14 }}>
             <Text style={{ fontWeight: "600", color: COLORS.textPrimary }}>Thành viên: </Text>
             {joinedCount !== null ? `${joinedCount} người` : `~${estimatedJoinedCount} người`} dự kiến

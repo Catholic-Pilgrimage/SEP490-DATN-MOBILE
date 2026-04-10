@@ -27,6 +27,7 @@ import type {
   PlannerProgressMember 
 } from "../../../../types/pilgrim/planner.types";
 import { useAuth } from "../../../../hooks/useAuth";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useFriendship } from "../../profile/hooks/useFriendship";
 import { FriendshipListItem } from "../../../../types/pilgrim";
 import MemberHistoryList from "../components/shared/MemberHistoryList";
@@ -43,6 +44,10 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const planId = route.params?.planId || "";
   const planName = route.params?.planName || "Thành viên";
 
+  const { friends, pendingRequests, fetchFriends, fetchPendingRequests, sendRequest } = useFriendship();
+  const { user: currentUser } = useAuth();
+  const { confirm } = useConfirm();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<PlannerMemberApiRow[]>([]);
@@ -52,6 +57,8 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const [allItems, setAllItems] = useState<any[]>([]);
   const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
   const [planStatus, setPlanStatus] = useState<string>("");
+  const [planDetail, setPlanDetail] = useState<any>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [summary, setSummary] = useState<{
     total_slots?: number;
     current_members?: number;
@@ -59,9 +66,6 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   } | null>(null);
 
   const [sessionSentRequestIds, setSessionSentRequestIds] = useState<Set<string>>(new Set());
-
-  const { friends, pendingRequests, fetchFriends, fetchPendingRequests, sendRequest } = useFriendship();
-  const { user: currentUser } = useAuth();
 
   const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
 
@@ -73,6 +77,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       try {
         const detailRes = await pilgrimPlannerApi.getPlanDetail(planId);
         if (detailRes?.success && detailRes.data) {
+          setPlanDetail(detailRes.data);
           setOwnerId(detailRes.data.user_id);
           planStatusStr = detailRes.data.status;
           setPlanStatus(planStatusStr || "");
@@ -130,6 +135,60 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       // ... errors handled
     }
   }, [planId]);
+
+  const confirmLeavePlan = async () => {
+    if (!currentUser?.id) return;
+    
+    // Backend: penalty only applies when planner is 'locked'
+    // During 'planning': always clean exit with 100% refund
+    const hasFinancialPenalty =
+      planStatus === 'locked' &&
+      planDetail?.deposit_amount > 0 &&
+      planDetail?.penalty_percentage > 0;
+
+    const penaltyHint = hasFinancialPenalty
+      ? `\nLƯU Ý: Kế hoạch đã khoá — rời nhóm sẽ bị phạt ${planDetail.penalty_percentage}% tiền cọc (${Math.round(planDetail.deposit_amount * planDetail.penalty_percentage / 100).toLocaleString('vi-VN')} VND).`
+      : planDetail?.deposit_amount > 0
+        ? '\nTiền cọc sẽ được hoàn 100% vào ví.'
+        : '';
+      
+    const confirmed = await confirm({
+      type: "danger",
+      title: "Rời khỏi nhóm?",
+      message: "Bạn có chắc chắn muốn rời khỏi đoàn này không?" + penaltyHint,
+      confirmText: "Rời nhóm",
+      cancelText: "Hủy",
+    });
+
+    if (confirmed) {
+      try {
+        setRemovingMemberId(currentUser.id);
+        const res = await pilgrimPlannerApi.removePlanMember(planId, currentUser.id);
+        if (res.success) {
+          Toast.show({
+            type: "success",
+            text1: "Thành công",
+            text2: res.message || "Đã rời khỏi nhóm",
+          });
+          navigation.goBack();
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Lỗi",
+            text2: res.message || "Không thể rời nhóm",
+          });
+        }
+      } catch (e: any) {
+        Toast.show({
+          type: "error",
+          text1: "Lỗi",
+          text2: "Có lỗi xảy ra khi rời nhóm.",
+        });
+      } finally {
+        setRemovingMemberId(null);
+      }
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -356,6 +415,25 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
           )}
         </ScrollView>
       )}
+
+      {!loading && currentUser?.id !== ownerId && ['planning', 'locked'].includes(planStatus) && (
+        <View style={[styles.footerBtnContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <TouchableOpacity 
+            style={styles.globalLeaveBtn} 
+            onPress={confirmLeavePlan}
+            disabled={removingMemberId !== null}
+          >
+            {removingMemberId !== null ? (
+              <ActivityIndicator size="small" color={COLORS.danger} />
+            ) : (
+              <>
+                <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
+                <Text style={styles.globalLeaveBtnText}>Rời khỏi nhóm</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -548,6 +626,30 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  footerBtnContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.borderLight,
+    ...SHADOWS.medium,
+  },
+  globalLeaveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF2F2", // very light red
+    paddingVertical: 14,
+    borderRadius: BORDER_RADIUS.md,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+  },
+  globalLeaveBtnText: {
+    color: COLORS.danger,
+    fontSize: 16,
+    fontWeight: "700",
   },
   friendBadge: {
     flexDirection: "row",

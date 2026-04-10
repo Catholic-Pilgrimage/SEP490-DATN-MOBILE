@@ -101,6 +101,7 @@ export interface PlanInvite {
   email: string;
   inviter_id?: string;
   role: "viewer";
+  invite_type?: "friend" | "external";
   status: "pending" | "accepted" | "rejected" | "expired" | "awaiting_payment";
   created_at: string;
   expires_at?: string;
@@ -116,6 +117,7 @@ export interface PlanInvite {
     end_date?: string;
     deposit_amount?: number;
     penalty_percentage?: number;
+    item_count?: number;
     owner?: PlanOwner;
     /** GET /planners/invite/:token — formatPlannerWithItems */
     items_by_day?: Record<string, PlanItem[]>;
@@ -281,6 +283,7 @@ export interface PlanEntity {
   // Detailed fields (optional in list)
   items?: PlanItem[];
   items_by_day?: Record<string, PlanItem[]>;
+  item_count?: number;
   is_public?: boolean; // inferred from usage
   /** Kế hoạch nhóm: cọc thành viên (VND) */
   deposit_amount?: number;
@@ -299,6 +302,10 @@ export interface PlanEntity {
   can_set_edit_lock_at?: boolean;
   /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
   shared_to_community?: boolean;
+  
+  viewer_join_status?: "owner" | "joined" | "dropped_out" | null;
+  viewer_deposit_status?: string | null;
+  is_read_only?: boolean;
 }
 
 export interface GetPlansResponse {
