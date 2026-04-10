@@ -1616,7 +1616,7 @@
         "label": "Bạo lực",
         "description": "Nội dung bạo lực hoặc kích động bạo lực"
       },
-      "nudity": {
+      "inappropriate": {
         "label": "Nội dung không phù hợp",
         "description": "Hình ảnh hoặc nội dung khiêu dâm, phản cảm"
       },
@@ -1865,7 +1865,7 @@
       "harassment": "Quấy rối",
       "hate_speech": "Ngôn từ kích động thù địch",
       "violence": "Bạo lực",
-      "nudity": "Ảnh khỏa thân",
+      "inappropriate": "Nội dung không phù hợp",
       "false_information": "Thông tin sai lệch",
       "scam": "Lừa đảo",
       "other": "Khác",

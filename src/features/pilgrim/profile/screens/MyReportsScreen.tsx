@@ -37,18 +37,19 @@ const THEME = {
     danger: '#E53E3E',
 };
 
-const getReasonLabel = (reason: ReportReason, t: any) => {
+const getReasonLabel = (reason: ReportReason | string, t: any) => {
+    const normalizedReason = reason === 'nudity' ? 'inappropriate' : reason;
     const reasons: Record<ReportReason, string> = {
         spam: t('reports.reasons.spam'),
         harassment: t('reports.reasons.harassment'),
         hate_speech: t('reports.reasons.hate_speech'),
         violence: t('reports.reasons.violence'),
-        nudity: t('reports.reasons.nudity'),
+        inappropriate: t('reports.reasons.inappropriate'),
         false_information: t('reports.reasons.false_information'),
         scam: t('reports.reasons.scam'),
         other: t('reports.reasons.other'),
     };
-    return reasons[reason] || t('reports.reasons.fallback');
+    return reasons[normalizedReason as ReportReason] || t('reports.reasons.fallback');
 };
 
 const getTargetTypeLabel = (type: string, t: any) => {
