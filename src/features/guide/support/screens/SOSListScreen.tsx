@@ -59,15 +59,16 @@ const FilterTab = ({
     </TouchableOpacity>
 );
 
-// SOS Item Component
 const SOSItem = ({
     item,
     onPress,
     onMissingPhone,
+    onMapPress,
 }: {
     item: SOSEntity;
     onPress: () => void;
     onMissingPhone: () => void;
+    onMapPress: () => void;
 }) => {
     const getStatusColor = (status: SOSStatus) => {
         switch (status) {
@@ -99,7 +100,7 @@ const SOSItem = ({
     };
 
     return (
-        <TouchableOpacity style={styles.itemContainer} onPress={onPress}>
+        <View style={styles.itemContainer}>
             <View style={styles.itemHeader}>
                 <View style={styles.itemHeaderLeft}>
                     <View style={styles.avatarContainer}>
@@ -108,23 +109,26 @@ const SOSItem = ({
                             style={styles.avatar}
                         />
                     </View>
-                    <View>
+                    <TouchableOpacity onPress={onPress}>
                         <Text style={styles.pilgrimName}>{item.pilgrim?.full_name || "Người hành hương"}</Text>
                         <View style={styles.distanceBadge}>
                             <Ionicons name="location" size={10} color={GUIDE_COLORS.primary} />
-                            <Text style={styles.distanceText}>Cách bạn ~50m</Text>
+                            <Text style={styles.distanceText}>Xem chi tiết</Text>
                         </View>
-                    </View>
-                </View>
-                {/* Quick Call Button */}
-                {(item.pilgrim?.phone || item.contact_phone) && (
-                    <TouchableOpacity style={styles.quickCallButton} onPress={handleCall}>
-                        <Ionicons name="call" size={18} color="#FFF" />
                     </TouchableOpacity>
-                )}
+                </View>
+                {/* Quick Actions */}
+                <View style={styles.quickActionsRow}>
+                    {/* Quick Call Button */}
+                    {(item.pilgrim?.phone || item.contact_phone) && (
+                        <TouchableOpacity style={styles.quickCallButton} onPress={handleCall}>
+                            <Ionicons name="call" size={16} color="#FFF" />
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
 
-            <View style={styles.messageContainer}>
+            <TouchableOpacity style={styles.messageContainer} onPress={onPress}>
                 <View style={[styles.statusLine, { backgroundColor: getStatusColor(item.status) }]} />
                 <View style={styles.messageContent}>
                     <Text style={styles.itemMessage} numberOfLines={2}>
@@ -137,7 +141,7 @@ const SOSItem = ({
                         </Text>
                     </View>
                 </View>
-            </View>
+            </TouchableOpacity>
 
             <View style={styles.itemFooter}>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20', borderColor: getStatusColor(item.status) }]}>
@@ -147,11 +151,15 @@ const SOSItem = ({
                 </View>
                 <View style={styles.locationInfo}>
                     <Text style={styles.locationText} numberOfLines={1}>
-                        Tại: Khu vực Cổng Chính
+                        Tại: {item.site?.name || "Khu vực hành lễ"}
                     </Text>
+                    <TouchableOpacity style={styles.quickMapButton} onPress={onMapPress}>
+                        <Ionicons name="navigate" size={14} color={GUIDE_COLORS.primary} />
+                        <Text style={styles.quickMapText}>Dẫn đường</Text>
+                    </TouchableOpacity>
                 </View>
             </View>
-        </TouchableOpacity>
+        </View>
     );
 };
 
@@ -237,6 +245,7 @@ export const SOSListScreen = () => {
                             item={item}
                             onPress={() => handlePressItem(item.id)}
                             onMissingPhone={() => void showMissingPhoneDialog()}
+                            onMapPress={() => navigation.navigate("SOSDetail", { id: item.id, autoOpenMap: true })}
                         />
                     )}
                     contentContainerStyle={styles.listContent}
@@ -474,11 +483,31 @@ const styles = StyleSheet.create({
     locationInfo: {
         flex: 1,
         alignItems: 'flex-end',
+        gap: 6,
     },
     locationText: {
         fontSize: 12,
         color: GUIDE_COLORS.textSecondary,
         fontWeight: '500',
+    },
+    quickActionsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    quickMapButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: GUIDE_COLORS.primary + '15',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    quickMapText: {
+        fontSize: 12,
+        color: GUIDE_COLORS.primary,
+        fontWeight: '600',
     },
 });
 

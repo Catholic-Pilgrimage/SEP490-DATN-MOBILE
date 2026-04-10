@@ -17,6 +17,7 @@ import Toast from 'react-native-toast-message';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
 import { CreateSOSRequest } from '../../../../types/pilgrim';
+import locationService from '../../../../services/location/locationService';
 
 interface SOSModalProps {
     visible: boolean;
@@ -78,11 +79,13 @@ export const SOSModal: React.FC<SOSModalProps> = ({
         setIsLoading(true);
 
         try {
+            const userLocation = await locationService.getCurrentLocation();
+            
             const payload: CreateSOSRequest = {
                 site_id: siteId,
                 message: message.trim(),
-                latitude: siteLocation.latitude,
-                longitude: siteLocation.longitude,
+                latitude: userLocation.latitude,
+                longitude: userLocation.longitude,
             };
 
             await pilgrimSOSApi.createSOS(payload);

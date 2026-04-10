@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, BORDER_RADIUS, SPACING, SHADOWS } from '../../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../../services/api/pilgrim/sosApi';
 import Toast from 'react-native-toast-message';
+import locationService from '../../../../../services/location/locationService';
 
 interface Props {
   visible: boolean;
@@ -52,11 +53,13 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
         throw new Error('Không xác định được địa điểm cứu trợ');
       }
 
+      const userLocation = await locationService.getCurrentLocation();
+
       const res = await pilgrimSOSApi.createSOS({
         site_id: siteId,
         message: `${CATEGORIES.find(c => c.id === selectedCategory)?.label}. ${description.trim()}`,
-        latitude: 0,
-        longitude: 0,
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
       });
 
       if (res.success) {
