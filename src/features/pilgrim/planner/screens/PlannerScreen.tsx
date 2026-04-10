@@ -202,43 +202,9 @@ function normalizePlannerTransport(raw: unknown): TransportationType {
     return 'car';
 }
 
-function countStopsFromPlannerSummary(pl: any): number {
-    if (!pl) return 0;
-    
-    // Check array lengths
-    if (pl.items && Array.isArray(pl.items)) {
-        return pl.items.length;
-    }
-    if (pl.planner_items && Array.isArray(pl.planner_items)) {
-        return pl.planner_items.length;
-    }
-    if (pl.items_by_day && Object.keys(pl.items_by_day).length > 0) {
-        return Object.values(pl.items_by_day).reduce(
-            (acc: number, arr: any) => acc + (Array.isArray(arr) ? arr.length : 0),
-            0,
-        );
-    }
-
-    // Check count properties
-    if (typeof pl.item_count === 'number' && pl.item_count >= 0) return pl.item_count;
-    if (typeof pl.items_count === 'number' && pl.items_count >= 0) return pl.items_count;
-    if (typeof pl.total_items === 'number' && pl.total_items >= 0) return pl.total_items;
-    if (typeof pl.stopCount === 'number' && pl.stopCount >= 0) return pl.stopCount;
-    if (typeof pl.total_stops === 'number' && pl.total_stops >= 0) return pl.total_stops;
-    if (typeof pl.locations_count === 'number' && pl.locations_count >= 0) return pl.locations_count;
-    
-    // Check nested _count properties (prisma/ORM specific)
-    if (pl._count) {
-        if (typeof pl._count.items === 'number' && pl._count.items >= 0) return pl._count.items;
-        if (typeof pl._count.planner_items === 'number' && pl._count.planner_items >= 0) return pl._count.planner_items;
-    }
-
-    return 0;
-}
-
 // ─── Map PlanEntity → PlanUI helper ──────────────────────────
 const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
-    const totalItems = countStopsFromPlannerSummary(entity);
+    const totalItems = typeof entity.item_count === 'number' ? entity.item_count : 0;
 
     return {
         id: entity.id,
@@ -277,7 +243,7 @@ const mapMyInviteToInvitedPlanUI = (invite: PlannerMyInvite): InvitedPlanUI | nu
         startDate: pl.start_date,
         endDate: pl.end_date || pl.start_date,
         status: (pl.status as any) || 'planning',
-        stopCount: countStopsFromPlannerSummary(pl),
+        stopCount: typeof pl.item_count === 'number' ? pl.item_count : 0,
         participantCount: pl.number_of_people || 0,
         coverImage: 'https://images.unsplash.com/photo-1548625361-e88c60eb83fe',
         isShared: false,
@@ -289,6 +255,7 @@ const mapMyInviteToInvitedPlanUI = (invite: PlannerMyInvite): InvitedPlanUI | nu
         inviteToken: invite.token,
         depositAmount: pl.deposit_amount,
         penaltyPercentage: pl.penalty_percentage,
+        inviteType: invite.invite_type,
     };
     return mapped;
 };
@@ -492,7 +459,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                 const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
                 if (res.success && res.data && res.data.planner) {
                     const planner = res.data.planner;
-                    const totalItems = countStopsFromPlannerSummary(planner);
+                    const totalItems = typeof planner.item_count === 'number' ? planner.item_count : 0;
                     
                     const mapped: InvitedPlanUI = {
                         id: planner.id || '',
@@ -665,6 +632,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                             ownerEmail: plan.ownerEmail,
                             depositAmount: plan.depositAmount,
                             penaltyPercentage: plan.penaltyPercentage,
+                            inviteType: plan.inviteType,
                             invitedView: true,
                         });
                     } else {
@@ -681,6 +649,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
                         ownerEmail: plan.ownerEmail,
                         depositAmount: plan.depositAmount,
                         penaltyPercentage: plan.penaltyPercentage,
+                        inviteType: plan.inviteType,
                         invitedView: true,
                     });
                 }}

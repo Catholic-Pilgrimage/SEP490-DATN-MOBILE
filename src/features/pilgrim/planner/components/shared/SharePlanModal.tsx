@@ -391,10 +391,18 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
 
       for (const email of emails) {
         try {
-          const res = await pilgrimPlannerApi.inviteParticipant(planId, {
-            email,
-            role: inviteRole,
-          });
+          const friendMatch = friends.find(f => f.user.email.toLowerCase() === email.toLowerCase());
+          let res;
+          
+          if (friendMatch) {
+            res = await pilgrimPlannerApi.inviteFriend(planId, friendMatch.user.id);
+          } else {
+            res = await pilgrimPlannerApi.inviteParticipant(planId, {
+              email,
+              role: inviteRole,
+            });
+          }
+          
           if (res.success) {
             successCount++;
           } else {
@@ -452,10 +460,8 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
 
     for (const f of selected) {
       try {
-        const res = await pilgrimPlannerApi.inviteParticipant(planId, {
-          email: f.user.email.toLowerCase(),
-          role: inviteRole,
-        });
+        // Friends selected from picker → always use invite-friend API (no deposit required)
+        const res = await pilgrimPlannerApi.inviteFriend(planId, f.user.id);
         if (res.success) {
           successCount++;
         } else {

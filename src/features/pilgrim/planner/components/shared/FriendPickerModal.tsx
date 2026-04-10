@@ -90,7 +90,13 @@ export const FriendPickerModal: React.FC<Props> = ({
       <View style={styles.overlay}>
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Chọn từ bạn bè</Text>
+            <View>
+              <Text style={styles.title}>Chọn từ bạn bè</Text>
+              <View style={styles.proHint}>
+                <Ionicons name="sparkles" size={12} color="#B45309" />
+                <Text style={styles.proHintText}>Không cần cọc cho bạn bè</Text>
+              </View>
+            </View>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color="#111827" />
             </TouchableOpacity>
@@ -154,6 +160,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#111827',
+  },
+  proHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  proHintText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#D97706',
+    marginLeft: 4,
   },
   list: {
     padding: SPACING.md,

@@ -95,9 +95,33 @@ export const SOSModal: React.FC<SOSModalProps> = ({
             setMessage('');
             setSelectedChipId(null);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to send SOS request:', error);
-            Toast.show({ type: 'error', text1: 'Thất bại', text2: 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.' });
+
+            // Backend returns specific error when user is too far from the site (>1km)
+            const apiMessage: string =
+                error?.response?.data?.message || error?.message || '';
+
+            if (apiMessage.includes('quá xa') || apiMessage.includes('too far')) {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Ngoài phạm vi',
+                    text2: apiMessage || 'Bạn đang quá xa địa điểm này. Cần ở trong phạm vi 1 km để gửi SOS.',
+                    visibilityTime: 5000,
+                });
+            } else if (apiMessage.includes('already') || apiMessage.includes('đang chờ')) {
+                Toast.show({
+                    type: 'info',
+                    text1: 'Thông báo',
+                    text2: 'Bạn đã có một yêu cầu SOS đang chờ xử lý.',
+                });
+            } else {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Thất bại',
+                    text2: apiMessage || 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.',
+                });
+            }
         } finally {
             setIsLoading(false);
         }

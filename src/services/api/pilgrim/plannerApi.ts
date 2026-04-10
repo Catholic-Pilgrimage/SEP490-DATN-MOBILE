@@ -137,6 +137,7 @@ function normalizeInvitePreviewPayload(
       email: String(inv.email ?? ""),
       inviter_id: inv.inviter_id != null ? String(inv.inviter_id) : undefined,
       role: inv.role === "viewer" ? "viewer" : "viewer",
+      invite_type: inv.invite_type === "friend" ? "friend" : inv.invite_type === "external" ? "external" : undefined,
       status: coerceInviteStatus(inv.status),
       created_at: String(inv.created_at ?? ""),
       expires_at: inv.expires_at != null ? String(inv.expires_at) : undefined,
@@ -374,6 +375,17 @@ export const inviteParticipant = async (
   return response.data;
 };
 
+export const inviteFriend = async (
+  planId: string,
+  friend_id: string,
+): Promise<ApiResponse<PlanParticipant>> => {
+  const response = await apiClient.post<ApiResponse<PlanParticipant>>(
+    PILGRIM_ENDPOINTS.PLANNER.INVITE_FRIEND(planId),
+    { friend_id },
+  );
+  return response.data;
+};
+
 export const getPlanByInviteToken = async (
   token: string,
 ): Promise<ApiResponse<PlanInvite>> => {
@@ -564,6 +576,7 @@ const pilgrimPlannerApi = {
   cancelPlannerDeposit,
   deletePlan,
   inviteParticipant,
+  inviteFriend,
   getPlanByInviteToken,
   respondToInvite,
   getPlanInvites,

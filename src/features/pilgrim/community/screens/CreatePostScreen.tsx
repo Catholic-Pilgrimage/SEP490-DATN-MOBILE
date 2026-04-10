@@ -1108,7 +1108,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   postButtonDisabled: {
-    backgroundColor: COLORS.placeholder,
+    backgroundColor: COLORS.border,
     opacity: 0.6,
   },
   postText: {

@@ -184,6 +184,7 @@ export default function InvitePlanGate({
     try {
       const res = await pilgrimPlannerApi.cancelPlannerDeposit(
         invite.planner_id,
+        { reject: false }
       );
       if (res.success) {
         Toast.show({

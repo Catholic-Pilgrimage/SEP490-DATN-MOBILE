@@ -27,6 +27,8 @@ export interface InvitedPlanUI extends PlanUI {
   inviteToken?: string;
   depositAmount?: number;
   penaltyPercentage?: number;
+  /** 'friend' = no deposit needed; 'external' = deposit required */
+  inviteType?: 'friend' | 'external';
 }
 
 interface InvitedPlanCardProps {

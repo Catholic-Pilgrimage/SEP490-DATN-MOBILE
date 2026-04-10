@@ -73,11 +73,29 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
         throw new Error(res.message);
       }
     } catch (e: any) {
-      Toast.show({
-        type: 'error',
-        text1: 'Lỗi gửi yêu cầu',
-        text2: e.message || 'Vui lòng thử lại sau',
-      });
+      const apiMessage: string =
+        e?.response?.data?.message || e?.message || '';
+
+      if (apiMessage.includes('quá xa') || apiMessage.includes('too far')) {
+        Toast.show({
+          type: 'error',
+          text1: 'Ngoài phạm vi',
+          text2: apiMessage || 'Bạn đang quá xa địa điểm này. Cần ở trong phạm vi 1 km để gửi SOS.',
+          visibilityTime: 5000,
+        });
+      } else if (apiMessage.includes('already') || apiMessage.includes('đang chờ')) {
+        Toast.show({
+          type: 'info',
+          text1: 'Thông báo',
+          text2: 'Bạn đã có một yêu cầu SOS đang chờ xử lý.',
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'Lỗi gửi yêu cầu',
+          text2: apiMessage || 'Vui lòng thử lại sau',
+        });
+      }
     } finally {
       setSubmitting(false);
     }

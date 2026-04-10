@@ -108,6 +108,7 @@ export const PILGRIM_ENDPOINTS = {
     DELETE: (id: string) => `${API_BASE}/planners/${id}`,
     AI_SUGGEST: `${API_BASE}/planners/ai-suggest`,
     INVITE: (id: string) => `${API_BASE}/planners/${id}/invite`,
+    INVITE_FRIEND: (id: string) => `${API_BASE}/planners/${id}/invite-friend`,
     INVITE_BY_TOKEN: (token: string) => `${API_BASE}/planners/invite/${token}`,
     INVITES: (id: string) => `${API_BASE}/planners/${id}/invites`,
     MEMBERS: (id: string) => `${API_BASE}/planners/${id}/members`,
