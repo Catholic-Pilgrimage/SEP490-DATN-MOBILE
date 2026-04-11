@@ -340,3 +340,15 @@ export const useDeleteComment = (postId: string) => {
         },
     });
 };
+
+export const useTranslatePost = () => {
+    return useMutation({
+        mutationFn: (postId: string) => postApi.translatePost(postId),
+    });
+};
+
+export const useTranslateComment = (postId: string) => {
+    return useMutation({
+        mutationFn: (commentId: string) => postApi.translateComment(postId, commentId),
+    });
+};

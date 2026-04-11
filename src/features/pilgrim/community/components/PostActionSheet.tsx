@@ -17,28 +17,34 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface PostActionSheetProps {
+  canTranslate?: boolean;
   busy?: boolean;
   /** Whether the current user is the owner of this post */
   isOwner?: boolean;
+  isTranslated?: boolean;
   postContent?: string;
   visible: boolean;
   onClose: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onReport: () => void;
+  onTranslate?: () => void;
   /** Callback to send friend request to the post author */
   onAddFriend?: () => void;
 }
 
 const PostActionSheet: React.FC<PostActionSheetProps> = ({
+  canTranslate = false,
   busy = false,
   isOwner = false,
+  isTranslated = false,
   postContent,
   visible,
   onClose,
   onDelete,
   onEdit,
   onReport,
+  onTranslate,
   onAddFriend,
 }) => {
   const { t } = useTranslation();
@@ -75,6 +81,29 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
             <Text style={styles.preview} numberOfLines={2}>
               {postContent}
             </Text>
+          ) : null}
+
+          {canTranslate && onTranslate ? (
+            <TouchableOpacity
+              style={styles.action}
+              onPress={onTranslate}
+              disabled={busy}
+            >
+              <MaterialIcons
+                name="g-translate"
+                size={20}
+                color={COLORS.textPrimary}
+              />
+              <Text style={styles.actionText}>
+                {isTranslated
+                  ? t("postDetail.viewOriginal", {
+                      defaultValue: "View original",
+                    })
+                  : t("postDetail.translatePost", {
+                      defaultValue: "Translate post",
+                    })}
+              </Text>
+            </TouchableOpacity>
           ) : null}
 
           {/* Owner-only actions: Edit & Delete */}

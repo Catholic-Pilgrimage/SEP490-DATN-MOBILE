@@ -6,7 +6,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
-    Alert,
     Animated,
     FlatList,
     Image,
@@ -23,11 +22,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { useDeletePost, useLikePost, usePosts } from '../../../../hooks/usePosts';
+import { useDeletePost, useLikePost, usePosts, useTranslatePost } from '../../../../hooks/usePosts';
 import { useSendFriendRequest } from '../../../../hooks/useFriendship';
 import { useConfirm } from '../../../../hooks/useConfirm';
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from '../../../../services/api/pilgrim';
-import { FeedPost } from '../../../../types';
+import { FeedPost, FeedTranslationResult } from '../../../../types';
 import {
     getFeedPostLocationName,
     getFeedPostPlannerId,
@@ -39,6 +38,7 @@ import { resolveJournalLocationName } from '../../../../utils/journalLocation';
 import { CreatePostBar } from '../components/CreatePostBar';
 import PostActionSheet from '../components/PostActionSheet';
 import ReportPostModal from '../components/ReportPostModal';
+import TranslationMeta from '../components/TranslationMeta';
 
 const COMMUNITY_BG = require('../../../../../assets/images/bg3.jpg');
 
@@ -304,21 +304,31 @@ const FeedItemActions = ({
 
 const FeedItemComponent = ({
     item,
+    displayContent,
+    displayTitle,
+    isTranslated = false,
     onPress,
     onCommentPress,
     onMorePress,
+    onShowOriginal,
     fallbackLocationName,
 }: {
     item: FeedPost;
+    displayContent?: string;
+    displayTitle?: string;
+    isTranslated?: boolean;
     onPress: () => void;
     onCommentPress?: () => void;
     onMorePress?: (post: FeedPost) => void;
+    onShowOriginal?: (postId: string) => void;
     fallbackLocationName?: string;
 }) => {
     const { t } = useTranslation();
     const { user: currentUser } = useAuth();
     const displayCommentsCount = item.comment_count || (item as any).comments_count || 0;
     const isHighlightedGuide = currentUser?.role === 'local_guide' && item.user_id === currentUser.id;
+    const content = displayContent ?? item.content;
+    const title = displayTitle ?? item.title?.trim() ?? item.sourceJournal?.title?.trim() ?? '';
 
     const postAuthor = {
         name: item.author.full_name || t('community.anonymousUser', { defaultValue: 'Anonymous user' }),
@@ -340,9 +350,15 @@ const FeedItemComponent = ({
                         />
                     </View>
 
-                    {item.content ? (
+                    {content ? (
                         <View style={[styles.paddingContent, { paddingTop: 0, paddingBottom: SPACING.md }]}>
-                            <Text style={styles.bodyText}>{item.content}</Text>
+                            {title ? (
+                                <Text style={styles.postTitle}>{title}</Text>
+                            ) : null}
+                            <Text style={styles.bodyText}>{content}</Text>
+                            {isTranslated && onShowOriginal ? (
+                                <TranslationMeta onShowOriginal={() => onShowOriginal(item.id)} />
+                            ) : null}
                         </View>
                     ) : null}
 
@@ -375,7 +391,13 @@ const FeedItemComponent = ({
                         onMorePress={onMorePress ? () => onMorePress(item) : undefined}
                     />
                     <View style={styles.textBody}>
-                        <Text style={styles.bodyText}>{item.content}</Text>
+                        {title ? (
+                            <Text style={styles.postTitle}>{title}</Text>
+                        ) : null}
+                        <Text style={styles.bodyText}>{content}</Text>
+                        {isTranslated && onShowOriginal ? (
+                            <TranslationMeta onShowOriginal={() => onShowOriginal(item.id)} />
+                        ) : null}
                     </View>
                     <FeedItemActions
                         stats={{ prayers: item.likes_count, comments: displayCommentsCount }}
@@ -399,6 +421,8 @@ export default function CommunityScreen() {
     const requiresLogin = !isAuthenticated || isGuest;
     const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
     const [reportPostId, setReportPostId] = useState<string | null>(null);
+    const [translatedPostsById, setTranslatedPostsById] = useState<Record<string, FeedTranslationResult>>({});
+    const [translatingPostId, setTranslatingPostId] = useState<string | null>(null);
     const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>({});
     const [journalLocationNamesById, setJournalLocationNamesById] = useState<Record<string, string>>({});
     const [plannerNamesById, setPlannerNamesById] = useState<Record<string, string>>({});
@@ -424,7 +448,12 @@ export default function CommunityScreen() {
         refetch,
     } = usePosts(10, { enabled: !requiresLogin });
     const deletePostMutation = useDeletePost();
+    const translatePostMutation = useTranslatePost();
     const sendFriendRequestMutation = useSendFriendRequest();
+
+    useEffect(() => {
+        setTranslatedPostsById({});
+    }, [i18n.language]);
 
     const handleLogin = React.useCallback(async () => {
         if (isGuest) {
@@ -463,6 +492,39 @@ export default function CommunityScreen() {
             return [];
         });
     }, [data]);
+
+    const clearTranslatedPost = React.useCallback((postId: string) => {
+        setTranslatedPostsById((prev) => {
+            if (!prev[postId]) {
+                return prev;
+            }
+
+            const next = { ...prev };
+            delete next[postId];
+            return next;
+        });
+    }, []);
+
+    const getDisplayedPostContent = React.useCallback((post?: FeedPost | null) => {
+        if (!post) {
+            return '';
+        }
+
+        return translatedPostsById[post.id]?.translated_text || post.content;
+    }, [translatedPostsById]);
+
+    const getDisplayedPostTitle = React.useCallback((post?: FeedPost | null) => {
+        if (!post) {
+            return '';
+        }
+
+        return (
+            translatedPostsById[post.id]?.translated_title ||
+            post.title?.trim() ||
+            post.sourceJournal?.title?.trim() ||
+            ''
+        );
+    }, [translatedPostsById]);
 
     useEffect(() => {
         const missingSiteIds = Array.from(
@@ -730,12 +792,13 @@ export default function CommunityScreen() {
         if (!activePostAction) return;
 
         const targetPost = activePostAction;
+        clearTranslatedPost(targetPost.id);
         setActivePostAction(null);
         navigation.navigate('CreatePost', {
             postId: targetPost.id,
             initialPost: targetPost,
         });
-    }, [activePostAction, navigation]);
+    }, [activePostAction, clearTranslatedPost, navigation]);
 
     const handleDeletePost = React.useCallback(async () => {
         if (!activePostAction) return;
@@ -756,6 +819,7 @@ export default function CommunityScreen() {
         if (confirmed) {
             deletePostMutation.mutate(targetPost.id, {
                 onSuccess: () => {
+                    clearTranslatedPost(targetPost.id);
                     Toast.show({
                         type: 'success',
                         text1: t('common.success', { defaultValue: 'Success' }),
@@ -776,7 +840,70 @@ export default function CommunityScreen() {
                 },
             });
         }
-    }, [activePostAction, confirm, deletePostMutation, t]);
+    }, [activePostAction, clearTranslatedPost, confirm, deletePostMutation, t]);
+
+    const handleTogglePostTranslation = React.useCallback(() => {
+        if (!activePostAction) return;
+
+        const targetPost = activePostAction;
+        const translatedPost = translatedPostsById[targetPost.id];
+
+        if (translatedPost) {
+            clearTranslatedPost(targetPost.id);
+            setActivePostAction(null);
+            return;
+        }
+
+        if (!targetPost.content?.trim()) {
+            return;
+        }
+
+        setTranslatingPostId(targetPost.id);
+
+        translatePostMutation.mutate(targetPost.id, {
+            onSuccess: (response) => {
+                const translatedResult = response.data;
+
+                if (!translatedResult?.translated_text?.trim()) {
+                    Toast.show({
+                        type: 'error',
+                        text1: t('common.error', { defaultValue: 'Error' }),
+                        text2: t('postDetail.translatePostError', {
+                            defaultValue: 'Unable to translate post.',
+                        }),
+                    });
+                    return;
+                }
+
+                setTranslatedPostsById((prev) => ({
+                    ...prev,
+                    [targetPost.id]: translatedResult,
+                }));
+                setActivePostAction(null);
+
+                Toast.show({
+                    type: 'success',
+                    text1: t('common.success', { defaultValue: 'Success' }),
+                    text2: t('postDetail.translatePostSuccess', {
+                        defaultValue: 'Post translated.',
+                    }),
+                });
+            },
+            onError: (error: any) => {
+                Toast.show({
+                    type: 'error',
+                    text1: t('common.error', { defaultValue: 'Error' }),
+                    text2:
+                        t('postDetail.translatePostError', {
+                            defaultValue: 'Unable to translate post.',
+                        }) + (error?.message ? ` ${error.message}` : ''),
+                });
+            },
+            onSettled: () => {
+                setTranslatingPostId(null);
+            },
+        });
+    }, [activePostAction, clearTranslatedPost, t, translatedPostsById, translatePostMutation]);
 
     const handleReportPost = React.useCallback(() => {
         if (!activePostAction) return;
@@ -831,9 +958,13 @@ export default function CommunityScreen() {
         return (
             <FeedItemComponent
                 item={item}
+                displayTitle={getDisplayedPostTitle(item)}
+                displayContent={getDisplayedPostContent(item)}
+                isTranslated={Boolean(translatedPostsById[item.id]?.translated_text)}
                 onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
                 onCommentPress={() => navigation.navigate('PostDetail', { postId: item.id, autoFocusComment: true } as any)}
                 onMorePress={setActivePostAction}
+                onShowOriginal={clearTranslatedPost}
                 fallbackLocationName={fallbackLocationName}
             />
         );
@@ -961,17 +1092,24 @@ export default function CommunityScreen() {
             {/* Post action sheet: owner sees Edit+Delete, others see Report only */}
             <PostActionSheet
                 visible={Boolean(activePostAction)}
-                postContent={activePostAction?.content}
+                postContent={getDisplayedPostTitle(activePostAction) || getDisplayedPostContent(activePostAction)}
+                canTranslate={Boolean(activePostAction?.content?.trim())}
                 isOwner={Boolean(
                     user?.id &&
                     activePostAction?.user_id &&
                     user.id === activePostAction.user_id
                 )}
-                busy={deletePostMutation.isPending || sendFriendRequestMutation.isPending}
+                isTranslated={Boolean(activePostAction && translatedPostsById[activePostAction.id]?.translated_text)}
+                busy={
+                    deletePostMutation.isPending ||
+                    sendFriendRequestMutation.isPending ||
+                    translatingPostId === activePostAction?.id
+                }
                 onClose={() => setActivePostAction(null)}
                 onEdit={handleEditPost}
                 onDelete={handleDeletePost}
                 onReport={handleReportPost}
+                onTranslate={handleTogglePostTranslation}
                 onAddFriend={isGuideViewer ? undefined : handleAddFriend}
             />
 
@@ -1217,6 +1355,14 @@ const styles = StyleSheet.create({
         color: COLORS.textPrimary,
         lineHeight: 24,
         fontFamily: 'serif',
+    },
+    postTitle: {
+        fontSize: TYPOGRAPHY.fontSize.lg,
+        color: COLORS.textPrimary,
+        lineHeight: 28,
+        fontWeight: '700',
+        fontFamily: 'serif',
+        marginBottom: SPACING.xs,
     },
     actionsRow: {
         flexDirection: 'row',
