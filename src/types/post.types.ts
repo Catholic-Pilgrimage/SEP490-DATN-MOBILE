@@ -121,6 +121,14 @@ export interface UpdateFeedCommentRequest {
     content: string;
 }
 
+export interface FeedTranslationResult {
+    translated_text: string;
+    translated_title?: string;
+    original_text?: string;
+    source_language?: string;
+    target_language?: string;
+}
+
 export interface GetFeedPostsParams {
     page?: number;
     limit?: number;

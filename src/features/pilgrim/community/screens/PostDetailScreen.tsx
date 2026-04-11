@@ -37,12 +37,14 @@ import {
   useLikePost,
   usePostComments,
   usePostDetail,
+  useTranslateComment,
+  useTranslatePost,
   useUpdateComment,
 } from "../../../../hooks/usePosts";
 import { useSendFriendRequest } from "../../../../hooks/useFriendship";
 import i18n from "../../../../i18n";
 import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from "../../../../services/api/pilgrim";
-import type { FeedPost, FeedPostComment } from "../../../../types/post.types";
+import type { FeedPost, FeedPostComment, FeedTranslationResult } from "../../../../types/post.types";
 import {
   getFeedPostLocationName,
   getFeedPostPlannerId,
@@ -53,6 +55,7 @@ import { resolveJournalLocationName } from "../../../../utils/journalLocation";
 import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
 import PostActionSheet from "../components/PostActionSheet";
 import ReportPostModal from "../components/ReportPostModal";
+import TranslationMeta from "../components/TranslationMeta";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Date Helpers (Synced with CreatePlanScreen)
@@ -570,7 +573,7 @@ const formatDisplayDate = (ymd: string) => {
     const y = date.getFullYear();
     
     return `${d}-${m}-${y}`;
-  } catch (e) {
+  } catch {
     return ymd;
   }
 };
@@ -879,19 +882,18 @@ const ClonePlanModal = ({
 };
 
 const JourneyAttachment = ({ journey }: { journey: any }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   const isGuide = user?.role === "local_guide";
+  const [isCloning, setIsCloning] = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
 
   if (!journey) return null;
 
   const summary = journey.summary || {};
   const itemsByDay = journey.items_by_day || {};
   const dayKeys = Object.keys(itemsByDay).sort((a, b) => Number(a) - Number(b));
-
-  const [isCloning, setIsCloning] = useState(false);
-  const [showCloneModal, setShowCloneModal] = useState(false);
 
   const handleCloneJourney = () => {
     setShowCloneModal(true);
@@ -1220,57 +1222,80 @@ const CommentOverflowButton = ({
 const CommentActionSheet = ({
   visible,
   comment,
+  commentPreview,
+  canTranslate = false,
   isOwner = false,
+  isTranslated = false,
   busy = false,
   onClose,
   onEdit,
   onDelete,
   onReport,
+  onTranslate,
 }: {
   visible: boolean;
   comment: FeedPostComment | null;
+  commentPreview?: string;
+  canTranslate?: boolean;
   /** Whether the current user owns this comment */
   isOwner?: boolean;
+  isTranslated?: boolean;
   busy?: boolean;
   onClose: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onReport: () => void;
+  onTranslate?: () => void;
 }) => {
   const { t } = useTranslation();
 
   if (!visible || !comment) return null;
 
-  const allItems = [
-    {
-      key: "edit",
-      icon: "edit",
-      label: t("postDetail.editComment"),
-      onPress: onEdit,
-      danger: false,
-      ownerOnly: true,
-    },
-    {
-      key: "delete",
-      icon: "delete-outline",
-      label: t("postDetail.deleteComment"),
-      onPress: onDelete,
-      danger: true,
-      ownerOnly: true,
-    },
-    {
-      key: "report",
-      icon: "flag",
-      label: t("postDetail.reportComment"),
-      onPress: onReport,
-      danger: false,
-      ownerOnly: false,
-    },
+  const actionItems = [
+    ...(canTranslate && onTranslate
+      ? [
+          {
+            key: "translate",
+            icon: "g-translate",
+            label: isTranslated
+              ? t("postDetail.viewOriginal", {
+                  defaultValue: "View original",
+                })
+              : t("postDetail.translateComment", {
+                  defaultValue: "Translate comment",
+                }),
+            onPress: onTranslate,
+            danger: false,
+          },
+        ]
+      : []),
+    ...(isOwner
+      ? [
+          {
+            key: "edit",
+            icon: "edit",
+            label: t("postDetail.editComment"),
+            onPress: onEdit,
+            danger: false,
+          },
+          {
+            key: "delete",
+            icon: "delete-outline",
+            label: t("postDetail.deleteComment"),
+            onPress: onDelete,
+            danger: true,
+          },
+        ]
+      : [
+          {
+            key: "report",
+            icon: "flag",
+            label: t("postDetail.reportComment"),
+            onPress: onReport,
+            danger: false,
+          },
+        ]),
   ];
-
-  const actionItems = isOwner
-    ? allItems.filter((item) => item.ownerOnly)
-    : allItems.filter((item) => !item.ownerOnly);
 
   return (
     <Modal
@@ -1293,7 +1318,7 @@ const CommentActionSheet = ({
             {t("postDetail.commentActions")}
           </Text>
           <Text style={styles.commentSheetPreview} numberOfLines={2}>
-            {comment.content}
+            {commentPreview ?? comment.content}
           </Text>
 
           {actionItems.map((item) => (
@@ -1338,104 +1363,126 @@ const ReplyBubble = ({
   isGuide,
   onReply,
   onMorePress,
+  translatedComment,
+  onShowOriginal,
 }: {
   comment: FeedPostComment;
   isGuide: boolean;
   onReply: (c: FeedPostComment) => void;
   onMorePress: (c: FeedPostComment) => void;
-}) => (
-  <View style={styles.replyRow}>
-    {comment.author?.avatar_url ? (
-      <Image
-        source={{ uri: comment.author.avatar_url }}
-        style={[styles.replyAvatar, isGuide && styles.commentAvatarGuide]}
-      />
-    ) : (
-      <View
-        style={[
-          styles.replyAvatar,
-          {
-            backgroundColor: isGuide ? "#FDF6E3" : COLORS.surface0,
-            justifyContent: "center",
-            alignItems: "center",
-          },
-          isGuide && styles.commentAvatarGuide,
-        ]}
-      >
-        <Text
-          style={{
-            fontWeight: "bold",
-            fontSize: 11,
-            color: isGuide ? "#9A6C00" : COLORS.textPrimary,
-          }}
-        >
-          {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
-        </Text>
-      </View>
-    )}
+  translatedComment?: FeedTranslationResult;
+  onShowOriginal: (commentId: string) => void;
+}) => {
+  const isTranslated = Boolean(translatedComment?.translated_text);
+  const content = translatedComment?.translated_text || comment.content;
 
-    <View style={styles.commentContent}>
-      <View style={styles.commentBubbleRow}>
+  return (
+    <View style={styles.replyRow}>
+      {comment.author?.avatar_url ? (
+        <Image
+          source={{ uri: comment.author.avatar_url }}
+          style={[styles.replyAvatar, isGuide && styles.commentAvatarGuide]}
+        />
+      ) : (
         <View
-          style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+          style={[
+            styles.replyAvatar,
+            {
+              backgroundColor: isGuide ? "#FDF6E3" : COLORS.surface0,
+              justifyContent: "center",
+              alignItems: "center",
+            },
+            isGuide && styles.commentAvatarGuide,
+          ]}
         >
-          <View style={styles.commentAuthorRow}>
-            <Text
-              style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
-            >
-              {comment.author?.full_name ||
-                translate("postDetail.user")}
-            </Text>
-            {isGuide ? (
-              <View style={styles.commentGuideBadge}>
-                <MaterialIcons name="verified" size={10} color="#fff" />
-                <Text style={styles.commentGuideBadgeText}>
-                  {translate("profile.localGuide")}
-                </Text>
-              </View>
-            ) : (
-              <View
-                style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
-              >
-                <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
-                  {translate("profile.pilgrimRole")}
-                </Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.commentText}>{comment.content}</Text>
-        </View>
-        <CommentOverflowButton onPress={() => onMorePress(comment)} />
-      </View>
-      <View style={styles.commentMetaRow}>
-        <Text style={styles.commentTime}>
-          {formatLocalizedTime(comment.created_at, translate, i18n.language)}
-        </Text>
-        <TouchableOpacity
-          onPress={() => onReply(comment)}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Text style={styles.replyLink}>
-            {translate("postDetail.reply", { defaultValue: "Reply" })}
+          <Text
+            style={{
+              fontWeight: "bold",
+              fontSize: 11,
+              color: isGuide ? "#9A6C00" : COLORS.textPrimary,
+            }}
+          >
+            {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
           </Text>
-        </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={styles.commentContent}>
+        <View style={styles.commentBubbleRow}>
+          <View
+            style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+          >
+            <View style={styles.commentAuthorRow}>
+              <Text
+                style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
+              >
+                {comment.author?.full_name ||
+                  translate("postDetail.user")}
+              </Text>
+              {isGuide ? (
+                <View style={styles.commentGuideBadge}>
+                  <MaterialIcons name="verified" size={10} color="#fff" />
+                  <Text style={styles.commentGuideBadgeText}>
+                    {translate("profile.localGuide")}
+                  </Text>
+                </View>
+              ) : (
+                <View
+                  style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
+                >
+                  <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
+                    {translate("profile.pilgrimRole")}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.commentText}>{content}</Text>
+            {isTranslated ? (
+              <TranslationMeta
+                compact
+                onShowOriginal={() => onShowOriginal(comment.id)}
+              />
+            ) : null}
+          </View>
+          <CommentOverflowButton onPress={() => onMorePress(comment)} />
+        </View>
+        <View style={styles.commentMetaRow}>
+          <Text style={styles.commentTime}>
+            {formatLocalizedTime(comment.created_at, translate, i18n.language)}
+          </Text>
+          <TouchableOpacity
+            onPress={() => onReply(comment)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.replyLink}>
+              {translate("postDetail.reply", { defaultValue: "Reply" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 const CommentItem = ({
   node,
   isGuide,
   onReply,
   onMorePress,
+  translatedCommentsById,
+  onShowOriginal,
 }: {
   node: CommentNode;
   isGuide: boolean;
   onReply: (c: FeedPostComment) => void;
   onMorePress: (c: FeedPostComment) => void;
+  translatedCommentsById: Record<string, FeedTranslationResult>;
+  onShowOriginal: (commentId: string) => void;
 }) => {
   const { comment, replies } = node;
   const [expanded, setExpanded] = useState(false);
+  const translatedComment = translatedCommentsById[comment.id];
+  const isTranslated = Boolean(translatedComment?.translated_text);
+  const content = translatedComment?.translated_text || comment.content;
   const repliesToggleLabel = expanded
     ? translate("postDetail.collapseReplies")
     : replies.length === 1
@@ -1513,7 +1560,13 @@ const CommentItem = ({
                   </View>
                 )}
               </View>
-              <Text style={styles.commentText}>{comment.content}</Text>
+              <Text style={styles.commentText}>{content}</Text>
+              {isTranslated ? (
+                <TranslationMeta
+                  compact
+                  onShowOriginal={() => onShowOriginal(comment.id)}
+                />
+              ) : null}
             </View>
             <CommentOverflowButton onPress={() => onMorePress(comment)} />
           </View>
@@ -1559,6 +1612,8 @@ const CommentItem = ({
                     isGuide={isReplyGuide}
                     onReply={onReply}
                     onMorePress={onMorePress}
+                    translatedComment={translatedCommentsById[reply.id]}
+                    onShowOriginal={onShowOriginal}
                   />
                 );
               })}
@@ -1587,7 +1642,7 @@ export default function PostDetailScreen() {
   const route = useRoute<any>();
   const postId = route.params?.postId;
   const autoFocusComment = route.params?.autoFocusComment;
-  const { t } = useTranslation();
+  const { t, i18n: i18nInstance } = useTranslation();
   const { user } = useAuth();
   const [commentText, setCommentText] = useState("");
   const [replyingTo, setReplyingTo] = useState<{
@@ -1602,6 +1657,10 @@ export default function PostDetailScreen() {
   const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
   const [reportPostId, setReportPostId] = useState<string | null>(null);
   const [reportCommentId, setReportCommentId] = useState<string | null>(null);
+  const [translatedPostsById, setTranslatedPostsById] = useState<Record<string, FeedTranslationResult>>({});
+  const [translatedCommentsById, setTranslatedCommentsById] = useState<Record<string, FeedTranslationResult>>({});
+  const [translatingPostId, setTranslatingPostId] = useState<string | null>(null);
+  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
   const [resolvedSiteName, setResolvedSiteName] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     type: "image" | "video";
@@ -1634,7 +1693,67 @@ export default function PostDetailScreen() {
   const updateCommentMutation = useUpdateComment(postId);
   const deleteCommentMutation = useDeleteComment(postId);
   const deletePostMutation = useDeletePost();
+  const translatePostMutation = useTranslatePost();
+  const translateCommentMutation = useTranslateComment(postId);
   const sendFriendRequestMutation = useSendFriendRequest();
+
+  useEffect(() => {
+    setTranslatedPostsById({});
+    setTranslatedCommentsById({});
+  }, [i18nInstance.language, postId]);
+
+  const clearTranslatedPost = React.useCallback((targetPostId: string) => {
+    setTranslatedPostsById((prev) => {
+      if (!prev[targetPostId]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[targetPostId];
+      return next;
+    });
+  }, []);
+
+  const clearTranslatedComment = React.useCallback((commentId: string) => {
+    setTranslatedCommentsById((prev) => {
+      if (!prev[commentId]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[commentId];
+      return next;
+    });
+  }, []);
+
+  const getDisplayedPostContent = React.useCallback((targetPost?: FeedPost | null) => {
+    if (!targetPost) {
+      return "";
+    }
+
+    return translatedPostsById[targetPost.id]?.translated_text || targetPost.content;
+  }, [translatedPostsById]);
+
+  const getDisplayedPostTitle = React.useCallback((targetPost?: FeedPost | null) => {
+    if (!targetPost) {
+      return "";
+    }
+
+    return (
+      translatedPostsById[targetPost.id]?.translated_title ||
+      targetPost.title?.trim() ||
+      targetPost.sourceJournal?.title?.trim() ||
+      ""
+    );
+  }, [translatedPostsById]);
+
+  const getDisplayedCommentContent = React.useCallback((targetComment?: FeedPostComment | null) => {
+    if (!targetComment) {
+      return "";
+    }
+
+    return translatedCommentsById[targetComment.id]?.translated_text || targetComment.content;
+  }, [translatedCommentsById]);
 
   const handleAddFriend = React.useCallback(() => {
     if (!activePostAction) return;
@@ -1769,6 +1888,7 @@ export default function PostDetailScreen() {
         },
         {
           onSuccess: () => {
+            clearTranslatedComment(editingComment.id);
             Toast.show({
               type: "success",
               text1: t("common.success", { defaultValue: "Success" }),
@@ -1888,6 +2008,7 @@ export default function PostDetailScreen() {
     if (confirmed) {
       deleteCommentMutation.mutate(targetComment.id, {
         onSuccess: () => {
+          clearTranslatedComment(targetComment.id);
           if (editingComment?.id === targetComment.id) {
             setEditingComment(null);
             setCommentText("");
@@ -1913,7 +2034,7 @@ export default function PostDetailScreen() {
         },
       });
     }
-  }, [activeCommentAction, showConfirm, deleteCommentMutation, editingComment?.id, t]);
+  }, [activeCommentAction, clearTranslatedComment, showConfirm, deleteCommentMutation, editingComment?.id, t]);
 
   const handleReportComment = React.useCallback(() => {
     if (!activeCommentAction) return;
@@ -1921,16 +2042,80 @@ export default function PostDetailScreen() {
     setActiveCommentAction(null);
   }, [activeCommentAction]);
 
+  const handleToggleCommentTranslation = React.useCallback(() => {
+    if (!activeCommentAction) return;
+
+    const targetComment = activeCommentAction;
+    const translatedComment = translatedCommentsById[targetComment.id];
+
+    if (translatedComment) {
+      clearTranslatedComment(targetComment.id);
+      setActiveCommentAction(null);
+      return;
+    }
+
+    if (!targetComment.content?.trim()) {
+      return;
+    }
+
+    setTranslatingCommentId(targetComment.id);
+
+    translateCommentMutation.mutate(targetComment.id, {
+      onSuccess: (response) => {
+        const translatedResult = response.data;
+
+        if (!translatedResult?.translated_text?.trim()) {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Error" }),
+            text2: t("postDetail.translateCommentError", {
+              defaultValue: "Unable to translate comment.",
+            }),
+          });
+          return;
+        }
+
+        setTranslatedCommentsById((prev) => ({
+          ...prev,
+          [targetComment.id]: translatedResult,
+        }));
+        setActiveCommentAction(null);
+
+        Toast.show({
+          type: "success",
+          text1: t("common.success", { defaultValue: "Success" }),
+          text2: t("postDetail.translateCommentSuccess", {
+            defaultValue: "Comment translated.",
+          }),
+        });
+      },
+      onError: (error: any) => {
+        Toast.show({
+          type: "error",
+          text1: t("common.error", { defaultValue: "Error" }),
+          text2:
+            t("postDetail.translateCommentError", {
+              defaultValue: "Unable to translate comment.",
+            }) + (error?.message ? ` ${error.message}` : ""),
+        });
+      },
+      onSettled: () => {
+        setTranslatingCommentId(null);
+      },
+    });
+  }, [activeCommentAction, clearTranslatedComment, t, translatedCommentsById, translateCommentMutation]);
+
   const handleEditPost = React.useCallback(() => {
     if (!activePostAction) return;
 
     const targetPost = activePostAction;
+    clearTranslatedPost(targetPost.id);
     setActivePostAction(null);
     navigation.navigate("CreatePost", {
       postId: targetPost.id,
       initialPost: targetPost,
     });
-  }, [activePostAction, navigation]);
+  }, [activePostAction, clearTranslatedPost, navigation]);
 
   const handleDeletePost = React.useCallback(async () => {
     if (!activePostAction) return;
@@ -1953,6 +2138,7 @@ export default function PostDetailScreen() {
     if (confirmed) {
       deletePostMutation.mutate(targetPost.id, {
         onSuccess: () => {
+          clearTranslatedPost(targetPost.id);
           Toast.show({
             type: "success",
             text1: t("common.success", { defaultValue: "Success" }),
@@ -1974,13 +2160,76 @@ export default function PostDetailScreen() {
         },
       });
     }
-  }, [activePostAction, showConfirm, deletePostMutation, navigation, t]);
+  }, [activePostAction, clearTranslatedPost, showConfirm, deletePostMutation, navigation, t]);
 
   const handleReportPost = React.useCallback(() => {
     if (!activePostAction) return;
     setReportPostId(activePostAction.id);
     setActivePostAction(null);
   }, [activePostAction]);
+
+  const handleTogglePostTranslation = React.useCallback(() => {
+    if (!activePostAction) return;
+
+    const targetPost = activePostAction;
+    const translatedPost = translatedPostsById[targetPost.id];
+
+    if (translatedPost) {
+      clearTranslatedPost(targetPost.id);
+      setActivePostAction(null);
+      return;
+    }
+
+    if (!targetPost.content?.trim()) {
+      return;
+    }
+
+    setTranslatingPostId(targetPost.id);
+
+    translatePostMutation.mutate(targetPost.id, {
+      onSuccess: (response) => {
+        const translatedResult = response.data;
+
+        if (!translatedResult?.translated_text?.trim()) {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Error" }),
+            text2: t("postDetail.translatePostError", {
+              defaultValue: "Unable to translate post.",
+            }),
+          });
+          return;
+        }
+
+        setTranslatedPostsById((prev) => ({
+          ...prev,
+          [targetPost.id]: translatedResult,
+        }));
+        setActivePostAction(null);
+
+        Toast.show({
+          type: "success",
+          text1: t("common.success", { defaultValue: "Success" }),
+          text2: t("postDetail.translatePostSuccess", {
+            defaultValue: "Post translated.",
+          }),
+        });
+      },
+      onError: (error: any) => {
+        Toast.show({
+          type: "error",
+          text1: t("common.error", { defaultValue: "Error" }),
+          text2:
+            t("postDetail.translatePostError", {
+              defaultValue: "Unable to translate post.",
+            }) + (error?.message ? ` ${error.message}` : ""),
+        });
+      },
+      onSettled: () => {
+        setTranslatingPostId(null);
+      },
+    });
+  }, [activePostAction, clearTranslatedPost, t, translatedPostsById, translatePostMutation]);
 
   const renderPostHeader = () => {
     if (isLoadingPost) {
@@ -2005,6 +2254,13 @@ export default function PostDetailScreen() {
       avatar: post.author?.avatar_url,
     };
     const actualPost = post;
+    const translatedPost = translatedPostsById[actualPost.id];
+    const displayPostTitle =
+      translatedPost?.translated_title ||
+      actualPost.title?.trim() ||
+      actualPost.sourceJournal?.title?.trim() ||
+      "";
+    const displayPostContent = translatedPost?.translated_text || actualPost.content;
     const isPostAuthorGuide =
       isCurrentUserGuide && actualPost.user_id === user?.id;
     const commentCount =
@@ -2029,14 +2285,22 @@ export default function PostDetailScreen() {
           />
         </View>
 
-        {actualPost.content ? (
+        {displayPostContent ? (
           <View
             style={[
               styles.paddingContent,
               { paddingTop: 0, paddingBottom: SPACING.md },
             ]}
           >
-            <Text style={styles.bodyText}>{actualPost.content}</Text>
+            {displayPostTitle ? (
+              <Text style={styles.postTitle}>{displayPostTitle}</Text>
+            ) : null}
+            <Text style={styles.bodyText}>{displayPostContent}</Text>
+            {translatedPost ? (
+              <TranslationMeta
+                onShowOriginal={() => clearTranslatedPost(actualPost.id)}
+              />
+            ) : null}
           </View>
         ) : null}
 
@@ -2190,6 +2454,8 @@ export default function PostDetailScreen() {
                 isGuide={isCommentByGuide}
                 onReply={handleReplyPress}
                 onMorePress={handleCommentMorePress}
+                translatedCommentsById={translatedCommentsById}
+                onShowOriginal={clearTranslatedComment}
               />
             );
           }}
@@ -2322,17 +2588,24 @@ export default function PostDetailScreen() {
 
       <PostActionSheet
         visible={Boolean(activePostAction)}
-        postContent={activePostAction?.content}
+        postContent={getDisplayedPostTitle(activePostAction) || getDisplayedPostContent(activePostAction)}
+        canTranslate={Boolean(activePostAction?.content?.trim())}
         isOwner={Boolean(
           user?.id &&
           activePostAction?.user_id &&
           user.id === activePostAction.user_id
         )}
-        busy={deletePostMutation.isPending || sendFriendRequestMutation.isPending}
+        isTranslated={Boolean(activePostAction && translatedPostsById[activePostAction.id]?.translated_text)}
+        busy={
+          deletePostMutation.isPending ||
+          sendFriendRequestMutation.isPending ||
+          translatingPostId === activePostAction?.id
+        }
         onClose={() => setActivePostAction(null)}
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
+        onTranslate={handleTogglePostTranslation}
         onAddFriend={isCurrentUserGuide ? undefined : handleAddFriend}
       />
 
@@ -2346,16 +2619,23 @@ export default function PostDetailScreen() {
       <CommentActionSheet
         visible={Boolean(activeCommentAction)}
         comment={activeCommentAction}
+        commentPreview={getDisplayedCommentContent(activeCommentAction)}
+        canTranslate={Boolean(activeCommentAction?.content?.trim())}
         isOwner={Boolean(
           user?.id &&
           activeCommentAction?.user_id &&
           user.id === activeCommentAction.user_id
         )}
-        busy={deleteCommentMutation.isPending}
+        isTranslated={Boolean(activeCommentAction && translatedCommentsById[activeCommentAction.id]?.translated_text)}
+        busy={
+          deleteCommentMutation.isPending ||
+          translatingCommentId === activeCommentAction?.id
+        }
         onClose={() => setActiveCommentAction(null)}
         onEdit={handleEditComment}
         onDelete={handleDeleteComment}
         onReport={handleReportComment}
+        onTranslate={handleToggleCommentTranslation}
       />
 
       <ReportPostModal
@@ -2526,6 +2806,14 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     color: COLORS.textPrimary,
     lineHeight: 24,
+  },
+  postTitle: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    color: COLORS.textPrimary,
+    lineHeight: 30,
+    fontWeight: "700",
+    fontFamily: "serif",
+    marginBottom: SPACING.xs,
   },
   audioCard: {
     backgroundColor: COLORS.backgroundSoft,

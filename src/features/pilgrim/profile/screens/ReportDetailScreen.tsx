@@ -133,6 +133,10 @@ export const ReportDetailScreen = () => {
 
     if (!reportData) return null;
 
+    const canCancelReport =
+        reportData.is_active !== false &&
+        !['resolved', 'rejected', 'cancelled'].includes(reportData.status);
+
     const getStatusInfo = (status: string) => {
         switch (status) {
             case 'pending': return { label: t('reports.statuses.pending'), color: THEME.warning, icon: 'time' };
@@ -218,7 +222,7 @@ export const ReportDetailScreen = () => {
                     </View>
                 </View>
 
-                {reportData.is_active !== false && reportData.status !== 'cancelled' && (
+                {canCancelReport && (
                     <TouchableOpacity 
                         style={styles.deleteButton} 
                         onPress={handleCancel}

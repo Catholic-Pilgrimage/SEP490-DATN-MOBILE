@@ -12,14 +12,15 @@ import {
     CreateFeedPostRequest,
     FeedPost,
     FeedPostComment,
+    FeedTranslationResult,
     GetFeedPostsParams,
     UpdateFeedCommentRequest,
     UpdateFeedPostRequest,
 } from "../../../types/post.types";
 import { normalizeImageUrls } from "../../../utils/postgresArrayParser";
 import { getAudioUploadMeta } from "../../../utils/audioUpload";
-import apiClient from "../apiClient";
-import ENDPOINTS from "../endpoints";
+import { apiClient } from "../apiClient";
+import { ENDPOINTS } from "../endpoints";
 
 const mergeUrlLists = (...lists: (string[] | undefined)[]): string[] =>
     Array.from(
@@ -55,6 +56,112 @@ const normalizeFeedPost = (post: any): FeedPost => {
         comments_count: Number(post?.comments_count ?? post?.comment_count ?? 0),
         is_liked: Boolean(post?.is_liked),
         sourceJournal,
+    };
+};
+
+const firstNonEmptyString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        if (typeof value === "string" && value.trim().length > 0) {
+            return value.trim();
+        }
+    }
+    return undefined;
+};
+
+const firstMatchingFieldValue = (
+    source: Record<string, unknown> | undefined,
+    matcher: RegExp,
+): string | undefined => {
+    if (!source) return undefined;
+
+    for (const [key, value] of Object.entries(source)) {
+        if (matcher.test(key) && typeof value === "string" && value.trim().length > 0) {
+            return value.trim();
+        }
+    }
+
+    return undefined;
+};
+
+const normalizeTranslationResult = (payload: any): FeedTranslationResult => {
+    const container = payload?.data ?? payload;
+    const containerRecord =
+        container && typeof container === "object"
+            ? (container as Record<string, unknown>)
+            : undefined;
+
+    const translatedText = firstNonEmptyString(
+        container?.translated_text,
+        container?.translatedText,
+        container?.translated_content,
+        container?.translatedContent,
+        container?.translation_text,
+        container?.translationText,
+        container?.translation,
+        container?.translated,
+        container?.content_en,
+        container?.content_vi,
+        container?.comment_en,
+        container?.comment_vi,
+        container?.content,
+        container?.text,
+        container?.result,
+        container?.output,
+        container?.translated?.text,
+        container?.translation?.text,
+        firstMatchingFieldValue(containerRecord, /^content_[a-z]{2}(?:-[A-Z]{2})?$/i),
+        firstMatchingFieldValue(containerRecord, /^comment_[a-z]{2}(?:-[A-Z]{2})?$/i),
+        firstMatchingFieldValue(containerRecord, /^text_[a-z]{2}(?:-[A-Z]{2})?$/i),
+    );
+
+    if (!translatedText) {
+        throw new Error("Translation response missing translated text.");
+    }
+
+    return {
+        translated_text: translatedText,
+        translated_title: firstNonEmptyString(
+            container?.translated_title,
+            container?.translatedTitle,
+            container?.title_en,
+            container?.title_vi,
+            firstMatchingFieldValue(containerRecord, /^title_[a-z]{2}(?:-[A-Z]{2})?$/i),
+        ),
+        original_text: firstNonEmptyString(
+            container?.original_text,
+            container?.originalText,
+            container?.source_text,
+            container?.sourceText,
+        ),
+        source_language: firstNonEmptyString(
+            container?.source_language,
+            container?.sourceLanguage,
+            container?.detected_language,
+            container?.detectedLanguage,
+            container?.from_language,
+            container?.fromLanguage,
+        ),
+        target_language: firstNonEmptyString(
+            container?.target_language,
+            container?.targetLanguage,
+            container?.to_language,
+            container?.toLanguage,
+            container?.language,
+        ),
+    };
+};
+
+const normalizeTranslationResponse = (
+    payload: any,
+): ApiResponse<FeedTranslationResult> => {
+    const wrapper =
+        payload && typeof payload === "object" ? payload : { data: payload };
+
+    return {
+        success: wrapper.success ?? true,
+        message: typeof wrapper.message === "string" ? wrapper.message : "",
+        data: normalizeTranslationResult(wrapper.data ?? wrapper),
+        error: wrapper.error,
     };
 };
 
@@ -280,6 +387,18 @@ export const getComments = async (
 };
 
 /**
+ * Translate a post content with AI
+ */
+export const translatePost = async (
+    id: string,
+): Promise<ApiResponse<FeedTranslationResult>> => {
+    const response = await apiClient.get<ApiResponse<any>>(
+        ENDPOINTS.SHARED.POSTS.TRANSLATE(id),
+    );
+    return normalizeTranslationResponse(response.data);
+};
+
+/**
  * Add a comment to a post
  */
 export const addComment = async (
@@ -342,6 +461,19 @@ export const deleteComment = async (
     return response.data;
 };
 
+/**
+ * Translate a comment content with AI
+ */
+export const translateComment = async (
+    postId: string,
+    commentId: string,
+): Promise<ApiResponse<FeedTranslationResult>> => {
+    const response = await apiClient.get<ApiResponse<any>>(
+        ENDPOINTS.SHARED.POSTS.COMMENT_TRANSLATE(postId, commentId),
+    );
+    return normalizeTranslationResponse(response.data);
+};
+
 // ============================================
 // EXPORT
 // ============================================
@@ -355,12 +487,14 @@ const postApi = {
     deletePost,
     likePost,
     unlikePost,
+    translatePost,
     // Comments
     getComments,
     addComment,
     replyComment,
     updateComment,
     deleteComment,
+    translateComment,
 };
 
 export default postApi;

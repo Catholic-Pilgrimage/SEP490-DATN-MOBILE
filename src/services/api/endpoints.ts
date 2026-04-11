@@ -419,10 +419,13 @@ export const SHARED_ENDPOINTS = {
   POSTS: {
     BASE: `${API_BASE}/posts`,
     DETAIL: (id: string) => `${API_BASE}/posts/${id}`,
+    TRANSLATE: (id: string) => `${API_BASE}/posts/${id}/translate`,
     LIKE: (id: string) => `${API_BASE}/posts/${id}/like`,
     COMMENTS: (id: string) => `${API_BASE}/posts/${id}/comments`,
     COMMENT_DETAIL: (id: string, commentId: string) =>
       `${API_BASE}/posts/${id}/comments/${commentId}`,
+    COMMENT_TRANSLATE: (id: string, commentId: string) =>
+      `${API_BASE}/posts/${id}/comments/${commentId}/translate`,
     COMMENT_REPLY: (id: string, commentId: string) =>
       `${API_BASE}/posts/${id}/comments/${commentId}/reply`,
   },
