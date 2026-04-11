@@ -6,6 +6,7 @@ import {
   useScrollToTop,
 } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -33,9 +34,10 @@ import { useFavorites } from "../../../../hooks/useFavorites";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
 import { useUserQuery } from "../../../../hooks/useUserQuery";
-import { useFriendship } from "../hooks/useFriendship";
+import { pilgrimDashboardApi } from "../../../../services/api";
 import offlinePlannerService from "../../../../services/offline/offlinePlannerService";
 import { NotificationModal } from "../../explore/components/NotificationModal";
+import { useFriendship } from "../hooks/useFriendship";
 
 // Premium color palette (Adapted from Local Guide Profile)
 const PREMIUM_COLORS = {
@@ -89,7 +91,9 @@ const MenuItem = ({
         >
           {label}
         </Text>
-        {subtitle ? <Text style={styles.menuItemSubtitle}>{subtitle}</Text> : null}
+        {subtitle ? (
+          <Text style={styles.menuItemSubtitle}>{subtitle}</Text>
+        ) : null}
       </View>
     </View>
     <View style={styles.menuItemRight}>
@@ -139,8 +143,19 @@ const ProfileScreen = () => {
 
   // React Query for real-time profile updates
   const { data: queryUser, refetch, isRefetching } = useUserQuery();
+  const {
+    data: dashboardOverviewResponse,
+    refetch: refetchDashboardOverview,
+    isRefetching: isDashboardRefetching,
+  } = useQuery({
+    queryKey: ["pilgrim", "dashboard", "overview"],
+    queryFn: () => pilgrimDashboardApi.getOverview(),
+    enabled: isAuthenticated,
+    staleTime: 60 * 1000,
+  });
   // Prefer query data over context data for display
   const user = queryUser || contextUser;
+  const journeyOverview = dashboardOverviewResponse?.data?.journey_overview;
 
   // Refetch on focus (when returning to this screen)
   useFocusEffect(
@@ -155,10 +170,11 @@ const ProfileScreen = () => {
 
       if (isAuthenticated) {
         refetch();
+        refetchDashboardOverview();
       }
 
       void loadOfflineStats();
-    }, [isAuthenticated, refetch]),
+    }, [isAuthenticated, refetch, refetchDashboardOverview]),
   );
 
   const scrollRef = useRef(null);
@@ -189,6 +205,11 @@ const ProfileScreen = () => {
 
     return `${(value / (1024 * 1024)).toFixed(1)} MB`;
   };
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+    refetchDashboardOverview();
+  }, [refetch, refetchDashboardOverview]);
 
   const handleLogin = async () => {
     if (isGuest) {
@@ -273,7 +294,10 @@ const ProfileScreen = () => {
       label: t("profile.menu.friends"),
       requireAuth: true,
       route: "FriendList",
-      showBadge: pendingRequests.length > 0 ? pendingRequests.length.toString() : undefined,
+      showBadge:
+        pendingRequests.length > 0
+          ? pendingRequests.length.toString()
+          : undefined,
     },
     {
       icon: "hand-left-outline",
@@ -382,8 +406,8 @@ const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={isRefetching || isDashboardRefetching}
+            onRefresh={handleRefresh}
             colors={[PREMIUM_COLORS.goldDark]}
           />
         }
@@ -483,7 +507,9 @@ const ProfileScreen = () => {
         <View style={styles.statsCard}>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {(user as any)?.visitedSites ?? 0}
+              {journeyOverview?.total_checkins ??
+                (user as any)?.visitedSites ??
+                0}
             </Text>
             <Text style={styles.statLabel}>
               {t("profile.stats.pilgrimages")}
@@ -491,15 +517,19 @@ const ProfileScreen = () => {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{favoriteIds.size}</Text>
+            <Text style={styles.statNumber}>
+              {journeyOverview?.total_favorites ?? favoriteIds.size}
+            </Text>
             <Text style={styles.statLabel}>{t("profile.stats.favorites")}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>
-              {(user as any)?.totalReviews ?? 0}
+              {(user as any)?.totalReviews ??
+                journeyOverview?.total_journals ??
+                0}
             </Text>
-            <Text style={styles.statLabel}>{t("profile.stats.reviews")}</Text>
+            <Text style={styles.statLabel}>{t("profile.stats.journals")}</Text>
           </View>
         </View>
 

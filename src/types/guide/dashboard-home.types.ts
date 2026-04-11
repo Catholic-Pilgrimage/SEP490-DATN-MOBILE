@@ -1,7 +1,7 @@
 /**
  * Guide Types - Dashboard Home
  * Type definitions for Dashboard Home screen data
- * 
+ *
  * This file contains types for:
  * - Site Schedule (Active Shift)
  * - SOS Support requests
@@ -9,9 +9,9 @@
  * - Today's Overview (merged events + schedules)
  */
 
-import type { MassSchedule } from './mass-schedule.types';
-import type { SOSStatus } from './sos.types';
-import type { LocalGuideDashboardOverview } from './dashboard.types';
+import type { LocalGuideDashboardOverview } from "./dashboard.types";
+import type { MassSchedule } from "./mass-schedule.types";
+import type { SOSStatus } from "./sos.types";
 
 // ============================================
 // SITE SCHEDULE / ACTIVE SHIFT
@@ -20,7 +20,7 @@ import type { LocalGuideDashboardOverview } from './dashboard.types';
 /**
  * Shift status
  */
-export type ShiftStatus = 'pending' | 'approved' | 'rejected';
+export type ShiftStatus = "pending" | "approved" | "rejected";
 
 /**
  * Site schedule shift item from API
@@ -29,8 +29,8 @@ export type ShiftStatus = 'pending' | 'approved' | 'rejected';
 export interface SiteScheduleShift {
   shift_id: string;
   submission_id: string;
-  start_time: string;  // HH:mm:ss
-  end_time: string;    // HH:mm:ss
+  start_time: string; // HH:mm:ss
+  end_time: string; // HH:mm:ss
   guide_name: string;
   status: ShiftStatus; // pending, approved, etc.
   is_mine: boolean;
@@ -40,11 +40,30 @@ export interface SiteScheduleShift {
 
 export type SiteScheduleMap = Record<string, SiteScheduleShift[]>;
 
+export interface SiteScheduleWindow {
+  open: string; // HH:mm:ss
+  close: string; // HH:mm:ss
+}
+
+export interface SiteScheduleDayEvent {
+  name: string;
+  start_time?: string;
+  end_time?: string;
+}
+
+export interface SiteScheduleDayBounds {
+  windows: SiteScheduleWindow[];
+  events?: SiteScheduleDayEvent[];
+}
+
+export type SiteScheduleDailyBounds = Record<string, SiteScheduleDayBounds>;
+
 export interface SiteScheduleData {
   week_start_date: string;
   site_id: string;
   site_name: string;
   opening_hours: any; // Define structure if known
+  daily_bounds?: SiteScheduleDailyBounds;
   schedule: SiteScheduleMap;
 }
 
@@ -89,7 +108,7 @@ export type MassScheduleItem = MassSchedule;
 /**
  * SOS request priority
  */
-export type SOSPriority = 'low' | 'medium' | 'high' | 'urgent';
+export type SOSPriority = "low" | "medium" | "high" | "urgent";
 
 /**
  * SOS request item from API
@@ -144,7 +163,7 @@ export interface SOSInfo {
 /**
  * Overview item type (for UI differentiation)
  */
-export type OverviewItemType = 'event' | 'schedule';
+export type OverviewItemType = "event" | "schedule";
 
 /**
  * Today's overview item (unified from events & schedules)
@@ -154,12 +173,12 @@ export interface TodayOverviewItem {
   type: OverviewItemType;
   title: string;
   description?: string;
-  time: string;           // HH:mm for sorting
-  displayTime: string;    // Formatted for display
+  time: string; // HH:mm for sorting
+  displayTime: string; // Formatted for display
   location?: string;
-  isNow: boolean;         // Currently happening
-  isPast: boolean;        // Already passed
-  originalData: any;      // Reference to original event/schedule
+  isNow: boolean; // Currently happening
+  isPast: boolean; // Already passed
+  originalData: any; // Reference to original event/schedule
 }
 
 // ============================================
@@ -169,7 +188,7 @@ export interface TodayOverviewItem {
 /**
  * Recent activity type
  */
-export type RecentActivityType = 'media' | 'event' | 'nearby_place';
+export type RecentActivityType = "media" | "event" | "nearby_place";
 
 /**
  * Recent activity item (unified from media & events)
@@ -181,11 +200,11 @@ export interface RecentActivityItem {
   title: string;
   metaLabel: string;
   statusLabel?: string;
-  statusTone?: 'pending' | 'approved' | 'rejected' | null;
+  statusTone?: "pending" | "approved" | "rejected" | null;
   thumbnail?: string | null;
   created_at: string;
   status?: string;
-  originalData: any;      // Reference to original media/event
+  originalData: any; // Reference to original media/event
 }
 
 // ============================================
@@ -336,7 +355,7 @@ export interface SiteStatusInfo {
   /** Thời gian thay đổi trạng thái tiếp theo */
   nextChange: string | null;
   /** CSS class để style badge */
-  badgeVariant: 'success' | 'error';
+  badgeVariant: "success" | "error";
 }
 
 /**

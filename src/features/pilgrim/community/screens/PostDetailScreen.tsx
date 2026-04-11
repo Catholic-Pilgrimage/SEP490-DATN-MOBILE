@@ -1,62 +1,74 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Audio } from "expo-av";
+import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import type { TFunction } from "i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import {
-  useAddComment,
-  useDeleteComment,
-  useDeletePost,
-  useLikePost,
-  usePostComments,
-  usePostDetail,
-  useTranslateComment,
-  useTranslatePost,
-  useUpdateComment,
-} from "../../../../hooks/usePosts";
 import { useSendFriendRequest } from "../../../../hooks/useFriendship";
-import i18n from "../../../../i18n";
-import { pilgrimJournalApi, pilgrimPlannerApi, pilgrimSiteApi } from "../../../../services/api/pilgrim";
-import type { FeedPost, FeedPostComment, FeedTranslationResult } from "../../../../types/post.types";
 import {
-  getFeedPostLocationName,
-  getFeedPostPlannerId,
-  getFeedPostPlannerItemIds,
-  getFeedPostSiteId,
+    useAddComment,
+    useDeleteComment,
+    useDeletePost,
+    useLikePost,
+    usePostComments,
+    usePostDetail,
+    useTranslateComment,
+    useTranslatePost,
+    useUpdateComment,
+} from "../../../../hooks/usePosts";
+import i18n from "../../../../i18n";
+import {
+    pilgrimJournalApi,
+    pilgrimPlannerApi,
+    pilgrimSiteApi,
+} from "../../../../services/api/pilgrim";
+import type {
+    FeedPost,
+    FeedPostComment,
+    FeedTranslationResult,
+} from "../../../../types/post.types";
+import {
+    getFeedPostLocationName,
+    getFeedPostPlannerId,
+    getFeedPostPlannerItemIds,
+    getFeedPostSiteId,
 } from "../../../../utils/feedPostLocation";
 import { resolveJournalLocationName } from "../../../../utils/journalLocation";
 import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
 import PostActionSheet from "../components/PostActionSheet";
 import ReportPostModal from "../components/ReportPostModal";
 import TranslationMeta from "../components/TranslationMeta";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const COMMUNITY_BG = require("../../../../../assets/images/bg3.jpg");
 
 // Date Helpers (Synced with CreatePlanScreen)
 const toLocalYMD = (d: Date): string => {
@@ -404,8 +416,6 @@ const FeedItemActions = ({
           })}
         </Text>
       </TouchableOpacity>
-
-
     </View>
   );
 };
@@ -571,7 +581,7 @@ const formatDisplayDate = (ymd: string) => {
     const d = String(date.getDate()).padStart(2, "0");
     const m = String(date.getMonth() + 1).padStart(2, "0");
     const y = date.getFullYear();
-    
+
     return `${d}-${m}-${y}`;
   } catch {
     return ymd;
@@ -598,7 +608,9 @@ const ClonePlanModal = ({
   const [startDate, setStartDate] = useState(tomorrowYMD());
   const [endDate, setEndDate] = useState("");
   const [peopleCount, setPeopleCount] = useState(1);
-  const [transportation, setTransportation] = useState<"bus" | "car" | "motorbike">("bus");
+  const [transportation, setTransportation] = useState<
+    "bus" | "car" | "motorbike"
+  >("bus");
   const [depositAmount, setDepositAmount] = useState<string>("0");
   const [penaltyPercent, setPenaltyPercent] = useState<string>("0");
 
@@ -610,7 +622,9 @@ const ClonePlanModal = ({
 
   useEffect(() => {
     if (visible && initialData) {
-      setName(`${initialData.name} (${t("common.copy", { defaultValue: "Bản sao" })})`);
+      setName(
+        `${initialData.name} (${t("common.copy", { defaultValue: "Bản sao" })})`,
+      );
 
       const t0 = tomorrowYMD();
       setStartDate(t0);
@@ -631,7 +645,9 @@ const ClonePlanModal = ({
 
       // Reset calendar focus
       const dStart = parseYMDLocal(t0);
-      setStartCalendarDate(new Date(dStart.getFullYear(), dStart.getMonth(), 1));
+      setStartCalendarDate(
+        new Date(dStart.getFullYear(), dStart.getMonth(), 1),
+      );
       const dEnd = parseYMDLocal(addDaysToYMD(t0, duration));
       setEndCalendarDate(new Date(dEnd.getFullYear(), dEnd.getMonth(), 1));
     }
@@ -664,8 +680,14 @@ const ClonePlanModal = ({
     onSelect: (ymd: string) => void,
     minYMD?: string,
   ) => {
-    const days = generateCalendarDays(currentDate.getFullYear(), currentDate.getMonth());
-    const monthLabel = currentDate.toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+    const days = generateCalendarDays(
+      currentDate.getFullYear(),
+      currentDate.getMonth(),
+    );
+    const monthLabel = currentDate.toLocaleDateString("vi-VN", {
+      month: "long",
+      year: "numeric",
+    });
 
     return (
       <View style={styles.cloneCalendarCard}>
@@ -677,7 +699,11 @@ const ClonePlanModal = ({
               setCurrentDate(d);
             }}
           >
-            <Ionicons name="chevron-back" size={20} color={COLORS.textPrimary} />
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={COLORS.textPrimary}
+            />
           </TouchableOpacity>
           <Text style={styles.cloneCalendarMonth}>{monthLabel}</Text>
           <TouchableOpacity
@@ -687,19 +713,26 @@ const ClonePlanModal = ({
               setCurrentDate(d);
             }}
           >
-            <Ionicons name="chevron-forward" size={20} color={COLORS.textPrimary} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={COLORS.textPrimary}
+            />
           </TouchableOpacity>
         </View>
 
         <View style={styles.cloneCalendarDaysHeader}>
           {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-            <Text key={i} style={styles.cloneCalendarDayHeader}>{d}</Text>
+            <Text key={i} style={styles.cloneCalendarDayHeader}>
+              {d}
+            </Text>
           ))}
         </View>
 
         <View style={styles.cloneCalendarGrid}>
           {days.map((day, idx) => {
-            if (day === null) return <View key={idx} style={styles.cloneCalendarDay} />;
+            if (day === null)
+              return <View key={idx} style={styles.cloneCalendarDay} />;
             const ymd = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
             const isSelected = ymd === selectedYMD;
             const isDisabled = minYMD ? ymd < minYMD : false;
@@ -707,11 +740,21 @@ const ClonePlanModal = ({
             return (
               <TouchableOpacity
                 key={idx}
-                style={[styles.cloneCalendarDay, isSelected && styles.cloneCalendarDaySelected, isDisabled && styles.cloneCalendarDayDisabled]}
+                style={[
+                  styles.cloneCalendarDay,
+                  isSelected && styles.cloneCalendarDaySelected,
+                  isDisabled && styles.cloneCalendarDayDisabled,
+                ]}
                 disabled={isDisabled}
                 onPress={() => onSelect(ymd)}
               >
-                <Text style={[styles.cloneCalendarDayText, isSelected && styles.cloneCalendarDayTextSelected, isDisabled && styles.cloneCalendarDayTextDisabled]}>
+                <Text
+                  style={[
+                    styles.cloneCalendarDayText,
+                    isSelected && styles.cloneCalendarDayTextSelected,
+                    isDisabled && styles.cloneCalendarDayTextDisabled,
+                  ]}
+                >
                   {day}
                 </Text>
               </TouchableOpacity>
@@ -723,25 +766,40 @@ const ClonePlanModal = ({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={styles.cloneModalOverlay}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={[styles.cloneModalContent, { paddingBottom: insets.bottom + 20 }]}
+          style={[
+            styles.cloneModalContent,
+            { paddingBottom: insets.bottom + 20 },
+          ]}
         >
           <View style={styles.cloneHeader}>
             <TouchableOpacity onPress={onClose} style={styles.cloneCloseBtn}>
               <Text style={styles.cloneCloseText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
-            <Text style={styles.cloneHeaderTitle}>{t("planner.newJourney") || "Hành trình mới"}</Text>
+            <Text style={styles.cloneHeaderTitle}>
+              {t("planner.newJourney") || "Hành trình mới"}
+            </Text>
             <View style={{ width: 60 }} />
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.cloneScroll}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.cloneScroll}
+          >
             <View style={styles.cloneSection}>
               <View style={styles.cloneLabelRow}>
                 <Ionicons name="trail-sign" size={18} color={COLORS.accent} />
-                <Text style={styles.cloneLabel}>{t("planner.journeyName")}</Text>
+                <Text style={styles.cloneLabel}>
+                  {t("planner.journeyName")}
+                </Text>
               </View>
               <TextInput
                 style={styles.cloneInput}
@@ -753,16 +811,26 @@ const ClonePlanModal = ({
             </View>
 
             <View style={styles.cloneSection}>
-              <View style={[styles.cloneLabelRow, { justifyContent: "space-between" }]}>
+              <View
+                style={[
+                  styles.cloneLabelRow,
+                  { justifyContent: "space-between" },
+                ]}
+              >
                 <View style={styles.cloneLabelRow}>
                   <Ionicons name="calendar" size={18} color={COLORS.accent} />
-                  <Text style={styles.cloneLabel}>{t("planner.tripTime") || "Thời gian hành hương"}</Text>
+                  <Text style={styles.cloneLabel}>
+                    {t("planner.tripTime") || "Thời gian hành hương"}
+                  </Text>
                 </View>
                 <View style={styles.cloneDurationBadge}>
                   <Text style={styles.cloneDurationText}>
                     {t("planner.tripDuration", {
                       days: inclusiveTripDays(startDate, endDate),
-                      nights: Math.max(0, inclusiveTripDays(startDate, endDate) - 1),
+                      nights: Math.max(
+                        0,
+                        inclusiveTripDays(startDate, endDate) - 1,
+                      ),
                     })}
                   </Text>
                 </View>
@@ -770,39 +838,100 @@ const ClonePlanModal = ({
 
               <View style={styles.cloneDateSelector}>
                 <TouchableOpacity
-                  style={[styles.cloneDateBox, showStartPicker && styles.cloneDateBoxActive]}
-                  onPress={() => { setShowStartPicker(!showStartPicker); setShowEndPicker(false); }}
+                  style={[
+                    styles.cloneDateBox,
+                    showStartPicker && styles.cloneDateBoxActive,
+                  ]}
+                  onPress={() => {
+                    setShowStartPicker(!showStartPicker);
+                    setShowEndPicker(false);
+                  }}
                 >
-                  <Text style={styles.cloneDateLabel}>{t("planner.startDate") || "Ngày đi"}</Text>
-                  <Text style={styles.cloneDateValue}>{formatDisplayDate(startDate)}</Text>
+                  <Text style={styles.cloneDateLabel}>
+                    {t("planner.startDate") || "Ngày đi"}
+                  </Text>
+                  <Text style={styles.cloneDateValue}>
+                    {formatDisplayDate(startDate)}
+                  </Text>
                 </TouchableOpacity>
-                <View style={styles.cloneDateArrow}><Ionicons name="arrow-forward" size={16} color={COLORS.textTertiary} /></View>
+                <View style={styles.cloneDateArrow}>
+                  <Ionicons
+                    name="arrow-forward"
+                    size={16}
+                    color={COLORS.textTertiary}
+                  />
+                </View>
                 <TouchableOpacity
-                  style={[styles.cloneDateBox, showEndPicker && styles.cloneDateBoxActive]}
-                  onPress={() => { setShowEndPicker(!showEndPicker); setShowStartPicker(false); }}
+                  style={[
+                    styles.cloneDateBox,
+                    showEndPicker && styles.cloneDateBoxActive,
+                  ]}
+                  onPress={() => {
+                    setShowEndPicker(!showEndPicker);
+                    setShowStartPicker(false);
+                  }}
                 >
-                  <Text style={styles.cloneDateLabel}>{t("planner.endDate") || "Ngày về"}</Text>
-                  <Text style={styles.cloneDateValue}>{formatDisplayDate(endDate)}</Text>
+                  <Text style={styles.cloneDateLabel}>
+                    {t("planner.endDate") || "Ngày về"}
+                  </Text>
+                  <Text style={styles.cloneDateValue}>
+                    {formatDisplayDate(endDate)}
+                  </Text>
                 </TouchableOpacity>
               </View>
 
-              {showStartPicker && renderCalendar(startCalendarDate, setStartCalendarDate, startDate, (d) => { setStartDate(d); if (endDate < d) setEndDate(d); setShowStartPicker(false); }, tomorrowYMD())}
-              {showEndPicker && renderCalendar(endCalendarDate, setEndCalendarDate, endDate, (d) => { setEndDate(d); setShowEndPicker(false); }, startDate)}
+              {showStartPicker &&
+                renderCalendar(
+                  startCalendarDate,
+                  setStartCalendarDate,
+                  startDate,
+                  (d) => {
+                    setStartDate(d);
+                    if (endDate < d) setEndDate(d);
+                    setShowStartPicker(false);
+                  },
+                  tomorrowYMD(),
+                )}
+              {showEndPicker &&
+                renderCalendar(
+                  endCalendarDate,
+                  setEndCalendarDate,
+                  endDate,
+                  (d) => {
+                    setEndDate(d);
+                    setShowEndPicker(false);
+                  },
+                  startDate,
+                )}
             </View>
 
             <View style={styles.cloneSection}>
               <View style={styles.cloneLabelRow}>
                 <Ionicons name="people" size={18} color={COLORS.accent} />
-                <Text style={styles.cloneLabel}>{t("planner.numberOfPeople") || "Số lượng người tham gia"}</Text>
+                <Text style={styles.cloneLabel}>
+                  {t("planner.numberOfPeople") || "Số lượng người tham gia"}
+                </Text>
               </View>
               <View style={styles.cloneCounterBox}>
-                <Text style={styles.cloneCounterLabel}>{t("planner.people") || "Số người đi"}</Text>
+                <Text style={styles.cloneCounterLabel}>
+                  {t("planner.people") || "Số người đi"}
+                </Text>
                 <View style={styles.cloneCounterControls}>
-                  <TouchableOpacity style={styles.cloneCounterBtn} onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}>
-                    <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                  <TouchableOpacity
+                    style={styles.cloneCounterBtn}
+                    onPress={() => setPeopleCount(Math.max(1, peopleCount - 1))}
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={18}
+                      color={COLORS.textPrimary}
+                    />
                   </TouchableOpacity>
                   <Text style={styles.cloneCounterValue}>{peopleCount}</Text>
-                  <TouchableOpacity style={styles.cloneCounterBtn} onPress={() => setPeopleCount(peopleCount + 1)}>
+                  <TouchableOpacity
+                    style={styles.cloneCounterBtn}
+                    onPress={() => setPeopleCount(peopleCount + 1)}
+                  >
                     <Ionicons name="add" size={18} color={COLORS.textPrimary} />
                   </TouchableOpacity>
                 </View>
@@ -811,18 +940,35 @@ const ClonePlanModal = ({
 
             {peopleCount > 1 && (
               <View style={styles.cloneSection}>
-                <View style={[styles.cloneLabelRow, { justifyContent: "space-between" }]}>
+                <View
+                  style={[
+                    styles.cloneLabelRow,
+                    { justifyContent: "space-between" },
+                  ]}
+                >
                   <View style={styles.cloneLabelRow}>
-                    <Ionicons name="warning-outline" size={18} color={COLORS.accent} />
-                    <Text style={styles.cloneLabel}>{t("planner.memberDepositLabel")}</Text>
+                    <Ionicons
+                      name="warning-outline"
+                      size={18}
+                      color={COLORS.accent}
+                    />
+                    <Text style={styles.cloneLabel}>
+                      {t("planner.memberDepositLabel")}
+                    </Text>
                   </View>
                   <TouchableOpacity style={styles.infoIconButton}>
-                    <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={18}
+                      color={COLORS.textSecondary}
+                    />
                   </TouchableOpacity>
                 </View>
-                
+
                 <View style={styles.cloneDepositCard}>
-                  <Text style={styles.cloneInputLabel}>{t("planner.depositAmountLabel") || "Member deposit (VND)"}</Text>
+                  <Text style={styles.cloneInputLabel}>
+                    {t("planner.depositAmountLabel") || "Member deposit (VND)"}
+                  </Text>
                   <TextInput
                     style={styles.cloneDepositInput}
                     value={depositAmount}
@@ -830,8 +976,12 @@ const ClonePlanModal = ({
                     keyboardType="numeric"
                     placeholder="e.g. 100000"
                   />
-                  
-                  <Text style={[styles.cloneInputLabel, { marginTop: SPACING.md }]}>{t("planner.penaltyPercentageLabel") || "Penalty rate (%)"}</Text>
+
+                  <Text
+                    style={[styles.cloneInputLabel, { marginTop: SPACING.md }]}
+                  >
+                    {t("planner.penaltyPercentageLabel") || "Penalty rate (%)"}
+                  </Text>
                   <View style={styles.clonePenaltyRow}>
                     <TextInput
                       style={styles.clonePenaltyInput}
@@ -851,29 +1001,66 @@ const ClonePlanModal = ({
             <View style={styles.cloneSection}>
               <View style={styles.cloneLabelRow}>
                 <Ionicons name="car" size={18} color={COLORS.accent} />
-                <Text style={styles.cloneLabel}>{t("planner.transportationMain") || "Phương tiện di chuyển chính"}</Text>
+                <Text style={styles.cloneLabel}>
+                  {t("planner.transportationMain") ||
+                    "Phương tiện di chuyển chính"}
+                </Text>
               </View>
               <View style={styles.cloneTransportRow}>
                 {[
                   { id: "bus", icon: "bus", label: t("planner.bus") },
                   { id: "car", icon: "car", label: t("planner.car") },
-                  { id: "motorbike", icon: "bicycle", label: t("planner.motorcycle") }
+                  {
+                    id: "motorbike",
+                    icon: "bicycle",
+                    label: t("planner.motorcycle"),
+                  },
                 ].map((item) => (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.cloneTransportItem, transportation === item.id && styles.cloneTransportItemSelected]}
+                    style={[
+                      styles.cloneTransportItem,
+                      transportation === item.id &&
+                        styles.cloneTransportItemSelected,
+                    ]}
                     onPress={() => setTransportation(item.id as any)}
                   >
-                    <Ionicons name={item.icon as any} size={24} color={transportation === item.id ? COLORS.white : COLORS.textTertiary} />
-                    <Text style={[styles.cloneTransportLabel, transportation === item.id && styles.cloneTransportLabelSelected]}>{item.label}</Text>
+                    <Ionicons
+                      name={item.icon as any}
+                      size={24}
+                      color={
+                        transportation === item.id
+                          ? COLORS.white
+                          : COLORS.textTertiary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.cloneTransportLabel,
+                        transportation === item.id &&
+                          styles.cloneTransportLabelSelected,
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={[styles.cloneConfirmBtn, isBusy && { opacity: 0.7 }]} onPress={handleConfirm} disabled={isBusy}>
-            {isBusy ? <ActivityIndicator color={COLORS.textPrimary} /> : <Text style={styles.cloneConfirmBtnText}>{t("planner.continueSelectingPlaces")} ➔</Text>}
+          <TouchableOpacity
+            style={[styles.cloneConfirmBtn, isBusy && { opacity: 0.7 }]}
+            onPress={handleConfirm}
+            disabled={isBusy}
+          >
+            {isBusy ? (
+              <ActivityIndicator color={COLORS.textPrimary} />
+            ) : (
+              <Text style={styles.cloneConfirmBtnText}>
+                {t("planner.continueSelectingPlaces")} ➔
+              </Text>
+            )}
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </View>
@@ -951,7 +1138,8 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
                 {journey.name}
               </Text>
               <Text style={styles.journeyDates}>
-                {formatDate(journey.start_date)} → {formatDate(journey.end_date)}
+                {formatDate(journey.start_date)} →{" "}
+                {formatDate(journey.end_date)}
               </Text>
               <View style={styles.journeyMetaRow}>
                 <View style={styles.journeyMetaItem}>
@@ -971,8 +1159,8 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
                       journey.transportation === "bus"
                         ? "directions-bus"
                         : journey.transportation === "motorcycle"
-                        ? "motorcycle"
-                        : "directions-car"
+                          ? "motorcycle"
+                          : "directions-car"
                     }
                     size={14}
                     color={COLORS.textTertiary}
@@ -989,25 +1177,19 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
         <View style={styles.journeySummaryRow}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{summary.total_days}</Text>
-            <Text style={styles.summaryLabel}>
-              {t("planner.days")}
-            </Text>
+            <Text style={styles.summaryLabel}>{t("planner.days")}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{summary.total_stops}</Text>
-            <Text style={styles.summaryLabel}>
-              {t("planner.stops")}
-            </Text>
+            <Text style={styles.summaryLabel}>{t("planner.stops")}</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>
               {summary.visited_percentage}%
             </Text>
-            <Text style={styles.summaryLabel}>
-              {t("planner.completed")}
-            </Text>
+            <Text style={styles.summaryLabel}>{t("planner.completed")}</Text>
           </View>
         </View>
 
@@ -1115,12 +1297,14 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
             {isCloning ? (
               <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
-              <MaterialIcons name="content-copy" size={18} color={COLORS.white} />
+              <MaterialIcons
+                name="content-copy"
+                size={18}
+                color={COLORS.white}
+              />
             )}
             <Text style={styles.cloneBtnText}>
-              {isCloning
-                ? t("common.processing")
-                : t("planner.cloneJourney")}
+              {isCloning ? t("common.processing") : t("planner.cloneJourney")}
             </Text>
           </TouchableOpacity>
         )}
@@ -1202,21 +1386,13 @@ const PostVideoAttachment = ({
     </View>
   );
 };
-const CommentOverflowButton = ({
-  onPress,
-}: {
-  onPress: () => void;
-}) => (
+const CommentOverflowButton = ({ onPress }: { onPress: () => void }) => (
   <TouchableOpacity
     style={styles.commentMoreButton}
     onPress={onPress}
     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
   >
-    <MaterialIcons
-      name="more-horiz"
-      size={18}
-      color={COLORS.textSecondary}
-    />
+    <MaterialIcons name="more-horiz" size={18} color={COLORS.textSecondary} />
   </TouchableOpacity>
 );
 const CommentActionSheet = ({
@@ -1402,7 +1578,10 @@ const ReplyBubble = ({
               color: isGuide ? "#9A6C00" : COLORS.textPrimary,
             }}
           >
-            {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
+            {(
+              comment.author?.full_name ||
+              translate("postDetail.user", { defaultValue: "User" })
+            ).charAt(0)}
           </Text>
         </View>
       )}
@@ -1414,10 +1593,12 @@ const ReplyBubble = ({
           >
             <View style={styles.commentAuthorRow}>
               <Text
-                style={[styles.commentAuthor, isGuide && styles.commentAuthorGuide]}
+                style={[
+                  styles.commentAuthor,
+                  isGuide && styles.commentAuthorGuide,
+                ]}
               >
-                {comment.author?.full_name ||
-                  translate("postDetail.user")}
+                {comment.author?.full_name || translate("postDetail.user")}
               </Text>
               {isGuide ? (
                 <View style={styles.commentGuideBadge}>
@@ -1428,9 +1609,14 @@ const ReplyBubble = ({
                 </View>
               ) : (
                 <View
-                  style={[styles.commentGuideBadge, { backgroundColor: "#E0E0E0" }]}
+                  style={[
+                    styles.commentGuideBadge,
+                    { backgroundColor: "#E0E0E0" },
+                  ]}
                 >
-                  <Text style={[styles.commentGuideBadgeText, { color: "#666" }]}>
+                  <Text
+                    style={[styles.commentGuideBadgeText, { color: "#666" }]}
+                  >
                     {translate("profile.pilgrimRole")}
                   </Text>
                 </View>
@@ -1488,8 +1674,8 @@ const CommentItem = ({
     : replies.length === 1
       ? translate("postDetail.viewOneReply")
       : translate("postDetail.viewAllReplies", {
-        count: replies.length,
-      });
+          count: replies.length,
+        });
 
   return (
     <View style={styles.commentItem}>
@@ -1517,14 +1703,20 @@ const CommentItem = ({
                 color: isGuide ? "#9A6C00" : COLORS.textPrimary,
               }}
             >
-              {(comment.author?.full_name || translate("postDetail.user", { defaultValue: "User" })).charAt(0)}
+              {(
+                comment.author?.full_name ||
+                translate("postDetail.user", { defaultValue: "User" })
+              ).charAt(0)}
             </Text>
           </View>
         )}
         <View style={styles.commentContent}>
           <View style={styles.commentBubbleRow}>
             <View
-              style={[styles.commentBubble, isGuide && styles.commentBubbleGuide]}
+              style={[
+                styles.commentBubble,
+                isGuide && styles.commentBubbleGuide,
+              ]}
             >
               <View style={styles.commentAuthorRow}>
                 <Text
@@ -1540,7 +1732,9 @@ const CommentItem = ({
                   <View style={styles.commentGuideBadge}>
                     <MaterialIcons name="verified" size={10} color="#fff" />
                     <Text style={styles.commentGuideBadgeText}>
-                      {translate("profile.localGuide", { defaultValue: "Local Guide" })}
+                      {translate("profile.localGuide", {
+                        defaultValue: "Local Guide",
+                      })}
                     </Text>
                   </View>
                 ) : (
@@ -1572,7 +1766,11 @@ const CommentItem = ({
           </View>
           <View style={styles.commentMetaRow}>
             <Text style={styles.commentTime}>
-              {formatLocalizedTime(comment.created_at, translate, i18n.language)}
+              {formatLocalizedTime(
+                comment.created_at,
+                translate,
+                i18n.language,
+              )}
             </Text>
             <TouchableOpacity
               onPress={() => onReply(comment)}
@@ -1654,13 +1852,23 @@ export default function PostDetailScreen() {
   );
   const [activeCommentAction, setActiveCommentAction] =
     useState<FeedPostComment | null>(null);
-  const [activePostAction, setActivePostAction] = useState<FeedPost | null>(null);
+  const [activePostAction, setActivePostAction] = useState<FeedPost | null>(
+    null,
+  );
   const [reportPostId, setReportPostId] = useState<string | null>(null);
   const [reportCommentId, setReportCommentId] = useState<string | null>(null);
-  const [translatedPostsById, setTranslatedPostsById] = useState<Record<string, FeedTranslationResult>>({});
-  const [translatedCommentsById, setTranslatedCommentsById] = useState<Record<string, FeedTranslationResult>>({});
-  const [translatingPostId, setTranslatingPostId] = useState<string | null>(null);
-  const [translatingCommentId, setTranslatingCommentId] = useState<string | null>(null);
+  const [translatedPostsById, setTranslatedPostsById] = useState<
+    Record<string, FeedTranslationResult>
+  >({});
+  const [translatedCommentsById, setTranslatedCommentsById] = useState<
+    Record<string, FeedTranslationResult>
+  >({});
+  const [translatingPostId, setTranslatingPostId] = useState<string | null>(
+    null,
+  );
+  const [translatingCommentId, setTranslatingCommentId] = useState<
+    string | null
+  >(null);
   const [resolvedSiteName, setResolvedSiteName] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<{
     type: "image" | "video";
@@ -1726,34 +1934,49 @@ export default function PostDetailScreen() {
     });
   }, []);
 
-  const getDisplayedPostContent = React.useCallback((targetPost?: FeedPost | null) => {
-    if (!targetPost) {
-      return "";
-    }
+  const getDisplayedPostContent = React.useCallback(
+    (targetPost?: FeedPost | null) => {
+      if (!targetPost) {
+        return "";
+      }
 
-    return translatedPostsById[targetPost.id]?.translated_text || targetPost.content;
-  }, [translatedPostsById]);
+      return (
+        translatedPostsById[targetPost.id]?.translated_text ||
+        targetPost.content
+      );
+    },
+    [translatedPostsById],
+  );
 
-  const getDisplayedPostTitle = React.useCallback((targetPost?: FeedPost | null) => {
-    if (!targetPost) {
-      return "";
-    }
+  const getDisplayedPostTitle = React.useCallback(
+    (targetPost?: FeedPost | null) => {
+      if (!targetPost) {
+        return "";
+      }
 
-    return (
-      translatedPostsById[targetPost.id]?.translated_title ||
-      targetPost.title?.trim() ||
-      targetPost.sourceJournal?.title?.trim() ||
-      ""
-    );
-  }, [translatedPostsById]);
+      return (
+        translatedPostsById[targetPost.id]?.translated_title ||
+        targetPost.title?.trim() ||
+        targetPost.sourceJournal?.title?.trim() ||
+        ""
+      );
+    },
+    [translatedPostsById],
+  );
 
-  const getDisplayedCommentContent = React.useCallback((targetComment?: FeedPostComment | null) => {
-    if (!targetComment) {
-      return "";
-    }
+  const getDisplayedCommentContent = React.useCallback(
+    (targetComment?: FeedPostComment | null) => {
+      if (!targetComment) {
+        return "";
+      }
 
-    return translatedCommentsById[targetComment.id]?.translated_text || targetComment.content;
-  }, [translatedCommentsById]);
+      return (
+        translatedCommentsById[targetComment.id]?.translated_text ||
+        targetComment.content
+      );
+    },
+    [translatedCommentsById],
+  );
 
   const handleAddFriend = React.useCallback(() => {
     if (!activePostAction) return;
@@ -1806,10 +2029,14 @@ export default function PostDetailScreen() {
 
       if (post?.journal_id) {
         try {
-          const response = await pilgrimJournalApi.getJournalDetail(post.journal_id);
+          const response = await pilgrimJournalApi.getJournalDetail(
+            post.journal_id,
+          );
           if (cancelled) return;
 
-          const journalLocationName = await resolveJournalLocationName(response.data);
+          const journalLocationName = await resolveJournalLocationName(
+            response.data,
+          );
           if (cancelled) return;
 
           if (journalLocationName) {
@@ -1817,7 +2044,12 @@ export default function PostDetailScreen() {
             return;
           }
         } catch (error: any) {
-          console.log("[PostDetail] Journal lookup failed:", error?.response?.status === 404 ? "Journal not found" : error.message);
+          console.log(
+            "[PostDetail] Journal lookup failed:",
+            error?.response?.status === 404
+              ? "Journal not found"
+              : error.message,
+          );
           // Fall through to post/source journal fields.
         }
       }
@@ -1838,7 +2070,9 @@ export default function PostDetailScreen() {
 
           if (matched.length > 0) {
             setResolvedSiteName(
-              Array.from(new Set(matched.map((item: any) => item.site.name))).join(", "),
+              Array.from(
+                new Set(matched.map((item: any) => item.site.name)),
+              ).join(", "),
             );
             return;
           }
@@ -1962,8 +2196,7 @@ export default function PostDetailScreen() {
       setReplyingTo({
         id: c.id,
         name:
-          c.author?.full_name ||
-          t("postDetail.user", { defaultValue: "User" }),
+          c.author?.full_name || t("postDetail.user", { defaultValue: "User" }),
       });
       commentInputRef.current?.focus();
     },
@@ -2034,7 +2267,14 @@ export default function PostDetailScreen() {
         },
       });
     }
-  }, [activeCommentAction, clearTranslatedComment, showConfirm, deleteCommentMutation, editingComment?.id, t]);
+  }, [
+    activeCommentAction,
+    clearTranslatedComment,
+    showConfirm,
+    deleteCommentMutation,
+    editingComment?.id,
+    t,
+  ]);
 
   const handleReportComment = React.useCallback(() => {
     if (!activeCommentAction) return;
@@ -2103,7 +2343,13 @@ export default function PostDetailScreen() {
         setTranslatingCommentId(null);
       },
     });
-  }, [activeCommentAction, clearTranslatedComment, t, translatedCommentsById, translateCommentMutation]);
+  }, [
+    activeCommentAction,
+    clearTranslatedComment,
+    t,
+    translatedCommentsById,
+    translateCommentMutation,
+  ]);
 
   const handleEditPost = React.useCallback(() => {
     if (!activePostAction) return;
@@ -2160,7 +2406,14 @@ export default function PostDetailScreen() {
         },
       });
     }
-  }, [activePostAction, clearTranslatedPost, showConfirm, deletePostMutation, navigation, t]);
+  }, [
+    activePostAction,
+    clearTranslatedPost,
+    showConfirm,
+    deletePostMutation,
+    navigation,
+    t,
+  ]);
 
   const handleReportPost = React.useCallback(() => {
     if (!activePostAction) return;
@@ -2229,7 +2482,13 @@ export default function PostDetailScreen() {
         setTranslatingPostId(null);
       },
     });
-  }, [activePostAction, clearTranslatedPost, t, translatedPostsById, translatePostMutation]);
+  }, [
+    activePostAction,
+    clearTranslatedPost,
+    t,
+    translatedPostsById,
+    translatePostMutation,
+  ]);
 
   const renderPostHeader = () => {
     if (isLoadingPost) {
@@ -2250,7 +2509,9 @@ export default function PostDetailScreen() {
     }
 
     const author = {
-      name: post.author?.full_name || t("postDetail.anonymousUser", { defaultValue: "Anonymous user" }),
+      name:
+        post.author?.full_name ||
+        t("postDetail.anonymousUser", { defaultValue: "Anonymous user" }),
       avatar: post.author?.avatar_url,
     };
     const actualPost = post;
@@ -2260,7 +2521,8 @@ export default function PostDetailScreen() {
       actualPost.title?.trim() ||
       actualPost.sourceJournal?.title?.trim() ||
       "";
-    const displayPostContent = translatedPost?.translated_text || actualPost.content;
+    const displayPostContent =
+      translatedPost?.translated_text || actualPost.content;
     const isPostAuthorGuide =
       isCurrentUserGuide && actualPost.user_id === user?.id;
     const commentCount =
@@ -2268,8 +2530,10 @@ export default function PostDetailScreen() {
       (actualPost as any).comments_count ||
       comments.length;
     const imageUrls = actualPost.image_urls || [];
-    const videoUrl = actualPost.video_url || actualPost.sourceJournal?.video_url;
-    const audioUrl = actualPost.audio_url || actualPost.sourceJournal?.audio_url;
+    const videoUrl =
+      actualPost.video_url || actualPost.sourceJournal?.video_url;
+    const audioUrl =
+      actualPost.audio_url || actualPost.sourceJournal?.audio_url;
     const videoShouldUseAudioPlayer = isLikelyAudioFileUrl(videoUrl);
     const location = getFeedPostLocationName(actualPost, resolvedSiteName);
 
@@ -2308,14 +2572,15 @@ export default function PostDetailScreen() {
           <View style={styles.mediaSection}>
             <TouchableOpacity
               activeOpacity={0.92}
-              onPress={() =>
-                setLightbox({ type: "image", url: imageUrls[0] })
-              }
+              onPress={() => setLightbox({ type: "image", url: imageUrls[0] })}
             >
               <View
                 style={[styles.imageContainer, styles.singleImageContainer]}
               >
-                <Image source={{ uri: imageUrls[0] }} style={styles.feedImage} />
+                <Image
+                  source={{ uri: imageUrls[0] }}
+                  style={styles.feedImage}
+                />
               </View>
             </TouchableOpacity>
           </View>
@@ -2338,18 +2603,19 @@ export default function PostDetailScreen() {
                 <TouchableOpacity
                   key={`${imageUrl}-${index}`}
                   activeOpacity={0.92}
-                  onPress={() =>
-                    setLightbox({ type: "image", url: imageUrl })
-                  }
+                  onPress={() => setLightbox({ type: "image", url: imageUrl })}
                 >
                   <View
                     style={[
                       styles.galleryImageCard,
                       index === imageUrls.length - 1 &&
-                      styles.galleryImageCardLast,
+                        styles.galleryImageCardLast,
                     ]}
                   >
-                    <Image source={{ uri: imageUrl }} style={styles.feedImage} />
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={styles.feedImage}
+                    />
                   </View>
                 </TouchableOpacity>
               ))}
@@ -2412,8 +2678,25 @@ export default function PostDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.white} />
+    <ImageBackground
+      source={COMMUNITY_BG}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      <LinearGradient
+        colors={[
+          "rgba(252, 248, 238, 0.62)",
+          "rgba(255,255,255,0.54)",
+          "rgba(250, 244, 230, 0.66)",
+        ]}
+        style={StyleSheet.absoluteFillObject}
+      />
 
       <View style={styles.header}>
         <TouchableOpacity
@@ -2543,8 +2826,8 @@ export default function PostDetailScreen() {
                 ? t("postDetail.editCommentPlaceholder")
                 : replyingTo
                   ? t("postDetail.replyPlaceholder", {
-                    name: replyingTo.name,
-                  })
+                      name: replyingTo.name,
+                    })
                   : isCurrentUserGuide
                     ? t("postDetail.commentAsGuidePlaceholder")
                     : t("postDetail.commentPlaceholder")
@@ -2588,14 +2871,20 @@ export default function PostDetailScreen() {
 
       <PostActionSheet
         visible={Boolean(activePostAction)}
-        postContent={getDisplayedPostTitle(activePostAction) || getDisplayedPostContent(activePostAction)}
+        postContent={
+          getDisplayedPostTitle(activePostAction) ||
+          getDisplayedPostContent(activePostAction)
+        }
         canTranslate={Boolean(activePostAction?.content?.trim())}
         isOwner={Boolean(
           user?.id &&
           activePostAction?.user_id &&
-          user.id === activePostAction.user_id
+          user.id === activePostAction.user_id,
         )}
-        isTranslated={Boolean(activePostAction && translatedPostsById[activePostAction.id]?.translated_text)}
+        isTranslated={Boolean(
+          activePostAction &&
+          translatedPostsById[activePostAction.id]?.translated_text,
+        )}
         busy={
           deletePostMutation.isPending ||
           sendFriendRequestMutation.isPending ||
@@ -2624,9 +2913,12 @@ export default function PostDetailScreen() {
         isOwner={Boolean(
           user?.id &&
           activeCommentAction?.user_id &&
-          user.id === activeCommentAction.user_id
+          user.id === activeCommentAction.user_id,
         )}
-        isTranslated={Boolean(activeCommentAction && translatedCommentsById[activeCommentAction.id]?.translated_text)}
+        isTranslated={Boolean(
+          activeCommentAction &&
+          translatedCommentsById[activeCommentAction.id]?.translated_text,
+        )}
         busy={
           deleteCommentMutation.isPending ||
           translatingCommentId === activeCommentAction?.id
@@ -2651,7 +2943,7 @@ export default function PostDetailScreen() {
         imageUri={lightbox?.type === "image" ? lightbox.url : undefined}
         videoUrl={lightbox?.type === "video" ? lightbox.url : undefined}
       />
-    </View>
+    </ImageBackground>
   );
 }
 
@@ -2660,7 +2952,7 @@ export default function PostDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: "transparent",
   },
   header: {
     flexDirection: "row",
@@ -3370,7 +3662,7 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 120,
     borderRadius: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 8,
     backgroundColor: COLORS.backgroundSoft,
   },
@@ -3381,14 +3673,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   siteImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   sitePatronText: {
     fontSize: 12,
     color: COLORS.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   metaDivider: {
     width: 3,

@@ -1,20 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   COLORS,
   SHADOWS,
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface PostActionSheetProps {
   canTranslate?: boolean;
@@ -92,7 +86,7 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
               <MaterialIcons
                 name="g-translate"
                 size={20}
-                color={COLORS.textPrimary}
+                color={busy ? COLORS.textTertiary : COLORS.info}
               />
               <Text style={styles.actionText}>
                 {isTranslated
@@ -114,7 +108,11 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
                 onPress={onEdit}
                 disabled={busy}
               >
-                <MaterialIcons name="edit" size={20} color={COLORS.textPrimary} />
+                <MaterialIcons
+                  name="edit"
+                  size={20}
+                  color={busy ? COLORS.textTertiary : COLORS.primary}
+                />
                 <Text style={styles.actionText}>
                   {t("postDetail.editPost", { defaultValue: "Edit post" })}
                 </Text>
@@ -128,7 +126,7 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
                 <MaterialIcons
                   name="delete-outline"
                   size={20}
-                  color={COLORS.danger}
+                  color={busy ? COLORS.textTertiary : COLORS.danger}
                 />
                 <Text style={[styles.actionText, styles.actionTextDanger]}>
                   {t("postDetail.deletePost", { defaultValue: "Delete post" })}
@@ -147,7 +145,7 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
                   <MaterialIcons
                     name="person-add-alt"
                     size={20}
-                    color={COLORS.textPrimary}
+                    color={busy ? COLORS.textTertiary : COLORS.info}
                   />
                   <Text style={styles.actionText}>
                     {t("postDetail.addFriend", { defaultValue: "Add friend" })}
@@ -160,7 +158,11 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
                 onPress={onReport}
                 disabled={busy}
               >
-                <MaterialIcons name="flag" size={20} color={COLORS.textPrimary} />
+                <MaterialIcons
+                  name="flag"
+                  size={20}
+                  color={busy ? COLORS.textTertiary : COLORS.warning}
+                />
                 <Text style={styles.actionText}>
                   {t("postDetail.reportPost", { defaultValue: "Report post" })}
                 </Text>

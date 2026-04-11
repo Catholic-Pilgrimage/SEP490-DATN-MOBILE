@@ -280,8 +280,9 @@ function transformError(error: AxiosError): Error {
       .join(". ");
   }
 
-  // Ưu tiên thông báo chính (apiMessage) hơn các chi tiết kỹ thuật/ID (detailMessage)
-  const fullMessage = apiMessage || detailMessage;
+  // Ưu tiên chi tiết validation (errors/details) hơn message tổng quát như
+  // "Dữ liệu không hợp lệ" để FE hiển thị rõ nguyên nhân cụ thể.
+  const fullMessage = detailMessage || apiMessage;
 
   if (__DEV__ && error.response) {
     console.warn(
@@ -306,7 +307,8 @@ function transformError(error: AxiosError): Error {
       return new Error(fullMessage || "Không tìm thấy tài nguyên.");
     case HTTP_STATUS.CONFLICT:
       return new Error(
-        fullMessage || "Dữ liệu xung đột với trạng thái hiện tại (ví dụ trùng ca).",
+        fullMessage ||
+          "Dữ liệu xung đột với trạng thái hiện tại (ví dụ trùng ca).",
       );
     case HTTP_STATUS.INTERNAL_SERVER_ERROR:
       return new Error(fullMessage || ERROR_MESSAGES.SERVER_ERROR);

@@ -13,10 +13,12 @@
  * @param timeString - Time in format "HH:mm" or "HH:mm:ss"
  * @returns Total minutes from midnight, or null if invalid
  */
-export const parseTimeToMinutes = (timeString: string | undefined | null): number | null => {
+export const parseTimeToMinutes = (
+  timeString: string | undefined | null,
+): number | null => {
   if (!timeString) return null;
 
-  const parts = timeString.split(':').map(Number);
+  const parts = timeString.split(":").map(Number);
   if (parts.length < 2 || parts.some(isNaN)) return null;
 
   const [hours, minutes] = parts;
@@ -41,7 +43,7 @@ export const getCurrentTimeInMinutes = (): number => {
  */
 export const isCurrentTimeInRange = (
   startTime: string | undefined | null,
-  endTime: string | undefined | null
+  endTime: string | undefined | null,
 ): boolean => {
   const start = parseTimeToMinutes(startTime);
   const end = parseTimeToMinutes(endTime);
@@ -63,22 +65,22 @@ export const isCurrentTimeInRange = (
  */
 export const formatTimeDisplay = (
   timeString: string | undefined | null,
-  use24Hour = false
+  use24Hour = false,
 ): string => {
-  if (!timeString) return '--:--';
+  if (!timeString) return "--:--";
 
-  const parts = timeString.split(':').map(Number);
-  if (parts.length < 2 || parts.some(isNaN)) return '--:--';
+  const parts = timeString.split(":").map(Number);
+  if (parts.length < 2 || parts.some(isNaN)) return "--:--";
 
   const [hours, minutes] = parts;
 
   if (use24Hour) {
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   }
 
-  const period = hours >= 12 ? 'PM' : 'AM';
+  const period = hours >= 12 ? "PM" : "AM";
   const displayHours = hours % 12 || 12;
-  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
 };
 
 // ============================================
@@ -104,7 +106,9 @@ export const isTodayDayOfWeek = (dayOfWeek: number): boolean => {
  * Check if today is in an array of days
  * @param daysOfWeek - Array of day numbers (0-6)
  */
-export const isTodayInDays = (daysOfWeek: number[] | undefined | null): boolean => {
+export const isTodayInDays = (
+  daysOfWeek: number[] | undefined | null,
+): boolean => {
   if (!daysOfWeek || !Array.isArray(daysOfWeek)) return false;
   return daysOfWeek.includes(getCurrentDayOfWeek());
 };
@@ -112,12 +116,31 @@ export const isTodayInDays = (daysOfWeek: number[] | undefined | null): boolean 
 /**
  * Get day name from number
  */
-export const getDayName = (dayOfWeek: number, locale: 'en' | 'vi' = 'vi'): string => {
-  const enDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const viDays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+export const getDayName = (
+  dayOfWeek: number,
+  locale: "en" | "vi" = "vi",
+): string => {
+  const enDays = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const viDays = [
+    "Chủ Nhật",
+    "Thứ Hai",
+    "Thứ Ba",
+    "Thứ Tư",
+    "Thứ Năm",
+    "Thứ Sáu",
+    "Thứ Bảy",
+  ];
 
-  const days = locale === 'en' ? enDays : viDays;
-  return days[dayOfWeek] || '';
+  const days = locale === "en" ? enDays : viDays;
+  return days[dayOfWeek] || "";
 };
 
 // ============================================
@@ -137,8 +160,8 @@ export const getTodayDateString = (): string => {
  */
 export const formatDateToISO = (date: Date): string => {
   const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
@@ -157,7 +180,7 @@ export const isToday = (dateString: string | undefined | null): boolean => {
 export const isDateInRange = (
   dateString: string,
   startDate: string,
-  endDate: string
+  endDate: string,
 ): boolean => {
   return dateString >= startDate && dateString <= endDate;
 };
@@ -216,7 +239,9 @@ const normalizeOpeningHoursKey = (value: string): string =>
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
 
-const normalizeTimeValue = (value: string | undefined | null): string | null => {
+const normalizeTimeValue = (
+  value: string | undefined | null,
+): string | null => {
   if (!value) return null;
 
   const parts = value.trim().split(":").map(Number);
@@ -239,17 +264,28 @@ const extractOpeningHoursRange = (value: unknown): OpeningHours | null => {
     const trimmedValue = value.trim();
     if (!trimmedValue) return null;
 
+    const timeMatches =
+      trimmedValue
+        .match(/\d{1,2}:\d{2}(?::\d{2})?/g)
+        ?.map((item) => normalizeTimeValue(item)) ?? [];
+    const validTimes = timeMatches.filter((item): item is string => !!item);
+
+    if (validTimes.length >= 2) {
+      // Một số BE trả chuỗi nhiều mốc giờ dạng
+      // "04:45-06:30-09:00-16:00-18:00".
+      // FE nên lấy khung tổng quát của ngày: mốc đầu -> mốc cuối.
+      const open = validTimes[0];
+      const close = validTimes[validTimes.length - 1];
+      return { open, close };
+    }
+
     const rangeMatch = trimmedValue.match(
       /(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–—]\s*(\d{1,2}:\d{2}(?::\d{2})?)/,
     );
-
-    if (!rangeMatch) {
-      return null;
-    }
+    if (!rangeMatch) return null;
 
     const open = normalizeTimeValue(rangeMatch[1]);
     const close = normalizeTimeValue(rangeMatch[2]);
-
     return open && close ? { open, close } : null;
   }
 
@@ -311,9 +347,9 @@ export const getOpeningHoursForDay = (
   }
 
   const aliases = DAY_KEY_ALIASES[dayOfWeek] ?? [];
-  const matchingDayValue = Object.entries(openingHours as Record<string, unknown>).find(
-    ([key]) => aliases.includes(normalizeOpeningHoursKey(key)),
-  )?.[1];
+  const matchingDayValue = Object.entries(
+    openingHours as Record<string, unknown>,
+  ).find(([key]) => aliases.includes(normalizeOpeningHoursKey(key)))?.[1];
 
   return extractOpeningHoursRange(matchingDayValue);
 };
@@ -324,7 +360,7 @@ export const getOpeningHoursForDay = (
  * @returns Object with isOpen status and next status change info
  */
 export const getSiteOpenStatus = (
-  openingHours: unknown
+  openingHours: unknown,
 ): {
   isOpen: boolean;
   statusText: string;
@@ -336,8 +372,8 @@ export const getSiteOpenStatus = (
   if (!todayOpeningHours?.open || !todayOpeningHours?.close) {
     return {
       isOpen: false,
-      statusText: 'Unknown',
-      statusTextVi: 'Không xác định',
+      statusText: "Unknown",
+      statusTextVi: "Không xác định",
       nextChange: null,
     };
   }
@@ -350,16 +386,16 @@ export const getSiteOpenStatus = (
   if (isOpen) {
     return {
       isOpen: true,
-      statusText: 'OPEN',
-      statusTextVi: 'ĐANG MỞ',
+      statusText: "OPEN",
+      statusTextVi: "ĐANG MỞ",
       nextChange: `Closes at ${formatTimeDisplay(todayOpeningHours.close)}`,
     };
   }
 
   return {
     isOpen: false,
-    statusText: 'CLOSED',
-    statusTextVi: 'ĐÓNG CỬA',
+    statusText: "CLOSED",
+    statusTextVi: "ĐÓNG CỬA",
     nextChange: `Opens at ${formatTimeDisplay(todayOpeningHours.open)}`,
   };
 };
@@ -373,9 +409,9 @@ export const getSiteOpenStatus = (
  */
 export const getRelativeTime = (
   dateString: string | undefined | null,
-  locale: 'en' | 'vi' = 'vi'
+  locale: "en" | "vi" = "vi",
 ): string => {
-  if (!dateString) return '';
+  if (!dateString) return "";
 
   const date = new Date(dateString);
   const now = new Date();
@@ -384,19 +420,19 @@ export const getRelativeTime = (
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (locale === 'vi') {
-    if (diffMins < 1) return 'Vừa xong';
+  if (locale === "vi") {
+    if (diffMins < 1) return "Vừa xong";
     if (diffMins < 60) return `${diffMins} phút trước`;
     if (diffHours < 24) return `${diffHours} giờ trước`;
     if (diffDays < 7) return `${diffDays} ngày trước`;
-    return formatDateDisplay(dateString, 'vi');
+    return formatDateDisplay(dateString, "vi");
   }
 
-  if (diffMins < 1) return 'Just now';
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins} min ago`;
   if (diffHours < 24) return `${diffHours} hours ago`;
   if (diffDays < 7) return `${diffDays} days ago`;
-  return formatDateDisplay(dateString, 'en');
+  return formatDateDisplay(dateString, "en");
 };
 
 /**
@@ -404,24 +440,24 @@ export const getRelativeTime = (
  */
 export const formatDateDisplay = (
   dateString: string | undefined | null,
-  locale: 'en' | 'vi' = 'vi'
+  locale: "en" | "vi" = "vi",
 ): string => {
-  if (!dateString) return '';
+  if (!dateString) return "";
 
   const date = new Date(dateString);
 
-  if (locale === 'vi') {
-    return date.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
+  if (locale === "vi") {
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
     });
   }
 
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 };
 
@@ -444,7 +480,7 @@ export const compareTimeStrings = (a: string, b: string): number => {
  */
 export const compareDatesDesc = (
   a: string | undefined | null,
-  b: string | undefined | null
+  b: string | undefined | null,
 ): number => {
   if (!a && !b) return 0;
   if (!a) return 1;
@@ -457,7 +493,7 @@ export const compareDatesDesc = (
  */
 export const compareDatesAsc = (
   a: string | undefined | null,
-  b: string | undefined | null
+  b: string | undefined | null,
 ): number => {
   return -compareDatesDesc(a, b);
 };
