@@ -1,8 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import {
-    useFocusEffect,
-    useNavigation,
-    useRoute,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
 } from "@react-navigation/native";
 import { Audio } from "expo-av";
 import { LinearGradient } from "expo-linear-gradient";
@@ -10,29 +10,29 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Animated,
-    Dimensions,
-    Image,
-    ImageBackground,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View
+  Animated,
+  Dimensions,
+  Image,
+  ImageBackground,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-    COLORS,
-    SHADOWS,
-    SPACING,
+  COLORS,
+  SHADOWS,
+  SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
@@ -41,8 +41,8 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import { JournalEntry } from "../../../../types/pilgrim/journal.types";
 import {
-    normalizeImageUrls,
-    parsePostgresArray,
+  normalizeImageUrls,
+  parsePostgresArray,
 } from "../../../../utils/postgresArrayParser";
 
 const { width } = Dimensions.get("window");
@@ -60,6 +60,22 @@ const getJournalPlannerItemIds = (j: JournalEntry): string[] =>
       ...parsePostgresArray(j.planner_item_ids),
     ]),
   );
+
+const pickSiteImage = (site?: any): string | null => {
+  if (!site) return null;
+  const candidates = [
+    site.coverImage,
+    site.cover_image,
+    site.image,
+    site.thumbnail,
+    site.thumbnail_url,
+    Array.isArray(site.images) ? site.images[0] : null,
+  ];
+  const selected = candidates.find(
+    (v) => typeof v === "string" && v.trim().length > 0,
+  );
+  return selected ? String(selected) : null;
+};
 
 export default function JournalDetailScreen() {
   const navigation = useNavigation<any>();
@@ -90,6 +106,8 @@ export default function JournalDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [siteName, setSiteName] = useState<string | null>(null);
   const [siteSubtitle, setSiteSubtitle] = useState<string | null>(null);
+  const [resolvedCoverUri, setResolvedCoverUri] = useState<string | null>(null);
+  const mountAnim = React.useRef(new Animated.Value(0)).current;
 
   // Audio
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -150,17 +168,25 @@ export default function JournalDetailScreen() {
     if (!journal) return;
     let cancelled = false;
     const plannerItemIds = getJournalPlannerItemIds(journal);
+    setResolvedCoverUri(pickSiteImage(journal.site as any));
 
     (async () => {
       if (plannerItemIds.length > 0 && journal.planner_id) {
         try {
           const res = await pilgrimPlannerApi.getPlanDetail(journal.planner_id);
           const items: any[] =
-            res.data?.items ||
-            Object.values(res.data?.items_by_day || {}).flat();
+            res?.data?.items ||
+            Object.values(res?.data?.items_by_day || {}).flat();
           const matched = items.filter(
             (i) => plannerItemIds.includes(i.id) && i.site?.name,
           );
+          const matchedImage = (items as any[])
+            .filter((i) => plannerItemIds.includes(i.id))
+            .map((i) => pickSiteImage(i.site))
+            .find(Boolean);
+          if (matchedImage && !cancelled) {
+            setResolvedCoverUri(String(matchedImage));
+          }
           if (matched.length > 0 && !cancelled) {
             setSiteName(
               [...new Set(matched.map((i: any) => i.site.name))].join(", "),
@@ -171,11 +197,11 @@ export default function JournalDetailScreen() {
               ),
             ];
             setSiteSubtitle(
-              provs.length ? provs.join(" • ") : res.data?.name || null,
+              provs.length ? provs.join(" • ") : res?.data?.name || null,
             );
             return;
           }
-          if (!cancelled && res.data?.name) {
+          if (!cancelled && res?.data?.name) {
             setSiteName(res.data.name);
             setSiteSubtitle(null);
           }
@@ -192,8 +218,10 @@ export default function JournalDetailScreen() {
         try {
           const res = await pilgrimSiteApi.getSiteDetail(journal.site_id);
           if (!cancelled) {
-            setSiteName(res.data?.name || null);
-            setSiteSubtitle((res.data as any)?.province || null);
+            setSiteName(res?.data?.name || null);
+            setSiteSubtitle((res?.data as any)?.province || null);
+            const siteImage = pickSiteImage(res?.data);
+            if (siteImage) setResolvedCoverUri(siteImage);
           }
         } catch {
           if (!cancelled) setSiteName(null);
@@ -204,6 +232,16 @@ export default function JournalDetailScreen() {
       cancelled = true;
     };
   }, [journal]);
+
+  // subtle entrance animation for the whole card
+  useEffect(() => {
+    Animated.spring(mountAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+  }, [mountAnim]);
 
   /* ─── Actions ─── */
   const askDelete = () =>
@@ -383,7 +421,7 @@ export default function JournalDetailScreen() {
   }
 
   const images = normalizeImageUrls(journal.image_url);
-  const coverUri = images.length > 0 ? images[0] : null;
+  const coverUri = images[0] || resolvedCoverUri;
   const authorName =
     journal.author?.full_name || user?.fullName || t("journal.pilgrimRole");
   const avatarUri = journal.author?.avatar_url || user?.avatar;
@@ -439,254 +477,337 @@ export default function JournalDetailScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
-          {/* ══════════════════════════════════════════
-                        MAIN CARD — viền bao quanh toàn bộ nội dung
-                    ══════════════════════════════════════════ */}
-          <View style={s.card}>
-            {/* Location section */}
-            <View style={s.locationSection}>
-              <MaterialIcons
-                name="location-on"
-                size={16}
-                color={COLORS.accent}
-                style={{ marginTop: 1 }}
+          <Animated.View
+            style={[
+              s.notebookWrapper,
+              {
+                opacity: mountAnim,
+                transform: [
+                  {
+                    translateY: mountAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [6, 0],
+                    }),
+                  },
+                  {
+                    scale: mountAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.992, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={s.bindingContainer} pointerEvents="none">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <View key={`detail-ring-${idx}`} style={s.ringHole}>
+                  <View style={s.ironRing} />
+                  <View style={s.ironRingHighlight} />
+                </View>
+              ))}
+            </View>
+
+            <View style={s.cardStackBack} pointerEvents="none" />
+            <View style={s.card}>
+              <LinearGradient
+                pointerEvents="none"
+                colors={["rgba(255,255,255,0.30)", "rgba(255,255,255,0)"]}
+                style={s.innerTopShadow}
               />
-              <View style={{ flex: 1 }}>
-                <Text style={s.locationName} numberOfLines={2}>
-                  {siteName || t("journal.unknownLocation")}
-                </Text>
-                {siteSubtitle && (
-                  <Text style={s.locationSub}>{siteSubtitle}</Text>
+              <View style={s.notebookInnerBorder} pointerEvents="none" />
+              <View style={s.pageMarginLine} pointerEvents="none" />
+              <Text style={s.notebookHeader}>
+                {t("journal.cardHeader", {
+                  defaultValue: t("journal.screenTitle").toUpperCase(),
+                })}
+              </Text>
+              {/* Location section */}
+              <View style={s.locationSection}>
+                <MaterialIcons
+                  name="location-on"
+                  size={16}
+                  color={COLORS.accent}
+                  style={{ marginTop: 1 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.locationName} numberOfLines={2}>
+                    {siteName || t("journal.unknownLocation")}
+                  </Text>
+                  {siteSubtitle && (
+                    <Text style={s.locationSub}>{siteSubtitle}</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Cover Image — full width inside card */}
+              <View style={s.coverWrap}>
+                {coverUri ? (
+                  <Image
+                    source={{ uri: coverUri }}
+                    style={s.coverImage}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={["#1a2a3a", "#2c4a6e", "#1a3a5e"]}
+                    style={s.coverPlaceholder}
+                  >
+                    <MaterialIcons
+                      name="auto-stories"
+                      size={48}
+                      color="rgba(255,255,255,0.4)"
+                    />
+                  </LinearGradient>
+                )}
+
+                <LinearGradient
+                  colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.28)"]}
+                  style={s.coverOverlay}
+                  pointerEvents="none"
+                />
+              </View>
+
+              {/* Card Body */}
+              <View style={s.cardBody}>
+                {/* Author Row */}
+                <View style={s.authorRow}>
+                  <View style={s.authorLeft}>
+                    {avatarUri ? (
+                      <Image source={{ uri: avatarUri }} style={s.avatar} />
+                    ) : (
+                      <View style={[s.avatar, s.avatarFallback]}>
+                        <MaterialIcons
+                          name="person"
+                          size={18}
+                          color={COLORS.textSecondary}
+                        />
+                      </View>
+                    )}
+                    <View>
+                      <Text style={s.authorName}>{authorName}</Text>
+                      <Text style={s.authorRole}>
+                        {t("journal.pilgrimRole")}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.dateText}>
+                      {fmtDate(journal.created_at)}
+                    </Text>
+                    <Text style={s.timeText}>
+                      {fmtTime(journal.created_at)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Title */}
+                <View style={s.titleWrap}>
+                  <Text style={s.quoteGhost}>“</Text>
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={[
+                      "rgba(218,184,121,0.26)",
+                      "rgba(218,184,121,0.06)",
+                      "rgba(218,184,121,0)",
+                    ]}
+                    start={{ x: 0, y: 0.5 }}
+                    end={{ x: 1, y: 0.5 }}
+                    style={s.titleBrush}
+                  />
+                  <Text style={s.title}>{`"${journal.title}"`}</Text>
+                </View>
+
+                {/* Divider with ornament */}
+                <View style={s.ornamentRow}>
+                  <View style={s.ornamentLine} />
+                  <MaterialIcons name="add" size={16} color="rgba(0,0,0,0.2)" />
+                  <View style={s.ornamentLine} />
+                </View>
+
+                {/* NỘI DUNG */}
+                <View style={s.sectionLabelRow}>
+                  <MaterialIcons
+                    name="menu-book"
+                    size={14}
+                    color={COLORS.accent}
+                  />
+                  <Text style={s.sectionLabel}>
+                    {t("journal.contentLabel")}
+                  </Text>
+                </View>
+                <View style={s.notebookContentArea}>
+                  <View style={s.leftMarginLine} />
+                  <View pointerEvents="none" style={s.ruledLinesContainer}>
+                    {Array.from({ length: 7 }).map((_, idx) => (
+                      <View key={`detail-rule-${idx}`} style={s.ruleLine} />
+                    ))}
+                  </View>
+                  <Text style={s.content}>{journal.content}</Text>
+                </View>
+
+                {/* Media summary pill row */}
+                {mediaCount.length > 0 && (
+                  <View style={s.mediaSummaryRow}>
+                    {images.length > 0 && (
+                      <View style={s.mediaPill}>
+                        <MaterialIcons
+                          name="photo-camera"
+                          size={12}
+                          color={COLORS.accent}
+                        />
+                        <Text style={s.mediaPillText}>
+                          {t("journal.imagesLabel")} ({images.length})
+                        </Text>
+                      </View>
+                    )}
+                    {journal.video_url && (
+                      <View style={s.mediaPill}>
+                        <MaterialIcons
+                          name="videocam"
+                          size={12}
+                          color={COLORS.accent}
+                        />
+                        <Text style={s.mediaPillText}>
+                          {t("journal.videoLabel")} (1)
+                        </Text>
+                      </View>
+                    )}
+                    {journal.audio_url && (
+                      <View style={s.mediaPill}>
+                        <MaterialIcons
+                          name="headset"
+                          size={12}
+                          color={COLORS.accent}
+                        />
+                        <Text style={s.mediaPillText}>
+                          {t("journal.audioLabel")} (1)
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Images grid */}
+                {images.length > 0 && (
+                  <>
+                    <View style={s.mediaDivider} />
+                    <View style={s.sectionLabelRow}>
+                      <MaterialIcons
+                        name="photo-camera"
+                        size={14}
+                        color={COLORS.accent}
+                      />
+                      <Text style={s.sectionLabel}>
+                        {t("journal.imagesLabel")}
+                      </Text>
+                    </View>
+                    <View style={s.imageGrid}>
+                      {images.map((uri, idx) => (
+                        <View key={idx} style={s.imageThumb}>
+                          <Image
+                            source={{ uri }}
+                            style={StyleSheet.absoluteFill}
+                            resizeMode="cover"
+                          />
+                          {/* Video play overlay on last thumb if video exists */}
+                          {journal.video_url && idx === images.length - 1 && (
+                            <View style={s.videoThumbOverlay}>
+                              <MaterialIcons
+                                name="play-circle-filled"
+                                size={28}
+                                color="rgba(255,255,255,0.9)"
+                              />
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {/* Video Section */}
+                {journal.video_url && (
+                  <>
+                    <View style={s.mediaDivider} />
+                    <View style={s.sectionLabelRow}>
+                      <MaterialIcons
+                        name="videocam"
+                        size={14}
+                        color={COLORS.accent}
+                      />
+                      <Text style={s.sectionLabel}>
+                        {t("journal.videoLabel")}
+                      </Text>
+                    </View>
+                    <View style={s.videoPreviewCard}>
+                      <VideoView
+                        style={s.videoPlayer}
+                        player={videoPlayer}
+                        allowsFullscreen
+                        allowsPictureInPicture
+                        nativeControls
+                      />
+                    </View>
+                  </>
+                )}
+
+                {/* Audio player */}
+                {journal.audio_url && (
+                  <>
+                    <View style={s.mediaDivider} />
+                    <View style={s.sectionLabelRow}>
+                      <MaterialIcons
+                        name="headset"
+                        size={14}
+                        color={COLORS.accent}
+                      />
+                      <Text style={s.sectionLabel}>
+                        {t("journal.audioLabel")}
+                      </Text>
+                    </View>
+                    <View style={s.audioPlayer}>
+                      <TouchableOpacity
+                        style={[
+                          s.audioPlayBtn,
+                          playing && s.audioPlayBtnActive,
+                        ]}
+                        onPress={toggleAudio}
+                      >
+                        <MaterialIcons
+                          name={playing ? "pause" : "play-arrow"}
+                          size={26}
+                          color="#fff"
+                        />
+                      </TouchableOpacity>
+                      <View style={{ flex: 1 }}>
+                        <View style={s.audioTimeRow}>
+                          <Text style={s.audioTime}>{fmtMs(audioPos)}</Text>
+                          <Text style={s.audioTime}>
+                            {audioDuration > 0 ? fmtMs(audioDuration) : "--:--"}
+                          </Text>
+                        </View>
+                        <View style={s.progressTrack}>
+                          <View
+                            style={[
+                              s.progressFill,
+                              { width: `${audioProgress * 100}%` },
+                            ]}
+                          />
+                          <View
+                            style={[
+                              s.progressThumb,
+                              { left: `${audioProgress * 100}%` },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  </>
                 )}
               </View>
             </View>
-
-            {/* Cover Image — full width inside card */}
-            {coverUri ? (
-              <Image
-                source={{ uri: coverUri }}
-                style={s.coverImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <LinearGradient
-                colors={["#1a2a3a", "#2c4a6e", "#1a3a5e"]}
-                style={s.coverPlaceholder}
-              >
-                <MaterialIcons
-                  name="auto-stories"
-                  size={48}
-                  color="rgba(255,255,255,0.4)"
-                />
-              </LinearGradient>
-            )}
-
-            {/* Card Body */}
-            <View style={s.cardBody}>
-              {/* Author Row */}
-              <View style={s.authorRow}>
-                <View style={s.authorLeft}>
-                  {avatarUri ? (
-                    <Image source={{ uri: avatarUri }} style={s.avatar} />
-                  ) : (
-                    <View style={[s.avatar, s.avatarFallback]}>
-                      <MaterialIcons
-                        name="person"
-                        size={18}
-                        color={COLORS.textSecondary}
-                      />
-                    </View>
-                  )}
-                  <View>
-                    <Text style={s.authorName}>{authorName}</Text>
-                    <Text style={s.authorRole}>{t("journal.pilgrimRole")}</Text>
-                  </View>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={s.dateText}>{fmtDate(journal.created_at)}</Text>
-                  <Text style={s.timeText}>{fmtTime(journal.created_at)}</Text>
-                </View>
-              </View>
-
-              {/* Title */}
-              <Text style={s.title}>{`"${journal.title}"`}</Text>
-
-              {/* Divider with ornament */}
-              <View style={s.ornamentRow}>
-                <View style={s.ornamentLine} />
-                <MaterialIcons name="add" size={16} color="rgba(0,0,0,0.2)" />
-                <View style={s.ornamentLine} />
-              </View>
-
-              {/* NỘI DUNG */}
-              <View style={s.sectionLabelRow}>
-                <MaterialIcons
-                  name="menu-book"
-                  size={14}
-                  color={COLORS.accent}
-                />
-                <Text style={s.sectionLabel}>{t("journal.contentLabel")}</Text>
-              </View>
-              <Text style={s.content}>{journal.content}</Text>
-
-              {/* Media summary pill row */}
-              {mediaCount.length > 0 && (
-                <View style={s.mediaSummaryRow}>
-                  {images.length > 0 && (
-                    <View style={s.mediaPill}>
-                      <MaterialIcons
-                        name="photo-camera"
-                        size={12}
-                        color={COLORS.accent}
-                      />
-                      <Text style={s.mediaPillText}>
-                        {t("journal.imagesLabel")} ({images.length})
-                      </Text>
-                    </View>
-                  )}
-                  {journal.video_url && (
-                    <View style={s.mediaPill}>
-                      <MaterialIcons
-                        name="videocam"
-                        size={12}
-                        color={COLORS.accent}
-                      />
-                      <Text style={s.mediaPillText}>
-                        {t("journal.videoLabel")} (1)
-                      </Text>
-                    </View>
-                  )}
-                  {journal.audio_url && (
-                    <View style={s.mediaPill}>
-                      <MaterialIcons
-                        name="headset"
-                        size={12}
-                        color={COLORS.accent}
-                      />
-                      <Text style={s.mediaPillText}>
-                        {t("journal.audioLabel")} (1)
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Images grid */}
-              {images.length > 0 && (
-                <>
-                  <View style={s.mediaDivider} />
-                  <View style={s.sectionLabelRow}>
-                    <MaterialIcons
-                      name="photo-camera"
-                      size={14}
-                      color={COLORS.accent}
-                    />
-                    <Text style={s.sectionLabel}>
-                      {t("journal.imagesLabel")}
-                    </Text>
-                  </View>
-                  <View style={s.imageGrid}>
-                    {images.map((uri, idx) => (
-                      <View key={idx} style={s.imageThumb}>
-                        <Image
-                          source={{ uri }}
-                          style={StyleSheet.absoluteFill}
-                          resizeMode="cover"
-                        />
-                        {/* Video play overlay on last thumb if video exists */}
-                        {journal.video_url && idx === images.length - 1 && (
-                          <View style={s.videoThumbOverlay}>
-                            <MaterialIcons
-                              name="play-circle-filled"
-                              size={28}
-                              color="rgba(255,255,255,0.9)"
-                            />
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )}
-
-              {/* Video Section */}
-              {journal.video_url && (
-                <>
-                  <View style={s.mediaDivider} />
-                  <View style={s.sectionLabelRow}>
-                    <MaterialIcons
-                      name="videocam"
-                      size={14}
-                      color={COLORS.accent}
-                    />
-                    <Text style={s.sectionLabel}>
-                      {t("journal.videoLabel")}
-                    </Text>
-                  </View>
-                  <View style={s.videoPreviewCard}>
-                    <VideoView
-                      style={s.videoPlayer}
-                      player={videoPlayer}
-                      allowsFullscreen
-                      allowsPictureInPicture
-                      nativeControls
-                    />
-                  </View>
-                </>
-              )}
-
-              {/* Audio player */}
-              {journal.audio_url && (
-                <>
-                  <View style={s.mediaDivider} />
-                  <View style={s.sectionLabelRow}>
-                    <MaterialIcons
-                      name="headset"
-                      size={14}
-                      color={COLORS.accent}
-                    />
-                    <Text style={s.sectionLabel}>
-                      {t("journal.audioLabel")}
-                    </Text>
-                  </View>
-                  <View style={s.audioPlayer}>
-                    <TouchableOpacity
-                      style={[s.audioPlayBtn, playing && s.audioPlayBtnActive]}
-                      onPress={toggleAudio}
-                    >
-                      <MaterialIcons
-                        name={playing ? "pause" : "play-arrow"}
-                        size={26}
-                        color="#fff"
-                      />
-                    </TouchableOpacity>
-                    <View style={{ flex: 1 }}>
-                      <View style={s.audioTimeRow}>
-                        <Text style={s.audioTime}>{fmtMs(audioPos)}</Text>
-                        <Text style={s.audioTime}>
-                          {audioDuration > 0 ? fmtMs(audioDuration) : "--:--"}
-                        </Text>
-                      </View>
-                      <View style={s.progressTrack}>
-                        <View
-                          style={[
-                            s.progressFill,
-                            { width: `${audioProgress * 100}%` },
-                          ]}
-                        />
-                        <View
-                          style={[
-                            s.progressThumb,
-                            { left: `${audioProgress * 100}%` },
-                          ]}
-                        />
-                      </View>
-                    </View>
-                  </View>
-                </>
-              )}
-            </View>
-          </View>
+          </Animated.View>
         </ScrollView>
       </ImageBackground>
 
@@ -804,15 +925,122 @@ const s = StyleSheet.create({
   },
 
   /* ══ MAIN CARD ══ */
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
+  notebookWrapper: {
+    position: "relative",
+    marginBottom: 16,
+    paddingLeft: 2,
+  },
+  cardStackBack: {
+    position: "absolute",
+    left: 12,
+    right: 0,
+    top: 6,
+    bottom: 6,
+    borderRadius: 14,
+    backgroundColor: "rgba(235, 225, 205, 0.75)",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
+    borderColor: "rgba(185,170,139,0.45)",
+    zIndex: 0,
+  },
+  bindingContainer: {
+    position: "absolute",
+    left: 8,
+    top: 16,
+    bottom: 16,
+    justifyContent: "space-between",
+    width: 14,
+    zIndex: 10,
+  },
+  ringHole: {
+    width: 12,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#d1c7b7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 0,
+  },
+  ironRing: {
+    width: 16,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#5d5d5d",
+    position: "absolute",
+    left: -4,
+    borderTopWidth: 1,
+    borderTopColor: "#999",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#333",
+    shadowColor: "#000",
+    shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 1,
+    elevation: 3,
+  },
+  ironRingHighlight: {
+    position: "absolute",
+    top: 0,
+    left: -3,
+    right: -2,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.42)",
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+  },
+  card: {
+    backgroundColor: "#fffcf5",
+    borderRadius: 14,
+    borderWidth: 1.4,
+    borderColor: "#b9aa8b",
     overflow: "hidden",
     ...SHADOWS.medium,
-    shadowColor: "rgba(0,0,0,0.12)",
-    marginBottom: 16,
+    shadowColor: "rgba(0,0,0,0.10)",
+    marginBottom: 0,
+    marginLeft: 8,
+    position: "relative",
+    zIndex: 2,
+  },
+  notebookInnerBorder: {
+    position: "absolute",
+    left: 5,
+    right: 5,
+    top: 5,
+    bottom: 5,
+    borderWidth: 1,
+    borderColor: "#ece2cf",
+    borderRadius: 10,
+  },
+  pageMarginLine: {
+    position: "absolute",
+    left: 14,
+    top: 6,
+    bottom: 6,
+    width: 1,
+    backgroundColor: "rgba(201, 178, 141, 0.5)",
+  },
+  innerTopShadow: {
+    position: "absolute",
+    left: 6,
+    right: 6,
+    top: 6,
+    height: 14,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    overflow: "hidden",
+  },
+  notebookHeader: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#4a3e35",
+    letterSpacing: 1.2,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#dcd1bb",
+    textShadowColor: "rgba(0,0,0,0.06)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
 
   /* Location inside card */
@@ -823,7 +1051,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.06)",
+    borderBottomColor: "#e6dccb",
   },
   locationName: {
     fontSize: 14,
@@ -839,7 +1067,20 @@ const s = StyleSheet.create({
   },
 
   /* Cover image */
+  coverWrap: {
+    position: "relative",
+    width: "100%",
+    height: 210,
+    overflow: "hidden",
+  },
   coverImage: { width: "100%", height: 210 },
+  coverOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 95,
+  },
   coverPlaceholder: {
     width: "100%",
     height: 210,
@@ -895,9 +1136,35 @@ const s = StyleSheet.create({
     fontFamily: FONT_DISPLAY,
     fontSize: 22,
     fontWeight: "700",
-    color: COLORS.textPrimary,
+    color: "#3f352b",
     lineHeight: 30,
     marginBottom: 16,
+    zIndex: 2,
+  },
+  titleWrap: {
+    position: "relative",
+    marginBottom: 2,
+    paddingBottom: 4,
+  },
+  titleBrush: {
+    position: "absolute",
+    left: 2,
+    right: "26%",
+    bottom: 8,
+    height: 9,
+    borderRadius: 8,
+    transform: [{ rotate: "-1.2deg" }],
+    zIndex: 1,
+  },
+  quoteGhost: {
+    position: "absolute",
+    left: -6,
+    top: -18,
+    fontSize: 58,
+    lineHeight: 58,
+    color: "rgba(170, 136, 90, 0.24)",
+    fontFamily: FONT_DISPLAY,
+    zIndex: 1,
   },
 
   /* Ornament divider */
@@ -925,12 +1192,44 @@ const s = StyleSheet.create({
   },
 
   /* Content */
+  notebookContentArea: {
+    position: "relative",
+    paddingLeft: 12,
+    paddingTop: 2,
+    minHeight: 150,
+    marginBottom: 8,
+    paddingRight: 10,
+    overflow: "hidden",
+  },
+  leftMarginLine: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 2,
+    width: 1.2,
+    backgroundColor: "rgba(212, 120, 100, 0.45)",
+  },
+  ruledLinesContainer: {
+    ...StyleSheet.absoluteFillObject,
+    left: 8,
+    right: 10,
+    top: 2,
+    bottom: 2,
+    justifyContent: "space-around",
+    opacity: 0.35,
+  },
+  ruleLine: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#eeeadd",
+    height: 30,
+  },
   content: {
     fontSize: 15,
-    lineHeight: 25,
+    lineHeight: 34,
     color: COLORS.textPrimary,
     opacity: 0.87,
-    marginBottom: 16,
+    marginBottom: 4,
+    zIndex: 2,
   },
 
   /* Media summary pills */
