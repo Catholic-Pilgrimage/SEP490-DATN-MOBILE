@@ -22,9 +22,12 @@ import {
   TextInput,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { AudioPickerModal } from "../../../../components/common/AudioPickerModal";
 import { MediaPickerModal } from "../../../../components/common/MediaPickerModal";
@@ -32,11 +35,20 @@ import { AISparkles } from "../../../../components/ui/AISparkles";
 import {
   COLORS,
   SHADOWS,
-  SPACING
+  SPACING,
 } from "../../../../constants/theme.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import pilgrimJournalApi from "../../../../services/api/pilgrim/journalApi";
-import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import {
+  createJournal,
+  getJournalDetail,
+  suggestPrayer,
+  updateJournal,
+} from "../../../../services/api/pilgrim/journalApi";
+import {
+  getMyCheckIns,
+  getPlanDetail,
+  getPlans,
+} from "../../../../services/api/pilgrim/plannerApi";
 import {
   JournalVisibility,
   PrayerSuggestionResult,
@@ -112,8 +124,8 @@ const mergeCheckInSiteSnapshot = (
   return {
     ...checkIn,
     site: {
-      id: mergedSite.id || checkIn.site?.id || plannerSite?.id || '',
-      name: mergedSite.name || checkIn.site?.name || plannerSite?.name || '',
+      id: mergedSite.id || checkIn.site?.id || plannerSite?.id || "",
+      name: mergedSite.name || checkIn.site?.name || plannerSite?.name || "",
       address: mergedSite.address,
       cover_image:
         getSiteImageFromSource(checkIn.site as any) ||
@@ -142,9 +154,12 @@ const extractPrayerText = (result: PrayerSuggestionResult | null) => {
     result.prayer_text,
   ];
 
-  return candidates.find(
-    (value): value is string => typeof value === "string" && value.trim().length > 0,
-  ) || "";
+  return (
+    candidates.find(
+      (value): value is string =>
+        typeof value === "string" && value.trim().length > 0,
+    ) || ""
+  );
 };
 
 const appendPrayerToJournalContent = (
@@ -173,7 +188,7 @@ export default function CreateJournalScreen() {
     if (route.params?.from === "ActiveJourney" && route.params?.planId) {
       navigation.navigate("Lich trinh", {
         screen: "ActiveJourneyScreen",
-        params: { planId: route.params.planId }
+        params: { planId: route.params.planId },
       });
     } else {
       navigation.goBack();
@@ -254,9 +269,8 @@ export default function CreateJournalScreen() {
   const [prayerMood, setPrayerMood] = useState("");
   const [prayerIntention, setPrayerIntention] = useState("");
   const [prayerLoading, setPrayerLoading] = useState(false);
-  const [prayerResult, setPrayerResult] = useState<PrayerSuggestionResult | null>(
-    null,
-  );
+  const [prayerResult, setPrayerResult] =
+    useState<PrayerSuggestionResult | null>(null);
   const [prayerError, setPrayerError] = useState<string | null>(null);
   const [pendingEditSelection, setPendingEditSelection] = useState<{
     plannerId?: string;
@@ -341,6 +355,7 @@ export default function CreateJournalScreen() {
     fetchCompletedPlanners();
     fetchMyCheckIns();
     if (journalId) fetchJournalDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journalId]);
 
   useEffect(() => {
@@ -390,6 +405,7 @@ export default function CreateJournalScreen() {
     ).finally(() => {
       setEditSelectionInitialized(true);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     checkInsLoaded,
     completedPlanners,
@@ -402,7 +418,7 @@ export default function CreateJournalScreen() {
   const fetchCompletedPlanners = async () => {
     try {
       setPlannerLoading(true);
-      const response = await pilgrimPlannerApi.getPlans({ limit: 100 });
+      const response = await getPlans({ limit: 100 });
       if (response.success && response.data?.planners) {
         const completed = response.data.planners.filter(
           (p) => p.status === "completed",
@@ -419,7 +435,7 @@ export default function CreateJournalScreen() {
   /** Fetch all user check-ins (only status="checked_in"). */
   const fetchMyCheckIns = async () => {
     try {
-      const response = await pilgrimPlannerApi.getMyCheckIns();
+      const response = await getMyCheckIns();
       if (response.success && response.data) {
         const rawData = response.data as
           | CheckInEntity[]
@@ -465,11 +481,9 @@ export default function CreateJournalScreen() {
     setCheckInLoading(true);
 
     try {
-      const detail = await pilgrimPlannerApi.getPlanDetail(planner.id);
-      const plannerItems = (
-        detail?.data?.items ||
-        Object.values(detail?.data?.items_by_day || {}).flat()
-      ) as any[];
+      const detail = await getPlanDetail(planner.id);
+      const plannerItems = (detail?.data?.items ||
+        Object.values(detail?.data?.items_by_day || {}).flat()) as any[];
       const plannerItemMap = new Map(
         plannerItems.map((item: any) => [item.id, item]),
       );
@@ -542,7 +556,7 @@ export default function CreateJournalScreen() {
     return;
     /*
             // Fetch planner detail to get items[]
-            const detail = await pilgrimPlannerApi.getPlanDetail(planner.id);
+            const detail = await getPlanDetail(planner.id);
             const plannerItems = detail?.data?.items || 
                 Object.values(detail?.data?.items_by_day || {}).flat();
 
@@ -574,9 +588,7 @@ export default function CreateJournalScreen() {
   };
 
   const openLocationSheet = (initialTab?: "planner" | "locations") => {
-    const nextTab =
-      initialTab ||
-      (selectedPlanner ? "locations" : "planner");
+    const nextTab = initialTab || (selectedPlanner ? "locations" : "planner");
     setPickerTab(nextTab);
     setPlannerModalVisible(true);
   };
@@ -625,7 +637,9 @@ export default function CreateJournalScreen() {
 
   const handleSuggestPrayer = async () => {
     const plannerItemId =
-      selectedPlannerItemIds.length === 1 ? selectedPlannerItemIds[0] : undefined;
+      selectedPlannerItemIds.length === 1
+        ? selectedPlannerItemIds[0]
+        : undefined;
     const plannerId =
       plannerItemId === undefined
         ? selectedPlanner?.id || pendingEditSelection?.plannerId
@@ -636,20 +650,20 @@ export default function CreateJournalScreen() {
 
     if (!plannerItemId && !plannerId) {
       Toast.show({
-        type: 'info',
-        text1: t('journal.aiPrayerMissingPlanTitle'),
-        text2: t('journal.aiPrayerMissingPlanMessage'),
-        position: 'top',
+        type: "info",
+        text1: t("journal.aiPrayerMissingPlanTitle"),
+        text2: t("journal.aiPrayerMissingPlanMessage"),
+        position: "top",
       });
       return;
     }
 
     if (!currentText && !mood && !intention) {
       Toast.show({
-        type: 'info',
-        text1: t('journal.aiPrayerMissingPromptTitle'),
-        text2: t('journal.aiPrayerMissingPromptMessage'),
-        position: 'top',
+        type: "info",
+        text1: t("journal.aiPrayerMissingPromptTitle"),
+        text2: t("journal.aiPrayerMissingPromptMessage"),
+        position: "top",
       });
       return;
     }
@@ -668,7 +682,7 @@ export default function CreateJournalScreen() {
     }, 10000);
 
     try {
-      const response = await pilgrimJournalApi.suggestPrayer({
+      const response = await suggestPrayer({
         planner_item_id: plannerItemId,
         planner_id: plannerId,
         current_text: currentText || undefined,
@@ -680,9 +694,7 @@ export default function CreateJournalScreen() {
       const nextPrayerText = extractPrayerText(nextResult);
 
       if (!response.success || !nextResult || !nextPrayerText) {
-        throw new Error(
-          response.message || t("journal.aiPrayerError"),
-        );
+        throw new Error(response.message || t("journal.aiPrayerError"));
       }
 
       setPrayerResult(nextResult);
@@ -1042,7 +1054,7 @@ export default function CreateJournalScreen() {
   const fetchJournalDetails = async () => {
     try {
       setInitialLoading(true);
-      const response = await pilgrimJournalApi.getJournalDetail(journalId);
+      const response = await getJournalDetail(journalId);
       if (response.success && response.data) {
         const data = response.data;
         const plannerItemIds = getJournalPlannerItemIds(data);
@@ -1142,7 +1154,7 @@ export default function CreateJournalScreen() {
           return;
         }
 
-        const res = await pilgrimJournalApi.updateJournal(journalId, {
+        const res = await updateJournal(journalId, {
           title,
           content,
           planner_item_ids: plannerItemIds,
@@ -1160,7 +1172,7 @@ export default function CreateJournalScreen() {
         });
 
         // Refresh media state from the server after update.
-        const refreshed = await pilgrimJournalApi.getJournalDetail(journalId);
+        const refreshed = await getJournalDetail(journalId);
         const refreshedJournal = refreshed.success ? refreshed.data : res.data;
         const actualImages = normalizeImageUrls(refreshedJournal?.image_url);
         const actualHasVideo = Boolean(refreshedJournal?.video_url);
@@ -1216,7 +1228,7 @@ export default function CreateJournalScreen() {
         // Prepare image URIs
         const imageUris = selectedImages.map((img) => img.uri);
 
-        await pilgrimJournalApi.createJournal({
+        await createJournal({
           title: title.trim(),
           content: content.trim(),
           planner_item_ids: plannerItemIds,
@@ -1280,7 +1292,8 @@ export default function CreateJournalScreen() {
   const generatedPrayerText = extractPrayerText(prayerResult);
   const prayerContext = prayerResult?.context;
   const prayerSuggestions = prayerResult?.suggestions ?? [];
-  const locationBarSubtitle = selectedPlanner?.name || t("journal.selectPlanFirst");
+  const locationBarSubtitle =
+    selectedPlanner?.name || t("journal.selectPlanFirst");
   const scrollBottomPadding = SPACING.lg;
   const renderAIPrayerSheetBody = () => (
     <>
@@ -1328,11 +1341,7 @@ export default function CreateJournalScreen() {
 
       {!prayerLoading && prayerError && (
         <View style={styles.aiPrayerErrorBox}>
-          <MaterialIcons
-            name="error-outline"
-            size={18}
-            color={COLORS.danger}
-          />
+          <MaterialIcons name="error-outline" size={18} color={COLORS.danger} />
           <Text style={styles.aiPrayerErrorText}>{prayerError}</Text>
         </View>
       )}
@@ -1405,7 +1414,11 @@ export default function CreateJournalScreen() {
             onPress={handleInsertPrayer}
             activeOpacity={0.88}
           >
-            <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
+            <AISparkles
+              size={18}
+              color={COLORS.textPrimary}
+              isAnimating={true}
+            />
             <Text style={styles.aiPrayerApplyButtonText}>
               {t("journal.aiPrayerInsert")}
             </Text>
@@ -1589,10 +1602,7 @@ export default function CreateJournalScreen() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[
-                  styles.mediaBtn,
-                  isRecording && styles.mediaBtnActive,
-                ]}
+                style={[styles.mediaBtn, isRecording && styles.mediaBtnActive]}
                 onPress={handleAddAudio}
                 activeOpacity={0.85}
               >
@@ -1836,528 +1846,224 @@ export default function CreateJournalScreen() {
           </View>
 
           <View style={styles.legacyWriterHidden}>
-          <View style={[styles.section, styles.contextSection]}>
-            <View style={styles.contextSubsection}>
-            <View style={styles.stepHeroHeader}>
-              <View style={styles.stepHeroTitleWrap}>
-                <View style={styles.stepHeroIconWrap}>
-                  <MaterialIcons name="route" size={18} color={COLORS.accent} />
-                </View>
-                <View style={styles.stepHeroTextWrap}>
-                  <Text style={styles.label}>{t("journal.step1")}</Text>
-                  <Text style={styles.stepHeroSubtitle}>
-                    {t("journal.step1Subtitle")}
-                  </Text>
-                </View>
-              </View>
-
-              {!plannerLoading && completedPlanners.length > 0 && (
-                <View style={styles.stepHeroCountChip}>
-                  <Text style={styles.stepHeroCountText}>
-                    {t("journal.plannerCount", { count: completedPlanners.length })}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            {plannerLoading ? (
-              <View style={styles.selectedPlannerLoadingCard}>
-                <ActivityIndicator size="small" color={COLORS.accent} />
-                <Text style={styles.selectedPlannerLoadingText}>
-                  {t("common.loading")}
-                </Text>
-              </View>
-            ) : completedPlanners.length === 0 ? (
-              <View style={styles.plannerEmptyCard}>
-                <View style={styles.plannerEmptyIconWrap}>
-                  <MaterialIcons name="route" size={24} color={COLORS.accent} />
-                </View>
-                <Text style={styles.plannerEmptyTitle}>
-                  {t("journal.noCompletedPlans")}
-                </Text>
-                <Text style={styles.plannerEmptySubtitle}>
-                  {t("journal.plannerPickerEmptySubtitle")}
-                </Text>
-              </View>
-            ) : selectedPlanner ? (
-              <TouchableOpacity
-                style={styles.selectedPlannerCard}
-                onPress={() => setPlannerModalVisible(true)}
-                activeOpacity={0.9}
-              >
-                <View style={styles.selectedPlannerSimpleCard}>
-                  <View style={styles.selectedPlannerSimpleHeader}>
-                    <View style={styles.selectedPlannerMain}>
-                      <View style={styles.selectedPlannerIcon}>
-                        <MaterialIcons
-                          name="route"
-                          size={20}
-                          color={COLORS.accent}
-                        />
-                      </View>
-                      <View style={styles.selectedPlannerTextWrap}>
-                        <View style={styles.selectedPlannerLabelRow}>
-                          <Text style={styles.selectedPlannerCaption}>
-                            {t("journal.selectedPlanLabel")}
-                          </Text>
-                          <View style={styles.selectedPlannerTopBadge}>
-                            <MaterialIcons
-                              name="auto-awesome"
-                              size={12}
-                              color={COLORS.accent}
-                            />
-                            <Text style={styles.selectedPlannerTopBadgeText}>
-                              {t("journal.plannerContextLabel")}
-                            </Text>
-                          </View>
-                        </View>
-                        <Text style={styles.selectedPlannerName}>
-                          {selectedPlanner.name}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.selectedPlannerActionChip}>
-                      <Text style={styles.selectedPlannerActionText}>
-                        {t("journal.changePlan")}
-                      </Text>
+            <View style={[styles.section, styles.contextSection]}>
+              <View style={styles.contextSubsection}>
+                <View style={styles.stepHeroHeader}>
+                  <View style={styles.stepHeroTitleWrap}>
+                    <View style={styles.stepHeroIconWrap}>
                       <MaterialIcons
-                        name="chevron-right"
+                        name="route"
                         size={18}
                         color={COLORS.accent}
                       />
                     </View>
+                    <View style={styles.stepHeroTextWrap}>
+                      <Text style={styles.label}>{t("journal.step1")}</Text>
+                      <Text style={styles.stepHeroSubtitle}>
+                        {t("journal.step1Subtitle")}
+                      </Text>
+                    </View>
                   </View>
 
-                  <View style={styles.selectedPlannerMetaRow}>
+                  {!plannerLoading && completedPlanners.length > 0 && (
+                    <View style={styles.stepHeroCountChip}>
+                      <Text style={styles.stepHeroCountText}>
+                        {t("journal.plannerCount", {
+                          count: completedPlanners.length,
+                        })}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {plannerLoading ? (
+                  <View style={styles.selectedPlannerLoadingCard}>
+                    <ActivityIndicator size="small" color={COLORS.accent} />
+                    <Text style={styles.selectedPlannerLoadingText}>
+                      {t("common.loading")}
+                    </Text>
+                  </View>
+                ) : completedPlanners.length === 0 ? (
+                  <View style={styles.plannerEmptyCard}>
+                    <View style={styles.plannerEmptyIconWrap}>
+                      <MaterialIcons
+                        name="route"
+                        size={24}
+                        color={COLORS.accent}
+                      />
+                    </View>
+                    <Text style={styles.plannerEmptyTitle}>
+                      {t("journal.noCompletedPlans")}
+                    </Text>
+                    <Text style={styles.plannerEmptySubtitle}>
+                      {t("journal.plannerPickerEmptySubtitle")}
+                    </Text>
+                  </View>
+                ) : selectedPlanner ? (
+                  <TouchableOpacity
+                    style={styles.selectedPlannerCard}
+                    onPress={() => setPlannerModalVisible(true)}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.selectedPlannerSimpleCard}>
+                      <View style={styles.selectedPlannerSimpleHeader}>
+                        <View style={styles.selectedPlannerMain}>
+                          <View style={styles.selectedPlannerIcon}>
+                            <MaterialIcons
+                              name="route"
+                              size={20}
+                              color={COLORS.accent}
+                            />
+                          </View>
+                          <View style={styles.selectedPlannerTextWrap}>
+                            <View style={styles.selectedPlannerLabelRow}>
+                              <Text style={styles.selectedPlannerCaption}>
+                                {t("journal.selectedPlanLabel")}
+                              </Text>
+                              <View style={styles.selectedPlannerTopBadge}>
+                                <MaterialIcons
+                                  name="auto-awesome"
+                                  size={12}
+                                  color={COLORS.accent}
+                                />
+                                <Text
+                                  style={styles.selectedPlannerTopBadgeText}
+                                >
+                                  {t("journal.plannerContextLabel")}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={styles.selectedPlannerName}>
+                              {selectedPlanner.name}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.selectedPlannerActionChip}>
+                          <Text style={styles.selectedPlannerActionText}>
+                            {t("journal.changePlan")}
+                          </Text>
+                          <MaterialIcons
+                            name="chevron-right"
+                            size={18}
+                            color={COLORS.accent}
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.selectedPlannerMetaRow}>
+                        <View style={styles.completedBadge}>
+                          <Text style={styles.completedBadgeText}>
+                            {t("journal.completed")}
+                          </Text>
+                        </View>
+
+                        {filteredCheckIns.length > 0 && (
+                          <View style={styles.selectedPlannerMetaChip}>
+                            <MaterialIcons
+                              name="place"
+                              size={14}
+                              color={COLORS.textSecondary}
+                            />
+                            <Text style={styles.selectedPlannerMetaText}>
+                              {t("journal.availableCheckIns", {
+                                count: filteredCheckIns.length,
+                              })}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      <View style={styles.selectedPlannerContextRow}>
+                        <Text style={styles.selectedPlannerContextText}>
+                          {t("journal.plannerReadyHint")}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={styles.plannerEmptyCard}
+                    onPress={() => setPlannerModalVisible(true)}
+                    activeOpacity={0.9}
+                  >
+                    <View style={styles.plannerEmptyIconWrap}>
+                      <MaterialIcons
+                        name="route"
+                        size={24}
+                        color={COLORS.accent}
+                      />
+                    </View>
+                    <Text style={styles.plannerEmptyTitle}>
+                      {t("journal.plannerPickerEmptyTitle")}
+                    </Text>
+                    <Text style={styles.plannerEmptySubtitle}>
+                      {t("journal.plannerPickerEmptySubtitle")}
+                    </Text>
+                    <View style={styles.pickPlannerButton}>
+                      <Text style={styles.pickPlannerButtonText}>
+                        {t("journal.choosePlan")}
+                      </Text>
+                      <MaterialIcons
+                        name="arrow-forward"
+                        size={18}
+                        color={COLORS.textPrimary}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.legacyPlannerHidden}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 6,
+                    }}
+                  >
+                    <MaterialIcons
+                      name="route"
+                      size={16}
+                      color={COLORS.accent}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.label}>{t("journal.step1")}</Text>
                     <View style={styles.completedBadge}>
                       <Text style={styles.completedBadgeText}>
                         {t("journal.completed")}
                       </Text>
                     </View>
-
-                    {filteredCheckIns.length > 0 && (
-                      <View style={styles.selectedPlannerMetaChip}>
-                        <MaterialIcons
-                          name="place"
-                          size={14}
-                          color={COLORS.textSecondary}
-                        />
-                        <Text style={styles.selectedPlannerMetaText}>
-                          {t("journal.availableCheckIns", {
-                            count: filteredCheckIns.length,
-                          })}
-                        </Text>
-                      </View>
-                    )}
                   </View>
 
-                  <View style={styles.selectedPlannerContextRow}>
-                    <Text style={styles.selectedPlannerContextText}>
-                      {t("journal.plannerReadyHint")}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.plannerEmptyCard}
-                onPress={() => setPlannerModalVisible(true)}
-                activeOpacity={0.9}
-              >
-                <View style={styles.plannerEmptyIconWrap}>
-                  <MaterialIcons name="route" size={24} color={COLORS.accent} />
-                </View>
-                <Text style={styles.plannerEmptyTitle}>
-                  {t("journal.plannerPickerEmptyTitle")}
-                </Text>
-                <Text style={styles.plannerEmptySubtitle}>
-                  {t("journal.plannerPickerEmptySubtitle")}
-                </Text>
-                <View style={styles.pickPlannerButton}>
-                  <Text style={styles.pickPlannerButtonText}>
-                    {t("journal.choosePlan")}
-                  </Text>
-                  <MaterialIcons
-                    name="arrow-forward"
-                    size={18}
-                    color={COLORS.textPrimary}
-                  />
-                </View>
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.legacyPlannerHidden}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginBottom: 6,
-              }}
-            >
-              <MaterialIcons
-                name="route"
-                size={16}
-                color={COLORS.accent}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={styles.label}>{t("journal.step1")}</Text>
-              <View style={styles.completedBadge}>
-                <Text style={styles.completedBadgeText}>
-                  {t("journal.completed")}
-                </Text>
-              </View>
-            </View>
-
-            {plannerLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={COLORS.accent}
-                style={{ marginVertical: 8 }}
-              />
-            ) : completedPlanners.length === 0 ? (
-              <Text style={styles.emptyHint}>
-                {t("journal.noCompletedPlans")}
-              </Text>
-            ) : (
-              <View style={styles.chipWrapContainer}>
-                {completedPlanners.map((planner) => (
-                  <TouchableOpacity
-                    key={planner.id}
-                    style={[
-                      styles.chip,
-                      selectedPlanner?.id === planner.id && {
-                        backgroundColor: COLORS.accent,
-                        borderColor: COLORS.accent,
-                      },
-                    ]}
-                    onPress={() => handleSelectPlanner(planner)}
-                  >
-                    <MaterialIcons
-                      name="check-circle"
-                      size={16}
-                      color={
-                        selectedPlanner?.id === planner.id
-                          ? COLORS.white
-                          : COLORS.accent
-                      }
+                  {plannerLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={COLORS.accent}
+                      style={{ marginVertical: 8 }}
                     />
-                    <Text
-                      style={[
-                        styles.chipText,
-                        selectedPlanner?.id === planner.id && {
-                          color: COLORS.white,
-                        },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {planner.name}
+                  ) : completedPlanners.length === 0 ? (
+                    <Text style={styles.emptyHint}>
+                      {t("journal.noCompletedPlans")}
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            </View>
-          </View>
-
-          {/* Step 2: Check-in selection */}
-          <View style={styles.contextDivider} />
-          <View style={styles.contextSubsection}>
-            <View style={styles.stepHeroHeader}>
-              <View style={styles.stepHeroTitleWrap}>
-                <View style={styles.stepHeroIconWrap}>
-                  <MaterialIcons
-                    name="location-on"
-                    size={18}
-                    color={COLORS.accent}
-                  />
-                </View>
-                <View style={styles.stepHeroTextWrap}>
-                  <Text style={styles.label}>{t("journal.step2")}</Text>
-                  <Text style={styles.stepHeroSubtitle}>
-                    {t("journal.step2Subtitle")}
-                  </Text>
-                </View>
-              </View>
-
-              {(selectedPlanner || journalId) && !checkInLoading && (
-                <View style={styles.stepHeroCountChip}>
-                  <Text style={styles.stepHeroCountText}>
-                    {selectedPlannerItemIds.length > 0
-                      ? t("journal.selectedCheckInCount", {
-                          count: selectedPlannerItemIds.length,
-                        })
-                      : t("journal.availableCheckInCount", {
-                          count: filteredCheckIns.length,
-                        })}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.selectedLocationCard}>
-              {locationPreviewImage ? (
-                <ImageBackground
-                  source={{ uri: locationPreviewImage }}
-                  style={styles.selectedLocationHero}
-                  imageStyle={styles.selectedLocationHeroImage}
-                >
-                  <View style={styles.selectedLocationHeroOverlay} />
-                  <View style={styles.selectedLocationHeroContent}>
-                    <View style={styles.selectedLocationHeroBadge}>
-                      <MaterialIcons name="place" size={12} color={COLORS.white} />
-                      <Text style={styles.selectedLocationHeroBadgeText}>
-                        {t("journal.locationContextLabel")}
-                      </Text>
-                    </View>
-                    <Text style={styles.selectedLocationHeroTitle}>
-                      {locationDisplayValue}
-                    </Text>
-                    {selectedPlanner ? (
-                      <Text style={styles.selectedLocationHeroSubtitle}>
-                        {selectedPlanner.name}
-                      </Text>
-                    ) : null}
-                  </View>
-                </ImageBackground>
-              ) : null}
-
-              <View style={styles.selectedLocationBody}>
-                {!locationPreviewImage ? (
-                  <View style={styles.selectedLocationHeader}>
-                    <View style={styles.selectedLocationIcon}>
-                      <MaterialIcons
-                        name="place"
-                        size={20}
-                        color={COLORS.accent}
-                      />
-                    </View>
-                    <View style={styles.selectedLocationTextWrap}>
-                      <Text style={styles.selectedLocationLabel}>
-                        {t("journal.locationContextLabel")}
-                      </Text>
-                      <Text style={styles.selectedLocationValue}>
-                        {locationDisplayValue}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={styles.selectedLocationTopMeta}>
-                    <Text style={styles.selectedLocationLabel}>
-                      {t("journal.locationContextLabel")}
-                    </Text>
-                    <Text
-                      style={styles.selectedLocationInlineValue}
-                      numberOfLines={2}
-                    >
-                      {locationDisplayValue}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.selectedLocationMetaRow}>
-                  {selectedPlanner && (
-                    <View style={styles.selectedLocationMetaChip}>
-                      <MaterialIcons
-                        name="route"
-                        size={14}
-                        color={COLORS.textSecondary}
-                      />
-                      <Text style={styles.selectedLocationMetaText}>
-                        {selectedPlanner.name}
-                      </Text>
-                    </View>
-                  )}
-
-                  {selectedPlannerItemIds.length > 0 && (
-                    <View style={styles.selectedLocationMetaChip}>
-                      <MaterialIcons
-                        name="check-circle"
-                        size={14}
-                        color={COLORS.accent}
-                      />
-                      <Text style={styles.selectedLocationMetaText}>
-                        {t("journal.selectedCheckInCount", {
-                          count: selectedPlannerItemIds.length,
-                        })}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.selectedLocationHintBox}>
-                  <Text style={styles.selectedLocationHintText}>
-                    {selectedPlanner
-                      ? t("journal.locationContextHint")
-                      : t("journal.selectPlanToSeeCheckIns")}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.locationListLabel}>
-              {selectedPlanner
-                ? t("journal.checkInsIn", { name: selectedPlanner.name })
-                : t("journal.selectPlanToSeeCheckIns")}
-            </Text>
-            {(selectedPlanner || journalId) &&
-              (checkInLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={COLORS.accent}
-                  style={{ marginVertical: 10 }}
-                />
-              ) : filteredCheckIns.length > 0 ? (
-                <View style={styles.locationOptionList}>
-                  {filteredCheckIns.map((checkIn: CheckInEntity, index: number) => {
-                    const isSelected = selectedPlannerItemIds.includes(
-                      checkIn.planner_item_id,
-                    );
-                    const siteImage = getCheckInSiteImage(checkIn);
-
-                    return (
-                      <TouchableOpacity
-                        key={`location-card-${checkIn.id || index}`}
-                        style={[
-                          styles.locationOptionCard,
-                          isSelected && styles.locationOptionCardSelected,
-                        ]}
-                        onPress={() => handleSelectLocation(checkIn)}
-                        activeOpacity={0.9}
-                      >
-                        {siteImage ? (
-                          <Image
-                            source={{ uri: siteImage }}
-                            style={[
-                              styles.locationOptionImage,
-                              isSelected && styles.locationOptionImageSelected,
-                            ]}
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View
-                            style={[
-                              styles.locationOptionIconWrap,
-                              isSelected && styles.locationOptionIconWrapSelected,
-                            ]}
-                          >
-                            <MaterialIcons
-                              name={isSelected ? "check-circle" : "place"}
-                              size={20}
-                              color={isSelected ? COLORS.white : COLORS.accent}
-                            />
-                          </View>
-                        )}
-
-                        <View style={styles.locationOptionTextWrap}>
-                          <View style={styles.locationOptionTitleRow}>
-                            <Text
-                              style={[
-                                styles.locationOptionName,
-                                isSelected && styles.locationOptionNameSelected,
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {checkIn.site?.name || t("journal.genericLocationName")}
-                            </Text>
-
-                            {isSelected && (
-                              <View style={styles.locationOptionSelectedBadge}>
-                                <Text style={styles.locationOptionSelectedBadgeText}>
-                                  {"Đã chọn"}
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text
-                            style={[
-                              styles.locationOptionCaption,
-                              isSelected && styles.locationOptionCaptionSelected,
-                            ]}
-                          >
-                            {isSelected
-                              ? t("journal.locationSelectedHint")
-                              : t("journal.selectCheckInBelow")}
-                          </Text>
-                        </View>
-
-                        <View
-                          style={[
-                            styles.locationOptionTrailing,
-                            isSelected && styles.locationOptionTrailingSelected,
-                          ]}
-                        >
-                          <MaterialIcons
-                            name={
-                              isSelected
-                                ? "check-circle"
-                                : "radio-button-unchecked"
-                            }
-                            size={22}
-                            color={
-                              isSelected ? COLORS.accent : COLORS.textTertiary
-                            }
-                          />
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={styles.locationEmptyCard}>
-                  <Text style={styles.locationEmptyTitle}>
-                    {selectedPlanner
-                      ? t("journal.noCheckInsInPlan")
-                      : t("journal.noCheckInLocations")}
-                  </Text>
-                  <Text style={styles.locationEmptySubtitle}>
-                    {selectedPlanner
-                      ? t("journal.locationContextHint")
-                      : t("journal.selectPlanToSeeCheckIns")}
-                  </Text>
-                </View>
-              ))}
-            <View style={styles.legacyPlannerHidden}>
-
-            {/* Check-in chips - shown after a planner is selected */}
-            {(selectedPlanner || journalId) &&
-              (checkInLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={COLORS.accent}
-                  style={{ marginVertical: 10 }}
-                />
-              ) : (
-                <View style={styles.chipWrapContainer}>
-                  {filteredCheckIns.length > 0 ? (
-                    filteredCheckIns.map(
-                      (checkIn: CheckInEntity, index: number) => (
+                  ) : (
+                    <View style={styles.chipWrapContainer}>
+                      {completedPlanners.map((planner) => (
                         <TouchableOpacity
-                          key={checkIn.id || index}
+                          key={planner.id}
                           style={[
                             styles.chip,
-                            selectedPlannerItemIds.includes(
-                              checkIn.planner_item_id,
-                            ) && {
+                            selectedPlanner?.id === planner.id && {
                               backgroundColor: COLORS.accent,
                               borderColor: COLORS.accent,
                             },
                           ]}
-                          onPress={() => handleSelectLocation(checkIn)}
+                          onPress={() => handleSelectPlanner(planner)}
                         >
                           <MaterialIcons
-                            name={
-                              selectedPlannerItemIds.includes(
-                                checkIn.planner_item_id,
-                              )
-                                ? "check-circle"
-                                : "radio-button-unchecked"
-                            }
+                            name="check-circle"
                             size={16}
                             color={
-                              selectedPlannerItemIds.includes(
-                                checkIn.planner_item_id,
-                              )
+                              selectedPlanner?.id === planner.id
                                 ? COLORS.white
                                 : COLORS.accent
                             }
@@ -2365,467 +2071,837 @@ export default function CreateJournalScreen() {
                           <Text
                             style={[
                               styles.chipText,
-                              selectedPlannerItemIds.includes(
-                                checkIn.planner_item_id,
-                              ) && { color: COLORS.white },
+                              selectedPlanner?.id === planner.id && {
+                                color: COLORS.white,
+                              },
                             ]}
+                            numberOfLines={1}
                           >
-                            {checkIn.site?.name ||
-                              t("journal.genericLocationName")}
+                            {planner.name}
                           </Text>
                         </TouchableOpacity>
-                      ),
-                    )
-                  ) : (
-                    <Text
-                      style={{
-                        color: COLORS.textSecondary,
-                        fontStyle: "italic",
-                        padding: 10,
-                      }}
-                    >
-                      {selectedPlanner
-                        ? t("journal.noCheckInsInPlan")
-                        : t("journal.noCheckInLocations")}
-                    </Text>
+                      ))}
+                    </View>
                   )}
                 </View>
-              ))}
-            </View>
-          </View>
-          </View>
-
-          <View style={styles.aiPrayerCard}>
-            <View style={styles.aiPrayerHeader}>
-              <View style={styles.aiPrayerIconWrap}>
-                <AISparkles size={20} color={COLORS.accent} isAnimating={!prayerLoading} />
-              </View>
-              <View style={styles.aiPrayerHeaderContent}>
-                <Text style={styles.aiPrayerTitle}>
-                  {t("journal.aiPrayerTitle")}
-                </Text>
-                <Text style={styles.aiPrayerSubtitle}>
-                  {t("journal.aiPrayerSubtitle")}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.aiPrayerFields}>
-              <View style={styles.aiPrayerField}>
-                <Text style={styles.aiPrayerFieldLabel}>
-                  {t("journal.aiPrayerMoodLabel")}
-                </Text>
-                <TextInput
-                  style={styles.aiPrayerInput}
-                  placeholder={t("journal.aiPrayerMoodPlaceholder")}
-                  placeholderTextColor="rgba(138, 127, 97, 0.55)"
-                  value={prayerMood}
-                  onChangeText={setPrayerMood}
-                />
               </View>
 
-              <View style={styles.aiPrayerField}>
-                <Text style={styles.aiPrayerFieldLabel}>
-                  {t("journal.aiPrayerIntentionLabel")}
-                </Text>
-                <TextInput
-                  style={styles.aiPrayerInput}
-                  placeholder={t("journal.aiPrayerIntentionPlaceholder")}
-                  placeholderTextColor="rgba(138, 127, 97, 0.55)"
-                  value={prayerIntention}
-                  onChangeText={setPrayerIntention}
-                />
-              </View>
-            </View>
-
-            {prayerLoading && (
-              <View style={styles.aiPrayerLoadingBox}>
-                <ActivityIndicator size="small" color={COLORS.accent} />
-                <View style={styles.aiPrayerLoadingTextWrap}>
-                  <Text style={styles.aiPrayerLoadingTitle}>
-                    {t("journal.aiPrayerLoadingTitle")}
-                  </Text>
-                  <Text style={styles.aiPrayerLoadingHint}>
-                    {t("journal.aiPrayerLoadingHint")}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {!prayerLoading && prayerError && (
-              <View style={styles.aiPrayerErrorBox}>
-                <MaterialIcons name="error-outline" size={18} color={COLORS.danger} />
-                <Text style={styles.aiPrayerErrorText}>{prayerError}</Text>
-              </View>
-            )}
-
-            {!prayerLoading && generatedPrayerText ? (
-              <View style={styles.aiPrayerResultCard}>
-                <Text style={styles.aiPrayerResultTitle}>
-                  {t("journal.aiPrayerResultTitle")}
-                </Text>
-                <Text style={styles.aiPrayerResultText}>{generatedPrayerText}</Text>
-
-                {(prayerContext?.detected_mood ||
-                  prayerContext?.detected_theme ||
-                  prayerResult?.prayer_type) && (
-                  <View style={styles.aiPrayerMetaWrap}>
-                    {prayerContext?.detected_mood ? (
-                      <View style={styles.aiPrayerMetaChip}>
-                        <Text style={styles.aiPrayerMetaLabel}>
-                          {t("journal.aiPrayerContextMood")}
-                        </Text>
-                        <Text style={styles.aiPrayerMetaValue}>
-                          {prayerContext.detected_mood}
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    {prayerContext?.detected_theme ? (
-                      <View style={styles.aiPrayerMetaChip}>
-                        <Text style={styles.aiPrayerMetaLabel}>
-                          {t("journal.aiPrayerContextTheme")}
-                        </Text>
-                        <Text style={styles.aiPrayerMetaValue}>
-                          {prayerContext.detected_theme}
-                        </Text>
-                      </View>
-                    ) : null}
-
-                    {prayerResult?.prayer_type ? (
-                      <View style={styles.aiPrayerMetaChip}>
-                        <Text style={styles.aiPrayerMetaLabel}>
-                          {t("journal.aiPrayerContextType")}
-                        </Text>
-                        <Text style={styles.aiPrayerMetaValue}>
-                          {prayerResult.prayer_type}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                )}
-
-                {prayerSuggestions.length > 0 && (
-                  <View style={styles.aiPrayerSuggestionsBlock}>
-                    <Text style={styles.aiPrayerSuggestionsTitle}>
-                      {t("journal.aiPrayerSuggestionsLabel")}
-                    </Text>
-                    {prayerSuggestions.slice(0, 3).map((item, index) => (
-                      <View key={`${item}-${index}`} style={styles.aiPrayerSuggestionItem}>
-                        <View style={styles.aiPrayerSuggestionDot} />
-                        <Text style={styles.aiPrayerSuggestionText}>{item}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={styles.aiPrayerApplyButton}
-                  onPress={handleInsertPrayer}
-                  activeOpacity={0.88}
-                >
-                  <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
-                  <Text style={styles.aiPrayerApplyButtonText}>
-                    {t("journal.aiPrayerInsert")}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              style={[
-                styles.aiPrayerGenerateButton,
-                prayerLoading && styles.aiPrayerGenerateButtonDisabled,
-              ]}
-              onPress={handleSuggestPrayer}
-              disabled={prayerLoading}
-              activeOpacity={0.9}
-            >
-              {prayerLoading ? (
-                <ActivityIndicator size="small" color={COLORS.textPrimary} />
-              ) : (
-                <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
-              )}
-              <Text style={styles.aiPrayerGenerateButtonText}>
-                {generatedPrayerText
-                  ? t("journal.aiPrayerRegenerate")
-                  : t("journal.aiPrayerGenerate")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Reflection Editor */}
-          <View style={styles.editorContainer}>
-            <TextInput
-              style={styles.titleInput}
-              placeholder={t("journal.titlePlaceholder")}
-              placeholderTextColor="rgba(138, 128, 96, 0.5)"
-              value={title}
-              onChangeText={setTitle}
-            />
-
-            <View style={styles.divider} />
-
-            <View style={styles.toolbar}>
-              <TouchableOpacity
-                style={[styles.toolbarBtn, styles.micBtnMini]}
-                onPress={handleAddAudio}
-              >
-                <MaterialIcons
-                  name={isRecording ? "stop" : "mic"}
-                  size={20}
-                  color={isRecording ? "#FF0000" : COLORS.accent}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.toolbarBtn, { marginLeft: "auto" }]}
-                onPress={() => setMediaPickerVisible(true)}
-              >
-                <MaterialIcons
-                  name="add-photo-alternate"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={styles.multilineInput}
-              placeholder={t("journal.contentPlaceholder")}
-              placeholderTextColor="rgba(138, 128, 96, 0.4)"
-              multiline
-              textAlignVertical="top"
-              value={content}
-              onChangeText={setContent}
-            />
-          </View>
-
-          {/* Media Strip */}
-          <View style={styles.section}>
-            <View style={styles.mediaHeader}>
-              <Text style={styles.label}>{t("journal.mediaHeader")}</Text>
-              <Text style={{ fontSize: 12, color: COLORS.textTertiary }}>
-                {displayImages.length + (hasCurrentVideo ? 1 : 0) > 0
-                  ? t("journal.mediaCount_photos", {
-                      count: displayImages.length,
-                    }) + (hasCurrentVideo ? t("journal.mediaCount_video") : "")
-                  : t("journal.mediaLimit")}
-              </Text>
-            </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.mediaRow}
-            >
-              {/* Add button (MediaPickerModal) */}
-              <TouchableOpacity
-                style={styles.addMediaBtn}
-                onPress={() => setMediaPickerVisible(true)}
-              >
-                <MaterialIcons
-                  name="add-circle-outline"
-                  size={28}
-                  color={COLORS.accent}
-                />
-                <Text style={styles.addMediaText}>{t("journal.add")}</Text>
-              </TouchableOpacity>
-
-              {/* Image thumbnails */}
-              {displayImages.map((img, index) => (
-                <View key={img.id || index} style={styles.mediaItem}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() =>
-                      setPreviewMedia({ type: "image", uri: img.uri })
-                    }
-                  >
-                    <Image
-                      source={{ uri: img.uri }}
-                      style={styles.mediaImage}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.removeMediaBtn}
-                    onPress={() =>
-                      handleRemoveMedia(
-                        img.sourceIndex,
-                        "images",
-                        false,
-                        img.isExisting,
-                      )
-                    }
-                  >
-                    <MaterialIcons name="close" size={14} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {/* Thumbnail video */}
-              {(() => {
-                const videoUri = currentVideoUri;
-                const isExistingVideo =
-                  selectedVideos.length === 0 && !!existingVideoUrl;
-
-                if (!videoUri) return null;
-
-                return (
-                  <View style={styles.mediaItem}>
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      style={styles.mediaImage}
-                      onPress={() =>
-                        setPreviewMedia({ type: "video", uri: videoUri })
-                      }
-                    >
-                      <View
-                        style={[
-                          StyleSheet.absoluteFillObject,
-                          {
-                            backgroundColor: "#1a1a2e",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name="videocam"
-                          size={30}
-                          color={COLORS.accent}
-                        />
-                      </View>
-                      <View style={styles.videoOverlay}>
-                        <MaterialIcons
-                          name="play-circle-filled"
-                          size={28}
-                          color="rgba(255,255,255,0.9)"
-                        />
-                      </View>
-                    </TouchableOpacity>
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 4,
-                        left: 4,
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                        borderRadius: 4,
-                        paddingHorizontal: 4,
-                        paddingVertical: 1,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: "#fff",
-                          fontSize: 9,
-                          fontWeight: "600",
-                        }}
-                      >
-                        VID
+              {/* Step 2: Check-in selection */}
+              <View style={styles.contextDivider} />
+              <View style={styles.contextSubsection}>
+                <View style={styles.stepHeroHeader}>
+                  <View style={styles.stepHeroTitleWrap}>
+                    <View style={styles.stepHeroIconWrap}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={18}
+                        color={COLORS.accent}
+                      />
+                    </View>
+                    <View style={styles.stepHeroTextWrap}>
+                      <Text style={styles.label}>{t("journal.step2")}</Text>
+                      <Text style={styles.stepHeroSubtitle}>
+                        {t("journal.step2Subtitle")}
                       </Text>
                     </View>
+                  </View>
+
+                  {(selectedPlanner || journalId) && !checkInLoading && (
+                    <View style={styles.stepHeroCountChip}>
+                      <Text style={styles.stepHeroCountText}>
+                        {selectedPlannerItemIds.length > 0
+                          ? t("journal.selectedCheckInCount", {
+                              count: selectedPlannerItemIds.length,
+                            })
+                          : t("journal.availableCheckInCount", {
+                              count: filteredCheckIns.length,
+                            })}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.selectedLocationCard}>
+                  {locationPreviewImage ? (
+                    <ImageBackground
+                      source={{ uri: locationPreviewImage }}
+                      style={styles.selectedLocationHero}
+                      imageStyle={styles.selectedLocationHeroImage}
+                    >
+                      <View style={styles.selectedLocationHeroOverlay} />
+                      <View style={styles.selectedLocationHeroContent}>
+                        <View style={styles.selectedLocationHeroBadge}>
+                          <MaterialIcons
+                            name="place"
+                            size={12}
+                            color={COLORS.white}
+                          />
+                          <Text style={styles.selectedLocationHeroBadgeText}>
+                            {t("journal.locationContextLabel")}
+                          </Text>
+                        </View>
+                        <Text style={styles.selectedLocationHeroTitle}>
+                          {locationDisplayValue}
+                        </Text>
+                        {selectedPlanner ? (
+                          <Text style={styles.selectedLocationHeroSubtitle}>
+                            {selectedPlanner.name}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </ImageBackground>
+                  ) : null}
+
+                  <View style={styles.selectedLocationBody}>
+                    {!locationPreviewImage ? (
+                      <View style={styles.selectedLocationHeader}>
+                        <View style={styles.selectedLocationIcon}>
+                          <MaterialIcons
+                            name="place"
+                            size={20}
+                            color={COLORS.accent}
+                          />
+                        </View>
+                        <View style={styles.selectedLocationTextWrap}>
+                          <Text style={styles.selectedLocationLabel}>
+                            {t("journal.locationContextLabel")}
+                          </Text>
+                          <Text style={styles.selectedLocationValue}>
+                            {locationDisplayValue}
+                          </Text>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.selectedLocationTopMeta}>
+                        <Text style={styles.selectedLocationLabel}>
+                          {t("journal.locationContextLabel")}
+                        </Text>
+                        <Text
+                          style={styles.selectedLocationInlineValue}
+                          numberOfLines={2}
+                        >
+                          {locationDisplayValue}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.selectedLocationMetaRow}>
+                      {selectedPlanner && (
+                        <View style={styles.selectedLocationMetaChip}>
+                          <MaterialIcons
+                            name="route"
+                            size={14}
+                            color={COLORS.textSecondary}
+                          />
+                          <Text style={styles.selectedLocationMetaText}>
+                            {selectedPlanner.name}
+                          </Text>
+                        </View>
+                      )}
+
+                      {selectedPlannerItemIds.length > 0 && (
+                        <View style={styles.selectedLocationMetaChip}>
+                          <MaterialIcons
+                            name="check-circle"
+                            size={14}
+                            color={COLORS.accent}
+                          />
+                          <Text style={styles.selectedLocationMetaText}>
+                            {t("journal.selectedCheckInCount", {
+                              count: selectedPlannerItemIds.length,
+                            })}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.selectedLocationHintBox}>
+                      <Text style={styles.selectedLocationHintText}>
+                        {selectedPlanner
+                          ? t("journal.locationContextHint")
+                          : t("journal.selectPlanToSeeCheckIns")}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <Text style={styles.locationListLabel}>
+                  {selectedPlanner
+                    ? t("journal.checkInsIn", { name: selectedPlanner.name })
+                    : t("journal.selectPlanToSeeCheckIns")}
+                </Text>
+                {(selectedPlanner || journalId) &&
+                  (checkInLoading ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={COLORS.accent}
+                      style={{ marginVertical: 10 }}
+                    />
+                  ) : filteredCheckIns.length > 0 ? (
+                    <View style={styles.locationOptionList}>
+                      {filteredCheckIns.map(
+                        (checkIn: CheckInEntity, index: number) => {
+                          const isSelected = selectedPlannerItemIds.includes(
+                            checkIn.planner_item_id,
+                          );
+                          const siteImage = getCheckInSiteImage(checkIn);
+
+                          return (
+                            <TouchableOpacity
+                              key={`location-card-${checkIn.id || index}`}
+                              style={[
+                                styles.locationOptionCard,
+                                isSelected && styles.locationOptionCardSelected,
+                              ]}
+                              onPress={() => handleSelectLocation(checkIn)}
+                              activeOpacity={0.9}
+                            >
+                              {siteImage ? (
+                                <Image
+                                  source={{ uri: siteImage }}
+                                  style={[
+                                    styles.locationOptionImage,
+                                    isSelected &&
+                                      styles.locationOptionImageSelected,
+                                  ]}
+                                  resizeMode="cover"
+                                />
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.locationOptionIconWrap,
+                                    isSelected &&
+                                      styles.locationOptionIconWrapSelected,
+                                  ]}
+                                >
+                                  <MaterialIcons
+                                    name={isSelected ? "check-circle" : "place"}
+                                    size={20}
+                                    color={
+                                      isSelected ? COLORS.white : COLORS.accent
+                                    }
+                                  />
+                                </View>
+                              )}
+
+                              <View style={styles.locationOptionTextWrap}>
+                                <View style={styles.locationOptionTitleRow}>
+                                  <Text
+                                    style={[
+                                      styles.locationOptionName,
+                                      isSelected &&
+                                        styles.locationOptionNameSelected,
+                                    ]}
+                                    numberOfLines={2}
+                                  >
+                                    {checkIn.site?.name ||
+                                      t("journal.genericLocationName")}
+                                  </Text>
+
+                                  {isSelected && (
+                                    <View
+                                      style={styles.locationOptionSelectedBadge}
+                                    >
+                                      <Text
+                                        style={
+                                          styles.locationOptionSelectedBadgeText
+                                        }
+                                      >
+                                        {"Đã chọn"}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.locationOptionCaption,
+                                    isSelected &&
+                                      styles.locationOptionCaptionSelected,
+                                  ]}
+                                >
+                                  {isSelected
+                                    ? t("journal.locationSelectedHint")
+                                    : t("journal.selectCheckInBelow")}
+                                </Text>
+                              </View>
+
+                              <View
+                                style={[
+                                  styles.locationOptionTrailing,
+                                  isSelected &&
+                                    styles.locationOptionTrailingSelected,
+                                ]}
+                              >
+                                <MaterialIcons
+                                  name={
+                                    isSelected
+                                      ? "check-circle"
+                                      : "radio-button-unchecked"
+                                  }
+                                  size={22}
+                                  color={
+                                    isSelected
+                                      ? COLORS.accent
+                                      : COLORS.textTertiary
+                                  }
+                                />
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        },
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.locationEmptyCard}>
+                      <Text style={styles.locationEmptyTitle}>
+                        {selectedPlanner
+                          ? t("journal.noCheckInsInPlan")
+                          : t("journal.noCheckInLocations")}
+                      </Text>
+                      <Text style={styles.locationEmptySubtitle}>
+                        {selectedPlanner
+                          ? t("journal.locationContextHint")
+                          : t("journal.selectPlanToSeeCheckIns")}
+                      </Text>
+                    </View>
+                  ))}
+                <View style={styles.legacyPlannerHidden}>
+                  {/* Check-in chips - shown after a planner is selected */}
+                  {(selectedPlanner || journalId) &&
+                    (checkInLoading ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.accent}
+                        style={{ marginVertical: 10 }}
+                      />
+                    ) : (
+                      <View style={styles.chipWrapContainer}>
+                        {filteredCheckIns.length > 0 ? (
+                          filteredCheckIns.map(
+                            (checkIn: CheckInEntity, index: number) => (
+                              <TouchableOpacity
+                                key={checkIn.id || index}
+                                style={[
+                                  styles.chip,
+                                  selectedPlannerItemIds.includes(
+                                    checkIn.planner_item_id,
+                                  ) && {
+                                    backgroundColor: COLORS.accent,
+                                    borderColor: COLORS.accent,
+                                  },
+                                ]}
+                                onPress={() => handleSelectLocation(checkIn)}
+                              >
+                                <MaterialIcons
+                                  name={
+                                    selectedPlannerItemIds.includes(
+                                      checkIn.planner_item_id,
+                                    )
+                                      ? "check-circle"
+                                      : "radio-button-unchecked"
+                                  }
+                                  size={16}
+                                  color={
+                                    selectedPlannerItemIds.includes(
+                                      checkIn.planner_item_id,
+                                    )
+                                      ? COLORS.white
+                                      : COLORS.accent
+                                  }
+                                />
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    selectedPlannerItemIds.includes(
+                                      checkIn.planner_item_id,
+                                    ) && { color: COLORS.white },
+                                  ]}
+                                >
+                                  {checkIn.site?.name ||
+                                    t("journal.genericLocationName")}
+                                </Text>
+                              </TouchableOpacity>
+                            ),
+                          )
+                        ) : (
+                          <Text
+                            style={{
+                              color: COLORS.textSecondary,
+                              fontStyle: "italic",
+                              padding: 10,
+                            }}
+                          >
+                            {selectedPlanner
+                              ? t("journal.noCheckInsInPlan")
+                              : t("journal.noCheckInLocations")}
+                          </Text>
+                        )}
+                      </View>
+                    ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.aiPrayerCard}>
+              <View style={styles.aiPrayerHeader}>
+                <View style={styles.aiPrayerIconWrap}>
+                  <AISparkles
+                    size={20}
+                    color={COLORS.accent}
+                    isAnimating={!prayerLoading}
+                  />
+                </View>
+                <View style={styles.aiPrayerHeaderContent}>
+                  <Text style={styles.aiPrayerTitle}>
+                    {t("journal.aiPrayerTitle")}
+                  </Text>
+                  <Text style={styles.aiPrayerSubtitle}>
+                    {t("journal.aiPrayerSubtitle")}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.aiPrayerFields}>
+                <View style={styles.aiPrayerField}>
+                  <Text style={styles.aiPrayerFieldLabel}>
+                    {t("journal.aiPrayerMoodLabel")}
+                  </Text>
+                  <TextInput
+                    style={styles.aiPrayerInput}
+                    placeholder={t("journal.aiPrayerMoodPlaceholder")}
+                    placeholderTextColor="rgba(138, 127, 97, 0.55)"
+                    value={prayerMood}
+                    onChangeText={setPrayerMood}
+                  />
+                </View>
+
+                <View style={styles.aiPrayerField}>
+                  <Text style={styles.aiPrayerFieldLabel}>
+                    {t("journal.aiPrayerIntentionLabel")}
+                  </Text>
+                  <TextInput
+                    style={styles.aiPrayerInput}
+                    placeholder={t("journal.aiPrayerIntentionPlaceholder")}
+                    placeholderTextColor="rgba(138, 127, 97, 0.55)"
+                    value={prayerIntention}
+                    onChangeText={setPrayerIntention}
+                  />
+                </View>
+              </View>
+
+              {prayerLoading && (
+                <View style={styles.aiPrayerLoadingBox}>
+                  <ActivityIndicator size="small" color={COLORS.accent} />
+                  <View style={styles.aiPrayerLoadingTextWrap}>
+                    <Text style={styles.aiPrayerLoadingTitle}>
+                      {t("journal.aiPrayerLoadingTitle")}
+                    </Text>
+                    <Text style={styles.aiPrayerLoadingHint}>
+                      {t("journal.aiPrayerLoadingHint")}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {!prayerLoading && prayerError && (
+                <View style={styles.aiPrayerErrorBox}>
+                  <MaterialIcons
+                    name="error-outline"
+                    size={18}
+                    color={COLORS.danger}
+                  />
+                  <Text style={styles.aiPrayerErrorText}>{prayerError}</Text>
+                </View>
+              )}
+
+              {!prayerLoading && generatedPrayerText ? (
+                <View style={styles.aiPrayerResultCard}>
+                  <Text style={styles.aiPrayerResultTitle}>
+                    {t("journal.aiPrayerResultTitle")}
+                  </Text>
+                  <Text style={styles.aiPrayerResultText}>
+                    {generatedPrayerText}
+                  </Text>
+
+                  {(prayerContext?.detected_mood ||
+                    prayerContext?.detected_theme ||
+                    prayerResult?.prayer_type) && (
+                    <View style={styles.aiPrayerMetaWrap}>
+                      {prayerContext?.detected_mood ? (
+                        <View style={styles.aiPrayerMetaChip}>
+                          <Text style={styles.aiPrayerMetaLabel}>
+                            {t("journal.aiPrayerContextMood")}
+                          </Text>
+                          <Text style={styles.aiPrayerMetaValue}>
+                            {prayerContext.detected_mood}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {prayerContext?.detected_theme ? (
+                        <View style={styles.aiPrayerMetaChip}>
+                          <Text style={styles.aiPrayerMetaLabel}>
+                            {t("journal.aiPrayerContextTheme")}
+                          </Text>
+                          <Text style={styles.aiPrayerMetaValue}>
+                            {prayerContext.detected_theme}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {prayerResult?.prayer_type ? (
+                        <View style={styles.aiPrayerMetaChip}>
+                          <Text style={styles.aiPrayerMetaLabel}>
+                            {t("journal.aiPrayerContextType")}
+                          </Text>
+                          <Text style={styles.aiPrayerMetaValue}>
+                            {prayerResult.prayer_type}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  )}
+
+                  {prayerSuggestions.length > 0 && (
+                    <View style={styles.aiPrayerSuggestionsBlock}>
+                      <Text style={styles.aiPrayerSuggestionsTitle}>
+                        {t("journal.aiPrayerSuggestionsLabel")}
+                      </Text>
+                      {prayerSuggestions.slice(0, 3).map((item, index) => (
+                        <View
+                          key={`${item}-${index}`}
+                          style={styles.aiPrayerSuggestionItem}
+                        >
+                          <View style={styles.aiPrayerSuggestionDot} />
+                          <Text style={styles.aiPrayerSuggestionText}>
+                            {item}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={styles.aiPrayerApplyButton}
+                    onPress={handleInsertPrayer}
+                    activeOpacity={0.88}
+                  >
+                    <AISparkles
+                      size={18}
+                      color={COLORS.textPrimary}
+                      isAnimating={true}
+                    />
+                    <Text style={styles.aiPrayerApplyButtonText}>
+                      {t("journal.aiPrayerInsert")}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[
+                  styles.aiPrayerGenerateButton,
+                  prayerLoading && styles.aiPrayerGenerateButtonDisabled,
+                ]}
+                onPress={handleSuggestPrayer}
+                disabled={prayerLoading}
+                activeOpacity={0.9}
+              >
+                {prayerLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.textPrimary} />
+                ) : (
+                  <AISparkles
+                    size={18}
+                    color={COLORS.textPrimary}
+                    isAnimating={true}
+                  />
+                )}
+                <Text style={styles.aiPrayerGenerateButtonText}>
+                  {generatedPrayerText
+                    ? t("journal.aiPrayerRegenerate")
+                    : t("journal.aiPrayerGenerate")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Reflection Editor */}
+            <View style={styles.editorContainer}>
+              <TextInput
+                style={styles.titleInput}
+                placeholder={t("journal.titlePlaceholder")}
+                placeholderTextColor="rgba(138, 128, 96, 0.5)"
+                value={title}
+                onChangeText={setTitle}
+              />
+
+              <View style={styles.divider} />
+
+              <View style={styles.toolbar}>
+                <TouchableOpacity
+                  style={[styles.toolbarBtn, styles.micBtnMini]}
+                  onPress={handleAddAudio}
+                >
+                  <MaterialIcons
+                    name={isRecording ? "stop" : "mic"}
+                    size={20}
+                    color={isRecording ? "#FF0000" : COLORS.accent}
+                  />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.toolbarBtn, { marginLeft: "auto" }]}
+                  onPress={() => setMediaPickerVisible(true)}
+                >
+                  <MaterialIcons
+                    name="add-photo-alternate"
+                    size={20}
+                    color={COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={styles.multilineInput}
+                placeholder={t("journal.contentPlaceholder")}
+                placeholderTextColor="rgba(138, 128, 96, 0.4)"
+                multiline
+                textAlignVertical="top"
+                value={content}
+                onChangeText={setContent}
+              />
+            </View>
+
+            {/* Media Strip */}
+            <View style={styles.section}>
+              <View style={styles.mediaHeader}>
+                <Text style={styles.label}>{t("journal.mediaHeader")}</Text>
+                <Text style={{ fontSize: 12, color: COLORS.textTertiary }}>
+                  {displayImages.length + (hasCurrentVideo ? 1 : 0) > 0
+                    ? t("journal.mediaCount_photos", {
+                        count: displayImages.length,
+                      }) +
+                      (hasCurrentVideo ? t("journal.mediaCount_video") : "")
+                    : t("journal.mediaLimit")}
+                </Text>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.mediaRow}
+              >
+                {/* Add button (MediaPickerModal) */}
+                <TouchableOpacity
+                  style={styles.addMediaBtn}
+                  onPress={() => setMediaPickerVisible(true)}
+                >
+                  <MaterialIcons
+                    name="add-circle-outline"
+                    size={28}
+                    color={COLORS.accent}
+                  />
+                  <Text style={styles.addMediaText}>{t("journal.add")}</Text>
+                </TouchableOpacity>
+
+                {/* Image thumbnails */}
+                {displayImages.map((img, index) => (
+                  <View key={img.id || index} style={styles.mediaItem}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() =>
+                        setPreviewMedia({ type: "image", uri: img.uri })
+                      }
+                    >
+                      <Image
+                        source={{ uri: img.uri }}
+                        style={styles.mediaImage}
+                      />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.removeMediaBtn}
                       onPress={() =>
-                        handleRemoveMedia(0, "videos", isExistingVideo)
+                        handleRemoveMedia(
+                          img.sourceIndex,
+                          "images",
+                          false,
+                          img.isExisting,
+                        )
                       }
                     >
                       <MaterialIcons name="close" size={14} color="#fff" />
                     </TouchableOpacity>
                   </View>
-                );
-              })()}
-            </ScrollView>
-          </View>
+                ))}
 
-          {/* Audio Recording Section */}
-          {(isRecording || playableAudioUri) && (
-            <View style={styles.section}>
-              <Text style={styles.label}>{t("journal.audioHeader")}</Text>
-              {isRecording ? (
-                <View style={styles.recordingIndicator}>
-                  <View style={styles.recordingDot} />
-                  <Text style={styles.recordingText}>
-                    {t("journal.recording")}{" "}
-                    {Math.floor(recordingDuration / 60)}:
-                    {(recordingDuration % 60).toString().padStart(2, "0")}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.stopRecordingBtn}
-                    onPress={handleStopRecording}
-                  >
-                    <MaterialIcons name="stop" size={24} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              ) : playableAudioUri ? (
-                <View style={styles.audioPlayer}>
-                  <TouchableOpacity
-                    style={[styles.playBtn, isPlaying && styles.playBtnActive]}
-                    onPress={handlePlayAudio}
-                  >
-                    <MaterialIcons
-                      name={isPlaying ? "pause" : "play-arrow"}
-                      size={28}
-                      color={isPlaying ? "#fff" : COLORS.accent}
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.audioInfo}>
-                    <Text style={styles.audioTitle}>
-                      {recordingUri
-                        ? t("journal.yourRecording")
-                        : t("journal.existingAudioFile")}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.audioDuration,
-                        isPlaying && styles.audioDurationActive,
-                      ]}
-                    >
-                      {isPlaying
-                        ? t("journal.playing")
-                        : recordingDuration > 0
-                          ? `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, "0")}`
-                          : "0:00"}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.deleteAudioBtn}
-                    onPress={handleDeleteAudio}
-                  >
-                    <MaterialIcons
-                      name="delete-outline"
-                      size={24}
-                      color="#FF6B6B"
-                    />
-                  </TouchableOpacity>
-                </View>
-              ) : null}
+                {/* Thumbnail video */}
+                {(() => {
+                  const videoUri = currentVideoUri;
+                  const isExistingVideo =
+                    selectedVideos.length === 0 && !!existingVideoUrl;
+
+                  if (!videoUri) return null;
+
+                  return (
+                    <View style={styles.mediaItem}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        style={styles.mediaImage}
+                        onPress={() =>
+                          setPreviewMedia({ type: "video", uri: videoUri })
+                        }
+                      >
+                        <View
+                          style={[
+                            StyleSheet.absoluteFillObject,
+                            {
+                              backgroundColor: "#1a1a2e",
+                              justifyContent: "center",
+                              alignItems: "center",
+                            },
+                          ]}
+                        >
+                          <MaterialIcons
+                            name="videocam"
+                            size={30}
+                            color={COLORS.accent}
+                          />
+                        </View>
+                        <View style={styles.videoOverlay}>
+                          <MaterialIcons
+                            name="play-circle-filled"
+                            size={28}
+                            color="rgba(255,255,255,0.9)"
+                          />
+                        </View>
+                      </TouchableOpacity>
+                      <View
+                        style={{
+                          position: "absolute",
+                          bottom: 4,
+                          left: 4,
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                          borderRadius: 4,
+                          paddingHorizontal: 4,
+                          paddingVertical: 1,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: "#fff",
+                            fontSize: 9,
+                            fontWeight: "600",
+                          }}
+                        >
+                          VID
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeMediaBtn}
+                        onPress={() =>
+                          handleRemoveMedia(0, "videos", isExistingVideo)
+                        }
+                      >
+                        <MaterialIcons name="close" size={14} color="#fff" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })()}
+              </ScrollView>
             </View>
-          )}
 
-          <View style={[styles.footer, { paddingBottom: insets.bottom + 24 }]}>
-            <View style={styles.actionCard}>
-              <TouchableOpacity
-                style={[
-                  styles.actionCardMicButton,
-                  isRecording && styles.actionCardMicButtonRecording,
-                ]}
-                activeOpacity={0.9}
-                onPress={handleAddAudio}
-              >
-                <MaterialIcons
-                  name={isRecording ? "stop" : "mic"}
-                  size={32}
-                  color={isRecording ? "#fff" : COLORS.textPrimary}
-                />
-              </TouchableOpacity>
+            {/* Audio Recording Section */}
+            {(isRecording || playableAudioUri) && (
+              <View style={styles.section}>
+                <Text style={styles.label}>{t("journal.audioHeader")}</Text>
+                {isRecording ? (
+                  <View style={styles.recordingIndicator}>
+                    <View style={styles.recordingDot} />
+                    <Text style={styles.recordingText}>
+                      {t("journal.recording")}{" "}
+                      {Math.floor(recordingDuration / 60)}:
+                      {(recordingDuration % 60).toString().padStart(2, "0")}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.stopRecordingBtn}
+                      onPress={handleStopRecording}
+                    >
+                      <MaterialIcons name="stop" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ) : playableAudioUri ? (
+                  <View style={styles.audioPlayer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.playBtn,
+                        isPlaying && styles.playBtnActive,
+                      ]}
+                      onPress={handlePlayAudio}
+                    >
+                      <MaterialIcons
+                        name={isPlaying ? "pause" : "play-arrow"}
+                        size={28}
+                        color={isPlaying ? "#fff" : COLORS.accent}
+                      />
+                    </TouchableOpacity>
+                    <View style={styles.audioInfo}>
+                      <Text style={styles.audioTitle}>
+                        {recordingUri
+                          ? t("journal.yourRecording")
+                          : t("journal.existingAudioFile")}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.audioDuration,
+                          isPlaying && styles.audioDurationActive,
+                        ]}
+                      >
+                        {isPlaying
+                          ? t("journal.playing")
+                          : recordingDuration > 0
+                            ? `${Math.floor(recordingDuration / 60)}:${(recordingDuration % 60).toString().padStart(2, "0")}`
+                            : "0:00"}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteAudioBtn}
+                      onPress={handleDeleteAudio}
+                    >
+                      <MaterialIcons
+                        name="delete-outline"
+                        size={24}
+                        color="#FF6B6B"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            )}
 
-              <View style={styles.footerContent}>
+            <View
+              style={[styles.footer, { paddingBottom: insets.bottom + 24 }]}
+            >
+              <View style={styles.actionCard}>
                 <TouchableOpacity
-                  style={styles.btnPrimary}
-                  onPress={handleSave}
-                  disabled={loading}
+                  style={[
+                    styles.actionCardMicButton,
+                    isRecording && styles.actionCardMicButtonRecording,
+                  ]}
+                  activeOpacity={0.9}
+                  onPress={handleAddAudio}
                 >
+                  <MaterialIcons
+                    name={isRecording ? "stop" : "mic"}
+                    size={32}
+                    color={isRecording ? "#fff" : COLORS.textPrimary}
+                  />
+                </TouchableOpacity>
+
+                <View style={styles.footerContent}>
+                  <TouchableOpacity
+                    style={styles.btnPrimary}
+                    onPress={handleSave}
+                    disabled={loading}
+                  >
                     <MaterialIcons
                       name="menu-book"
                       size={18}
@@ -2838,10 +2914,10 @@ export default function CreateJournalScreen() {
                             defaultValue: "Lưu nhật ký",
                           })}
                     </Text>
-                </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -2946,7 +3022,9 @@ export default function CreateJournalScreen() {
         onRequestClose={() => setPlannerModalVisible(false)}
       >
         <View style={styles.plannerModalOverlay}>
-          <TouchableWithoutFeedback onPress={() => setPlannerModalVisible(false)}>
+          <TouchableWithoutFeedback
+            onPress={() => setPlannerModalVisible(false)}
+          >
             <View style={styles.plannerModalBackdrop} />
           </TouchableWithoutFeedback>
 
@@ -3015,8 +3093,7 @@ export default function CreateJournalScreen() {
                     style={[
                       styles.pickerTabButton,
                       !selectedPlanner && styles.pickerTabButtonDisabled,
-                      pickerTab === "locations" &&
-                        styles.pickerTabButtonActive,
+                      pickerTab === "locations" && styles.pickerTabButtonActive,
                     ]}
                     onPress={() => selectedPlanner && setPickerTab("locations")}
                     activeOpacity={0.9}
@@ -3026,8 +3103,7 @@ export default function CreateJournalScreen() {
                       style={[
                         styles.pickerTabText,
                         !selectedPlanner && styles.pickerTabTextDisabled,
-                        pickerTab === "locations" &&
-                          styles.pickerTabTextActive,
+                        pickerTab === "locations" && styles.pickerTabTextActive,
                       ]}
                     >
                       {"Địa điểm"}
@@ -3068,7 +3144,9 @@ export default function CreateJournalScreen() {
                               <MaterialIcons
                                 name={isSelected ? "check-circle" : "route"}
                                 size={22}
-                                color={isSelected ? COLORS.white : COLORS.accent}
+                                color={
+                                  isSelected ? COLORS.white : COLORS.accent
+                                }
                               />
                             </View>
 
@@ -3112,9 +3190,7 @@ export default function CreateJournalScreen() {
                                           : COLORS.textSecondary
                                       }
                                     />
-                                    <Text
-                                      style={styles.plannerOptionCountText}
-                                    >
+                                    <Text style={styles.plannerOptionCountText}>
                                       {t("journal.availableCheckIns", {
                                         count: plannerCheckInCount,
                                       })}
@@ -3188,8 +3264,7 @@ export default function CreateJournalScreen() {
                               key={checkIn.id}
                               style={[
                                 styles.locationOptionCard,
-                                isSelected &&
-                                  styles.locationOptionCardSelected,
+                                isSelected && styles.locationOptionCardSelected,
                               ]}
                               activeOpacity={0.9}
                               onPress={() => handleSelectLocation(checkIn)}
@@ -3336,7 +3411,6 @@ export default function CreateJournalScreen() {
           )}
         </View>
       </Modal>
-
     </ImageBackground>
   );
 }

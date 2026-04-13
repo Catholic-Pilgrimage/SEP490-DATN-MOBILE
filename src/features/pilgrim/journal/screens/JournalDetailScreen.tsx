@@ -7,7 +7,7 @@ import {
 import { Audio } from "expo-av";
 import { LinearGradient } from "expo-linear-gradient";
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Animated,
@@ -36,9 +36,13 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import pilgrimJournalApi from "../../../../services/api/pilgrim/journalApi";
-import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import {
+  getJournalDetail,
+  deleteJournal,
+  shareJournal,
+} from "../../../../services/api/pilgrim/journalApi";
+import { getPlanDetail } from "../../../../services/api/pilgrim/plannerApi";
+import { getSiteDetail } from "../../../../services/api/pilgrim/siteApi";
 import { JournalEntry } from "../../../../types/pilgrim/journal.types";
 import {
   normalizeImageUrls,
@@ -114,6 +118,8 @@ export default function JournalDetailScreen() {
   const [playing, setPlaying] = useState(false);
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioPos, setAudioPos] = useState(0);
+  const isSeekingRef = useRef(false);
+  const trackWidthRef = useRef(0);
 
   // Action sheet
   const [menuVisible, setMenuVisible] = useState(false);
@@ -148,7 +154,7 @@ export default function JournalDetailScreen() {
     if (!journalId) return;
     try {
       setLoading(true);
-      const res = await pilgrimJournalApi.getJournalDetail(journalId);
+      const res = await getJournalDetail(journalId);
       if (res.success && res.data) setJournal(res.data);
     } catch (e) {
       console.error(e);
@@ -173,7 +179,7 @@ export default function JournalDetailScreen() {
     (async () => {
       if (plannerItemIds.length > 0 && journal.planner_id) {
         try {
-          const res = await pilgrimPlannerApi.getPlanDetail(journal.planner_id);
+          const res = await getPlanDetail(journal.planner_id);
           const items: any[] =
             res?.data?.items ||
             Object.values(res?.data?.items_by_day || {}).flat();
@@ -216,7 +222,7 @@ export default function JournalDetailScreen() {
       }
       if (journal.site_id && !cancelled) {
         try {
-          const res = await pilgrimSiteApi.getSiteDetail(journal.site_id);
+          const res = await getSiteDetail(journal.site_id);
           if (!cancelled) {
             setSiteName(res?.data?.name || null);
             setSiteSubtitle((res?.data as any)?.province || null);
@@ -256,7 +262,7 @@ export default function JournalDetailScreen() {
 
       if (isConfirmed) {
         try {
-          const r = await pilgrimJournalApi.deleteJournal(journalId);
+          const r = await deleteJournal(journalId);
           if (r.success) {
             Toast.show({
               type: "success",
@@ -287,7 +293,7 @@ export default function JournalDetailScreen() {
   const doShare = () =>
     hideMenu(async () => {
       try {
-        await pilgrimJournalApi.shareJournal(journalId);
+        await shareJournal(journalId);
         Toast.show({
           type: "success",
           text1: t("journal.shareSuccess"),
@@ -314,6 +320,11 @@ export default function JournalDetailScreen() {
         return;
       }
       if (sound && !playing) {
+        // Only seek to start if the audio had finished (audioPos was reset to 0)
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded && status.positionMillis >= (status.durationMillis ?? 1)) {
+          await sound.setPositionAsync(0);
+        }
         await sound.playAsync();
         setPlaying(true);
         return;
@@ -330,7 +341,9 @@ export default function JournalDetailScreen() {
         (st) => {
           if (st.isLoaded) {
             setAudioDuration(st.durationMillis || 0);
-            setAudioPos(st.positionMillis || 0);
+            if (!isSeekingRef.current) {
+              setAudioPos(st.positionMillis || 0);
+            }
             if (st.didJustFinish) {
               setPlaying(false);
               setAudioPos(0);
@@ -363,7 +376,47 @@ export default function JournalDetailScreen() {
       sound.unloadAsync().catch(() => {});
       setSound(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journal?.audio_url]);
+
+  const seekAudio = async (ratio: number) => {
+    if (!sound || audioDuration <= 0) return;
+    const clampedRatio = Math.max(0, Math.min(1, ratio));
+    const posMs = Math.floor(clampedRatio * audioDuration);
+    setAudioPos(posMs);
+    try {
+      await sound.setPositionAsync(posMs);
+    } catch {
+      // Sound may have been unloaded
+    }
+  };
+
+  const handleTrackPress = (e: any) => {
+    isSeekingRef.current = true;
+    const locationX = e.nativeEvent.locationX;
+    const w = trackWidthRef.current;
+    if (w > 0) {
+      seekAudio(locationX / w);
+    }
+  };
+
+  const handleTrackMove = (e: any) => {
+    const locationX = e.nativeEvent.locationX;
+    const w = trackWidthRef.current;
+    if (w > 0) {
+      const ratio = Math.max(0, Math.min(1, locationX / w));
+      setAudioPos(Math.floor(ratio * audioDuration));
+    }
+  };
+
+  const handleTrackRelease = (e: any) => {
+    isSeekingRef.current = false;
+    const locationX = e.nativeEvent.locationX;
+    const w = trackWidthRef.current;
+    if (w > 0) {
+      seekAudio(locationX / w);
+    }
+  };
 
   const fmtMs = (ms: number) => {
     const m = Math.floor(ms / 60000),
@@ -787,19 +840,34 @@ export default function JournalDetailScreen() {
                             {audioDuration > 0 ? fmtMs(audioDuration) : "--:--"}
                           </Text>
                         </View>
-                        <View style={s.progressTrack}>
-                          <View
-                            style={[
-                              s.progressFill,
-                              { width: `${audioProgress * 100}%` },
-                            ]}
-                          />
-                          <View
-                            style={[
-                              s.progressThumb,
-                              { left: `${audioProgress * 100}%` },
-                            ]}
-                          />
+                        <View
+                          style={s.progressTouchArea}
+                          onLayout={(e) => {
+                            trackWidthRef.current = e.nativeEvent.layout.width;
+                          }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e) => {
+                            handleTrackPress(e);
+                          }}
+                          onResponderMove={handleTrackMove}
+                          onResponderRelease={handleTrackRelease}
+                          onResponderTerminate={() => { isSeekingRef.current = false; }}
+                        >
+                          <View style={s.progressTrack}>
+                            <View
+                              style={[
+                                s.progressFill,
+                                { width: `${audioProgress * 100}%` },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                s.progressThumb,
+                                { left: `${audioProgress * 100}%` },
+                              ]}
+                            />
+                          </View>
                         </View>
                       </View>
                     </View>
@@ -1327,6 +1395,11 @@ const s = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.textSecondary,
     fontFamily: Platform.OS === "ios" ? "Courier New" : "monospace",
+  },
+  progressTouchArea: {
+    paddingVertical: 12,
+    marginVertical: -8,
+    cursor: "pointer" as any,
   },
   progressTrack: {
     height: 4,
