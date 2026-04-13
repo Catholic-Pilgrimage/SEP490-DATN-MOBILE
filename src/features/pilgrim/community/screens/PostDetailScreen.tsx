@@ -1,66 +1,68 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Audio } from "expo-av";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
 import type { TFunction } from "i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Image,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  FlatList,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useSendFriendRequest } from "../../../../hooks/useFriendship";
 import {
-    useAddComment,
-    useDeleteComment,
-    useDeletePost,
-    useLikePost,
-    usePostComments,
-    usePostDetail,
-    useTranslateComment,
-    useTranslatePost,
-    useUpdateComment,
+  useAddComment,
+  useDeleteComment,
+  useDeletePost,
+  useLikePost,
+  usePostComments,
+  usePostDetail,
+  useTranslateComment,
+  useTranslatePost,
+  useUpdateComment,
 } from "../../../../hooks/usePosts";
 import i18n from "../../../../i18n";
 import {
-    pilgrimJournalApi,
-    pilgrimPlannerApi,
-    pilgrimSiteApi,
+  pilgrimJournalApi,
+  pilgrimPlannerApi,
+  pilgrimSiteApi,
 } from "../../../../services/api/pilgrim";
 import type {
-    FeedPost,
-    FeedPostComment,
-    FeedTranslationResult,
+  FeedPost,
+  FeedPostComment,
+  FeedTranslationResult,
 } from "../../../../types/post.types";
 import {
-    getFeedPostLocationName,
-    getFeedPostPlannerId,
-    getFeedPostPlannerItemIds,
-    getFeedPostSiteId,
+  getFeedPostLocationName,
+  getFeedPostPlannerId,
+  getFeedPostPlannerItemIds,
+  getFeedPostSiteId,
 } from "../../../../utils/feedPostLocation";
 import { resolveJournalLocationName } from "../../../../utils/journalLocation";
 import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
@@ -116,6 +118,7 @@ const inclusiveTripDays = (startYMD: string, endYMD: string): number => {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const POST_MEDIA_WIDTH = SCREEN_WIDTH - SPACING.lg * 2;
+const INITIAL_VISIBLE_COMMENTS = 6;
 
 const getDateLocale = (language: string) =>
   language.startsWith("en") ? "en-US" : "vi-VN";
@@ -368,27 +371,42 @@ const FeedItemActions = ({
 }) => {
   const { t } = useTranslation();
   const likePostMutation = useLikePost();
+  const likeScaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handleLikePress = () => {
+    Animated.sequence([
+      Animated.timing(likeScaleAnim, {
+        toValue: 1.14,
+        duration: 110,
+        useNativeDriver: true,
+      }),
+      Animated.spring(likeScaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 9,
+        stiffness: 180,
+      }),
+    ]).start();
+
+    Haptics.selectionAsync().catch(() => undefined);
+    likePostMutation.mutate({ postId, isLiked });
+  };
 
   return (
     <View style={styles.actionsRow}>
       <TouchableOpacity
-        style={styles.actionButton}
-        onPress={() => likePostMutation.mutate({ postId, isLiked })}
+        style={[styles.actionButton, isLiked && styles.actionButtonLiked]}
+        onPress={handleLikePress}
         disabled={likePostMutation.isPending}
       >
-        <MaterialIcons
-          name={isLiked ? "favorite" : "favorite-border"}
-          size={22}
-          color={isLiked ? COLORS.danger : COLORS.textSecondary}
-        />
-        <Text
-          style={{
-            color: isLiked ? COLORS.danger : COLORS.textSecondary,
-            fontWeight: "500",
-            fontSize: 14,
-            marginLeft: 6,
-          }}
-        >
+        <Animated.View style={{ transform: [{ scale: likeScaleAnim }] }}>
+          <MaterialIcons
+            name={isLiked ? "favorite" : "favorite-border"}
+            size={22}
+            color={isLiked ? COLORS.danger : COLORS.textSecondary}
+          />
+        </Animated.View>
+        <Text style={[styles.actionText, isLiked && styles.actionTextDanger]}>
           {t("postDetail.prayersCount", {
             count: stats.prayers,
             defaultValue: "{{count}} Prayers",
@@ -396,20 +414,15 @@ const FeedItemActions = ({
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.actionButton}>
+      <TouchableOpacity
+        style={[styles.actionButton, styles.actionButtonNeutral]}
+      >
         <MaterialIcons
           name="chat-bubble-outline"
           size={20}
           color={COLORS.textSecondary}
         />
-        <Text
-          style={{
-            color: COLORS.textSecondary,
-            fontWeight: "500",
-            fontSize: 14,
-            marginLeft: 6,
-          }}
-        >
+        <Text style={styles.actionText}>
           {t("postDetail.commentsCount", {
             count: stats.comments,
             defaultValue: "{{count}} Comments",
@@ -1424,6 +1437,7 @@ const CommentActionSheet = ({
   onTranslate?: () => void;
 }) => {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
 
   if (!visible || !comment) return null;
 
@@ -1488,7 +1502,12 @@ const CommentActionSheet = ({
           onPress={onClose}
         />
 
-        <View style={styles.commentSheet}>
+        <View
+          style={[
+            styles.commentSheet,
+            { paddingBottom: Math.max(insets.bottom, SPACING.lg) },
+          ]}
+        >
           <View style={styles.commentSheetHandle} />
           <Text style={styles.commentSheetTitle}>
             {t("postDetail.commentActions")}
@@ -1507,7 +1526,19 @@ const CommentActionSheet = ({
               <MaterialIcons
                 name={item.icon as any}
                 size={20}
-                color={item.danger ? COLORS.danger : COLORS.textPrimary}
+                color={
+                  busy
+                    ? COLORS.textTertiary
+                    : item.danger
+                      ? COLORS.danger
+                      : item.key === "translate"
+                        ? COLORS.info
+                        : item.key === "edit"
+                          ? COLORS.primary
+                          : item.key === "report"
+                            ? COLORS.warning
+                            : COLORS.textPrimary
+                }
               />
               <Text
                 style={[
@@ -1876,6 +1907,12 @@ export default function PostDetailScreen() {
   } | null>(null);
   const commentInputRef = useRef<TextInput>(null);
   const flatListRef = useRef<any>(null);
+  const detailEntryAnim = useRef(new Animated.Value(0)).current;
+  const composerFocusAnim = useRef(new Animated.Value(0)).current;
+  const sendButtonPopAnim = useRef(new Animated.Value(1)).current;
+  const [visibleCommentsCount, setVisibleCommentsCount] = useState(
+    INITIAL_VISIBLE_COMMENTS,
+  );
 
   const isCurrentUserGuide = user?.role === "local_guide";
   const { confirm: showConfirm } = useConfirm();
@@ -1888,6 +1925,15 @@ export default function PostDetailScreen() {
       return () => clearTimeout(timer);
     }
   }, [autoFocusComment]);
+
+  useEffect(() => {
+    detailEntryAnim.setValue(0);
+    Animated.timing(detailEntryAnim, {
+      toValue: 1,
+      duration: 420,
+      useNativeDriver: true,
+    }).start();
+  }, [detailEntryAnim, postId]);
 
   const { data: post, isLoading: isLoadingPost } = usePostDetail(postId);
   const {
@@ -2172,6 +2218,27 @@ export default function PostDetailScreen() {
     );
   };
 
+  const handleSubmitComment = () => {
+    if (!commentText.trim()) return;
+
+    Animated.sequence([
+      Animated.timing(sendButtonPopAnim, {
+        toValue: 1.16,
+        duration: 95,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sendButtonPopAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 8,
+        stiffness: 210,
+      }),
+    ]).start();
+
+    Haptics.selectionAsync().catch(() => undefined);
+    handleAddComment();
+  };
+
   const comments = React.useMemo(() => {
     if (!commentsData) return [];
     return commentsData.pages.flatMap(
@@ -2189,6 +2256,21 @@ export default function PostDetailScreen() {
     () => buildCommentTree(comments as FeedPostComment[]),
     [comments],
   );
+
+  const displayedCommentNodes = React.useMemo(
+    () => commentNodes.slice(0, visibleCommentsCount),
+    [commentNodes, visibleCommentsCount],
+  );
+
+  useEffect(() => {
+    setVisibleCommentsCount(INITIAL_VISIBLE_COMMENTS);
+  }, [postId]);
+
+  useEffect(() => {
+    if (commentNodes.length > 0 && visibleCommentsCount > commentNodes.length) {
+      setVisibleCommentsCount(commentNodes.length);
+    }
+  }, [commentNodes.length, visibleCommentsCount]);
 
   const handleReplyPress = React.useCallback(
     (c: FeedPostComment) => {
@@ -2538,7 +2620,22 @@ export default function PostDetailScreen() {
     const location = getFeedPostLocationName(actualPost, resolvedSiteName);
 
     return (
-      <View style={styles.postContainer}>
+      <Animated.View
+        style={[
+          styles.postContainer,
+          {
+            opacity: detailEntryAnim,
+            transform: [
+              {
+                translateY: detailEntryAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [14, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
         <View style={[styles.paddingContent, { paddingBottom: SPACING.sm }]}>
           <FeedItemHeader
             user={author}
@@ -2673,7 +2770,7 @@ export default function PostDetailScreen() {
             })}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
@@ -2719,7 +2816,7 @@ export default function PostDetailScreen() {
         <FlatList
           ref={flatListRef}
           style={{ flex: 1 }}
-          data={commentNodes}
+          data={displayedCommentNodes}
           keyExtractor={(node, index: number) =>
             node.comment.id || `comment-${index}`
           }
@@ -2760,6 +2857,35 @@ export default function PostDetailScreen() {
                     defaultValue: "Be the first to share your thoughts!",
                   })}
                 </Text>
+              </View>
+            ) : null
+          }
+          ListFooterComponent={
+            displayedCommentNodes.length < commentNodes.length ? (
+              <View style={styles.commentsFooterWrap}>
+                <TouchableOpacity
+                  style={styles.commentsLoadMoreButton}
+                  onPress={() =>
+                    setVisibleCommentsCount((prev) =>
+                      Math.min(
+                        prev + INITIAL_VISIBLE_COMMENTS,
+                        commentNodes.length,
+                      ),
+                    )
+                  }
+                  activeOpacity={0.86}
+                >
+                  <MaterialIcons
+                    name="expand-more"
+                    size={20}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.commentsLoadMoreText}>
+                    {t("postDetail.showMoreComments", {
+                      defaultValue: "Show more comments",
+                    })}
+                  </Text>
+                </TouchableOpacity>
               </View>
             ) : null
           }
@@ -2804,9 +2930,25 @@ export default function PostDetailScreen() {
         ) : null}
 
         {/* Comment Input */}
-        <View
+        <Animated.View
           style={[
             styles.inputContainer,
+            {
+              transform: [
+                {
+                  scale: composerFocusAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.01],
+                  }),
+                },
+                {
+                  translateY: composerFocusAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -2],
+                  }),
+                },
+              ],
+            },
             { paddingBottom: Platform.OS === "ios" ? 24 : SPACING.sm },
           ]}
         >
@@ -2837,36 +2979,52 @@ export default function PostDetailScreen() {
             onChangeText={setCommentText}
             multiline
             onFocus={() => {
+              Animated.timing(composerFocusAnim, {
+                toValue: 1,
+                duration: 180,
+                useNativeDriver: true,
+              }).start();
+
               if (commentNodes.length > 0) {
                 setTimeout(() => {
                   flatListRef.current?.scrollToEnd({ animated: true });
                 }, 500);
               }
             }}
+            onBlur={() => {
+              Animated.timing(composerFocusAnim, {
+                toValue: 0,
+                duration: 180,
+                useNativeDriver: true,
+              }).start();
+            }}
           />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              commentText.trim() ? styles.sendButtonActive : null,
-            ]}
-            onPress={handleAddComment}
-            disabled={
-              !commentText.trim() ||
-              addCommentMutation.isPending ||
-              updateCommentMutation.isPending
-            }
-          >
-            {addCommentMutation.isPending || updateCommentMutation.isPending ? (
-              <ActivityIndicator size="small" color={COLORS.accent} />
-            ) : (
-              <Ionicons
-                name={editingComment ? "checkmark" : "send"}
-                size={18}
-                color={commentText.trim() ? "#fff" : COLORS.textTertiary}
-              />
-            )}
-          </TouchableOpacity>
-        </View>
+          <Animated.View style={{ transform: [{ scale: sendButtonPopAnim }] }}>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                commentText.trim() ? styles.sendButtonActive : null,
+              ]}
+              onPress={handleSubmitComment}
+              disabled={
+                !commentText.trim() ||
+                addCommentMutation.isPending ||
+                updateCommentMutation.isPending
+              }
+            >
+              {addCommentMutation.isPending ||
+              updateCommentMutation.isPending ? (
+                <ActivityIndicator size="small" color={COLORS.accent} />
+              ) : (
+                <Ionicons
+                  name={editingComment ? "checkmark" : "send"}
+                  size={18}
+                  color={commentText.trim() ? "#fff" : COLORS.textTertiary}
+                />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
       </KeyboardAvoidingView>
 
       <PostActionSheet
@@ -3209,14 +3367,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.borderLight,
-    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(210, 196, 165, 0.35)",
+    paddingTop: SPACING.sm,
   },
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  actionButtonLiked: {
+    backgroundColor: "rgba(230, 76, 103, 0.1)",
+  },
+  actionButtonNeutral: {
+    backgroundColor: "rgba(111, 94, 58, 0.08)",
+  },
+  actionText: {
+    color: COLORS.textSecondary,
+    fontWeight: "600",
+    fontSize: 14,
+    marginLeft: 6,
+  },
+  actionTextDanger: {
+    color: COLORS.danger,
   },
 
   // Comments section
@@ -3224,6 +3399,27 @@ const styles = StyleSheet.create({
     fontSize: TYPOGRAPHY.fontSize.md,
     fontWeight: "bold",
     marginBottom: SPACING.sm,
+  },
+  commentsFooterWrap: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xs,
+    paddingBottom: SPACING.sm,
+  },
+  commentsLoadMoreButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    gap: 4,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(24, 119, 242, 0.09)",
+  },
+  commentsLoadMoreText: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: "700",
+    color: COLORS.primary,
   },
 
   // Root comment wrapper
