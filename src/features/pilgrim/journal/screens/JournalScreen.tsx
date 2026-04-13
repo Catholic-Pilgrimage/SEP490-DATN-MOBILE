@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   FlatList,
   Image,
   ImageBackground,
@@ -23,25 +22,22 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
   SHADOWS,
   SPACING,
 } from "../../../../constants/theme.constants";
+import Toast from "react-native-toast-message";
 import { useAuth } from "../../../../contexts/AuthContext";
-import { useConfirm } from "../../../../hooks/useConfirm";
-import pilgrimJournalApi from "../../../../services/api/pilgrim/journalApi";
-import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import { getMyJournals, restoreJournal } from "../../../../services/api/pilgrim/journalApi";
+import { getPlanDetail } from "../../../../services/api/pilgrim/plannerApi";
+import { getSiteDetail } from "../../../../services/api/pilgrim/siteApi";
 import { JournalEntry } from "../../../../types/pilgrim/journal.types";
 import {
   normalizeImageUrls,
   parsePostgresArray,
 } from "../../../../utils/postgresArrayParser";
-
-const { width } = Dimensions.get("window");
 
 const FontDisplay = Platform.select({
   ios: "Georgia",
@@ -113,6 +109,7 @@ const GuestCardAnimated = ({
         }),
       ]),
     ).start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -158,9 +155,10 @@ export const JournalScreen = () => {
   const insets = useSafeAreaInsets();
   const { isGuest, exitGuestMode, user } = useAuth();
   const { t } = useTranslation();
-  const { confirm: showConfirm } = useConfirm();
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(!isGuest);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>(
     {},
   );
@@ -199,11 +197,12 @@ export const JournalScreen = () => {
     }).start();
   };
 
-  const fetchJournals = async () => {
+  const fetchJournals = async (deleted?: boolean) => {
+    const isDeleted = deleted ?? showDeleted;
     try {
       setLoading(true);
-      const response = await pilgrimJournalApi.getMyJournals({
-        is_active: "all",
+      const response = await getMyJournals({
+        is_active: isDeleted ? "false" : "true",
       } as any);
       const journalsData = response?.data?.journals;
       if (Array.isArray(journalsData)) {
@@ -218,28 +217,34 @@ export const JournalScreen = () => {
 
   const handleRestore = async (id: string) => {
     try {
-      await pilgrimJournalApi.restoreJournal(id);
+      setRestoringId(id);
+      await restoreJournal(id);
       Toast.show({
         type: "success",
-        text1: t("common.success"),
-        text2: t("journal.restoreSuccess"),
+        text1: t("journal.restoreSuccess", { defaultValue: "Khôi phục thành công" }),
         position: "top",
       });
-      // Refresh after restore
-      await fetchJournals();
+      await fetchJournals(true);
     } catch (error: any) {
       console.error("Restore failed:", error);
-      const errorMsg =
-        error?.response?.data?.error?.message ||
-        error?.message ||
-        t("journal.restoreError");
       Toast.show({
         type: "error",
-        text1: t("journal.restoreErrorTitle"),
-        text2: errorMsg,
+        text1: t("journal.restoreErrorTitle", { defaultValue: "Lỗi khôi phục" }),
+        text2:
+          error?.response?.data?.error?.message ||
+          error?.message ||
+          t("journal.restoreError", { defaultValue: "Không thể khôi phục nhật ký" }),
         position: "top",
       });
+    } finally {
+      setRestoringId(null);
     }
+  };
+
+  const toggleDeletedView = () => {
+    const next = !showDeleted;
+    setShowDeleted(next);
+    fetchJournals(next);
   };
 
   useFocusEffect(
@@ -247,7 +252,8 @@ export const JournalScreen = () => {
       if (!isGuest) {
         fetchJournals();
       }
-    }, [isGuest]),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isGuest, showDeleted]),
   );
 
   // Resolve site names/images from site detail
@@ -277,7 +283,7 @@ export const JournalScreen = () => {
       const results = await Promise.all(
         missingSiteIds.map(async (id) => {
           try {
-            const r = await pilgrimSiteApi.getSiteDetail(id);
+            const r = await getSiteDetail(id);
             return {
               id,
               name: r?.data?.name || null,
@@ -343,7 +349,7 @@ export const JournalScreen = () => {
       const results = await Promise.all(
         missingPlannerIds.map(async (plannerId) => {
           try {
-            const r = await pilgrimPlannerApi.getPlanDetail(plannerId);
+            const r = await getPlanDetail(plannerId);
             const planner = r?.data;
             const items =
               planner?.items ||
@@ -534,6 +540,38 @@ export const JournalScreen = () => {
                 {item.content}
               </Text>
             </View>
+
+            {/* Deleted overlay with restore button */}
+            {showDeleted && (
+              <View style={styles.deletedOverlay}>
+                <View style={styles.deletedBadge}>
+                  <MaterialIcons name="delete" size={14} color="#fff" />
+                  <Text style={styles.deletedBadgeText}>
+                    {t("journal.deletedLabel", { defaultValue: "Đã xóa" })}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.restoreCardBtn}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleRestore(item.id);
+                  }}
+                  activeOpacity={0.8}
+                  disabled={restoringId === item.id}
+                >
+                  {restoringId === item.id ? (
+                    <ActivityIndicator size="small" color={COLORS.accent} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="restore" size={18} color={COLORS.accent} />
+                      <Text style={styles.restoreCardBtnText}>
+                        {t("journal.restore", { defaultValue: "Khôi phục" })}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -573,11 +611,33 @@ export const JournalScreen = () => {
             />
           </View>
 
-          {/* Tagline - New addition to match Planner */}
-          <Text style={styles.headerTagline}>{t("journal.tagline")}</Text>
+          {/* Tagline row with restore icon */}
+          <View style={styles.headerTaglineRow}>
+            <Text style={styles.headerTagline}>{t("journal.tagline")}</Text>
+            {!isGuest && (
+              <TouchableOpacity
+                style={[
+                  styles.restoreToggleBtn,
+                  showDeleted && styles.restoreToggleBtnActive,
+                ]}
+                onPress={toggleDeletedView}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name={showDeleted ? "restore" : "delete-outline"}
+                  size={20}
+                  color={showDeleted ? COLORS.white : COLORS.accent}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Main Title */}
-          <Text style={styles.headerTitle}>{t("journal.screenTitle")}</Text>
+          <Text style={styles.headerTitle}>
+            {showDeleted
+              ? t("journal.deletedTitle", { defaultValue: "ĐÃ XÓA" })
+              : t("journal.screenTitle")}
+          </Text>
 
           {/* Yellow Line Decoration */}
           <View style={styles.headerDecoration} />
@@ -658,6 +718,11 @@ const styles = StyleSheet.create({
     top: -40,
     transform: [{ rotate: "-15deg" }], // Matching Planner style
     zIndex: -1,
+  },
+  headerTaglineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerTagline: {
     fontSize: 13,
@@ -1235,5 +1300,64 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  restoreToggleBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(212, 175, 55, 0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(212, 175, 55, 0.3)",
+  },
+  restoreToggleBtnActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  deletedOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  deletedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(220, 60, 60, 0.85)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  deletedBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  restoreCardBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  restoreCardBtnText: {
+    color: COLORS.accent,
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
