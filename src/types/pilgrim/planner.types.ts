@@ -411,8 +411,9 @@ export interface InviteParticipantRequest {
 
 export interface SendPlanMessageRequest {
   message_type: "text" | "image";
-  content: string;
+  content?: string;
   image_url?: string;
+  imageUri?: string;
 }
 
 // ============================================

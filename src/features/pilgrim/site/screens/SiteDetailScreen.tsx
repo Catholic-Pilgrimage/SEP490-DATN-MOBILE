@@ -826,11 +826,38 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
           {/* Hero Content */}
           <View style={styles.heroContent}>
-            <View style={styles.typeBadge}>
-              <Ionicons name="business" size={12} color={COLORS.textPrimary} />
-              <Text style={styles.typeBadgeText}>
-                {site.type === "church" ? t('siteDetail.typeChurch', { defaultValue: 'Nhà thờ' }) : site.type}
-              </Text>
+            <View style={styles.badgeRow}>
+              <View style={styles.typeBadge}>
+                <Ionicons name="business" size={12} color={COLORS.textPrimary} />
+                <Text style={styles.typeBadgeText}>
+                  {site.type === "church" ? t('siteDetail.typeChurch', { defaultValue: 'Nhà thờ' }) : site.type}
+                </Text>
+              </View>
+
+              {(() => {
+                let timeText = '';
+                const oh = site.openingHours as any;
+                if (!oh) return null;
+
+                if (typeof oh === 'object' && oh.open && oh.close) {
+                  timeText = `${oh.open} - ${oh.close}`;
+                } else if (typeof oh === 'string') {
+                  timeText = oh;
+                } else if (typeof oh === 'object' && Object.keys(oh).length > 0) {
+                  // e.g. { "monday": "06:00 - 18:00" }
+                  const val = Object.values(oh)[0] as string;
+                  if (typeof val === 'string') timeText = val;
+                }
+
+                if (!timeText) return null;
+
+                return (
+                  <View style={styles.timeBadge}>
+                    <Ionicons name="time" size={12} color={COLORS.white} />
+                    <Text style={styles.timeBadgeText}>{timeText}</Text>
+                  </View>
+                );
+              })()}
             </View>
             <Text style={styles.heroTitle}>{site.name}</Text>
 
@@ -1833,16 +1860,36 @@ const styles = StyleSheet.create({
     right: 0,
     padding: SPACING.lg,
   },
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.sm,
+    flexWrap: "wrap",
+    marginBottom: SPACING.xs,
+  },
   typeBadge: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-start",
     backgroundColor: "rgba(201, 165, 114, 0.9)",
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.sm,
     gap: 4,
-    marginBottom: SPACING.xs,
+  },
+  timeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(39, 174, 96, 0.9)", // Vibrant green for visibility
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
+    gap: 4,
+  },
+  timeBadgeText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.white,
+    letterSpacing: 0.5,
   },
   typeBadgeText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
