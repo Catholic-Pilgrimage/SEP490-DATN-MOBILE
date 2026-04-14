@@ -3,7 +3,13 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -15,16 +21,10 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
-import {
-  extractApiErrorMessage,
-  showErrorToast,
-  showSuccessToast,
-} from "../utils/planDetailHelpers";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
@@ -37,7 +37,6 @@ import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadM
 import {
   BORDER_RADIUS,
   COLORS,
-  SHADOWS,
   SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
@@ -53,7 +52,6 @@ import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import { PlannerCalendarSyncResult } from "../../../../services/calendar/calendarService";
-import type { LngLat, RoutePoint } from "../../../../services/map/vietmapService";
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
@@ -61,17 +59,11 @@ import {
   offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
-import {
-  NearbyPlaceCategory,
-  SiteEvent,
-  SiteNearbyPlace,
-  SiteSummary,
-} from "../../../../types/pilgrim";
+import { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
 import {
   AddPlanItemRequest,
   PlanEntity,
   PlanItem,
-  UpdatePlanItemRequest,
   UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import { getInitialsFromFullName } from "../../../../utils/initials";
@@ -80,15 +72,14 @@ import EditItemModal, {
   type EditItemModalProps,
 } from "../components/plan-detail/EditItemModal";
 import EditPlanModal from "../components/plan-detail/EditPlanModal";
+import { InviteDecisionButtons } from "../components/plan-detail/InviteDecisionButtons";
 import InvitePreviewCard from "../components/plan-detail/InvitePreviewCard";
 import ItemDetailModal from "../components/plan-detail/ItemDetailModal";
-import NearbyPlacesModal from "../components/plan-detail/NearbyPlacesModal";
-import SiteEventsModal from "../components/plan-detail/SiteEventsModal";
-import SwapPreviewModal from "../components/plan-detail/SwapPreviewModal";
+import { ItineraryDayCard } from "../components/plan-detail/ItineraryDayCard";
 import { LockScheduleCard } from "../components/plan-detail/LockScheduleCard";
 import { MenuDropdown } from "../components/plan-detail/MenuDropdown";
-import { InviteDecisionButtons } from "../components/plan-detail/InviteDecisionButtons";
-import { ItineraryDayCard } from "../components/plan-detail/ItineraryDayCard";
+import NearbyPlacesModal from "../components/plan-detail/NearbyPlacesModal";
+import SiteEventsModal from "../components/plan-detail/SiteEventsModal";
 import TimeInputModal from "../components/plan-detail/TimeInputModal";
 import { PlannerTransactionsModal } from "../components/shared/PlannerTransactionsModal";
 import { SharePlanModal } from "../components/shared/SharePlanModal";
@@ -98,20 +89,20 @@ import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
 import { usePlanRoute } from "../hooks/usePlanRoute";
-import { useSwapPreview } from "../hooks/useSwapPreview";
 import {
   MAX_DEPOSIT_VND,
   parsePenaltyPercent,
   parseVndInteger,
 } from "../utils/depositInput.utils";
 import {
+  extractApiErrorMessage,
+  showErrorToast,
+} from "../utils/planDetailHelpers";
+import {
   LocalSiteSnapshot,
   applyLocalAddItem,
   applyLocalClearAllItems,
   applyLocalDeleteItem,
-  applyLocalItemUpdate,
-  applyLocalSwapDayItems,
-  mapOfflineNearbyPlace,
   sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
@@ -120,13 +111,11 @@ import {
   getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-  buildDurationString,
   calculateEndTimeRaw,
   getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
-import {
-  getGroupPatronConstraintFromPlan
-} from "../utils/planPatronScope.utils";
+import { getGroupPatronConstraintFromPlan } from "../utils/planPatronScope.utils";
+import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
 
 const PlanDetailScreen = ({ route, navigation }: any) => {
@@ -134,6 +123,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     planId,
     autoAddSiteId,
     autoAddDay,
+    planPrefill,
     inviteToken,
     inviteStatus,
     invitedView,
@@ -144,6 +134,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     inviteType,
   } = route.params || {};
   const { t } = useTranslation();
+
+  const initialPrefilledPlan = useMemo<PlanEntity | null>(() => {
+    if (!planPrefill?.id) return null;
+
+    const startDate =
+      typeof planPrefill.start_date === "string"
+        ? planPrefill.start_date
+        : typeof planPrefill.startDate === "string"
+          ? planPrefill.startDate
+          : undefined;
+    const endDate =
+      typeof planPrefill.end_date === "string"
+        ? planPrefill.end_date
+        : typeof planPrefill.endDate === "string"
+          ? planPrefill.endDate
+          : startDate;
+
+    return {
+      id: String(planPrefill.id),
+      user_id: "",
+      name: String(planPrefill.name || planPrefill.title || "Kế hoạch"),
+      start_date: startDate,
+      end_date: endDate,
+      number_of_days: Math.max(1, Number(planPrefill.number_of_days || 1)),
+      number_of_people: Math.max(1, Number(planPrefill.number_of_people || 1)),
+      transportation: String(planPrefill.transportation || "car"),
+      status: String(planPrefill.status || "planning"),
+      share_token: "",
+      qr_code_url: "",
+      created_at: "",
+      updated_at: "",
+      item_count: Number(planPrefill.item_count || 0),
+      items_by_day: {},
+    };
+  }, [planPrefill]);
 
   const formatTimeValue = (value: any): string => {
     if (!value) return "";
@@ -168,7 +193,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
-  const [plan, setPlan] = useState<PlanEntity | null>(null);
+  const [plan, setPlan] = useState<PlanEntity | null>(initialPrefilledPlan);
   const [loading, setLoading] = useState(true);
 
   const isPlanOwner = useMemo(
@@ -278,7 +303,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   // ── Add Site Flow (hook) ──
   const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
 
-
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharingToCommunity, setSharingToCommunity] = useState(false);
   const [showTransactionsModal, setShowTransactionsModal] = useState(false);
@@ -345,10 +369,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     dayKey: string;
     itemId: string;
   } | null>(null);
-
-  // ── Swap Preview ──
-  const swapPreview = useSwapPreview(plan);
-  const [swappingItems, setSwappingItems] = useState(false);
 
   // Edit Plan Modal
   const [showEditPlanModal, setShowEditPlanModal] = useState(false);
@@ -422,11 +442,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             backgroundColor: COLORS.white,
             borderTopWidth: 1,
             borderTopColor: COLORS.border,
-            display: "flex"
-           },
+            display: "flex",
+          },
         });
       };
-    }, [navigation, insets])
+    }, [navigation, insets]),
   );
 
   // Handle returning from browser payment (PayOS)
@@ -458,7 +478,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setIsAvailableOffline(available);
     setOfflineTileUrlTemplate(tileTemplate || undefined);
   };
-
 
   const showConnectionRequiredAlert = () => {
     Toast.show({
@@ -565,7 +584,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       currentPlan ? localUpdater(currentPlan) : currentPlan,
     );
     return null;
-  };
+  }
 
   // Auto-open time setup when navigated from AddToPlanModal (Explore flow)
   const autoAddHandled = useRef(false);
@@ -630,8 +649,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       // User has successfully joined/paid!
       Toast.show({
         type: "success",
-        text1: t("planner.inviteJoinSuccessTitle", { defaultValue: "Tham gia th\u00e0nh c\u00f4ng" }),
-        text2: t("planner.inviteJoinSuccessBody", { defaultValue: "B\u1ea1n \u0111\u00e3 l\u00e0 th\u00e0nh vi\u00ean c\u1ee7a k\u1ebf ho\u1ea1ch n\u00e0y." }),
+        text1: t("planner.inviteJoinSuccessTitle", {
+          defaultValue: "Tham gia th\u00e0nh c\u00f4ng",
+        }),
+        text2: t("planner.inviteJoinSuccessBody", {
+          defaultValue:
+            "B\u1ea1n \u0111\u00e3 l\u00e0 th\u00e0nh vi\u00ean c\u1ee7a k\u1ebf ho\u1ea1ch n\u00e0y.",
+        }),
         visibilityTime: 3000,
       });
       // Replace screen to plain member view
@@ -682,9 +706,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     return true;
   };
 
-  async function loadPlan() {
+  async function loadPlan(options?: { silent?: boolean }) {
     try {
-      setLoading(true);
+      const isSilentRefresh = Boolean(options?.silent && plan);
+      if (!isSilentRefresh) {
+        setLoading(true);
+      }
       const isOnline = await networkService.checkConnection();
 
       if (!isOnline) {
@@ -722,9 +749,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             setPlan((prev) =>
               prev && prev.id === nextPlan.id
                 ? {
-                  ...prev,
-                  members: memRes.data!.members as unknown[],
-                }
+                    ...prev,
+                    members: memRes.data!.members as unknown[],
+                  }
                 : prev,
             );
           }
@@ -783,7 +810,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleOpenEditPlan = () => {
     if (isReadOnlyPlannerView) return;
@@ -893,9 +920,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             transportation: editPlanTransportation,
             ...(editPlanPeople > 1
               ? {
-                deposit_amount: depositAmount,
-                penalty_percentage: penaltyPct,
-              }
+                  deposit_amount: depositAmount,
+                  penalty_percentage: penaltyPct,
+                }
               : { deposit_amount: 0, penalty_percentage: 0 }),
           });
         }
@@ -1069,8 +1096,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     if (!plan?.first_invite_at) {
       Toast.show({
         type: "error",
-        text1: "Không thể khoá chỉnh sửa",
-        text2: "Cần mời ít nhất 1 thành viên trước khi có thể khoá chỉnh sửa.",
+        text1: t("planner.lockEditFailedTitle", {
+          defaultValue: "Không thể khoá chỉnh sửa",
+        }),
+        text2: t("planner.lockEditRequiresInvite", {
+          defaultValue:
+            "Cần mời ít nhất 1 thành viên trước khi có thể khoá chỉnh sửa.",
+        }),
         visibilityTime: 4000,
       });
       return;
@@ -1079,10 +1111,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const confirmed = await confirm({
       type: "info",
       iconName: "lock-closed-outline",
-      title: "Khoá chỉnh sửa lộ trình?",
-      message:
-        "Bạn có chắc muốn khoá lộ trình ngay bây giờ? Việc này sẽ ghi đè lịch trình tự động. Sau khi khoá, lộ trình sẽ được cố định để thành viên tham khảo, nhưng chưa khoá danh sách người đi.",
-      confirmText: "Khoá ngay",
+      title: t("planner.lockEditConfirmTitle", {
+        defaultValue: "Khoá chỉnh sửa lộ trình?",
+      }),
+      message: t("planner.lockEditConfirmMessage", {
+        defaultValue:
+          "Bạn có chắc muốn khoá lộ trình ngay bây giờ? Việc này sẽ ghi đè lịch trình tự động. Sau khi khoá, lộ trình sẽ được cố định để thành viên tham khảo, nhưng chưa khoá danh sách người đi.",
+      }),
+      confirmText: t("planner.lockEditConfirmAction", {
+        defaultValue: "Khoá ngay",
+      }),
       cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
@@ -1096,8 +1134,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       if (res.success) {
         Toast.show({
           type: "success",
-          text1: "Đã khoá chỉnh sửa",
-          text2: "Lộ trình đã được khoá cố định.",
+          text1: t("planner.lockEditSuccessTitle", {
+            defaultValue: "Đã khoá chỉnh sửa",
+          }),
+          text2: t("planner.lockEditSuccessMessage", {
+            defaultValue: "Lộ trình đã được khoá cố định.",
+          }),
           visibilityTime: 3000,
         });
         await loadPlan();
@@ -1105,11 +1147,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2: res.message || "Không thể khoá chỉnh sửa.",
+          text2:
+            res.message ||
+            t("planner.lockEditFailedMessage", {
+              defaultValue: "Không thể khoá chỉnh sửa.",
+            }),
         });
       }
     } catch (error: any) {
-      const errMsg = extractApiErrorMessage(error, "Không thể khoá chỉnh sửa.");
+      const errMsg = extractApiErrorMessage(
+        error,
+        t("planner.lockEditFailedMessage", {
+          defaultValue: "Không thể khoá chỉnh sửa.",
+        }),
+      );
       showErrorToast(t, errMsg, { visibilityTime: 4000 });
     } finally {
       setUpdatingPlanStatus(false);
@@ -1117,7 +1168,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const handleUpdatePlannerStatus = async (
-    targetStatus: "locked" | "ongoing" | "completed"
+    targetStatus: "locked" | "ongoing" | "completed",
   ) => {
     if (isOffline) {
       showConnectionRequiredAlert();
@@ -1159,7 +1210,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2: `Vui lòng thêm điểm viếng cho ngày ${missingDays.join(", ")} trước khi ${isLock ? "chốt kế hoạch" : "bắt đầu hành hương"}.`,
+          text2: t("planner.missingDaysBeforeAction", {
+            days: missingDays.join(", "),
+            action: isLock
+              ? t("planner.lockPlanActionText", {
+                  defaultValue: "chốt kế hoạch",
+                })
+              : t("planner.startJourneyActionText", {
+                  defaultValue: "bắt đầu hành hương",
+                }),
+            defaultValue:
+              "Vui lòng thêm điểm viếng cho ngày {{days}} trước khi {{action}}.",
+          }),
           visibilityTime: 4000,
         });
         return;
@@ -1171,8 +1233,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       : isStart
         ? t("planner.startJourneyTitle", { defaultValue: "Bắt đầu hành hương" })
         : t("planner.completeJourneyTitle", {
-          defaultValue: "Kết thúc chuyến đi",
-        });
+            defaultValue: "Kết thúc chuyến đi",
+          });
 
     let msg = isLock
       ? t("planner.lockPlanMsg", {
@@ -1203,8 +1265,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const hoursSinceLock = (now - lockEditTime) / (1000 * 60 * 60);
 
       if (hoursSinceLock < 12) {
-        msg =
-          "Lịch trình chỉ mới khoá chỉnh sửa chưa đầy 12h, một số thành viên có thể chưa kịp xem để xác nhận đi hay không. Bạn có chắc chắn muốn chốt danh sách người tham gia ngay bây giờ không?";
+        msg = t("planner.lockPlanSoonMsg", {
+          defaultValue:
+            "Lịch trình chỉ mới khoá chỉnh sửa chưa đầy 12h, một số thành viên có thể chưa kịp xem để xác nhận đi hay không. Bạn có chắc chắn muốn chốt danh sách người tham gia ngay bây giờ không?",
+        });
         confirmType = "warning";
       }
     }
@@ -1231,7 +1295,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const currentStatus = (plan?.status || "").toLowerCase();
 
       if (isStart && isSolo && currentStatus === "planning") {
-        await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "locked" });
+        await pilgrimPlannerApi.updatePlannerStatus(planId, {
+          status: "locked",
+        });
       }
 
       // Group planner: if owner wants to lock status but edit is not locked yet, lock edit first
@@ -1648,19 +1714,28 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
           () => offlinePlannerService.deletePlannerItem(planId, itemId),
         );
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("offline.changesSavedOffline"),
+        });
         return;
       }
 
-      const response = await pilgrimPlannerApi.deletePlanItem(
-        planId,
-        itemId,
-      );
+      const response = await pilgrimPlannerApi.deletePlanItem(planId, itemId);
       if (response.success) {
         await applyPlanMutation(
           (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
           () => offlinePlannerService.deletePlannerItem(planId, itemId),
         );
-        loadPlan();
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.removeItemSuccess", {
+            defaultValue: "Đã xóa địa điểm khỏi lịch trình",
+          }),
+        });
+        loadPlan({ silent: true });
       } else {
         Toast.show({
           type: "error",
@@ -1691,7 +1766,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const id = item.id;
     if (!id) return;
 
-    if (!swapPick || swapPick.dayKey !== dayKey) {
+    if (!swapPick) {
       setSwapPick({ dayKey, itemId: id });
       return;
     }
@@ -1699,121 +1774,727 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setSwapPick(null);
       return;
     }
-    // Show preview instead of swapping immediately
-    swapPreview.startPreview(dayKey, swapPick.itemId, id);
+
+    // Cross-day swap: execute directly (without same-day preview modal)
+    if (swapPick.dayKey !== dayKey) {
+      const firstPick = swapPick;
+      setSwapPick(null);
+      void executeCrossDaySwap(firstPick.dayKey, firstPick.itemId, dayKey, id);
+      return;
+    }
+
+    // Same-day swap: use confirm modal (same UX style as cross-day)
+    const firstPick = swapPick;
+    void executeSameDaySwap(firstPick.dayKey, firstPick.itemId, id);
     setSwapPick(null);
   };
 
-  /** Execute swap after preview confirmation — reorder + update times */
-  const executeSwapWithTimes = async () => {
-    if (!plan || !swapPreview.result) return;
-    const { dayKey, itemIdA, itemIdB, result } = swapPreview;
-    if (!dayKey || !itemIdA || !itemIdB) return;
+  type PlannerItemPatch = {
+    id: string;
+    day_number: number;
+    order_index: number;
+    estimated_time: string;
+    travel_time_minutes: number;
+  };
 
-    setSwappingItems(true);
-    try {
-      const raw = plan.items_by_day?.[dayKey] || [];
-      const sorted = sortPlanDayItems(raw);
-      const indexA = sorted.findIndex((i) => i.id === itemIdA);
-      const indexB = sorted.findIndex((i) => i.id === itemIdB);
-      if (indexA < 0 || indexB < 0) throw new Error('Items not found');
+  const toHHmm = (value?: string): string => {
+    if (!value) return "08:00";
+    const text = String(value);
+    return text.length >= 5 ? text.slice(0, 5) : "08:00";
+  };
 
-      // orderedNewTimes is already in correct position order (0, 1, 2, ...)
-      const { orderedNewTimes } = result;
+  const hhmmToMinutes = (value?: string): number => {
+    const normalized = toHHmm(value);
+    const [h, m] = normalized.split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+    return h * 60 + m;
+  };
 
-      // Build a lookup for local state mutation
-      const timeLookup: Record<string, string> = {};
-      orderedNewTimes.forEach((entry) => {
-        timeLookup[entry.id] = entry.time;
+  const pickLaterTime = (left?: string, right?: string): string => {
+    const l = toHHmm(left);
+    const r = toHHmm(right);
+    return hhmmToMinutes(r) > hhmmToMinutes(l) ? r : l;
+  };
+
+  const shouldFallbackLegacySwap = (error: any): boolean => {
+    const status = Number(error?.response?.status || 0);
+    return status === 404 || status === 405 || status === 501;
+  };
+
+  const toDisplayHHmm = (value?: string): string => {
+    if (!value) return "";
+    const text = String(value).trim();
+    if (/^\d{2}:\d{2}:\d{2}$/.test(text)) return text.slice(0, 5);
+    if (/^\d{2}:\d{2}$/.test(text)) return text;
+    return text;
+  };
+
+  const normalizeSwapBackendMessage = (message: string): string => {
+    const raw = String(message || "").trim();
+    if (!raw) {
+      return t("planner.swapInvalidTimeData", {
+        defaultValue: "Không thể đổi thứ tự do dữ liệu thời gian chưa hợp lệ.",
       });
+    }
+
+    const invalidArrival = raw.match(
+      /Invalid arrival time suggested:\s*([0-9:]+),\s*departure\s*([0-9:]+),\s*travel\s*(\d+)m,\s*suggested\s*([0-9:]+)/i,
+    );
+
+    if (invalidArrival) {
+      const arrival = toDisplayHHmm(invalidArrival[1]);
+      const departure = toDisplayHHmm(invalidArrival[2]);
+      const travel = invalidArrival[3];
+      const suggested = toDisplayHHmm(invalidArrival[4]);
+
+      return t("planner.swapInvalidArrivalTemplate", {
+        arrival,
+        departure,
+        travel,
+        suggested,
+        defaultValue:
+          "Lộ trình sau khi đổi chưa hợp lệ: giờ đến {{arrival}} không khớp với điểm trước (rời {{departure}}, di chuyển {{travel}} phút). Hệ thống gợi ý tối thiểu {{suggested}}.",
+      });
+    }
+
+    if (/Item A ID|Item B ID/i.test(raw)) {
+      return t("planner.swapMissingPair", {
+        defaultValue:
+          "Không xác định được 2 điểm cần đổi chỗ. Vui lòng chọn lại rồi thử lại.",
+      });
+    }
+
+    if (/Dữ liệu không hợp lệ/i.test(raw)) {
+      return t("planner.swapInvalidRouteData", {
+        defaultValue:
+          "Không thể đổi thứ tự vì dữ liệu lộ trình chưa hợp lệ. Vui lòng thử lại.",
+      });
+    }
+
+    return raw;
+  };
+
+  const getSwapValidationMessage = (error: any, fallback: string): string => {
+    const details = error?.response?.data?.error?.details;
+    if (Array.isArray(details) && details.length > 0) {
+      const messages = details
+        .map((detail: any) => {
+          if (typeof detail === "string") return detail;
+          return detail?.message || detail?.msg || "";
+        })
+        .filter(Boolean);
+
+      if (messages.length > 0) {
+        return messages.map(normalizeSwapBackendMessage).join(". ");
+      }
+    }
+
+    const extracted = extractApiErrorMessage(error, fallback);
+    return normalizeSwapBackendMessage(extracted);
+  };
+
+  const applyLocalItemPatches = (
+    currentPlan: PlanEntity,
+    patches: PlannerItemPatch[],
+  ): PlanEntity => {
+    const patchById = patches.reduce<Record<string, PlannerItemPatch>>(
+      (acc, patch) => {
+        acc[patch.id] = patch;
+        return acc;
+      },
+      {},
+    );
+
+    const originalItems = Object.values(currentPlan.items_by_day || {}).flat();
+    const patchedItems = originalItems.map((item) => {
+      if (!item.id || !patchById[item.id]) return item;
+      const patch = patchById[item.id];
+      return {
+        ...item,
+        day_number: patch.day_number,
+        leg_number: patch.day_number,
+        order_index: patch.order_index,
+        estimated_time: patch.estimated_time,
+        travel_time_minutes: patch.travel_time_minutes,
+      };
+    });
+
+    const regrouped: Record<string, PlanItem[]> = {};
+    patchedItems.forEach((item) => {
+      const resolvedDay =
+        Number(item.day_number ?? item.leg_number ?? 1) > 0
+          ? Number(item.day_number ?? item.leg_number ?? 1)
+          : 1;
+      const dayKey = String(resolvedDay);
+      if (!regrouped[dayKey]) regrouped[dayKey] = [];
+      regrouped[dayKey].push({
+        ...item,
+        day_number: resolvedDay,
+        leg_number: resolvedDay,
+      });
+    });
+
+    Object.keys(regrouped).forEach((dayKey) => {
+      regrouped[dayKey] = sortPlanDayItems(regrouped[dayKey]).map(
+        (item, index) => ({
+          ...item,
+          day_number: Number(dayKey),
+          leg_number: Number(dayKey),
+          order_index: index + 1,
+        }),
+      );
+    });
+
+    const sortedDayKeys = Object.keys(regrouped).sort(
+      (a, b) => Number(a) - Number(b),
+    );
+    const flattened = sortedDayKeys.flatMap((dayKey) => regrouped[dayKey]);
+
+    return {
+      ...currentPlan,
+      items_by_day: regrouped,
+      items: flattened,
+      number_of_days:
+        sortedDayKeys.length > 0
+          ? Math.max(...sortedDayKeys.map((key) => Number(key)))
+          : currentPlan.number_of_days,
+    };
+  };
+
+  const buildDayPatches = async (
+    orderedItems: PlanItem[],
+    dayNumber: number,
+    anchorTime: string,
+    siteCache: Record<
+      string,
+      { latitude: number; longitude: number; name?: string }
+    >,
+    earliestStartTime?: string,
+  ): Promise<PlannerItemPatch[]> => {
+    const resolveSiteData = async (item: PlanItem) => {
+      const siteId = item.site_id || item.site?.id || "";
+      if (siteId && siteCache[siteId]) return siteCache[siteId];
+
+      const lat = Number(item.site?.latitude || 0);
+      const lng = Number(item.site?.longitude || 0);
+      if (siteId && lat && lng) {
+        siteCache[siteId] = {
+          latitude: lat,
+          longitude: lng,
+          name: item.site?.name,
+        };
+        return siteCache[siteId];
+      }
+
+      if (siteId) {
+        try {
+          const response = await pilgrimSiteApi.getSiteDetail(siteId);
+          const site = response?.data as any;
+          siteCache[siteId] = {
+            latitude: Number(site?.latitude || lat || 0),
+            longitude: Number(site?.longitude || lng || 0),
+            name: site?.name || item.site?.name,
+          };
+          return siteCache[siteId];
+        } catch {
+          // Ignore and fallback below
+        }
+      }
+
+      return {
+        latitude: lat,
+        longitude: lng,
+        name: item.site?.name,
+      };
+    };
+
+    const patches: PlannerItemPatch[] = [];
+
+    for (let index = 0; index < orderedItems.length; index++) {
+      const item = orderedItems[index];
+      if (!item.id) continue;
+
+      let travelTimeMinutes =
+        index === 0 ? 0 : Math.max(0, Number(item.travel_time_minutes) || 0);
+
+      if (index > 0) {
+        const prevItem = orderedItems[index - 1];
+        const [from, to] = await Promise.all([
+          resolveSiteData(prevItem),
+          resolveSiteData(item),
+        ]);
+
+        if (from.latitude && from.longitude && to.latitude && to.longitude) {
+          try {
+            const routeResult = await vietmapService.calculateRoute(
+              { latitude: from.latitude, longitude: from.longitude },
+              { latitude: to.latitude, longitude: to.longitude },
+            );
+            travelTimeMinutes = Math.max(
+              0,
+              Math.round(routeResult.durationMinutes || 0),
+            );
+          } catch {
+            travelTimeMinutes = 30;
+          }
+        } else {
+          travelTimeMinutes = 30;
+        }
+      }
+
+      const time =
+        index === 0
+          ? pickLaterTime(anchorTime, earliestStartTime)
+          : (() => {
+              const prev = patches[index - 1];
+              const prevItem = orderedItems[index - 1];
+              const prevRest = parseDurationToMinutes(prevItem.rest_duration);
+              const safePrevRest = prevRest > 0 ? prevRest : 120;
+              return vietmapService.calculateArrivalTime(
+                prev.estimated_time,
+                safePrevRest + travelTimeMinutes,
+              ).time;
+            })();
+
+      patches.push({
+        id: item.id,
+        day_number: dayNumber,
+        order_index: index + 1,
+        estimated_time: toHHmm(time),
+        travel_time_minutes: travelTimeMinutes,
+      });
+    }
+
+    return patches;
+  };
+
+  const executeCrossDaySwap = async (
+    dayKeyA: string,
+    itemIdA: string,
+    dayKeyB: string,
+    itemIdB: string,
+  ) => {
+    if (!plan) return;
+
+    const confirmed = await confirm({
+      type: "info",
+      iconName: "swap-horizontal-outline",
+      title: t("planner.swapCrossDayTitle", {
+        defaultValue: "Đổi chỗ khác ngày",
+      }),
+      message: t("planner.swapCrossDayMessage", {
+        defaultValue:
+          "Bạn đang đổi 2 điểm ở 2 ngày khác nhau. Hệ thống sẽ tính lại giờ theo lộ trình mới.",
+      }),
+      confirmText: t("planner.swapConfirm", {
+        defaultValue: "Đổi chỗ",
+      }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const dayAItems = sortPlanDayItems(plan.items_by_day?.[dayKeyA] || []);
+      const dayBItems = sortPlanDayItems(plan.items_by_day?.[dayKeyB] || []);
+      const indexA = dayAItems.findIndex((i) => i.id === itemIdA);
+      const indexB = dayBItems.findIndex((i) => i.id === itemIdB);
+
+      if (indexA < 0 || indexB < 0) {
+        throw new Error(
+          t("planner.swapItemNotFound", {
+            defaultValue: "Không tìm thấy điểm cần đổi",
+          }),
+        );
+      }
+
+      const nextDayA = [...dayAItems];
+      const nextDayB = [...dayBItems];
+      const pickedA = nextDayA[indexA];
+      const pickedB = nextDayB[indexB];
+
+      nextDayA[indexA] = {
+        ...pickedB,
+        day_number: Number(dayKeyA),
+        leg_number: Number(dayKeyA),
+      };
+      nextDayB[indexB] = {
+        ...pickedA,
+        day_number: Number(dayKeyB),
+        leg_number: Number(dayKeyB),
+      };
+
+      const siteCache: Record<
+        string,
+        { latitude: number; longitude: number; name?: string }
+      > = {};
+
+      const dayItemsByNumber: Record<number, PlanItem[]> = {
+        [Number(dayKeyA)]: nextDayA,
+        [Number(dayKeyB)]: nextDayB,
+      };
+      const dayAnchorByNumber: Record<number, string> = {
+        [Number(dayKeyA)]: toHHmm(dayAItems[0]?.estimated_time),
+        [Number(dayKeyB)]: toHHmm(dayBItems[0]?.estimated_time),
+      };
+
+      const affectedDayNumbers = Array.from(
+        new Set([Number(dayKeyA), Number(dayKeyB)]),
+      ).sort((a, b) => a - b);
+
+      const patchesByDayNumber: Record<number, PlannerItemPatch[]> = {};
+
+      for (const dayNumber of affectedDayNumbers) {
+        let earliestStartTime: string | undefined;
+        const previousDayNumber = dayNumber - 1;
+
+        const previousDayPatches = patchesByDayNumber[previousDayNumber];
+        if (previousDayPatches?.length) {
+          const previousLastPatch =
+            previousDayPatches[previousDayPatches.length - 1];
+          const previousDayItems = dayItemsByNumber[previousDayNumber] || [];
+          const previousLastItem = previousDayItems.find(
+            (item) => item.id === previousLastPatch.id,
+          );
+          const previousRest = parseDurationToMinutes(
+            previousLastItem?.rest_duration,
+          );
+          const safePreviousRest = previousRest > 0 ? previousRest : 120;
+          earliestStartTime = vietmapService.calculateArrivalTime(
+            previousLastPatch.estimated_time,
+            safePreviousRest,
+          ).time;
+        } else {
+          const previousPlanDayItems = sortPlanDayItems(
+            plan.items_by_day?.[String(previousDayNumber)] || [],
+          );
+          const previousLastItem =
+            previousPlanDayItems[previousPlanDayItems.length - 1];
+          if (previousLastItem?.estimated_time) {
+            const previousRest = parseDurationToMinutes(
+              previousLastItem.rest_duration,
+            );
+            const safePreviousRest = previousRest > 0 ? previousRest : 120;
+            earliestStartTime = vietmapService.calculateArrivalTime(
+              toHHmm(previousLastItem.estimated_time),
+              safePreviousRest,
+            ).time;
+          }
+        }
+
+        patchesByDayNumber[dayNumber] = await buildDayPatches(
+          dayItemsByNumber[dayNumber],
+          dayNumber,
+          dayAnchorByNumber[dayNumber],
+          siteCache,
+          earliestStartTime,
+        );
+      }
+
+      const patchesDayA = patchesByDayNumber[Number(dayKeyA)] || [];
+      const patchesDayB = patchesByDayNumber[Number(dayKeyB)] || [];
+
+      const allPatches = [...patchesDayA, ...patchesDayB];
+      const affectedDays = [
+        {
+          leg_number: Number(dayKeyA),
+          items: patchesDayA.map((patch) => ({
+            id: patch.id,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          })),
+        },
+        {
+          leg_number: Number(dayKeyB),
+          items: patchesDayB.map((patch) => ({
+            id: patch.id,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          })),
+        },
+      ];
 
       const isOnline = await networkService.checkConnection();
 
       if (!isOnline) {
-        // Offline: queue individual item updates (order_index + time)
-        for (let i = 0; i < orderedNewTimes.length; i++) {
-          const { id: itemId, time } = orderedNewTimes[i];
+        for (const patch of allPatches) {
           await networkService.addToOfflineQueue({
-            endpoint: `/api/planners/${planId}/items/${itemId}`,
+            endpoint: `/api/planners/${planId}/items/${patch.id}`,
             method: "PATCH",
             data: {
-              order_index: i + 1,
-              estimated_time: time,
+              day_number: patch.day_number,
+              order_index: patch.order_index,
+              estimated_time: patch.estimated_time,
+              travel_time_minutes: patch.travel_time_minutes,
             },
           });
         }
-        await applyPlanMutation(
-          (currentPlan) => {
-            let updated = applyLocalSwapDayItems(currentPlan, dayKey, indexA, indexB);
-            const itemsByDay = { ...updated.items_by_day };
-            itemsByDay[dayKey] = (itemsByDay[dayKey] || []).map((item) => ({
-              ...item,
-              estimated_time: timeLookup[item.id!] || item.estimated_time,
-            }));
-            return { ...updated, items_by_day: itemsByDay };
-          },
-          () =>
-            offlinePlannerService.swapPlannerItemsOrder(
-              planId, Number(dayKey), itemIdA, itemIdB,
-            ),
+
+        await applyPlanMutation((currentPlan) =>
+          applyLocalItemPatches(currentPlan, allPatches),
         );
+
         Toast.show({
           type: "success",
           text1: t("common.success"),
           text2: t("offline.changesSavedOffline"),
         });
-        swapPreview.close();
         return;
       }
 
-      // ── Online: update each item SEQUENTIALLY (order matters!) ──
-      // Update order_index + estimated_time in ONE call per item,
-      // processed first-to-last so backend validation passes.
-      for (let i = 0; i < orderedNewTimes.length; i++) {
-        const { id: itemId, time } = orderedNewTimes[i];
-        await pilgrimPlannerApi.updatePlanItem(planId, itemId, {
-          order_index: i + 1,
-          estimated_time: time,
-        });
+      try {
+        const swapPayload = {
+          item_id_a: itemIdA,
+          item_id_b: itemIdB,
+          affected_days: affectedDays,
+        };
+
+        if (__DEV__) {
+          console.log("[Swap][CrossDay] payload:", JSON.stringify(swapPayload));
+        }
+
+        const swapResponse = await pilgrimPlannerApi.swapPlannerItems(
+          planId,
+          swapPayload,
+        );
+
+        if (!swapResponse.success) {
+          throw new Error(
+            swapResponse.message ||
+              t("planner.swapApiFailed", {
+                defaultValue: "Không thể đổi thứ tự bằng API swap",
+              }),
+          );
+        }
+      } catch (swapError: any) {
+        if (!shouldFallbackLegacySwap(swapError)) {
+          throw swapError;
+        }
+
+        for (const patch of allPatches) {
+          await pilgrimPlannerApi.updatePlanItem(planId, patch.id, {
+            day_number: patch.day_number,
+            order_index: patch.order_index,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          });
+        }
       }
 
-      // Apply locally + refresh
-      await applyPlanMutation(
-        (currentPlan) => {
-          let updated = applyLocalSwapDayItems(currentPlan, dayKey, indexA, indexB);
-          const itemsByDay = { ...updated.items_by_day };
-          itemsByDay[dayKey] = (itemsByDay[dayKey] || []).map((item) => ({
-            ...item,
-            estimated_time: timeLookup[item.id!] || item.estimated_time,
-          }));
-          return { ...updated, items_by_day: itemsByDay };
-        },
-        () =>
-          offlinePlannerService.swapPlannerItemsOrder(
-            planId, Number(dayKey), itemIdA, itemIdB,
-          ),
+      await applyPlanMutation((currentPlan) =>
+        applyLocalItemPatches(currentPlan, allPatches),
       );
 
       Toast.show({
         type: "success",
-        text1: "Đã đổi thứ tự",
-        text2: "Thời gian đã được tính lại theo lộ trình mới.",
+        text1: t("planner.swapSuccessTitle", {
+          defaultValue: "Đã đổi thứ tự",
+        }),
+        text2: t("planner.swapSuccessCrossDayBody", {
+          defaultValue: "Đã cập nhật lịch trình cho cả 2 ngày.",
+        }),
       });
-      swapPreview.close();
-      loadPlan();
+      loadPlan({ silent: true });
     } catch (error: any) {
-      console.log("Swap error:", error);
+      console.log("Cross-day swap error:", error);
       Toast.show({
         type: "error",
         text1: t("common.error"),
-        text2: error.message || "Không thể đổi thứ tự",
+        text2: getSwapValidationMessage(
+          error,
+          t("planner.swapCrossDayFailed", {
+            defaultValue: "Không thể đổi thứ tự khác ngày",
+          }),
+        ),
       });
     } finally {
-      setSwappingItems(false);
+      // noop
     }
   };
 
+  const executeSameDaySwap = async (
+    dayKey: string,
+    itemIdA: string,
+    itemIdB: string,
+  ) => {
+    if (!plan) return;
 
+    const confirmed = await confirm({
+      type: "info",
+      iconName: "swap-horizontal-outline",
+      title: t("planner.swapSameDayTitle", {
+        defaultValue: "Đổi thứ tự trong ngày",
+      }),
+      message: t("planner.swapSameDayMessage", {
+        defaultValue:
+          "Bạn đang đổi 2 điểm trong cùng ngày. Hệ thống sẽ tính lại giờ theo lộ trình mới.",
+      }),
+      confirmText: t("planner.swapConfirm", {
+        defaultValue: "Đổi chỗ",
+      }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!confirmed) return;
+
+    try {
+      const dayItems = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
+      const indexA = dayItems.findIndex((i) => i.id === itemIdA);
+      const indexB = dayItems.findIndex((i) => i.id === itemIdB);
+
+      if (indexA < 0 || indexB < 0) {
+        throw new Error(
+          t("planner.swapItemNotFound", {
+            defaultValue: "Không tìm thấy điểm cần đổi",
+          }),
+        );
+      }
+
+      const swapped = [...dayItems];
+      [swapped[indexA], swapped[indexB]] = [swapped[indexB], swapped[indexA]];
+
+      const dayNumber = Number(dayKey);
+      const anchorTime = toHHmm(dayItems[0]?.estimated_time);
+      const siteCache: Record<
+        string,
+        { latitude: number; longitude: number; name?: string }
+      > = {};
+
+      let earliestStartTime: string | undefined;
+      const previousDayItems = sortPlanDayItems(
+        plan.items_by_day?.[String(dayNumber - 1)] || [],
+      );
+      const previousLastItem = previousDayItems[previousDayItems.length - 1];
+      if (previousLastItem?.estimated_time) {
+        const previousRest = parseDurationToMinutes(
+          previousLastItem.rest_duration,
+        );
+        const safePreviousRest = previousRest > 0 ? previousRest : 120;
+        earliestStartTime = vietmapService.calculateArrivalTime(
+          toHHmm(previousLastItem.estimated_time),
+          safePreviousRest,
+        ).time;
+      }
+
+      const patches = await buildDayPatches(
+        swapped,
+        dayNumber,
+        anchorTime,
+        siteCache,
+        earliestStartTime,
+      );
+
+      const affectedDays = [
+        {
+          leg_number: dayNumber,
+          items: patches.map((patch) => ({
+            id: patch.id,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          })),
+        },
+      ];
+
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        for (const patch of patches) {
+          await networkService.addToOfflineQueue({
+            endpoint: `/api/planners/${planId}/items/${patch.id}`,
+            method: "PATCH",
+            data: {
+              day_number: patch.day_number,
+              order_index: patch.order_index,
+              estimated_time: patch.estimated_time,
+              travel_time_minutes: patch.travel_time_minutes,
+            },
+          });
+        }
+
+        await applyPlanMutation((currentPlan) =>
+          applyLocalItemPatches(currentPlan, patches),
+        );
+
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("offline.changesSavedOffline"),
+        });
+        return;
+      }
+
+      try {
+        const swapPayload = {
+          item_id_a: itemIdA,
+          item_id_b: itemIdB,
+          affected_days: affectedDays,
+        };
+
+        if (__DEV__) {
+          console.log(
+            "[Swap][SameDay][Confirm] payload:",
+            JSON.stringify(swapPayload),
+          );
+        }
+
+        const swapResponse = await pilgrimPlannerApi.swapPlannerItems(
+          planId,
+          swapPayload,
+        );
+
+        if (!swapResponse.success) {
+          throw new Error(
+            swapResponse.message ||
+              t("planner.swapApiFailed", {
+                defaultValue: "Không thể đổi thứ tự bằng API swap",
+              }),
+          );
+        }
+      } catch (swapError: any) {
+        if (!shouldFallbackLegacySwap(swapError)) {
+          throw swapError;
+        }
+
+        for (const patch of patches) {
+          await pilgrimPlannerApi.updatePlanItem(planId, patch.id, {
+            day_number: patch.day_number,
+            order_index: patch.order_index,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          });
+        }
+      }
+
+      await applyPlanMutation((currentPlan) =>
+        applyLocalItemPatches(currentPlan, patches),
+      );
+
+      Toast.show({
+        type: "success",
+        text1: t("planner.swapSuccessTitle", {
+          defaultValue: "Đã đổi thứ tự",
+        }),
+        text2: t("planner.swapSuccessSameDayBody", {
+          defaultValue: "Thời gian đã được tính lại theo lộ trình mới.",
+        }),
+      });
+      loadPlan({ silent: true });
+    } catch (error: any) {
+      console.log("Same-day swap error:", error);
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: getSwapValidationMessage(
+          error,
+          t("planner.swapSameDayFailed", {
+            defaultValue: "Không thể đổi thứ tự",
+          }),
+        ),
+      });
+    } finally {
+      // noop
+    }
+  };
 
   const openAddModal = (day: number) => {
     setSelectedDay(day);
@@ -1855,8 +2536,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-
-
   // parseDurationToMinutes removed — use parseDurationToMinutesRaw directly if needed
 
   const calculateEndTime = (startTimeStr: any, durationStr: any): string =>
@@ -1869,7 +2548,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setSelectedEventId(eventId || null);
     await addSiteFlow.startFlow(siteId, eventId);
   };
-
 
   const addItemToItinerary = async (siteId: string) => {
     if (addSiteFlow.crossDaysAdded > 0) {
@@ -1885,10 +2563,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const currentStatus = String(plan?.status || "").toLowerCase();
     if (currentStatus === "ongoing") {
       const isConfirmed = await confirm({
-        title: "Xác nhận thêm địa điểm",
-        message: "Hành trình này đang diễn ra. Khi thêm mới bạn sẽ KHÔNG THỂ xóa hay chỉnh sửa lại địa điểm này nữa! Bạn chắc chắn muốn thêm?",
-        confirmText: "Thêm địa điểm",
-        cancelText: "Hủy",
+        title: t("planner.addItemConfirmTitle", {
+          defaultValue: "Xác nhận thêm địa điểm",
+        }),
+        message: t("planner.addItemConfirmMessage", {
+          defaultValue:
+            "Hành trình này đang diễn ra. Khi thêm mới bạn sẽ KHÔNG THỂ xóa hay chỉnh sửa lại địa điểm này nữa! Bạn chắc chắn muốn thêm?",
+        }),
+        confirmText: t("planner.addItemConfirmAction", {
+          defaultValue: "Thêm địa điểm",
+        }),
+        cancelText: t("common.cancel", { defaultValue: "Hủy" }),
         type: "warning",
       });
       if (!isConfirmed) return;
@@ -1964,18 +2649,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               ...localDraft,
               site: siteSnapshot
                 ? {
-                  id: siteSnapshot.id,
-                  name: siteSnapshot.name,
-                  address: siteSnapshot.address,
-                  cover_image: siteSnapshot.coverImage,
-                  latitude: siteSnapshot.latitude,
-                  longitude: siteSnapshot.longitude,
-                }
+                    id: siteSnapshot.id,
+                    name: siteSnapshot.name,
+                    address: siteSnapshot.address,
+                    cover_image: siteSnapshot.coverImage,
+                    latitude: siteSnapshot.latitude,
+                    longitude: siteSnapshot.longitude,
+                  }
                 : undefined,
             }),
         );
 
         addSiteFlow.closeTimeModal();
+        setIsAddModalVisible(false);
         addSiteFlow.setNote("");
         Toast.show({
           type: "success",
@@ -2001,39 +2687,57 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             ),
           createdItemId
             ? () =>
-              offlinePlannerService.addPlannerItem(planId, {
-                id: createdItemId,
-                ...localDraft,
-                site: siteSnapshot
-                  ? {
-                    id: siteSnapshot.id,
-                    name: siteSnapshot.name,
-                    address: siteSnapshot.address,
-                    cover_image: siteSnapshot.coverImage,
-                    latitude: siteSnapshot.latitude,
-                    longitude: siteSnapshot.longitude,
-                  }
-                  : undefined,
-              })
+                offlinePlannerService.addPlannerItem(planId, {
+                  id: createdItemId,
+                  ...localDraft,
+                  site: siteSnapshot
+                    ? {
+                        id: siteSnapshot.id,
+                        name: siteSnapshot.name,
+                        address: siteSnapshot.address,
+                        cover_image: siteSnapshot.coverImage,
+                        latitude: siteSnapshot.latitude,
+                        longitude: siteSnapshot.longitude,
+                      }
+                    : undefined,
+                })
             : undefined,
         );
         addSiteFlow.closeTimeModal();
+        setIsAddModalVisible(false);
         addSiteFlow.setNote("");
-        loadPlan();
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.itemAddedSuccess", {
+            defaultValue: "Đã thêm địa điểm vào lịch trình",
+          }),
+        });
+        loadPlan({ silent: true });
       } else {
         Toast.show({
           type: "error",
-          text1: "Không thể thêm địa điểm",
-          text2: response.message || "Đã xảy ra lỗi",
+          text1: t("planner.addItemFailedTitle", {
+            defaultValue: "Không thể thêm địa điểm",
+          }),
+          text2:
+            response.message ||
+            t("planner.addItemUnexpectedError", {
+              defaultValue: "Đã xảy ra lỗi",
+            }),
           visibilityTime: 4000,
         });
       }
     } catch (error: any) {
       const respData = error?.response?.data;
-      const isValidationError = error?.response?.status === 400 || error?.response?.status === 409;
+      const isValidationError =
+        error?.response?.status === 400 || error?.response?.status === 409;
 
       if (isValidationError) {
-        console.log("[API] Validation error adding item:", JSON.stringify(respData));
+        console.log(
+          "[API] Validation error adding item:",
+          JSON.stringify(respData),
+        );
       } else {
         console.log("Add item serious error:", error?.message || error);
       }
@@ -2043,7 +2747,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         respData?.message ||
         respData?.error?.details?.[0]?.message ||
         error?.message ||
-        "Không thể thêm địa điểm";
+        t("planner.addItemFailedTitle", {
+          defaultValue: "Không thể thêm địa điểm",
+        });
       const patronErr =
         typeof errMsg === "string" &&
         (errMsg.includes("bổn mạng") || errMsg.includes("Bổn mạng"));
@@ -2051,11 +2757,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         type: "error",
         text1: patronErr
           ? t("planner.patronConstraintToastTitle", {
-            defaultValue: "Không cùng bổn mạng đoàn",
-          })
+              defaultValue: "Không cùng bổn mạng đoàn",
+            })
           : t("planner.addItemFailedTitle", {
-            defaultValue: "Không thể thêm địa điểm",
-          }),
+              defaultValue: "Không thể thêm địa điểm",
+            }),
         text2: errMsg,
         visibilityTime: patronErr ? 6500 : 4000,
       });
@@ -2063,7 +2769,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setAddingItem(false);
     }
   };
-
 
   const memberAvatars = useMemo(() => {
     /** Số người thực tế trong đoàn (không dùng number_of_people = quota chỗ). */
@@ -2074,12 +2779,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
     const fromApi = Array.isArray((plan as any)?.members)
       ? (plan as any).members
-        .map((m: any) => ({
-          id: String(m?.id ?? m?.user_id ?? ""),
-          name: String(m?.full_name || m?.user?.full_name || ""),
-          avatar: String(m?.avatar_url || m?.user?.avatar_url || ""),
-        }))
-        .filter((m: any) => !!m.name || !!m.avatar)
+          .map((m: any) => ({
+            id: String(m?.id ?? m?.user_id ?? ""),
+            name: String(m?.full_name || m?.user?.full_name || ""),
+            avatar: String(m?.avatar_url || m?.user?.avatar_url || ""),
+          }))
+          .filter((m: any) => !!m.name || !!m.avatar)
       : [];
 
     const list: Array<{ name: string; avatar: string }> = [];
@@ -2099,7 +2804,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     return { list, people: rosterCount, overflowMore };
   }, [plan]);
 
-  if (loading) {
+  if (loading && !plan) {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={COLORS.accent} />
@@ -2110,45 +2815,59 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   if (!plan) {
     return (
       <View style={[styles.container, styles.centerContent]}>
-        <Text style={styles.errorText}>Không tìm thấy kế hoạch</Text>
+        <Text style={styles.errorText}>
+          {t("planner.planNotFound", {
+            defaultValue: "Không tìm thấy kế hoạch",
+          })}
+        </Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonText}>Quay lại</Text>
+          <Text style={styles.backButtonText}>
+            {t("common.back", { defaultValue: "Quay lại" })}
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Translate plan status to Vietnamese
+  // Translate plan status based on current locale
   const translateStatus = (status?: string) => {
     switch (status?.toLowerCase()) {
       case "planning":
-        return "Đang lập kế hoạch";
+        return t("planner.statusInPlanning", {
+          defaultValue: "Đang lập kế hoạch",
+        });
       case "locked":
-        return "Sẵn sàng";
+        return t("planner.statusLocked", { defaultValue: "Sẵn sàng" });
       case "ongoing":
-        return "Đang hành hương";
+        return t("planner.statusOngoing", { defaultValue: "Đang thực hiện" });
       case "completed":
-        return "Hoàn thành";
+        return t("planner.statusCompleted", { defaultValue: "Hoàn thành" });
       case "cancelled":
-        return "Đã hủy";
+        return t("planner.statusCancelled", { defaultValue: "Đã hủy" });
       case "draft":
-        return "Nháp";
+        return t("planner.statusDraft", { defaultValue: "Nháp" });
       default:
-        return status || "Đã lên kế hoạch";
+        return (
+          status ||
+          t("planner.statusPlanned", { defaultValue: "Đã lên kế hoạch" })
+        );
     }
   };
 
   const getPilgrimTag = (item: PlanItem): string => {
-    if (item.event_id) return "Thánh lễ";
+    if (item.event_id)
+      return t("planner.tagMass", { defaultValue: "Thánh lễ" });
     const note = String(item.note || "").toLowerCase();
-    if (note.includes("chầu")) return "Chầu Thánh Thể";
+    if (note.includes("chầu"))
+      return t("planner.tagAdoration", { defaultValue: "Chầu Thánh Thể" });
     if (note.includes("đức mẹ") || note.includes("duc me"))
-      return "Viếng Đức Mẹ";
-    if (note.includes("nghỉ") || note.includes("rest")) return "Nghỉ ngơi";
-    return "Điểm viếng";
+      return t("planner.tagMarianVisit", { defaultValue: "Viếng Đức Mẹ" });
+    if (note.includes("nghỉ") || note.includes("rest"))
+      return t("planner.tagRest", { defaultValue: "Nghỉ ngơi" });
+    return t("planner.tagPilgrimStop", { defaultValue: "Điểm viếng" });
   };
 
   const totalDays =
@@ -2269,7 +2988,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="#fff"
                   style={{ marginRight: 4 }}
                 />
-                <Text style={styles.statusText}>Công khai</Text>
+                <Text style={styles.statusText}>
+                  {t("planner.public", { defaultValue: "Công khai" })}
+                </Text>
               </View>
             )}
           </View>
@@ -2304,7 +3025,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   size={16}
                   color="rgba(255,255,255,0.9)"
                 />
-                <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
+                <Text style={styles.metaText}>
+                  {t("planner.day", {
+                    count: plan.number_of_days,
+                    defaultValue: "Ngày {{count}}",
+                  })}
+                </Text>
               </View>
             </View>
 
@@ -2348,7 +3074,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 ) : null}
               </View>
               <Text style={styles.memberCountText}>
-                {memberAvatars.people} người
+                {t("planner.peopleCount", {
+                  count: memberAvatars.people,
+                  defaultValue: "{{count}} người",
+                })}
               </Text>
             </View>
           </View>
@@ -2372,7 +3101,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
               disabled={isOffline}
             >
               <Ionicons name="chatbubbles-outline" size={18} color="#FFF8E7" />
-              <Text style={styles.quickActionText}>Chat nhóm</Text>
+              <Text style={styles.quickActionText}>
+                {t("planner.groupChat", { defaultValue: "Chat nhóm" })}
+              </Text>
               {unreadChatCount > 0 && (
                 <View style={styles.quickActionBadge}>
                   <Text style={styles.quickActionBadgeText}>
@@ -2384,63 +3115,91 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           )}
 
           {/* Tiến độ (solo) / Thành viên (nhóm) — hiện khi ongoing hoặc completed */}
-          {!isDroppedOut && !isInvitePendingView && (!isPlanOwner || isOngoingPlan || isCompletedPlan) && (
-            <TouchableOpacity
-              style={[
-                styles.quickActionButton,
-                isOffline && styles.disabledAction,
-              ]}
-              onPress={handleOpenMembers}
-              disabled={isOffline}
-            >
-              <Ionicons
-                name={isSoloPlan ? "analytics-outline" : "people-outline"}
-                size={18}
-                color="#FFF8E7"
-              />
-              <Text style={styles.quickActionText}>
-                {isSoloPlan ? "Tiến độ" : "Thành viên"}
-              </Text>
-            </TouchableOpacity>
-          )}
+          {!isDroppedOut &&
+            !isInvitePendingView &&
+            (!isPlanOwner || isOngoingPlan || isCompletedPlan) && (
+              <TouchableOpacity
+                style={[
+                  styles.quickActionButton,
+                  isOffline && styles.disabledAction,
+                ]}
+                onPress={handleOpenMembers}
+                disabled={isOffline}
+              >
+                <Ionicons
+                  name={isSoloPlan ? "analytics-outline" : "people-outline"}
+                  size={18}
+                  color="#FFF8E7"
+                />
+                <Text style={styles.quickActionText}>
+                  {isSoloPlan
+                    ? t("planner.groupProgress", {
+                        defaultValue: "Tiến độ",
+                      })
+                    : t("planner.crewTitle", {
+                        defaultValue: "Thành viên",
+                      })}
+                </Text>
+              </TouchableOpacity>
+            )}
 
           {/* Mời bạn bè (nhóm, planning/locked) / Chia sẻ cộng đồng (completed) */}
-          {!isDroppedOut && isPlanOwner && !isOngoingPlan && (!isSoloPlan || isCompletedPlan) && (
-            <TouchableOpacity
-              style={[
-                styles.quickActionButton,
-                (isCompletedPlan
-                  ? isOffline || sharingToCommunity
-                  : isOffline) && styles.disabledAction,
-              ]}
-              onPress={
-                isCompletedPlan
-                  ? handleSharePlannerToCommunity
-                  : handleOpenShareModal
-              }
-              disabled={
-                isCompletedPlan
-                  ? isOffline || sharingToCommunity
-                  : isOffline
-              }
-            >
-              <Ionicons
-                name={isCompletedPlan ? "share-social-outline" : "qr-code-outline"}
-                size={18}
-                color="#FFF8E7"
-              />
-              <Text style={styles.quickActionText}>
-                {isCompletedPlan ? "Chia sẻ" : "Mời bạn bè"}
-              </Text>
-            </TouchableOpacity>
-          )}
+          {!isDroppedOut &&
+            isPlanOwner &&
+            !isOngoingPlan &&
+            (!isSoloPlan || isCompletedPlan) && (
+              <TouchableOpacity
+                style={[
+                  styles.quickActionButton,
+                  (isCompletedPlan
+                    ? isOffline || sharingToCommunity
+                    : isOffline) && styles.disabledAction,
+                ]}
+                onPress={
+                  isCompletedPlan
+                    ? handleSharePlannerToCommunity
+                    : handleOpenShareModal
+                }
+                disabled={
+                  isCompletedPlan ? isOffline || sharingToCommunity : isOffline
+                }
+              >
+                <Ionicons
+                  name={
+                    isCompletedPlan ? "share-social-outline" : "qr-code-outline"
+                  }
+                  size={18}
+                  color="#FFF8E7"
+                />
+                <Text style={styles.quickActionText}>
+                  {isCompletedPlan ? "Chia sẻ" : "Mời bạn bè"}
+                </Text>
+              </TouchableOpacity>
+            )}
         </View>
 
         {/* Dropped Out Banner */}
         {isDroppedOut && (
-          <View style={{ backgroundColor: "#FEE2E2", padding: 12, marginHorizontal: 16, marginTop: 16, borderRadius: BORDER_RADIUS.md }}>
-            <Text style={{ color: "#DC2626", fontWeight: "600", textAlign: "center", fontSize: 13, lineHeight: 18 }}>
-              Bạn đã rời nhóm, nhưng vẫn có thể xem lại kế hoạch do có liên quan đến tiền cọc.
+          <View
+            style={{
+              backgroundColor: "#FEE2E2",
+              padding: 12,
+              marginHorizontal: 16,
+              marginTop: 16,
+              borderRadius: BORDER_RADIUS.md,
+            }}
+          >
+            <Text
+              style={{
+                color: "#DC2626",
+                fontWeight: "600",
+                textAlign: "center",
+                fontSize: 13,
+                lineHeight: 18,
+              }}
+            >
+              Bạn đã rời nhóm, nhưng vẫn có thể xem lại kế hoạch do có liên quan
+              đến tiền cọc.
             </Text>
           </View>
         )}
@@ -2462,19 +3221,19 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             isEditLocked={plan?.is_locked}
             planStatusStr={planStatusStr}
             planStartDate={plan?.start_date}
-            isFriendInvite={inviteType === 'friend'}
+            isFriendInvite={inviteType === "friend"}
           />
         )}
 
         {/* 2. Cụm nút Quyết định (Ra quyết định sau khu đọc) */}
         {isInvitePendingView && (
           <InviteDecisionButtons
-            depositAmount={depositAmount as (number | null)}
+            depositAmount={depositAmount as number | null}
             respondingInvite={respondingInvite}
             isOffline={isOffline}
             handleRejectInvite={handleRejectInvite}
             handleJoinInvite={handleJoinInvite}
-            isFriendInvite={inviteType === 'friend'}
+            isFriendInvite={inviteType === "friend"}
           />
         )}
 
@@ -2517,13 +3276,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   >
                     {isOffline
                       ? t("planner.pendingActionsWillSync", {
-                        defaultValue:
-                          "Cac thay doi offline se duoc dong bo khi ban co mang.",
-                      })
+                          defaultValue:
+                            "Cac thay doi offline se duoc dong bo khi ban co mang.",
+                        })
                       : t("planner.pendingActionsReadyToSync", {
-                        defaultValue:
-                          "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
-                      })}
+                          defaultValue:
+                            "Ban co the dong bo ngay bay gio de cap nhat len he thong.",
+                        })}
                   </Text>
                 </View>
               </View>
@@ -2594,62 +3353,67 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         {!isSoloPlan &&
           !isInvitePendingView &&
           (planStatusStr === "planning" || planStatusStr === "locked") && (
-          <LockScheduleCard
-            plan={plan}
-            planStatusStr={planStatusStr}
-            isPlanOwner={isPlanOwner}
-            isLockScheduleExpanded={isLockScheduleExpanded}
-            setIsLockScheduleExpanded={setIsLockScheduleExpanded}
-            handleManualLockEdit={handleManualLockEdit}
-            updatingPlanStatus={updatingPlanStatus}
-            handleUpdatePlannerStatus={handleUpdatePlannerStatus}
-            t={t}
-          />
-        )}
+            <LockScheduleCard
+              plan={plan}
+              planStatusStr={planStatusStr}
+              isPlanOwner={isPlanOwner}
+              isLockScheduleExpanded={isLockScheduleExpanded}
+              setIsLockScheduleExpanded={setIsLockScheduleExpanded}
+              handleManualLockEdit={handleManualLockEdit}
+              updatingPlanStatus={updatingPlanStatus}
+              handleUpdatePlannerStatus={handleUpdatePlannerStatus}
+              t={t}
+            />
+          )}
 
         {/* CTA: Bắt đầu hành hương — Solo: từ planning | Group: từ locked */}
         {isPlanOwner &&
           (planStatusStr === "locked" ||
             (isSoloPlan && planStatusStr === "planning")) && (
-          <View
-            style={{ marginBottom: SPACING.md, paddingHorizontal: SPACING.lg }}
-          >
-            <TouchableOpacity
-              onPress={() => handleUpdatePlannerStatus("ongoing")}
-              disabled={updatingPlanStatus}
-              activeOpacity={0.85}
+            <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: COLORS.accent,
-                paddingVertical: 14,
-                borderRadius: BORDER_RADIUS.lg,
-                opacity: updatingPlanStatus ? 0.7 : 1,
+                marginBottom: SPACING.md,
+                paddingHorizontal: SPACING.lg,
               }}
             >
-              {updatingPlanStatus ? (
-                <ActivityIndicator
-                  size="small"
-                  color="#fff"
-                  style={{ marginRight: 8 }}
-                />
-              ) : (
-                <Ionicons
-                  name="rocket-outline"
-                  size={20}
-                  color="#fff"
-                  style={{ marginRight: 8 }}
-                />
-              )}
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
-                {t("planner.startJourneyCta", {
-                  defaultValue: "Bắt đầu hành hương",
-                })}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              <TouchableOpacity
+                onPress={() => handleUpdatePlannerStatus("ongoing")}
+                disabled={updatingPlanStatus}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: COLORS.accent,
+                  paddingVertical: 14,
+                  borderRadius: BORDER_RADIUS.lg,
+                  opacity: updatingPlanStatus ? 0.7 : 1,
+                }}
+              >
+                {updatingPlanStatus ? (
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                ) : (
+                  <Ionicons
+                    name="rocket-outline"
+                    size={20}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <Text
+                  style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}
+                >
+                  {t("planner.startJourneyCta", {
+                    defaultValue: "Bắt đầu hành hương",
+                  })}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
         {/* Itinerary Section */}
         <View
@@ -2707,7 +3471,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     color: "#EF4444",
                   }}
                 >
-                  Xóa tất cả
+                  {t("planner.deleteAll", { defaultValue: "Xóa tất cả" })}
                 </Text>
               </TouchableOpacity>
             )}
@@ -2750,26 +3514,30 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             >
               {t("planner.noLocationsInPlan")}
             </Text>
-            {isPlanOwner && (String(plan?.status || "").toLowerCase() === "planning" || String(plan?.status || "").toLowerCase() === "ongoing") && (
-              <TouchableOpacity
-                style={{
-                  paddingHorizontal: 32,
-                  paddingVertical: 14,
-                  backgroundColor: COLORS.accent,
-                  borderRadius: 24,
-                  shadowColor: COLORS.accent,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
-                }}
-                onPress={() => openAddModal(1)}
-              >
-                <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-                  + Thêm địa điểm đầu tiên
-                </Text>
-              </TouchableOpacity>
-            )}
+            {isPlanOwner &&
+              (String(plan?.status || "").toLowerCase() === "planning" ||
+                String(plan?.status || "").toLowerCase() === "ongoing") && (
+                <TouchableOpacity
+                  style={{
+                    paddingHorizontal: 32,
+                    paddingVertical: 14,
+                    backgroundColor: COLORS.accent,
+                    borderRadius: 24,
+                    shadowColor: COLORS.accent,
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  }}
+                  onPress={() => openAddModal(1)}
+                >
+                  <Text
+                    style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}
+                  >
+                    + Thêm địa điểm đầu tiên
+                  </Text>
+                </TouchableOpacity>
+              )}
           </View>
         )}
 
@@ -2820,10 +3588,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         onSelectEvent={(ev) => {
           const dateStr = ev.start_date
             ? new Date(ev.start_date).toLocaleDateString("vi-VN", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-            })
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              })
             : "";
           const endStr =
             ev.end_date && ev.end_date !== ev.start_date
@@ -2888,9 +3656,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           savingEdit,
           onOpenNearbyPlaces: editingItem
             ? () => {
-              setShowEditItemModal(false);
-              setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
-            }
+                setShowEditItemModal(false);
+                setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
+              }
             : undefined,
         } satisfies EditItemModalProps)}
       />
@@ -3030,17 +3798,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         progress={offlineProgress}
         success={offlineSuccess}
         error={offlineError}
-      />
-
-      {/* Swap Preview Modal */}
-      <SwapPreviewModal
-        visible={swapPreview.visible}
-        loading={swapPreview.loading}
-        error={swapPreview.error}
-        result={swapPreview.result}
-        onClose={swapPreview.close}
-        onConfirm={executeSwapWithTimes}
-        confirming={swappingItems}
       />
 
       <OfflineBanner

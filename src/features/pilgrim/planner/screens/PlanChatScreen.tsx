@@ -1,29 +1,29 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import * as Haptics from "expo-haptics";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated as RNAnimated,
-  Clipboard,
-  FlatList,
-  Image,
-  Keyboard,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Clipboard,
+    FlatList,
+    Image,
+    Keyboard,
+    Platform,
+    Animated as RNAnimated,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -41,7 +41,7 @@ const sortMessagesOldestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
 
 const PlanChatScreen = ({ route, navigation }: any) => {
   const { planId, planName, ownerId } = route.params;
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
@@ -61,8 +61,10 @@ const PlanChatScreen = ({ route, navigation }: any) => {
 
   // Keyboard handling
   useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
     const showSub = Keyboard.addListener(showEvent, (e) => {
       const kbHeight = e.endCoordinates.height;
@@ -101,7 +103,9 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           if (append) {
             setMessages((prev) => {
               const existingIds = new Set(prev.map((m) => m.id));
-              const newOnes = fetched.filter((m: any) => !existingIds.has(m.id));
+              const newOnes = fetched.filter(
+                (m: any) => !existingIds.has(m.id),
+              );
               return sortMessagesOldestFirst([...newOnes, ...prev]);
             });
           } else {
@@ -172,7 +176,9 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           const fetched = data?.messages ?? [];
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
-            const newOnes = fetched.filter((m: PlannerMessage) => !existingIds.has(m.id));
+            const newOnes = fetched.filter(
+              (m: PlannerMessage) => !existingIds.has(m.id),
+            );
             if (newOnes.length === 0) return prev;
             return sortMessagesOldestFirst([...prev, ...newOnes]);
           });
@@ -214,9 +220,10 @@ const PlanChatScreen = ({ route, navigation }: any) => {
       } else {
         Alert.alert(
           t("common.error", { defaultValue: "Lỗi" }),
-          res.message || t("chat.sendFailed", {
-            defaultValue: "Không thể gửi tin nhắn. Vui lòng thử lại.",
-          }),
+          res.message ||
+            t("chat.sendFailed", {
+              defaultValue: "Không thể gửi tin nhắn. Vui lòng thử lại.",
+            }),
         );
         setText(content);
       }
@@ -227,10 +234,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
         t("chat.sendFailed", {
           defaultValue: "Không thể gửi tin nhắn. Vui lòng thử lại.",
         });
-      Alert.alert(
-        t("common.error", { defaultValue: "Lỗi" }),
-        message,
-      );
+      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), message);
       setText(content);
     } finally {
       setSending(false);
@@ -245,9 +249,13 @@ const PlanChatScreen = ({ route, navigation }: any) => {
       const isPlanOwner = user?.id === ownerId;
       const canDelete = own || isPlanOwner;
 
-      const options = [
+      const options: Array<{
+        text: string;
+        onPress: () => void;
+        style?: "default" | "destructive" | "cancel";
+      }> = [
         {
-          text: "Sao chép tin nhắn",
+          text: t("chat.copyMessage", { defaultValue: "Sao chép tin nhắn" }),
           onPress: () => {
             if (item.content) {
               Clipboard.setString(item.content);
@@ -258,27 +266,28 @@ const PlanChatScreen = ({ route, navigation }: any) => {
 
       if (canDelete) {
         options.push({
-          text: "Xóa tin nhắn",
+          text: t("chat.deleteMessage", { defaultValue: "Xóa tin nhắn" }),
+          style: "destructive",
           onPress: () => handleDelete(item.id),
         });
       }
 
       options.push({
-        text: "Đóng",
+        text: t("common.close", { defaultValue: "Đóng" }),
         onPress: () => {},
       });
 
       Alert.alert(
-        "Tùy chọn tin nhắn",
+        t("chat.messageOptions", { defaultValue: "Tùy chọn tin nhắn" }),
         undefined,
         options.map((opt) => ({
           text: opt.text,
           onPress: opt.onPress,
-          style: (opt.text === "Xóa tin nhắn" ? "destructive" : "default") as any,
-        }))
+          style: (opt.style || "default") as any,
+        })),
       );
     },
-    [ownerId, user?.id, t]
+    [ownerId, user?.id, t],
   );
 
   const handleDelete = useCallback(
@@ -303,9 +312,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
                   messageId,
                 );
                 if (res.success !== false) {
-                  setMessages((prev) =>
-                    prev.filter((m) => m.id !== messageId),
-                  );
+                  setMessages((prev) => prev.filter((m) => m.id !== messageId));
                 }
               } catch {
                 Alert.alert(
@@ -336,7 +343,8 @@ const PlanChatScreen = ({ route, navigation }: any) => {
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
-    return d.toLocaleTimeString("vi-VN", {
+    const locale = i18n.language === "en" ? "en-US" : "vi-VN";
+    return d.toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -354,7 +362,8 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     if (d.toDateString() === yesterday.toDateString()) {
       return t("chat.yesterday", { defaultValue: "Hôm qua" });
     }
-    return d.toLocaleDateString("vi-VN", {
+    const locale = i18n.language === "en" ? "en-US" : "vi-VN";
+    return d.toLocaleDateString(locale, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -370,7 +379,13 @@ const PlanChatScreen = ({ route, navigation }: any) => {
   };
 
   // --- Render message ---
-  const renderMessage = ({ item, index }: { item: PlannerMessage; index: number }) => {
+  const renderMessage = ({
+    item,
+    index,
+  }: {
+    item: PlannerMessage;
+    index: number;
+  }) => {
     const own = isOwn(item);
     const sender = item.user ?? item.sender;
     const next = messages[index + 1];
@@ -420,14 +435,12 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           )}
 
           <View
-            style={[
-              styles.bubble,
-              own ? styles.bubbleOwn : styles.bubbleOther,
-            ]}
+            style={[styles.bubble, own ? styles.bubbleOwn : styles.bubbleOther]}
           >
             {!own && showAvatar && (
               <Text style={styles.senderName}>
-                {sender?.full_name || t("chat.unknown", { defaultValue: "Ẩn danh" })}
+                {sender?.full_name ||
+                  t("chat.unknown", { defaultValue: "Ẩn danh" })}
               </Text>
             )}
             {item.message_type === "image" && item.image_url ? (
@@ -438,18 +451,11 @@ const PlanChatScreen = ({ route, navigation }: any) => {
               />
             ) : null}
             {item.content ? (
-              <Text
-                style={[
-                  styles.messageText,
-                  own && styles.messageTextOwn,
-                ]}
-              >
+              <Text style={[styles.messageText, own && styles.messageTextOwn]}>
                 {item.content}
               </Text>
             ) : null}
-            <Text
-              style={[styles.timeText, own && styles.timeTextOwn]}
-            >
+            <Text style={[styles.timeText, own && styles.timeTextOwn]}>
               {formatTime(item.created_at)}
             </Text>
           </View>
@@ -494,7 +500,8 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           />
           <Text style={styles.emptyText}>
             {t("chat.empty", {
-              defaultValue: "Chưa có tin nhắn nào.\nHãy bắt đầu cuộc trò chuyện!",
+              defaultValue:
+                "Chưa có tin nhắn nào.\nHãy bắt đầu cuộc trò chuyện!",
             })}
           </Text>
         </View>

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Image, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { COLORS } from "../../../../../constants/theme.constants";
 import { PlanItem } from "../../../../../types/pilgrim/planner.types";
@@ -12,26 +12,46 @@ interface ItineraryDayCardProps {
   planStatus: string;
   isPlanOwner: boolean;
   swapPick: { dayKey: string; itemId: string } | null;
-  setSwapPick: React.Dispatch<React.SetStateAction<{ dayKey: string; itemId: string } | null>>;
+  setSwapPick: React.Dispatch<
+    React.SetStateAction<{ dayKey: string; itemId: string } | null>
+  >;
   setSelectedItem: (item: PlanItem | null) => void;
   handleReorderIconPress: (dayKey: string, item: PlanItem) => void;
   handleDeleteItem: (itemId: string) => void;
   openAddModal: (day: number) => void;
   t: (key: string, opts?: any) => string;
   getDateForDayCalc: (startDate: string, day: number) => string;
-  getPilgrimTagStr?: (item: PlanItem) => string;
+  getPilgrimTagStr?: (
+    item: PlanItem,
+    t?: (key: string, opts?: any) => string,
+  ) => string;
   styles: any; // We can lazily accept parents styles instead of copy-pasting 50 styles
   formatTimeValueCalc: (value: any) => string;
   calculateEndTimeCalc: (startTimeStr: any, durationStr: any) => string;
 }
 
-function getPilgrimTag(item: PlanItem): string {
-  if (item.event_id) return "Thánh lễ";
+function getPilgrimTag(
+  item: PlanItem,
+  t?: (key: string, opts?: any) => string,
+): string {
+  if (item.event_id)
+    return t ? t("planner.tagMass", { defaultValue: "Thánh lễ" }) : "Thánh lễ";
   const note = String(item.note || "").toLowerCase();
-  if (note.includes("chầu")) return "Chầu Thánh Thể";
-  if (note.includes("đức mẹ") || note.includes("duc me")) return "Viếng Đức Mẹ";
-  if (note.includes("nghỉ") || note.includes("rest")) return "Nghỉ ngơi";
-  return "Điểm viếng";
+  if (note.includes("chầu"))
+    return t
+      ? t("planner.tagAdoration", { defaultValue: "Chầu Thánh Thể" })
+      : "Chầu Thánh Thể";
+  if (note.includes("đức mẹ") || note.includes("duc me"))
+    return t
+      ? t("planner.tagMarianVisit", { defaultValue: "Viếng Đức Mẹ" })
+      : "Viếng Đức Mẹ";
+  if (note.includes("nghỉ") || note.includes("rest"))
+    return t
+      ? t("planner.tagRest", { defaultValue: "Nghỉ ngơi" })
+      : "Nghỉ ngơi";
+  return t
+    ? t("planner.tagPilgrimStop", { defaultValue: "Điểm viếng" })
+    : "Điểm viếng";
 }
 
 export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
@@ -73,7 +93,11 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             color: COLORS.textPrimary,
           }}
         >
-          Ngày {dayKey} • {getDateForDayCalc(startDate ?? "", Number(dayKey))}
+          {t("planner.dayWithDate", {
+            day: dayKey,
+            date: getDateForDayCalc(startDate ?? "", Number(dayKey)),
+            defaultValue: "Ngày {{day}} • {{date}}",
+          })}
         </Text>
       </View>
 
@@ -120,7 +144,9 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                   fontWeight: "500",
                 }}
               >
-                Bấm để thêm địa điểm viếng
+                {t("planner.tapToAddPilgrimStop", {
+                  defaultValue: "Bấm để thêm địa điểm viếng",
+                })}
               </Text>
             </TouchableOpacity>
           )}
@@ -166,7 +192,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                     <Text style={styles.itemName}>{item.site.name}</Text>
                     <View style={styles.pilgrimTag}>
                       <Text style={styles.pilgrimTagText}>
-                        {getPilgrimTagStr(item)}
+                        {getPilgrimTagStr(item, t)}
                       </Text>
                     </View>
                     {item.site.address && (
@@ -303,7 +329,10 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                     <View style={styles.travelBadge}>
                       <Ionicons name="car" size={14} color="#6B7280" />
                       <Text style={styles.travelText}>
-                        Di chuyển {Math.max(1, Math.round(travelMinutes))} phút
+                        {t("planner.travelMinutesLabel", {
+                          minutes: Math.max(1, Math.round(travelMinutes)),
+                          defaultValue: "Di chuyển {{minutes}} phút",
+                        })}
                         {typeof travelDistanceKm === "number"
                           ? ` (${travelDistanceKm.toFixed(1)} km)`
                           : ""}

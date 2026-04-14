@@ -1,41 +1,36 @@
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef
-} from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
-import { getPlannerRosterCount } from "../utils/planDetailMap.utils";
 import CheckinPhotoSheet from "../components/active-journey/CheckinPhotoSheet";
 import ItemActionSheet from "../components/active-journey/ItemActionSheet";
 import MarkVisitedModal from "../components/active-journey/MarkVisitedModal";
 import PlanHeader from "../components/active-journey/PlanHeader";
+import { SOSRequestModal } from "../components/active-journey/SOSRequestModal";
 import TimelineDaySection from "../components/active-journey/TimelineDaySection";
 import { useCheckinPhoto } from "../hooks/useCheckinPhoto";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
-import { SOSRequestModal } from "../components/active-journey/SOSRequestModal";
 
 type Props = {
   route: { params?: { planId?: string } };
@@ -43,6 +38,7 @@ type Props = {
 };
 
 export default function ActiveJourneyScreen({ route, navigation }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const planId = route.params?.planId || "";
   const { user } = useAuth();
@@ -62,7 +58,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     if (!plan?.start_date || !sortedDays.length) return -1;
     const now = new Date();
     const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
-    
+
     return sortedDays.findIndex((_, idx) => {
       const d = new Date(plan.start_date!);
       d.setDate(d.getDate() + idx);
@@ -71,13 +67,19 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   }, [plan?.start_date, sortedDays]);
 
   const [selectedDay, setSelectedDay] = React.useState("");
-  const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(new Set());
+  const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(
+    new Set(),
+  );
   const [sosModalVisible, setSosModalVisible] = React.useState(false);
   const [photoSheetVisible, setPhotoSheetVisible] = React.useState(false);
 
   // Owner action sheet & mark visited modal state
-  const [actionSheetItem, setActionSheetItem] = React.useState<PlanItem | null>(null);
-  const [markVisitedItem, setMarkVisitedItem] = React.useState<PlanItem | null>(null);
+  const [actionSheetItem, setActionSheetItem] = React.useState<PlanItem | null>(
+    null,
+  );
+  const [markVisitedItem, setMarkVisitedItem] = React.useState<PlanItem | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!planId || !user?.id) return;
@@ -85,9 +87,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       try {
         const res = await pilgrimPlannerApi.getPlannerProgress(planId);
         if (res.success && res.data) {
-          const me = res.data.member_progress.find((m) => String(m.user_id) === String(user.id));
+          const me = res.data.member_progress.find(
+            (m) => String(m.user_id) === String(user.id),
+          );
           if (me?.history) {
-            const ids = me.history.filter(h => h.status === 'checked_in').map(h => h.planner_item_id);
+            const ids = me.history
+              .filter((h) => h.status === "checked_in")
+              .map((h) => h.planner_item_id);
             setCheckedInIds(new Set(ids));
           }
         }
@@ -107,7 +113,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       refreshPlan();
-    }, [refreshPlan])
+    }, [refreshPlan]),
   );
 
   const allItemsFlat = useMemo(() => {
@@ -124,13 +130,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     navigation.replace("PlanDetailScreen", { planId });
   }, [navigation, planId]);
 
-  const {
-    checkingInItemId,
-    skippingItemId,
-    checkIn,
-    skipItem,
-    markVisited,
-  } = useJourneyExecution(planId, refreshPlan, onCompleted);
+  const { checkingInItemId, skippingItemId, checkIn, skipItem, markVisited } =
+    useJourneyExecution(planId, refreshPlan, onCompleted);
   const { takePhoto, pickFromGallery } = useCheckinPhoto();
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
@@ -159,20 +160,24 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!planId) return;
     const interval = setInterval(() => {
-      pilgrimPlannerApi.getPlanDetail(planId).then(res => {
-        if (res.success && res.data) {
-          setPlan(res.data);
-        }
-      }).catch(() => {});
+      pilgrimPlannerApi
+        .getPlanDetail(planId)
+        .then((res) => {
+          if (res.success && res.data) {
+            setPlan(res.data);
+          }
+        })
+        .catch(() => {});
     }, 15000);
     return () => clearInterval(interval);
   }, [planId, setPlan]);
 
-
   const hasVisitedStops = useMemo(() => {
     if (!plan?.items_by_day) return false;
     const items = Object.values(plan.items_by_day).flat();
-    return items.some((item) => String(item.status || "").toLowerCase() === "visited");
+    return items.some(
+      (item) => String(item.status || "").toLowerCase() === "visited",
+    );
   }, [plan]);
 
   // Auto-detect completion: navigate away if plan is no longer ongoing
@@ -185,9 +190,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         type: planStatus === "completed" ? "success" : "info",
         text1:
           planStatus === "completed"
-            ? "Hành trình đã hoàn thành!"
-            : "Hành trình đã bị hủy",
-        text2: "Chuyển về trang chi tiết kế hoạch",
+            ? t("planner.active.completedTitle", {
+                defaultValue: "Hành trình đã hoàn thành!",
+              })
+            : t("planner.active.cancelledTitle", {
+                defaultValue: "Hành trình đã bị hủy",
+              }),
+        text2: t("planner.active.redirectToDetail", {
+          defaultValue: "Chuyển về trang chi tiết kế hoạch",
+        }),
       });
       navigation.replace("PlanDetailScreen", { planId: plan.id });
       return;
@@ -202,8 +213,12 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       // Skip toàn bộ → backend sẽ tự cancelled
       Toast.show({
         type: "info",
-        text1: "Chuyến đi bị hủy",
-        text2: "Tất cả địa điểm đã bị bỏ qua",
+        text1: t("planner.active.tripCancelled", {
+          defaultValue: "Chuyến đi bị hủy",
+        }),
+        text2: t("planner.active.allStopsSkipped", {
+          defaultValue: "Tất cả địa điểm đã bị bỏ qua",
+        }),
       });
       navigation.replace("PlanDetailScreen", { planId: plan.id });
       return;
@@ -218,20 +233,33 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           status: "completed",
         });
         if (!response.success) {
-          throw new Error(response.message || "Không thể kết thúc chuyến đi");
+          throw new Error(
+            response.message ||
+              t("planner.active.cannotCompleteTrip", {
+                defaultValue: "Không thể kết thúc chuyến đi",
+              }),
+          );
         }
         Toast.show({
           type: "success",
-          text1: "Đã hoàn thành hành trình!",
-          text2: "Chuyển về trang chi tiết kế hoạch",
+          text1: t("planner.active.tripCompleted", {
+            defaultValue: "Đã hoàn thành hành trình!",
+          }),
+          text2: t("planner.active.redirectToDetail", {
+            defaultValue: "Chuyển về trang chi tiết kế hoạch",
+          }),
         });
         navigation.replace("PlanDetailScreen", { planId: plan.id });
       } catch (e: any) {
         // Có thể backend đã tự complete → refresh lại plan
         Toast.show({
           type: "error",
-          text1: "Không thể chuyển trạng thái",
-          text2: e?.message || "Vui lòng thử lại",
+          text1: t("planner.active.cannotChangeStatus", {
+            defaultValue: "Không thể chuyển trạng thái",
+          }),
+          text2:
+            e?.message ||
+            t("common.retry", { defaultValue: "Vui lòng thử lại" }),
         });
         await refreshPlan();
       } finally {
@@ -239,7 +267,16 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       }
     };
     void completeJourney();
-  }, [planStatus, allStopsHandled, hasVisitedStops, isOwner, navigation, plan?.id, refreshPlan]);
+  }, [
+    planStatus,
+    allStopsHandled,
+    hasVisitedStops,
+    isOwner,
+    navigation,
+    plan?.id,
+    refreshPlan,
+    t,
+  ]);
 
   // Hide Bottom Tab Bar
   useFocusEffect(
@@ -247,13 +284,16 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       navigation.getParent()?.setOptions({
         tabBarStyle: { display: "none" },
       });
-    }, [navigation])
+    }, [navigation]),
   );
 
   // Determine check-in button state
   const isAlreadyCheckedIn = firstItem ? checkedInIds.has(firstItem.id) : false;
-  const isCheckInDisabled = !firstItem || checkingInItemId === firstItem?.id || isAlreadyCheckedIn;
-  const nextSiteName = firstItem?.site?.name || "Điểm tiếp theo";
+  const isCheckInDisabled =
+    !firstItem || checkingInItemId === firstItem?.id || isAlreadyCheckedIn;
+  const nextSiteName =
+    firstItem?.site?.name ||
+    t("planner.active.nextStop", { defaultValue: "Điểm tiếp theo" });
 
   // Calculate floating CTA height for ScrollView padding (only check-in btn now)
   const FLOATING_CTA_HEIGHT = 90;
@@ -270,11 +310,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     return (
       <View style={[styles.center, { backgroundColor: COLORS.background }]}>
         <Text style={{ color: COLORS.textPrimary, marginBottom: 8 }}>
-          {error || "Không tìm thấy hành trình"}
+          {error ||
+            t("planner.map.notFound", {
+              defaultValue: "Không tìm thấy hành trình",
+            })}
         </Text>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={{ color: COLORS.accent, fontWeight: "700" }}>
-            Quay lại
+            {t("common.back", { defaultValue: "Quay lại" })}
           </Text>
         </TouchableOpacity>
       </View>
@@ -290,16 +333,23 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       />
 
       {/* TOP BAR */}
-      <View style={[styles.topBar, { paddingTop: insets.top + 10, paddingBottom: 14 }]}>
+      <View
+        style={[
+          styles.topBar,
+          { paddingTop: insets.top + 10, paddingBottom: 14 },
+        ]}
+      >
         <TouchableOpacity
           style={styles.topBtn}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
           <Text style={styles.topTitle} numberOfLines={1} ellipsizeMode="tail">
-            {plan?.name || "Kế hoạch"}
+            {plan?.name || t("planner.planName", { defaultValue: "Kế hoạch" })}
           </Text>
         </View>
         {!isSoloPlan ? (
@@ -322,7 +372,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       {/* SCROLLABLE CONTENT */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: FLOATING_CTA_HEIGHT + insets.bottom + 24 }}
+        contentContainerStyle={{
+          paddingBottom: FLOATING_CTA_HEIGHT + insets.bottom + 24,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {/* BANNER */}
@@ -333,13 +385,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={styles.toolbarBtn}
             onPress={() =>
-              navigation.navigate("Nhat ky", { 
+              navigation.navigate("Nhat ky", {
                 screen: "CreateJournalScreen",
                 params: {
                   planId: plan.id,
                   plannerItemId: firstItem?.id,
-                  from: "ActiveJourney"
-                }
+                  from: "ActiveJourney",
+                },
               })
             }
             activeOpacity={0.7}
@@ -347,18 +399,27 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <View style={styles.toolbarIconBox}>
               <Ionicons name="book-outline" size={22} color={COLORS.holy} />
             </View>
-            <Text style={styles.toolbarBtnText}>Nhật ký</Text>
+            <Text style={styles.toolbarBtnText}>
+              {t("navigation.journal", { defaultValue: "Nhật ký" })}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.toolbarBtn}
-            onPress={() => navigation.navigate("PlannerMapScreen", { planId: plan.id, itemsByDay: plan.items_by_day })}
+            onPress={() =>
+              navigation.navigate("PlannerMapScreen", {
+                planId: plan.id,
+                itemsByDay: plan.items_by_day,
+              })
+            }
             activeOpacity={0.7}
           >
             <View style={styles.toolbarIconBox}>
               <Ionicons name="map-outline" size={22} color="#1A67C1" />
             </View>
-            <Text style={styles.toolbarBtnText}>Bản đồ</Text>
+            <Text style={styles.toolbarBtnText}>
+              {t("planner.map.title", { defaultValue: "Bản đồ" })}
+            </Text>
           </TouchableOpacity>
 
           {/* Solo: Tiến độ | Group: Thành viên */}
@@ -377,7 +438,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               />
             </View>
             <Text style={styles.toolbarBtnText}>
-              {isSoloPlan ? "Tiến độ" : "Thành viên"}
+              {isSoloPlan
+                ? t("planner.groupProgress", { defaultValue: "Tiến độ" })
+                : t("planner.crewTitle", { defaultValue: "Thành viên" })}
             </Text>
           </TouchableOpacity>
 
@@ -389,21 +452,33 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <View style={[styles.toolbarIconBox, styles.sosIconBox]}>
               <Ionicons name="warning" size={22} color="#DC2626" />
             </View>
-            <Text style={[styles.toolbarBtnText, { color: "#DC2626" }]}>SOS</Text>
+            <Text style={[styles.toolbarBtnText, { color: "#DC2626" }]}>
+              SOS
+            </Text>
           </TouchableOpacity>
         </View>
 
         {/* TIMELINE SECTION */}
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
-            <Text style={styles.timelineTitle}>Lịch trình chuyến đi</Text>
+            <Text style={styles.timelineTitle}>
+              {t("planner.active.timelineTitle", {
+                defaultValue: "Lịch trình chuyến đi",
+              })}
+            </Text>
             {isOwner && planStatus === "ongoing" && (
               <TouchableOpacity
                 style={styles.editItineraryBtn}
-                onPress={() => navigation.navigate("PlanDetailScreen", { planId })}
+                onPress={() =>
+                  navigation.navigate("PlanDetailScreen", { planId })
+                }
                 activeOpacity={0.7}
               >
-                <Ionicons name="create-outline" size={20} color={COLORS.textSecondary} />
+                <Ionicons
+                  name="create-outline"
+                  size={20}
+                  color={COLORS.textSecondary}
+                />
               </TouchableOpacity>
             )}
           </View>
@@ -435,8 +510,16 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             />
           ) : (
             <View style={styles.timelineEmptyContainer}>
-              <Ionicons name="calendar-outline" size={32} color={COLORS.textTertiary} />
-              <Text style={styles.timelineEmpty}>Chưa có lịch trình nào được lưu</Text>
+              <Ionicons
+                name="calendar-outline"
+                size={32}
+                color={COLORS.textTertiary}
+              />
+              <Text style={styles.timelineEmpty}>
+                {t("planner.active.emptyTimeline", {
+                  defaultValue: "Chưa có lịch trình nào được lưu",
+                })}
+              </Text>
             </View>
           )}
         </View>
@@ -444,9 +527,12 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
       {/* FLOATING BOTTOM CTA - Only Check-in button now */}
       <LinearGradient
-        colors={['transparent', COLORS.background, COLORS.background]}
+        colors={["transparent", COLORS.background, COLORS.background]}
         locations={[0, 0.35, 1]}
-        style={[styles.floatingBottomContainer, { paddingBottom: insets.bottom + 16 }]}
+        style={[
+          styles.floatingBottomContainer,
+          { paddingBottom: insets.bottom + 16 },
+        ]}
       >
         {/* PRIMARY CHECK-IN BUTTON */}
         <TouchableOpacity
@@ -469,8 +555,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               />
               <Text style={styles.stickyCheckinText} numberOfLines={1}>
                 {isAlreadyCheckedIn
-                  ? "Đã check-in điểm này ✓"
-                  : `Check-in: ${nextSiteName}`}
+                  ? t("planner.active.checkedInThisStop", {
+                      defaultValue: "Đã check-in điểm này ✓",
+                    })
+                  : t("planner.active.checkInAt", {
+                      defaultValue: "Check-in: {{site}}",
+                      site: nextSiteName,
+                    })}
               </Text>
             </>
           )}

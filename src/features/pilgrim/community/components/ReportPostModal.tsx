@@ -1,7 +1,7 @@
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import type { TFunction } from 'i18next';
-import React, { useCallback, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import type { TFunction } from "i18next";
+import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
@@ -14,18 +14,18 @@ import {
   TouchableWithoutFeedback,
   useWindowDimensions,
   View,
-} from 'react-native';
-import Toast from 'react-native-toast-message';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
   SHADOWS,
   SPACING,
   TYPOGRAPHY,
-} from '../../../../constants/theme.constants';
-import { createReport } from '../../../../services/api/shared/reportApi';
-import { ReportReason, ReportTargetType } from '../../../../types/report.types';
+} from "../../../../constants/theme.constants";
+import { createReport } from "../../../../services/api/shared/reportApi";
+import { ReportReason, ReportTargetType } from "../../../../types/report.types";
 
 interface ReportPostModalProps {
   visible: boolean;
@@ -41,69 +41,129 @@ interface ReasonOption {
   description: string;
 }
 
+const getReasonPalette = (reason: ReportReason) => {
+  switch (reason) {
+    case "spam":
+      return {
+        icon: "#B45309",
+        background: "rgba(245, 158, 11, 0.18)",
+        border: "rgba(180, 83, 9, 0.35)",
+      };
+    case "harassment":
+      return {
+        icon: "#7C3AED",
+        background: "rgba(124, 58, 237, 0.16)",
+        border: "rgba(124, 58, 237, 0.32)",
+      };
+    case "hate_speech":
+      return {
+        icon: "#DC2626",
+        background: "rgba(220, 38, 38, 0.14)",
+        border: "rgba(220, 38, 38, 0.3)",
+      };
+    case "false_information":
+      return {
+        icon: "#2563EB",
+        background: "rgba(37, 99, 235, 0.14)",
+        border: "rgba(37, 99, 235, 0.28)",
+      };
+    case "violence":
+      return {
+        icon: "#B91C1C",
+        background: "rgba(185, 28, 28, 0.15)",
+        border: "rgba(185, 28, 28, 0.32)",
+      };
+    case "inappropriate":
+      return {
+        icon: "#DB2777",
+        background: "rgba(219, 39, 119, 0.13)",
+        border: "rgba(219, 39, 119, 0.28)",
+      };
+    case "scam":
+      return {
+        icon: "#0D9488",
+        background: "rgba(13, 148, 136, 0.14)",
+        border: "rgba(13, 148, 136, 0.3)",
+      };
+    case "other":
+    default:
+      return {
+        icon: "#64748B",
+        background: "rgba(100, 116, 139, 0.12)",
+        border: "rgba(100, 116, 139, 0.26)",
+      };
+  }
+};
+
 const getReportReasons = (t: TFunction): ReasonOption[] => [
   {
-    value: 'spam',
-    icon: 'block',
-    label: t('report.reasons.spam.label', { defaultValue: 'Spam' }),
-    description: t('report.reasons.spam.description', {
-      defaultValue: 'Advertising, repeated, or irrelevant content',
+    value: "spam",
+    icon: "block",
+    label: t("report.reasons.spam.label", { defaultValue: "Spam" }),
+    description: t("report.reasons.spam.description", {
+      defaultValue: "Advertising, repeated, or irrelevant content",
     }),
   },
   {
-    value: 'harassment',
-    icon: 'person-off',
-    label: t('report.reasons.harassment.label', { defaultValue: 'Harassment' }),
-    description: t('report.reasons.harassment.description', {
-      defaultValue: 'Bullying, threats, or harassment toward others',
+    value: "harassment",
+    icon: "person-off",
+    label: t("report.reasons.harassment.label", { defaultValue: "Harassment" }),
+    description: t("report.reasons.harassment.description", {
+      defaultValue: "Bullying, threats, or harassment toward others",
     }),
   },
   {
-    value: 'hate_speech',
-    icon: 'do-not-disturb',
-    label: t('report.reasons.hateSpeech.label', { defaultValue: 'Hate speech' }),
-    description: t('report.reasons.hateSpeech.description', {
-      defaultValue: 'Discrimination or attacks based on religion or ethnicity',
+    value: "hate_speech",
+    icon: "do-not-disturb",
+    label: t("report.reasons.hateSpeech.label", {
+      defaultValue: "Hate speech",
+    }),
+    description: t("report.reasons.hateSpeech.description", {
+      defaultValue: "Discrimination or attacks based on religion or ethnicity",
     }),
   },
   {
-    value: 'false_information',
-    icon: 'report-gmailerrorred',
-    label: t('report.reasons.falseInformation.label', { defaultValue: 'False information' }),
-    description: t('report.reasons.falseInformation.description', {
-      defaultValue: 'Fake or misleading information',
+    value: "false_information",
+    icon: "report-gmailerrorred",
+    label: t("report.reasons.falseInformation.label", {
+      defaultValue: "False information",
+    }),
+    description: t("report.reasons.falseInformation.description", {
+      defaultValue: "Fake or misleading information",
     }),
   },
   {
-    value: 'violence',
-    icon: 'warning',
-    label: t('report.reasons.violence.label', { defaultValue: 'Violence' }),
-    description: t('report.reasons.violence.description', {
-      defaultValue: 'Violent content or incitement to violence',
+    value: "violence",
+    icon: "warning",
+    label: t("report.reasons.violence.label", { defaultValue: "Violence" }),
+    description: t("report.reasons.violence.description", {
+      defaultValue: "Violent content or incitement to violence",
     }),
   },
   {
-    value: 'inappropriate',
-    icon: 'visibility-off',
-    label: t('report.reasons.inappropriate.label', { defaultValue: 'Inappropriate content' }),
-    description: t('report.reasons.inappropriate.description', {
-      defaultValue: 'Sexual, explicit, or sensitive imagery/content',
+    value: "inappropriate",
+    icon: "visibility-off",
+    label: t("report.reasons.inappropriate.label", {
+      defaultValue: "Inappropriate content",
+    }),
+    description: t("report.reasons.inappropriate.description", {
+      defaultValue: "Sexual, explicit, or sensitive imagery/content",
     }),
   },
   {
-    value: 'scam',
-    icon: 'gpp-bad',
-    label: t('report.reasons.scam.label', { defaultValue: 'Scam' }),
-    description: t('report.reasons.scam.description', {
-      defaultValue: 'Financial scams or impersonation',
+    value: "scam",
+    icon: "gpp-bad",
+    label: t("report.reasons.scam.label", { defaultValue: "Scam" }),
+    description: t("report.reasons.scam.description", {
+      defaultValue: "Financial scams or impersonation",
     }),
   },
   {
-    value: 'other',
-    icon: 'more-horiz',
-    label: t('report.reasons.other.label', { defaultValue: 'Other reason' }),
-    description: t('report.reasons.other.description', {
-      defaultValue: 'A reason not listed above',
+    value: "other",
+    icon: "more-horiz",
+    label: t("report.reasons.other.label", { defaultValue: "Other reason" }),
+    description: t("report.reasons.other.description", {
+      defaultValue: "A reason not listed above",
     }),
   },
 ];
@@ -112,16 +172,18 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
   visible,
   onClose,
   targetId,
-  targetType = 'post',
+  targetType = "post",
 }) => {
   const { t } = useTranslation();
   const { height: screenHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const reportReasons = React.useMemo(() => getReportReasons(t), [t]);
 
-  const [step, setStep] = useState<'reason' | 'detail'>('reason');
-  const [selectedReason, setSelectedReason] = useState<ReportReason | null>(null);
-  const [description, setDescription] = useState('');
+  const [step, setStep] = useState<"reason" | "detail">("reason");
+  const [selectedReason, setSelectedReason] = useState<ReportReason | null>(
+    null,
+  );
+  const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const slideAnim = React.useRef(new Animated.Value(0)).current;
@@ -160,16 +222,16 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
         useNativeDriver: true,
       }),
     ]).start(() => {
-      setStep('reason');
+      setStep("reason");
       setSelectedReason(null);
-      setDescription('');
+      setDescription("");
       onClose();
     });
   }, [slideAnim, overlayOpacity, screenHeight, onClose]);
 
   const handleSelectReason = (reason: ReportReason) => {
     setSelectedReason(reason);
-    setStep('detail');
+    setStep("detail");
   };
 
   const handleSubmit = async () => {
@@ -186,21 +248,21 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
       if (res.success || res.data) {
         Toast.show({
-          type: 'success',
-          text1: t('report.successTitle', { defaultValue: 'Report submitted' }),
-          text2: t('report.successMessage', {
-            defaultValue: 'Thank you. We will review this content soon.',
+          type: "success",
+          text1: t("report.successTitle", { defaultValue: "Report submitted" }),
+          text2: t("report.successMessage", {
+            defaultValue: "Thank you. We will review this content soon.",
           }),
         });
         animateClose();
       } else {
         Toast.show({
-          type: 'error',
-          text1: t('common.error', { defaultValue: 'Error' }),
+          type: "error",
+          text1: t("common.error", { defaultValue: "Error" }),
           text2:
             res.message ||
-            t('report.errorMessage', {
-              defaultValue: 'Unable to submit report. Please try again.',
+            t("report.errorMessage", {
+              defaultValue: "Unable to submit report. Please try again.",
             }),
         });
       }
@@ -208,12 +270,12 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
       const message =
         error?.response?.data?.message ||
         error?.message ||
-        t('report.errorMessage', {
-          defaultValue: 'Unable to submit report. Please try again.',
+        t("report.errorMessage", {
+          defaultValue: "Unable to submit report. Please try again.",
         });
       Toast.show({
-        type: 'error',
-        text1: t('common.error', { defaultValue: 'Error' }),
+        type: "error",
+        text1: t("common.error", { defaultValue: "Error" }),
         text2: message,
       });
     } finally {
@@ -223,13 +285,17 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
   if (!visible) return null;
 
-  const selectedReasonLabel = reportReasons.find((reason) => reason.value === selectedReason)?.label;
+  const selectedReasonLabel = reportReasons.find(
+    (reason) => reason.value === selectedReason,
+  )?.label;
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
       <View style={styles.modalRoot}>
         <TouchableWithoutFeedback onPress={animateClose}>
-          <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]} />
+          <Animated.View
+            style={[styles.overlay, { opacity: overlayOpacity }]}
+          />
         </TouchableWithoutFeedback>
 
         <Animated.View
@@ -248,33 +314,40 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
           </View>
 
           <View style={styles.header}>
-            {step === 'detail' && (
+            {step === "detail" && (
               <TouchableOpacity
-                onPress={() => setStep('reason')}
+                onPress={() => setStep("reason")}
                 style={styles.headerBackBtn}
               >
-                <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+                <Ionicons
+                  name="arrow-back"
+                  size={22}
+                  color={COLORS.textPrimary}
+                />
               </TouchableOpacity>
             )}
             <Text style={styles.headerTitle}>
-              {step === 'reason'
-                ? t('report.title', { defaultValue: 'Report' })
-                : t('report.detailTitle', { defaultValue: 'Report details' })}
+              {step === "reason"
+                ? t("report.title", { defaultValue: "Report" })
+                : t("report.detailTitle", { defaultValue: "Report details" })}
             </Text>
-            <TouchableOpacity onPress={animateClose} style={styles.headerCloseBtn}>
+            <TouchableOpacity
+              onPress={animateClose}
+              style={styles.headerCloseBtn}
+            >
               <Ionicons name="close" size={24} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.divider} />
 
-          {step === 'reason' ? (
+          {step === "reason" ? (
             <>
               <View style={styles.subtitleContainer}>
                 <MaterialIcons name="flag" size={20} color={COLORS.danger} />
                 <Text style={styles.subtitle}>
-                  {t('report.selectReason', {
-                    defaultValue: 'Please choose a reason for this report',
+                  {t("report.selectReason", {
+                    defaultValue: "Please choose a reason for this report",
                   })}
                 </Text>
               </View>
@@ -283,31 +356,45 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
                 style={styles.reasonList}
                 showsVerticalScrollIndicator={false}
               >
-                {reportReasons.map((reason) => (
-                  <TouchableOpacity
-                    key={reason.value}
-                    style={styles.reasonItem}
-                    onPress={() => handleSelectReason(reason.value)}
-                    activeOpacity={0.6}
-                  >
-                    <View style={styles.reasonIconContainer}>
-                      <MaterialIcons
-                        name={reason.icon as any}
-                        size={22}
-                        color={COLORS.textSecondary}
+                {reportReasons.map((reason) => {
+                  const palette = getReasonPalette(reason.value);
+
+                  return (
+                    <TouchableOpacity
+                      key={reason.value}
+                      style={styles.reasonItem}
+                      onPress={() => handleSelectReason(reason.value)}
+                      activeOpacity={0.6}
+                    >
+                      <View
+                        style={[
+                          styles.reasonIconContainer,
+                          {
+                            backgroundColor: palette.background,
+                            borderColor: palette.border,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={reason.icon as any}
+                          size={22}
+                          color={palette.icon}
+                        />
+                      </View>
+                      <View style={styles.reasonTextContainer}>
+                        <Text style={styles.reasonLabel}>{reason.label}</Text>
+                        <Text style={styles.reasonDescription}>
+                          {reason.description}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color={COLORS.textTertiary}
                       />
-                    </View>
-                    <View style={styles.reasonTextContainer}>
-                      <Text style={styles.reasonLabel}>{reason.label}</Text>
-                      <Text style={styles.reasonDescription}>{reason.description}</Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={COLORS.textTertiary}
-                    />
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  );
+                })}
                 <View style={{ height: Math.max(insets.bottom, SPACING.lg) }} />
               </ScrollView>
             </>
@@ -316,22 +403,25 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
               <View style={styles.selectedReasonContainer}>
                 <View style={styles.selectedReasonBadge}>
                   <MaterialIcons name="flag" size={16} color={COLORS.danger} />
-                  <Text style={styles.selectedReasonText}>{selectedReasonLabel}</Text>
+                  <Text style={styles.selectedReasonText}>
+                    {selectedReasonLabel}
+                  </Text>
                 </View>
               </View>
 
               <View style={styles.detailContainer}>
                 <Text style={styles.detailLabel}>
-                  {t('report.descriptionLabel', {
-                    defaultValue: 'Additional details (optional)',
+                  {t("report.descriptionLabel", {
+                    defaultValue: "Additional details (optional)",
                   })}
                 </Text>
                 <TextInput
                   style={styles.detailInput}
                   value={description}
                   onChangeText={setDescription}
-                  placeholder={t('report.descriptionPlaceholder', {
-                    defaultValue: 'Add more information to help us understand the issue...',
+                  placeholder={t("report.descriptionPlaceholder", {
+                    defaultValue:
+                      "Add more information to help us understand the issue...",
                   })}
                   placeholderTextColor={COLORS.textTertiary}
                   multiline
@@ -341,7 +431,12 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
                 <Text style={styles.charCount}>{description.length}/500</Text>
               </View>
 
-              <View style={[styles.submitContainer, { paddingBottom: Math.max(insets.bottom, SPACING.lg) }]}> 
+              <View
+                style={[
+                  styles.submitContainer,
+                  { paddingBottom: Math.max(insets.bottom, SPACING.lg) },
+                ]}
+              >
                 <TouchableOpacity
                   style={[
                     styles.submitButton,
@@ -357,7 +452,7 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
                     <>
                       <MaterialIcons name="send" size={18} color="#fff" />
                       <Text style={styles.submitButtonText}>
-                        {t('report.submit', { defaultValue: 'Send report' })}
+                        {t("report.submit", { defaultValue: "Send report" })}
                       </Text>
                     </>
                   )}
@@ -376,11 +471,11 @@ export default ReportPostModal;
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   sheet: {
     backgroundColor: COLORS.white,
@@ -389,7 +484,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.large,
   },
   handleBar: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: SPACING.sm,
     paddingBottom: SPACING.xs,
   },
@@ -400,15 +495,15 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: SPACING.md,
     paddingBottom: SPACING.sm,
-    position: 'relative',
+    position: "relative",
   },
   headerBackBtn: {
-    position: 'absolute',
+    position: "absolute",
     left: SPACING.md,
     padding: 4,
   },
@@ -418,22 +513,22 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   headerCloseBtn: {
-    position: 'absolute',
+    position: "absolute",
     right: SPACING.md,
     width: 32,
     height: 32,
     borderRadius: 16,
     backgroundColor: COLORS.backgroundSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   divider: {
     height: 1,
     backgroundColor: COLORS.border,
   },
   subtitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: SPACING.sm,
@@ -448,8 +543,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reasonItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: SPACING.lg,
     paddingVertical: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -460,8 +555,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.backgroundSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
     marginRight: SPACING.md,
   },
   reasonTextContainer: {
@@ -485,9 +582,9 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.sm,
   },
   selectedReasonBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
     gap: 6,
     backgroundColor: COLORS.dangerLight,
     paddingHorizontal: SPACING.md,
@@ -526,7 +623,7 @@ const styles = StyleSheet.create({
   charCount: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     color: COLORS.textTertiary,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: 4,
   },
   submitContainer: {
@@ -534,9 +631,9 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.lg,
   },
   submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: SPACING.sm,
     backgroundColor: COLORS.danger,
     paddingVertical: 14,
@@ -549,6 +646,6 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: TYPOGRAPHY.fontSize.lg,
     fontWeight: TYPOGRAPHY.fontWeight.bold,
-    color: '#fff',
+    color: "#fff",
   },
 });

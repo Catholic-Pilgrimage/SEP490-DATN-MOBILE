@@ -302,7 +302,7 @@ export interface PlanEntity {
   can_set_edit_lock_at?: boolean;
   /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
   shared_to_community?: boolean;
-  
+
   viewer_join_status?: "owner" | "joined" | "dropped_out" | null;
   viewer_deposit_status?: string | null;
   is_read_only?: boolean;
@@ -401,6 +401,7 @@ export interface UpdatePlanItemRequest {
   nearby_amenity_ids?: string[]; // UUIDs of nearby places to associate with this item
   estimated_time?: string; // Format: "HH:MM" (e.g., "09:00", "14:30")
   rest_duration?: string; // Format: "30 minutes", "1 hour", "2 hours 30 minutes"
+  travel_time_minutes?: number;
 }
 
 export interface InviteParticipantRequest {
@@ -508,6 +509,26 @@ export interface MarkVisitedConfirmationResponse {
 export interface ReorderPlannerItemsRequest {
   leg_number: number;
   item_ids: string[];
+}
+
+/** PATCH /planners/:id/items/swap */
+export interface SwapPlannerAffectedDayItem {
+  id: string;
+  estimated_time: string;
+  travel_time_minutes: number;
+}
+
+/** PATCH /planners/:id/items/swap */
+export interface SwapPlannerAffectedDay {
+  leg_number: number;
+  items: SwapPlannerAffectedDayItem[];
+}
+
+/** PATCH /planners/:id/items/swap */
+export interface SwapPlannerItemsRequest {
+  item_id_a: string;
+  item_id_b: string;
+  affected_days: SwapPlannerAffectedDay[];
 }
 
 export interface PlannerProgressMember {

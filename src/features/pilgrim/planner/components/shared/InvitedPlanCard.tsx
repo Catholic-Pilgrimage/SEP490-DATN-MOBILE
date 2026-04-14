@@ -15,9 +15,9 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../../constants/theme.constants";
+import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
 import { TransportationType } from "../../../../../types/pilgrim/planner.types";
 import { PlanUI } from "./PlanCard";
-import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
 
 export interface InvitedPlanUI extends PlanUI {
   ownerName?: string;
@@ -28,7 +28,7 @@ export interface InvitedPlanUI extends PlanUI {
   depositAmount?: number;
   penaltyPercentage?: number;
   /** 'friend' = no deposit needed; 'external' = deposit required */
-  inviteType?: 'friend' | 'external';
+  inviteType?: "friend" | "external";
 }
 
 interface InvitedPlanCardProps {
@@ -119,27 +119,34 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
   onJoin,
   onChat,
 }) => {
-  const { t } = useTranslation();
-  
+  const { t, i18n } = useTranslation();
+
   // N+1 fallback: nếu API list không có số lượng, ta tự fetch detail để đếm.
-  const [realStopCount, setRealStopCount] = React.useState<number>(plan.stopCount);
+  const [realStopCount, setRealStopCount] = React.useState<number>(
+    plan.stopCount,
+  );
 
   React.useEffect(() => {
-    if (plan.stopCount === 0 && plan.id && plan.status !== 'planning') {
+    if (plan.stopCount === 0 && plan.id && plan.status !== "planning") {
       let isMounted = true;
-      pilgrimPlannerApi.getPlanDetail(plan.id).then(res => {
-        if (isMounted && res.success && res.data) {
-          const detail = res.data as any;
-          let count = 0;
-          if (detail.items_by_day) {
-            count = Object.values(detail.items_by_day).flat().length;
-          } else if (detail.items) {
-            count = detail.items.length;
+      pilgrimPlannerApi
+        .getPlanDetail(plan.id)
+        .then((res) => {
+          if (isMounted && res.success && res.data) {
+            const detail = res.data as any;
+            let count = 0;
+            if (detail.items_by_day) {
+              count = Object.values(detail.items_by_day).flat().length;
+            } else if (detail.items) {
+              count = detail.items.length;
+            }
+            if (count > 0) setRealStopCount(count);
           }
-          if (count > 0) setRealStopCount(count);
-        }
-      }).catch(() => {});
-      return () => { isMounted = false; };
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
     } else {
       setRealStopCount(plan.stopCount);
     }
@@ -164,20 +171,20 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
   };
 
   const statusDisplay = getStatusDisplay(plan.status, t);
+  const locale = (i18n.language || "vi").startsWith("en") ? "en-US" : "vi-VN";
 
   const start = plan.startDate ? new Date(plan.startDate) : null;
   const end = plan.endDate ? new Date(plan.endDate) : null;
   const durationDays =
     start && end
-      ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) +
-        1
+      ? Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1
       : null;
   const dateStr =
     start && end
-      ? `${start.toLocaleDateString("vi-VN", {
+      ? `${start.toLocaleDateString(locale, {
           day: "2-digit",
           month: "2-digit",
-        })} - ${end.toLocaleDateString("vi-VN", {
+        })} - ${end.toLocaleDateString(locale, {
           day: "2-digit",
           month: "2-digit",
         })}`
@@ -293,7 +300,10 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
                 color={leftInviteBadge.fg}
               />
               <Text
-                style={[styles.inviteBadgePillText, { color: leftInviteBadge.fg }]}
+                style={[
+                  styles.inviteBadgePillText,
+                  { color: leftInviteBadge.fg },
+                ]}
                 numberOfLines={1}
               >
                 {leftInviteBadge.label}
@@ -386,8 +396,7 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
               <View style={styles.infoItem}>
                 <Ionicons name="location" size={16} color="#8B3A1A" />
                 <Text style={styles.infoTextVal}>
-                  {realStopCount || 0}{" "}
-                  {t("planner.sites", "địa điểm")}
+                  {realStopCount || 0} {t("planner.sites", "địa điểm")}
                 </Text>
               </View>
               <View style={styles.infoItem}>
@@ -406,7 +415,8 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
               <View style={styles.infoRowDetails}>{renderAvatars()}</View>
             ) : null}
 
-            {typeof plan.depositAmount === "number" && plan.depositAmount > 0 ? (
+            {typeof plan.depositAmount === "number" &&
+            plan.depositAmount > 0 ? (
               <View style={styles.depositHint}>
                 <Ionicons name="wallet-outline" size={14} color="#4A7A95" />
                 <Text style={styles.depositHintText}>
@@ -456,7 +466,10 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
             </Pressable>
           )}
 
-          <Pressable style={styles.actionBtnPrimary} onPress={handlePrimaryGradient}>
+          <Pressable
+            style={styles.actionBtnPrimary}
+            onPress={handlePrimaryGradient}
+          >
             <LinearGradient
               colors={["#6B8CA3", "#4A7A95"]}
               start={{ x: 0, y: 0 }}
