@@ -286,8 +286,14 @@ function normalizePlannerTransport(raw: unknown): TransportationType {
 
 // ─── Map PlanEntity → PlanUI helper ──────────────────────────
 const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
-  const totalItems =
-    typeof entity.item_count === "number" ? entity.item_count : 0;
+  let totalItems = typeof entity.item_count === "number" ? entity.item_count : 0;
+
+  // Fallback if item_count is 0 but items_by_day is present
+  if (totalItems === 0 && entity.items_by_day) {
+    totalItems = Object.values(entity.items_by_day).flat().length;
+  } else if (totalItems === 0 && entity.items) {
+    totalItems = entity.items.length;
+  }
 
   return {
     id: entity.id,
@@ -355,7 +361,13 @@ const mapMyInviteToInvitedPlanUI = (
     startDate: pl.start_date,
     endDate: pl.end_date || pl.start_date,
     status: (pl.status as any) || "planning",
-    stopCount: typeof pl.item_count === "number" ? pl.item_count : 0,
+    stopCount: (() => {
+      const count = typeof pl.item_count === "number" ? pl.item_count : 0;
+      if (count === 0 && pl.items_by_day) {
+        return Object.values(pl.items_by_day).flat().length;
+      }
+      return count;
+    })(),
     participantCount: pl.number_of_people || 0,
     coverImage: "https://images.unsplash.com/photo-1548625361-e88c60eb83fe",
     isShared: false,

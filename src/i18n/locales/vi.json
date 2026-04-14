@@ -648,6 +648,18 @@
     "startNow": "Bắt đầu ngay",
     "droppedOutBanner": "Bạn đã rời nhóm, nhưng vẫn có thể xem lại kế hoạch do có liên quan đến tiền cọc.",
     "noEventsAtThisLocation": "Không có sự kiện sắp tới tại địa điểm này",
+    "bus": "Xe khách",
+    "car": "Xe ô tô",
+    "motorcycle": "Xe máy",
+    "itemDetailTravelMinSuffix": "phút di chuyển (ước tính)",
+    "itemDetailScheduleSection": "Lịch trình & di chuyển (trong kế hoạch)",
+    "itemDetailFromPreviousStop": "Từ điểm trước",
+    "itemDetailTimeWindow": "Khung giờ dự kiến",
+    "itemDetailRestAtSite": "Thời gian dừng tại điểm",
+    "itemDetailNoScheduleYet": "Chưa đặt giờ — chỉnh bằng biểu tượng bút ở góc trên.",
+    "editTimeAndNote": "Chỉnh sửa thời gian & ghi chú",
+    "removeFromItinerary": "Xóa khỏi lịch trình",
+    "note": "Ghi chú (kế hoạch)",
     "atTime": " lúc {{time}}",
     "eventSelectionPrefix": "🎉 Chọn Sự kiện: ",
     "all": "Tất cả",
@@ -952,7 +964,8 @@
     "defaultGuide": "Hướng dẫn viên",
     "notAssignedSite": "Chưa được gán địa điểm",
     "verifiedGuide": "Hướng dẫn viên (Đã xác minh)",
-    "localGuide": "Hướng dẫn viên",
+    "localGuide": "Hướng dẫn viên địa phương",
+    "pilgrimRole": "Người hành hương",
     "stats": {
       "pilgrimages": "Hành hương",
       "favorites": "Yêu thích",
@@ -1932,7 +1945,7 @@
     "verifiedVisit": "Đã ghé thăm",
     "replyFrom": "Phản hồi từ {{name}}",
     "replyFromGuide": "Phản hồi từ hướng dẫn viên",
-    "localGuideBadge": "Hướng dẫn viên địa phương"
+    "localGuide": "Hướng dẫn viên địa phương"
   },
   "guideReviews": {
     "reviewsShowing": "{{count}} đánh giá đang hiển thị",

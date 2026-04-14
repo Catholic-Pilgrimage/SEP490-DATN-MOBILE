@@ -127,30 +127,73 @@ export const InvitedPlanCard: React.FC<InvitedPlanCardProps> = ({
   );
 
   React.useEffect(() => {
-    if (plan.stopCount === 0 && plan.id && plan.status !== "planning") {
+    if (plan.stopCount === 0 && plan.id) {
       let isMounted = true;
+      console.log(`[InvitedPlanCard] Start fetching for plan ${plan.id}`);
+      
       pilgrimPlannerApi
         .getPlanDetail(plan.id)
         .then((res) => {
-          if (isMounted && res.success && res.data) {
+          if (!isMounted) return;
+          if (res.success && res.data) {
             const detail = res.data as any;
             let count = 0;
             if (detail.items_by_day) {
               count = Object.values(detail.items_by_day).flat().length;
             } else if (detail.items) {
               count = detail.items.length;
+            } else if (typeof detail.item_count === "number") {
+              count = detail.item_count;
             }
+            
+            console.log(`[InvitedPlanCard] Detail success for ${plan.id}: ${count} sites`);
             if (count > 0) setRealStopCount(count);
+          } else {
+            console.log(`[InvitedPlanCard] Detail failed for ${plan.id}: ${res.message}`);
+            // If failed (maybe 403), try invite token fallback
+            if (plan.inviteToken) {
+              fetchViaToken();
+            }
           }
         })
-        .catch(() => {});
+        .catch((err: any) => {
+          if (!isMounted) return;
+          console.log(`[InvitedPlanCard] Detail error for ${plan.id}, status: ${err?.response?.status}`);
+          if (plan.inviteToken) {
+            fetchViaToken();
+          }
+        });
+
+      const fetchViaToken = () => {
+        if (!plan.inviteToken) return;
+        console.log(`[InvitedPlanCard] Falling back to token preview for ${plan.id}`);
+        pilgrimPlannerApi
+          .getPlanByInviteToken(plan.inviteToken)
+          .then((res) => {
+            if (isMounted && res.success && res.data?.planner) {
+              const pl = res.data.planner as any;
+              let count = 0;
+              if (pl.items_by_day) {
+                count = Object.values(pl.items_by_day).flat().length;
+              } else if (typeof pl.item_count === "number") {
+                count = pl.item_count;
+              }
+              console.log(`[InvitedPlanCard] Token fallback success for ${plan.id}: ${count} sites`);
+              if (count > 0) setRealStopCount(count);
+            }
+          })
+          .catch((err) => {
+            console.log(`[InvitedPlanCard] Token fallback failed for ${plan.id}`, err);
+          });
+      };
+
       return () => {
         isMounted = false;
       };
     } else {
       setRealStopCount(plan.stopCount);
     }
-  }, [plan.id, plan.stopCount, plan.status]);
+  }, [plan.id, plan.stopCount, plan.status, plan.inviteToken]);
 
   const scaleValue = useRef(new Animated.Value(1)).current;
 

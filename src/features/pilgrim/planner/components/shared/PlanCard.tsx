@@ -87,7 +87,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   );
 
   React.useEffect(() => {
-    if (plan.stopCount === 0 && plan.id && plan.status !== "planning") {
+    if (plan.stopCount === 0 && plan.id) {
       let isMounted = true;
       pilgrimPlannerApi
         .getPlanDetail(plan.id)
