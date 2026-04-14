@@ -518,9 +518,9 @@ export default function EditPlanModal(props: EditPlanModalProps) {
             </Text>
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 24 }}>
               {[
-                { value: "bus", label: t("planner.bus", { defaultValue: "Xe buýt" }), icon: "bus" as const },
-                { value: "car", label: t("planner.car", { defaultValue: "Ô tô" }), icon: "car" as const },
-                { value: "motorbike", label: t("planner.motorcycle", { defaultValue: "Xe máy" }), icon: "bicycle" as const },
+                { value: "bus", label: t("planner.transport.bus", { defaultValue: "Xe buýt" }), icon: "bus" as const },
+                { value: "car", label: t("planner.transport.car", { defaultValue: "Ô tô" }), icon: "car" as const },
+                { value: "motorbike", label: t("planner.transport.motorbike", { defaultValue: "Xe máy" }), icon: "bicycle" as const },
               ].map((item) => (
                 <TouchableOpacity
                   key={item.value}

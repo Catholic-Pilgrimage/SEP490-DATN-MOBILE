@@ -58,12 +58,12 @@ export const PlannerTransactionsModal: React.FC<
           const parts: string[] = [];
           if (s.total_fund_locked != null) {
             parts.push(
-              `${t("planner.txLocked", { defaultValue: "Cam kết" })}: ${formatVnd(s.total_fund_locked)}`,
+              `${t("planner.txLocked")}: ${formatVnd(s.total_fund_locked)}`,
             );
           }
           if (s.total_penalty_pending != null && s.total_penalty_pending > 0) {
             parts.push(
-              `${t("planner.txPenaltyPending", { defaultValue: "Phạt chờ" })}: ${formatVnd(s.total_penalty_pending)}`,
+              `${t("planner.txPenaltyPending")}: ${formatVnd(s.total_penalty_pending)}`,
             );
           }
           setSummaryLine(parts.length ? parts.join(" · ") : null);
@@ -111,9 +111,7 @@ export const PlannerTransactionsModal: React.FC<
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>
-              {t("planner.fundStatementTitle", {
-                defaultValue: "Sao kê quỹ nhóm",
-              })}
+              {t("planner.fundStatementTitle")}
             </Text>
             {planName ? (
               <Text style={styles.subtitle} numberOfLines={1}>
@@ -141,9 +139,7 @@ export const PlannerTransactionsModal: React.FC<
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               <Text style={styles.empty}>
-                {t("planner.transactionsEmpty", {
-                  defaultValue: "Chưa có giao dịch quỹ nhóm.",
-                })}
+                {t("planner.transactionsEmpty")}
               </Text>
             }
             renderItem={({ item }) => (

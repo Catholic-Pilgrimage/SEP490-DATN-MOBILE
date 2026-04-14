@@ -215,7 +215,7 @@ export default function PlanDetailMapHeader({
                   },
                 ]}
               >
-                Sửa kế hoạch
+                {t("planner.editPlanMenu")}
               </Text>
             </TouchableOpacity>
             )}
@@ -412,7 +412,7 @@ export default function PlanDetailMapHeader({
                   },
                 ]}
               >
-                Xóa kế hoạch
+                {t("planner.deletePlanMenu")}
               </Text>
             </TouchableOpacity>
             )}
@@ -440,7 +440,7 @@ export default function PlanDetailMapHeader({
                 color="#fff"
                 style={{ marginRight: 4 }}
               />
-              <Text style={styles.statusText}>Công khai</Text>
+              <Text style={styles.statusText}>{t("planner.public", { defaultValue: "Công khai" })}</Text>
             </View>
           )}
         </View>
@@ -481,7 +481,7 @@ export default function PlanDetailMapHeader({
                 size={16}
                 color="rgba(255,255,255,0.9)"
               />
-              <Text style={styles.metaText}>{plan.number_of_days} Ngày</Text>
+              <Text style={styles.metaText}>{plan.number_of_days} {t("planner.dayLabelMeta")}</Text>
             </View>
           </View>
 
@@ -569,7 +569,7 @@ export default function PlanDetailMapHeader({
                 <Text
                   style={{ color: "#fff", fontSize: 13, fontWeight: "bold" }}
                 >
-                  + Mời
+                  {t("planner.inviteCta")}
                 </Text>
               </View>
             </TouchableOpacity>

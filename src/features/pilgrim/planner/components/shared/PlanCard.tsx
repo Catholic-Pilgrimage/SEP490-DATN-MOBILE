@@ -57,19 +57,19 @@ const getTransportIcon = (
 const getTransportLabel = (type: TransportationType, t: any): string => {
   switch (type) {
     case "plane":
-      return t("transport.plane", "Máy bay");
+      return t("planner.transport.plane");
     case "car":
-      return t("transport.car", "Ô tô");
+      return t("planner.transport.car");
     case "bus":
-      return t("transport.bus", "Xe buýt");
+      return t("planner.transport.bus");
     case "train":
-      return t("transport.train", "Tàu hỏa");
+      return t("planner.transport.train");
     case "walk":
-      return t("transport.walk", "Đi bộ");
+      return t("planner.transport.walk");
     case "motorbike":
-      return t("transport.motorbike", "Xe máy");
+      return t("planner.transport.motorbike");
     default:
-      return t("transport.other", "Khác");
+      return t("planner.transport.other");
   }
 };
 
@@ -136,7 +136,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     const s = (status || "planning").toLowerCase();
     if (s === "ongoing") {
       return {
-        text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"),
+        text: t("planner.statusOngoing"),
         color: "#FFFFFF",
         bg: "#5C6B52",
         icon: "rocket-outline",
@@ -144,7 +144,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }
     if (s === "locked") {
       return {
-        text: t("planner.statusLocked", "READY"),
+        text: t("planner.statusLocked"),
         color: "#FFFFFF",
         bg: "#5C6B52",
         icon: "lock-closed-outline",
@@ -152,7 +152,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }
     if (s === "completed") {
       return {
-        text: t("planner.statusCompleted", "HOÀN THÀNH"),
+        text: t("planner.statusCompleted"),
         color: "#FFFFFF",
         bg: "#4A6B58",
         icon: "checkmark-circle-outline",
@@ -160,7 +160,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }
     if (s === "cancelled") {
       return {
-        text: t("planner.statusCancelled", "ĐÃ HỦY"),
+        text: t("planner.statusCancelled"),
         color: "#FFFFFF",
         bg: "#8B5344",
         icon: "close-circle-outline",
@@ -168,7 +168,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }
     // Default to planning/draft
     return {
-      text: t("planner.statusPlanning", "ĐANG LÊN KẾ HOẠCH"),
+      text: t("planner.statusPlanning"),
       color: "#FFFFFF",
       bg: "#9E7B55",
       icon: "create-outline",
@@ -238,7 +238,7 @@ export const PlanCard: React.FC<PlanCardProps> = ({
             marginLeft: 6,
           }}
         >
-          {plan.participantCount} {t("planner.people", "người")}
+          {plan.participantCount} {t("planner.people")}
         </Text>
       </View>
     );

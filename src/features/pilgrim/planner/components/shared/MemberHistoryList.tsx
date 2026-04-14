@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, Image, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "../../../../../constants/theme.constants";
 
@@ -13,6 +14,7 @@ interface MemberHistoryListProps {
 }
 
 export default function MemberHistoryList({ allItems, history }: MemberHistoryListProps) {
+  const { t } = useTranslation();
   return (
     <>
       {allItems.map((item) => {
@@ -20,24 +22,24 @@ export default function MemberHistoryList({ allItems, history }: MemberHistoryLi
           (h) => String(h.planner_item_id) === String(item.id)
         );
 
-        let statusText = "Chưa check-in";
+        let statusText = t("planner.statusNotCheckedIn");
         let color = COLORS.textSecondary;
         let icon: keyof typeof Ionicons.glyphMap = "ellipse-outline";
 
         if (hist) {
           if (hist.status === "checked_in") {
-            statusText = "Đã check-in";
+            statusText = t("planner.statusCheckedIn");
             color = COLORS.success;
             icon = "checkmark-circle";
           } else if (
             hist.status === "skipped_by_planner" ||
             hist.status === "skipped"
           ) {
-            statusText = "Đã bỏ qua";
+            statusText = t("planner.statusSkipped");
             color = COLORS.warning;
             icon = "play-skip-forward-circle";
           } else if (hist.status === "missed") {
-            statusText = "Bỏ lỡ";
+            statusText = t("planner.statusMissed");
             color = COLORS.danger;
             icon = "close-circle";
           } else {
@@ -52,7 +54,7 @@ export default function MemberHistoryList({ allItems, history }: MemberHistoryLi
             <Image source={{ uri: imgUri }} style={styles.historyImg} />
             <View style={styles.historyBody}>
               <Text style={styles.historySiteName} numberOfLines={1}>
-                {item.site?.name || "Tên địa điểm"}
+                {item.site?.name || t("planner.members.siteNameDefault")}
               </Text>
               <View style={styles.historyStatusRow}>
                 <Ionicons name={icon} size={14} color={color} />

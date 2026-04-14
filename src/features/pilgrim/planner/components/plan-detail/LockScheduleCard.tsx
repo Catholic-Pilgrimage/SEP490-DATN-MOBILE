@@ -63,7 +63,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
               color: "#1E40AF",
             }}
           >
-            Lịch khoá kế hoạch
+            {t("planner.lockScheduleTitle")}
           </Text>
         </View>
         <Ionicons
@@ -93,9 +93,9 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
               }}
             />
             <Text style={{ fontSize: 13, color: "#374151", flex: 1 }}>
-              <Text style={{ fontWeight: "600", color: "#4B5563" }}>Khoá chỉnh sửa: </Text>
+              <Text style={{ fontWeight: "600", color: "#4B5563" }}>{t("planner.editLockLabel")}: </Text>
               {plan?.is_locked ? (
-                <Text style={{ fontWeight: "700", color: "#16A34A" }}>Đã khoá ✓</Text>
+                <Text style={{ fontWeight: "700", color: "#16A34A" }}>{t("planner.lockedSuccess")}</Text>
               ) : plan?.edit_lock_at ? (
                 <Text style={{ fontWeight: "800", color: "#D97706" }}>
                   {new Date(plan.edit_lock_at).toLocaleString("vi-VN", {
@@ -107,7 +107,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                   })}
                 </Text>
               ) : (
-                <Text style={{ fontWeight: "600", color: "#6B7280" }}>Tự động (24h trước ngày đi)</Text>
+                <Text style={{ fontWeight: "600", color: "#6B7280" }}>{t("planner.autoLock24h")}</Text>
               )}
             </Text>
           </View>
@@ -131,9 +131,9 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
               }}
             />
             <Text style={{ fontSize: 13, color: "#374151", flex: 1 }}>
-              <Text style={{ fontWeight: "600", color: "#4B5563" }}>Chốt kế hoạch: </Text>
+              <Text style={{ fontWeight: "600", color: "#4B5563" }}>{t("planner.planLockLabel")}: </Text>
               {planStatusStr === "locked" ? (
-                <Text style={{ fontWeight: "700", color: "#16A34A" }}>Đã chốt ✓</Text>
+                <Text style={{ fontWeight: "700", color: "#16A34A" }}>{t("planner.finalizedSuccess")}</Text>
               ) : (plan as any)?.planner_lock_at ? (
                 <Text style={{ fontWeight: "800", color: "#D97706" }}>
                   {new Date((plan as any).planner_lock_at).toLocaleString("vi-VN", {
@@ -145,7 +145,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                   })}
                 </Text>
               ) : (
-                <Text style={{ fontWeight: "600", color: "#6B7280" }}>Tự động (12h trước ngày đi)</Text>
+                <Text style={{ fontWeight: "600", color: "#6B7280" }}>{t("planner.autoLock12h")}</Text>
               )}
             </Text>
           </View>
@@ -160,7 +160,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                 lineHeight: 16,
               }}
             >
-              💡 Hệ thống sẽ tự động khoá theo lịch trên. Bạn có thể sử dụng nút bên dưới để thực hiện thủ công ngay lập tức.
+              {t("planner.lockScheduleHint")}
             </Text>
           )}
 
@@ -197,7 +197,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                     />
                   )}
                   <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>
-                    Khoá lộ trình
+                    {t("planner.lockRouteCta")}
                   </Text>
                 </TouchableOpacity>
               ) : (

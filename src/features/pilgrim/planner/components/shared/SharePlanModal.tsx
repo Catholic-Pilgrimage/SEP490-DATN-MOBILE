@@ -407,7 +407,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
             successCount++;
           } else {
             failCount++;
-            lastErrorMessage = res.message || "Lỗi không xác định";
+            lastErrorMessage = res.message || t("common.errorUnknown", { defaultValue: "Lỗi không xác định" });
           }
         } catch (e: any) {
           failCount++;
@@ -419,7 +419,9 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
         Toast.show({
           type: "success",
           text1: t("common.success"),
-          text2: `Đã gửi ${successCount} lời mời thành công`,
+          text2: emails.length === 1 
+            ? t("planner.inviteSuccess") 
+            : t("planner.inviteMultipleSuccess", { count: successCount }),
         });
         setEmailChips([]);
         setCurrentEmailText("");
@@ -430,7 +432,9 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2: emails.length === 1 ? lastErrorMessage : `Có ${failCount} lời mời bị lỗi: ${lastErrorMessage}`,
+          text2: emails.length === 1 
+            ? lastErrorMessage 
+            : t("planner.inviteMultipleFail", { count: failCount, message: lastErrorMessage }),
         });
       }
     } catch (e: unknown) {
@@ -466,19 +470,19 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
           successCount++;
         } else {
           failCount++;
-          lastErrorMessage = res.message || "Lỗi không xác định";
+          lastErrorMessage = res.message || t("common.errorUnknown", { defaultValue: "Lỗi không xác định" });
         }
       } catch (e: any) {
         failCount++;
-        lastErrorMessage = getApiErrorMessage(e, "Lời mời thất bại");
+        lastErrorMessage = getApiErrorMessage(e, t("planner.inviteFailed", { defaultValue: "Lời mời thất bại" }));
       }
     }
 
     if (successCount > 0) {
       Toast.show({
         type: "success",
-        text1: "Gửi lời mời thành công",
-        text2: `Đã mời ${successCount} bạn bè tham gia`,
+        text1: t("planner.inviteSuccess"),
+        text2: t("planner.inviteFriendSuccess", { count: successCount }),
       });
       await loadPanel();
     }
@@ -486,8 +490,10 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     if (failCount > 0) {
       Toast.show({
         type: "error",
-        text1: "Lỗi",
-        text2: selected.length === 1 ? lastErrorMessage : `Có ${failCount} lời mời bị lỗi: ${lastErrorMessage}`,
+        text1: t("common.error"),
+        text2: selected.length === 1 
+          ? lastErrorMessage 
+          : t("planner.inviteMultipleFail", { count: failCount, message: lastErrorMessage }),
       });
     }
     setInviting(false);
@@ -781,7 +787,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
                     onPress={() => setShowFriendPicker(true)}
                     style={styles.friendPickerBtn}
                     disabled={inviting || isOffline}
-                    accessibilityLabel="Mở danh bạ bạn bè"
+                    accessibilityLabel={t("planner.openFriendPicker", { defaultValue: "Mở danh bạ bạn bè" })}
                   >
                     <Ionicons name="person-add-outline" size={26} color={COLORS.primary} />
                   </TouchableOpacity>

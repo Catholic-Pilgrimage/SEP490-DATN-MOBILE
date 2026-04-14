@@ -62,19 +62,19 @@ const getTransportIcon = (
 const getTransportLabel = (type: TransportationType, t: any): string => {
   switch (type) {
     case "plane":
-      return t("transport.plane", "Máy bay");
+      return t("planner.transport.plane", "Máy bay");
     case "car":
-      return t("transport.car", "Ô tô");
+      return t("planner.transport.car", "Ô tô");
     case "bus":
-      return t("transport.bus", "Xe buýt");
+      return t("planner.transport.bus", "Xe buýt");
     case "train":
-      return t("transport.train", "Tàu hỏa");
+      return t("planner.transport.train", "Tàu hỏa");
     case "walk":
-      return t("transport.walk", "Đi bộ");
+      return t("planner.transport.walk", "Đi bộ");
     case "motorbike":
-      return t("transport.motorbike", "Xe máy");
+      return t("planner.transport.motorbike", "Xe máy");
     default:
-      return t("transport.other", "Khác");
+      return t("planner.transport.other", "Khác");
   }
 };
 

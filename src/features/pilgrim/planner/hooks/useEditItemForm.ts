@@ -7,6 +7,9 @@ import offlinePlannerService from "../../../../services/offline/offlinePlannerSe
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import vietmapService from "../../../../services/map/vietmapService";
+import {
+  formatDurationLocalized,
+} from "../utils/siteScheduleHelper";
 import { applyLocalItemUpdate } from "../utils/planDetailLocalPlan.utils";
 import { buildDurationString } from "../utils/planDetailTime.utils";
 
@@ -97,19 +100,22 @@ export const useEditItemForm = ({
                 ? `${Math.round(route.distance)} m`
                 : `${route.distanceKm.toFixed(1)} km`;
             setEditRouteInfo(
-              `📍 ${distanceDisplay}  ⏱️ ${route.durationText} di chuyển từ điểm trước`,
+              t("planner.sameDayRouteInfo", {
+                distance: distanceDisplay,
+                duration: formatDurationLocalized(route.durationMinutes, t),
+              }),
             );
           } else {
-            setEditRouteInfo("Không có tọa độ để tính toán lộ trình");
+            setEditRouteInfo(t("planner.noCoordinatesError"));
           }
         } catch {
-          setEditRouteInfo("Không thể tính toán lộ trình");
+          setEditRouteInfo(t("planner.loadSiteErrorShort"));
         } finally {
           setCalculatingEditRoute(false);
         }
       }
     } else if (currentIndex === 0) {
-      setEditRouteInfo("Điểm đầu tiên trong ngày");
+      setEditRouteInfo(t("planner.firstLocationOfDay"));
     }
   };
 

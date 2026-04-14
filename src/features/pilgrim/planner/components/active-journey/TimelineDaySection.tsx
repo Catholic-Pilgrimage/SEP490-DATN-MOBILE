@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -50,6 +51,7 @@ export default function TimelineDaySection({
   isOwner,
   onItemAction,
 }: Props) {
+  const { t, i18n } = useTranslation();
   const scrollRef = React.useRef<ScrollView>(null);
 
   // Auto-scroll to center whenever selectedDay changes
@@ -91,14 +93,26 @@ export default function TimelineDaySection({
             const isActive = d.key === selectedDay;
             const dateInfo = (() => {
               try {
-                const p = d.label.split("-");
-                return { day: p[2], month: `T${parseInt(p[1])}` };
+                const date = new Date(d.label);
+                if (isNaN(date.getTime())) throw new Error();
+                
+                if (i18n.language === "vi") {
+                  const day = date.getDate();
+                  const month = date.getMonth() + 1;
+                  return { day: day.toString(), month: `Th${month}` };
+                } else {
+                  const day = date.getDate();
+                  const month = date.toLocaleString("en-US", { month: "short" });
+                  return { day: day.toString(), month };
+                }
               } catch {
                 return { day: d.label, month: "" };
               }
             })();
 
-            const fullLabel = `${dateInfo.day} ${dateInfo.month} (Ngày ${d.key})`;
+            const fullLabel = i18n.language === "vi" 
+              ? `${dateInfo.day} ${dateInfo.month} (${t("planner.dayWithNumber", { day: d.key })})`
+              : `${dateInfo.month} ${dateInfo.day} (${t("planner.dayWithNumber", { day: d.key })})`;
 
             return (
               <TouchableOpacity
@@ -124,7 +138,7 @@ export default function TimelineDaySection({
         {items.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="calendar-outline" size={32} color={COLORS.textTertiary} />
-            <Text style={styles.emptyText}>Chưa có lịch trình cho ngày này</Text>
+            <Text style={styles.emptyText}>{t("planner.noScheduleForThisDay")}</Text>
           </View>
         ) : (
           <ScrollView
@@ -158,7 +172,7 @@ export default function TimelineDaySection({
                   {/* RIGHT: CONTENT */}
                   <View style={styles.contentCol}>
                     <Text style={[styles.siteName, (isVisited || isSkipped) && styles.siteNameDone]} numberOfLines={1}>
-                      {item.site?.name || "Địa điểm chưa xác định"}
+                      {item.site?.name || t("planner.siteNameUnknown")}
                     </Text>
 
                     <View style={styles.timeRow}>
@@ -172,11 +186,11 @@ export default function TimelineDaySection({
                       </Text>
                       {isNext && (
                         <View style={styles.nextBadge}>
-                          <Text style={styles.nextBadgeText}>Sắp tới</Text>
+                          <Text style={styles.nextBadgeText}>{t("planner.statusNext")}</Text>
                         </View>
                       )}
-                      {isVisited && <View style={styles.visitedBadge}><Text style={styles.visitedBadgeText}>Đã viếng</Text></View>}
-                      {isSkipped && <View style={styles.skippedBadge}><Text style={styles.skippedBadgeText}>Bỏ qua</Text></View>}
+                      {isVisited && <View style={styles.visitedBadge}><Text style={styles.visitedBadgeText}>{t("planner.statusVisited")}</Text></View>}
+                      {isSkipped && <View style={styles.skippedBadge}><Text style={styles.skippedBadgeText}>{t("planner.statusSkipped")}</Text></View>}
                     </View>
 
                     {!!item.site?.address && !isVisited && !isSkipped && (

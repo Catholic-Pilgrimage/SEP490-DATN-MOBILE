@@ -74,12 +74,12 @@ export default function NearbyPlacesModal({
                 ]}
               >
                 {cat === "all"
-                  ? "Tất cả"
+                  ? t("planner.all")
                   : cat === "food"
-                    ? "🍜 Ăn uống"
+                    ? t("planner.categoryFoodEmoji")
                     : cat === "lodging"
-                      ? "🏨 Lưu trú"
-                      : "🏥 Y tế"}
+                      ? t("planner.categoryLodgingEmoji")
+                      : t("planner.categoryMedicalEmoji")}
               </Text>
             </TouchableOpacity>
           ))}
@@ -166,13 +166,13 @@ export default function NearbyPlacesModal({
                     ) : savedNearbyPlaceIds.has(item.id) ? (
                       <>
                         <Ionicons name="checkmark-circle" size={14} color="#fff" />
-                        <Text style={styles.nearbyPlaceSelectBtnText}>Đã lưu</Text>
+                        <Text style={styles.nearbyPlaceSelectBtnText}>{t("planner.placeSaved")}</Text>
                       </>
                     ) : (
                       <>
                         <Ionicons name="bookmark-outline" size={14} color="#fff" />
                         <Text style={styles.nearbyPlaceSelectBtnText}>
-                          Lưu vào lịch trình
+                          {t("planner.saveToItinerary")}
                         </Text>
                       </>
                     )}

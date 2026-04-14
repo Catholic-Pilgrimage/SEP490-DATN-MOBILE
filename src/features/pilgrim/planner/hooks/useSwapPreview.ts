@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import vietmapService from '../../../../services/map/vietmapService';
 import type { PlanEntity, PlanItem } from '../../../../types/pilgrim/planner.types';
@@ -14,7 +15,7 @@ import {
   parseOpeningHours,
   getDateForLeg,
   timeToMinutes,
-  formatMinutesVi,
+  formatDurationLocalized,
 } from '../utils/siteScheduleHelper';
 import { parseDurationToMinutes } from '../utils/time';
 import { sortPlanDayItems } from '../utils/planDetailLocalPlan.utils';
@@ -93,6 +94,7 @@ const normaliseTime = (t: unknown): string => {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useSwapPreview(plan: PlanEntity | null) {
+  const { t } = useTranslation();
   const [state, setState] = useState<SwapPreviewState>({ ...INITIAL_STATE });
   const flowRef = useRef(0);
 
@@ -116,7 +118,7 @@ export function useSwapPreview(plan: PlanEntity | null) {
         const sorted = sortPlanDayItems(raw);
         const idxA = sorted.findIndex((i) => i.id === itemIdA);
         const idxB = sorted.findIndex((i) => i.id === itemIdB);
-        if (idxA < 0 || idxB < 0) throw new Error('Không tìm thấy địa điểm');
+        if (idxA < 0 || idxB < 0) throw new Error(t('planner.swapItemNotFound', { defaultValue: 'Không tìm thấy địa điểm' }));
 
         const anchorTime = normaliseTime(sorted[0]?.estimated_time);
         const legDate = getDateForLeg(plan.start_date, Number(dayKey));
@@ -242,7 +244,7 @@ export function useSwapPreview(plan: PlanEntity | null) {
 
             if (arrivalResult.daysAdded > 0) {
               warnings.push(
-                `"${site?.name || item.site?.name}" — thời gian vượt qua ngày hiện tại`,
+                t('planner.swapCrossDayWarning', { name: site?.name || item.site?.name })
               );
               isBlocked = true;
             }
@@ -255,7 +257,7 @@ export function useSwapPreview(plan: PlanEntity | null) {
           let isError = false;
 
           if (closeTime && timeToMinutes(newTime) > timeToMinutes(closeTime)) {
-            warning = `Đến lúc ${newTime} — đã đóng cửa (${closeTime})`;
+            warning = t('planner.swapArriveAfterClosing', { time: newTime, close: closeTime });
             warnings.push(`"${site?.name || item.site?.name}": ${warning}`);
             isBlocked = true;
             isError = true;
@@ -264,7 +266,7 @@ export function useSwapPreview(plan: PlanEntity | null) {
             timeToMinutes(newTime) < timeToMinutes(openTime)
           ) {
             const waitMin = timeToMinutes(openTime) - timeToMinutes(newTime);
-            warning = `Đến sớm ${formatMinutesVi(waitMin)} (mở cửa ${openTime})`;
+            warning = t('planner.swapArriveEarly', { wait: formatDurationLocalized(waitMin, t), open: openTime });
           }
 
           orderedNewTimes.push({ id: item.id!, time: newTime });
@@ -302,7 +304,7 @@ export function useSwapPreview(plan: PlanEntity | null) {
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: error.message || 'Lỗi tính toán lộ trình',
+          error: error.message || t('planner.loadSiteError', { defaultValue: 'Lỗi tính toán lộ trình' }),
         }));
       }
     },

@@ -38,7 +38,7 @@ type Props = {
 };
 
 export default function PlannerMembersScreen({ route, navigation }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const planId = route.params?.planId || "";
   const planName =
@@ -173,7 +173,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
           percent: planDetail.penalty_percentage,
           amount: Math.round(
             (planDetail.deposit_amount * planDetail.penalty_percentage) / 100,
-          ).toLocaleString("vi-VN"),
+          ).toLocaleString(i18n.language === "vi" ? "vi-VN" : "en-US"),
         })}`
       : planDetail?.deposit_amount > 0
         ? `\n${t("planner.members.leaveDepositRefundHint", {
@@ -445,12 +445,8 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                               ]}
                             >
                               {isOwner
-                                ? t("planner.roleOwner", {
-                                    defaultValue: "Trưởng đoàn",
-                                  })
-                                : t("planner.roleMember", {
-                                    defaultValue: "Thành viên",
-                                  })}
+                                ? t("planner.roleOwner")
+                                : t("planner.roleMember")}
                             </Text>
                           </View>
                         </View>

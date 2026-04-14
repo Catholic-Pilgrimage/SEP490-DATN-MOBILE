@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import Slider from "@react-native-community/slider";
 import React, { useMemo } from "react";
 import {
   ActivityIndicator,
@@ -18,7 +17,7 @@ import { COLORS } from "../../../../../constants/theme.constants";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "../../../../../config/toast.config";
 import type { DayEvent, ScheduleInsight, SuggestedArrival } from "../../utils/siteScheduleHelper";
-import { formatMinutesVi } from "../../utils/siteScheduleHelper";
+import { formatDurationLocalized } from "../../utils/siteScheduleHelper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -136,300 +135,306 @@ export default function TimeInputModal(props: TimeInputModalProps) {
 
         <KeyboardAvoidingView 
           style={{ flex: 1 }} 
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         >
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
             keyboardShouldPersistTaps="handled"
           >
-          <Text style={styles.timeInputLabel}>
-            {t("planner.addLocationDay")} {selectedDay}
-          </Text>
-          <Text style={styles.timeInputDescription}>
-            Vui lòng chọn giờ dự kiến và thời gian nghỉ (tối thiểu 1 giờ).
-          </Text>
+            <Text style={styles.timeInputLabel}>
+              {t("planner.addLocationDay")} {selectedDay}
+            </Text>
+            <Text style={styles.timeInputDescription}>
+              {t("planner.setTimeDescription")}
+            </Text>
 
-          {/* ── ROUTE INFO ── */}
-          {calculatingRoute ? (
-            <View style={styles.routeInfoContainer}>
-              <ActivityIndicator size="small" color={COLORS.textPrimary} />
-              <Text style={styles.routeInfoText}>Đang tính toán lộ trình...</Text>
-            </View>
-          ) : routeInfo ? (
-            <View style={styles.routeInfoContainer}>
-              <Ionicons name="car-outline" size={20} color={COLORS.textPrimary} />
-              <Text style={styles.routeInfoText}>{routeInfo}</Text>
-            </View>
-          ) : null}
+            {/* ── ROUTE INFO ── */}
+            {calculatingRoute ? (
+              <View style={styles.routeInfoContainer}>
+                <ActivityIndicator size="small" color={COLORS.textPrimary} />
+                <Text style={styles.routeInfoText}>{t("planner.calculatingRoute")}</Text>
+              </View>
+            ) : routeInfo ? (
+              <View style={styles.routeInfoContainer}>
+                <Ionicons name="car-outline" size={20} color={COLORS.textPrimary} />
+                <Text style={styles.routeInfoText}>{routeInfo}</Text>
+              </View>
+            ) : null}
 
-          {/* ── SITE SCHEDULE INFO ── */}
-          {!calculatingRoute && (openTime || closeTime || massTimesForDay.length > 0 || eventsForDay.length > 0) && (
-            <SiteScheduleCard
-              openTime={openTime}
-              closeTime={closeTime}
-              massTimesForDay={massTimesForDay}
-              eventsForDay={eventsForDay}
-              eventStartTime={eventStartTime}
-              eventName={eventName}
-            />
-          )}
+            {/* ── SITE SCHEDULE INFO ── */}
+            {!calculatingRoute && (openTime || closeTime || massTimesForDay.length > 0 || eventsForDay.length > 0) && (
+              <SiteScheduleCard
+                openTime={openTime}
+                closeTime={closeTime}
+                massTimesForDay={massTimesForDay}
+                eventsForDay={eventsForDay}
+                eventStartTime={eventStartTime}
+                eventName={eventName}
+                t={t}
+              />
+            )}
 
-          {/* ── TRAVEL TIMELINE + INSIGHT ── */}
-          {!calculatingRoute && (hasTravelInfo || insight) && (
-            <View style={localStyles.travelCard}>
-              <Text style={localStyles.travelCardTitle}>
-                <Ionicons name="map-outline" size={14} color="#8B7355" /> Di chuyển & Lịch trình
-              </Text>
+            {/* ── TRAVEL TIMELINE + INSIGHT ── */}
+            {!calculatingRoute && (hasTravelInfo || insight) && (
+              <View style={localStyles.travelCard}>
+                <Text style={localStyles.travelCardTitle}>
+                  <Ionicons name="map-outline" size={14} color="#8B7355" /> {t("planner.travelAndSchedule")}
+                </Text>
 
-              {hasTravelInfo && (
-                <>
-                  <TimelineRow
-                    label={`Rời ${previousSiteName || "điểm trước"}`}
-                    time={departureTimeFromPrev!}
-                    dotColor="#6B7280"
-                  />
-                  <View style={localStyles.travelLine}>
-                    <Text style={localStyles.travelLineText}>
-                      🚗 Di chuyển {formatMinutesVi(travelMinutes!)}
-                      {travelDistanceKm
-                        ? ` • ${travelDistanceKm < 1 ? `${Math.round(travelDistanceKm * 1000)} m` : `${travelDistanceKm.toFixed(1)} km`}`
-                        : ""}
-                    </Text>
-                  </View>
-                  <TimelineRow
-                    label="Nhanh nhất có thể đến"
-                    time={fastestArrival || "—"}
-                    dotColor="#D97706"
-                    dotBorderColor="rgba(217, 119, 6, 0.3)"
-                  />
-                </>
-              )}
+                {hasTravelInfo && (
+                  <>
+                    <TimelineRow
+                      label={t("planner.leaveFrom", { name: previousSiteName || t("planner.previousStop", { defaultValue: "điểm trước" }) })}
+                      time={departureTimeFromPrev!}
+                      dotColor="#6B7280"
+                      t={t}
+                    />
+                    <View style={localStyles.travelLine}>
+                      <Text style={localStyles.travelLineText}>
+                        🚗 {t("planner.travelTime", { time: formatDurationLocalized(travelMinutes!, t) })}
+                        {travelDistanceKm
+                          ? ` • ${travelDistanceKm < 1 ? `${Math.round(travelDistanceKm * 1000)} m` : `${travelDistanceKm.toFixed(1)} km`}`
+                          : ""}
+                      </Text>
+                    </View>
+                    <TimelineRow
+                      label={t("planner.earliestArrival")}
+                      time={fastestArrival || "—"}
+                      dotColor="#D97706"
+                      dotBorderColor="rgba(217, 119, 6, 0.3)"
+                      t={t}
+                    />
+                  </>
+                )}
 
-              {/* ── INSIGHT BOX ── */}
-              {insight && (
-                <View
-                  style={[
-                    localStyles.insightBox,
-                    {
-                      backgroundColor: insight.bgColor,
-                      borderColor: insight.color,
-                      marginTop: hasTravelInfo ? 12 : 6,
-                    },
-                  ]}
-                >
-                  <View style={localStyles.insightHeader}>
-                    <Ionicons name={insight.iconName as any} size={16} color={insight.color} />
-                    <Text style={[localStyles.insightTitle, { color: insight.color }]}>
-                      {insight.title}
-                    </Text>
-                  </View>
-                  <Text
+                {/* ── INSIGHT BOX ── */}
+                {insight && (
+                  <View
                     style={[
-                      localStyles.insightMessage,
+                      localStyles.insightBox,
                       {
-                        color:
-                          insight.type === "error" ||
-                          insight.type === "event_late"
-                            ? "#991B1B"
-                            : "#374151",
+                        backgroundColor: insight.bgColor,
+                        borderColor: insight.color,
+                        marginTop: hasTravelInfo ? 12 : 6,
                       },
                     ]}
                   >
-                    {insight.message}
-                  </Text>
-                </View>
-              )}
-
-              {/* ── CROSS-DAY WARNING BOX ── */}
-              {crossDayWarning && (
-                <View
-                  style={[
-                    localStyles.insightBox,
-                    {
-                      backgroundColor: "#FEF2F2",
-                      borderColor: "#FECACA",
-                      marginTop: hasTravelInfo || insight ? 12 : 6,
-                    },
-                  ]}
-                >
-                  <View style={localStyles.insightHeader}>
-                    <Ionicons
-                      name="warning-outline"
-                      size={16}
-                      color="#991B1B"
-                    />
+                    <View style={localStyles.insightHeader}>
+                      <Ionicons name={insight.iconName as any} size={16} color={insight.color} />
+                      <Text style={[localStyles.insightTitle, { color: insight.color }]}>
+                        {insight.title}
+                      </Text>
+                    </View>
                     <Text
-                      style={[localStyles.insightTitle, { color: "#991B1B" }]}
+                      style={[
+                        localStyles.insightMessage,
+                        {
+                          color:
+                            insight.type === "error" ||
+                            insight.type === "event_late"
+                              ? "#991B1B"
+                              : "#374151",
+                        },
+                      ]}
                     >
-                      Cảnh báo hành trình
+                      {insight.message}
                     </Text>
                   </View>
-                  <Text
-                    style={[localStyles.insightMessage, { color: "#991B1B" }]}
+                )}
+
+                {/* ── CROSS-DAY WARNING BOX ── */}
+                {crossDayWarning && (
+                  <View
+                    style={[
+                      localStyles.insightBox,
+                      {
+                        backgroundColor: "#FEF2F2",
+                        borderColor: "#FECACA",
+                        marginTop: hasTravelInfo || insight ? 12 : 6,
+                      },
+                    ]}
                   >
-                    {crossDayWarning}
-                  </Text>
-                </View>
-              )}
-
-              {/* ── SUGGEST TIME BUTTON ── */}
-              {showSuggestButton && suggestedTime && (
-                <TouchableOpacity
-                  style={localStyles.suggestButton}
-                  onPress={onApplySuggestedTime}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="sparkles" size={16} color="#1D4ED8" />
-                  <View style={localStyles.suggestButtonContent}>
-                    <Text style={localStyles.suggestButtonText}>
-                      Đặt giờ gợi ý: {suggestedTime.time}
-                    </Text>
-                    <Text style={localStyles.suggestButtonReason} numberOfLines={1}>
-                      {suggestedTime.reason}
+                    <View style={localStyles.insightHeader}>
+                      <Ionicons
+                        name="warning-outline"
+                        size={16}
+                        color="#991B1B"
+                      />
+                      <Text
+                        style={[localStyles.insightTitle, { color: "#991B1B" }]}
+                      >
+                        {t("planner.journeyWarning")}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[localStyles.insightMessage, { color: "#991B1B" }]}
+                    >
+                      {crossDayWarning}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color="#1D4ED8" />
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
+                )}
 
+                {/* ── SUGGEST TIME BUTTON ── */}
+                {showSuggestButton && suggestedTime && (
+                  <TouchableOpacity
+                    style={localStyles.suggestButton}
+                    onPress={onApplySuggestedTime}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="sparkles" size={16} color="#1D4ED8" />
+                    <View style={localStyles.suggestButtonContent}>
+                      <Text style={localStyles.suggestButtonText}>
+                        {t("planner.suggestedTimeCta", { time: suggestedTime.time })}
+                      </Text>
+                      <Text style={localStyles.suggestButtonReason} numberOfLines={1}>
+                        {suggestedTime.reason}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#1D4ED8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
 
-          {/* ── TIME PICKER ── */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 20,
-            }}
-          >
-            <Text style={[styles.timeInputFieldLabel, { marginBottom: 0 }]}>
-              Giờ dự kiến
-            </Text>
-            <TouchableOpacity
-              style={localStyles.compactTimePickerBtn}
-              onPress={openTimePicker}
-            >
-              <Ionicons name="time-outline" size={18} color={COLORS.primary} />
-              <Text style={localStyles.compactTimeText}>{estimatedTime}</Text>
-              <Ionicons
-                name="chevron-down"
-                size={16}
-                color={COLORS.textSecondary}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* ── REST DURATION ── */}
-          <View style={[styles.timeInputContainer, { marginBottom: 20 }]}>
+            {/* ── TIME PICKER ── */}
             <View
               style={{
                 flexDirection: "row",
-                justifyContent: "space-between",
                 alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 20,
               }}
             >
               <Text style={[styles.timeInputFieldLabel, { marginBottom: 0 }]}>
-                Thời gian nghỉ tại điểm
+                {t("planner.estimatedTimeLabel")}
               </Text>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              <TouchableOpacity
+                style={localStyles.compactTimePickerBtn}
+                onPress={openTimePicker}
               >
-                <TouchableOpacity
-                  onPress={() =>
-                    setRestDuration(Math.max(60, restDuration - 15))
-                  }
-                  disabled={restDuration <= 60}
-                  style={[
-                    localStyles.stepperBtn,
-                    restDuration <= 60 && { opacity: 0.4 },
-                  ]}
+                <Ionicons name="time-outline" size={18} color={COLORS.primary} />
+                <Text style={localStyles.compactTimeText}>{estimatedTime}</Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={16}
+                  color={COLORS.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {/* ── REST DURATION ── */}
+            <View style={[styles.timeInputContainer, { marginBottom: 20 }]}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text 
+                  style={[styles.timeInputFieldLabel, { marginBottom: 0, flex: 1, marginRight: 8 }]}
+                  numberOfLines={2}
                 >
-                  <Ionicons name="remove" size={20} color={COLORS.primary} />
-                </TouchableOpacity>
-                <Text
-                  style={{
-                    fontSize: 16,
-                    fontWeight: "700",
-                    color: COLORS.primary,
-                    minWidth: 65,
-                    textAlign: "center",
-                  }}
-                >
-                  {formatDuration(restDuration)}
+                  {t("planner.restDurationLabel")}
                 </Text>
-                <TouchableOpacity
-                  onPress={() =>
-                    setRestDuration(Math.min(240, restDuration + 15))
-                  }
-                  disabled={restDuration >= 240}
-                  style={[
-                    localStyles.stepperBtn,
-                    restDuration >= 240 && { opacity: 0.4 },
-                  ]}
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
                 >
-                  <Ionicons name="add" size={20} color={COLORS.primary} />
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setRestDuration(Math.max(60, restDuration - 15))
+                    }
+                    disabled={restDuration <= 60}
+                    style={[
+                      localStyles.stepperBtn,
+                      restDuration <= 60 && { opacity: 0.4 },
+                    ]}
+                  >
+                    <Ionicons name="remove" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      fontWeight: "700",
+                      color: COLORS.primary,
+                      minWidth: 65,
+                      textAlign: "center",
+                    }}
+                  >
+                    {formatDuration(restDuration)}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      setRestDuration(Math.min(240, restDuration + 15))
+                    }
+                    disabled={restDuration >= 240}
+                    style={[
+                      localStyles.stepperBtn,
+                      restDuration >= 240 && { opacity: 0.4 },
+                    ]}
+                  >
+                    <Ionicons name="add" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
 
-          {/* ── NOTE ── */}
-          <View style={styles.noteInputContainer}>
-            <Text style={styles.timeInputFieldLabel}>
-              {t("planner.noteOptional")}
-            </Text>
-            <TextInput
-              style={[styles.noteInput, { minHeight: 60 }]}
-              placeholder={t("planner.notePlaceholder")}
-              placeholderTextColor={COLORS.textTertiary}
-              value={note}
-              onChangeText={setNote}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-        </ScrollView>
-        </KeyboardAvoidingView>
+            {/* ── NOTE ── */}
+            <View style={styles.noteInputContainer}>
+              <Text style={styles.timeInputFieldLabel}>
+                {t("planner.noteOptional")}
+              </Text>
+              <TextInput
+                style={[styles.noteInput, { minHeight: 60 }]}
+                placeholder={t("planner.notePlaceholder")}
+                placeholderTextColor={COLORS.textTertiary}
+                value={note}
+                onChangeText={setNote}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
+          </ScrollView>
 
-        {/* ── CONFIRM BUTTON (STICKY BOTTOM) ── */}
-        <View
-          style={[
-            localStyles.stickyFooter,
-            { paddingBottom: Math.max(insets.bottom, 16) + 16 },
-          ]}
-        >
-          <TouchableOpacity
+          {/* ── CONFIRM BUTTON (STICKY BOTTOM) ── */}
+          <View
             style={[
-              styles.confirmButton,
-              (addingItem || isConfirmBlocked) && styles.saveTimeButtonDisabled,
-              isConfirmBlocked && { opacity: 0.5 },
-              { marginTop: 0 }
+              localStyles.stickyFooter,
+              { paddingBottom: Math.max(insets.bottom, 16) + 16 },
             ]}
-            onPress={onConfirmAdd}
-            disabled={addingItem || !selectedSiteId || isConfirmBlocked}
           >
-            {addingItem ? (
-              <ActivityIndicator color={COLORS.white} />
-            ) : isConfirmBlocked ? (
-              <Text
-                style={[
-                  styles.confirmButtonText,
-                  { color: "rgba(255,255,255,0.7)" },
-                ]}
-              >
-                Chọn giờ khác để tiếp tục
-              </Text>
-            ) : (
-              <Text style={[styles.confirmButtonText, { color: COLORS.white }]}>
-                {t("planner.addToItinerary")}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[
+                styles.confirmButton,
+                (addingItem || isConfirmBlocked) && styles.saveTimeButtonDisabled,
+                isConfirmBlocked && { opacity: 0.5 },
+                { marginTop: 0 }
+              ]}
+              onPress={onConfirmAdd}
+              disabled={addingItem || !selectedSiteId || isConfirmBlocked}
+            >
+              {addingItem ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : isConfirmBlocked ? (
+                <Text
+                  style={[
+                    styles.confirmButtonText,
+                    { color: "rgba(255,255,255,0.7)" },
+                  ]}
+                >
+                  {t("planner.selectAnotherTime")}
+                </Text>
+              ) : (
+                <Text style={[styles.confirmButtonText, { color: COLORS.white }]}>
+                  {t("planner.addToItinerary")}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
         <View
           style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }}
           pointerEvents="box-none"
@@ -451,21 +456,22 @@ function SiteScheduleCard(props: {
   eventsForDay?: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
+  t: (key: string, options?: any) => string;
 }) {
-  const { openTime, closeTime, massTimesForDay, eventsForDay = [], eventStartTime, eventName } = props;
+  const { openTime, closeTime, massTimesForDay, eventsForDay = [], eventStartTime, eventName, t } = props;
 
   return (
     <View style={localStyles.scheduleCard}>
       <View style={localStyles.scheduleCardHeader}>
         <Ionicons name="information-circle" size={16} color="#1D4ED8" />
-        <Text style={localStyles.scheduleCardTitle}>Thông tin địa điểm</Text>
+        <Text style={localStyles.scheduleCardTitle}>{t("planner.locationInfo")}</Text>
       </View>
 
       {(openTime || closeTime) && (
         <View style={localStyles.scheduleRow}>
           <Ionicons name="time-outline" size={14} color={COLORS.textSecondary} />
           <Text style={localStyles.scheduleRowText}>
-            Giờ mở cửa: {openTime || "—"} – {closeTime || "—"}
+            {t("planner.openingHours")}: {openTime || "—"} – {closeTime || "—"}
           </Text>
         </View>
       )}
@@ -474,7 +480,7 @@ function SiteScheduleCard(props: {
         <View style={localStyles.scheduleRow}>
           <Ionicons name="calendar-outline" size={14} color="#8B5CF6" />
           <Text style={localStyles.scheduleRowText}>
-            Giờ Lễ hôm nay: {massTimesForDay.join(", ")}
+            {t("planner.massToday", { times: massTimesForDay.join(", ") })}
           </Text>
         </View>
       )}
@@ -484,7 +490,7 @@ function SiteScheduleCard(props: {
         <View key={evt.id} style={localStyles.scheduleRow}>
           <Ionicons name="star" size={14} color="#D97706" />
           <Text style={[localStyles.scheduleRowText, { fontWeight: "700", color: "#92400E" }]}>
-            {evt.name}{evt.startTime ? ` lúc ${evt.startTime}` : ""}{evt.endTime ? ` – ${evt.endTime}` : ""}
+            {t("planner.eventRange", { name: evt.name, start: evt.startTime || "—", end: evt.endTime || "—" })}
           </Text>
         </View>
       ))}
@@ -494,7 +500,7 @@ function SiteScheduleCard(props: {
         <View style={localStyles.scheduleRow}>
           <Ionicons name="star" size={14} color="#D97706" />
           <Text style={[localStyles.scheduleRowText, { fontWeight: "700", color: "#92400E" }]}>
-            {eventName || "Sự kiện"} lúc {eventStartTime}
+            {t("planner.eventAt", { name: eventName || t("planner.event", { defaultValue: "Sự kiện" }), time: eventStartTime })}
           </Text>
         </View>
       )}
@@ -508,6 +514,7 @@ function TimelineRow(props: {
   time: string;
   dotColor: string;
   dotBorderColor?: string;
+  t: (key: string, options?: any) => string;
 }) {
   return (
     <View style={localStyles.travelRow}>

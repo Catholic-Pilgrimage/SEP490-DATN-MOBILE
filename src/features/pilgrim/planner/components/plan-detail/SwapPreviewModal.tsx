@@ -11,12 +11,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
-import type {
+import {
     SwapItemPreview,
     SwapPreviewResult,
     SwapRouteSegment,
 } from "../../hooks/useSwapPreview";
-import { formatMinutesVi } from "../../utils/siteScheduleHelper";
+import { formatDurationLocalized } from "../../utils/siteScheduleHelper";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +29,7 @@ interface SwapPreviewModalProps {
   onClose: () => void;
   onConfirm: () => void;
   confirming: boolean;
+  t: (key: string, options?: any) => string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -43,6 +44,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
     onClose,
     onConfirm,
     confirming,
+    t,
   } = props;
   const insets = useSafeAreaInsets();
 
@@ -59,16 +61,16 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>Xem trước đổi thứ tự</Text>
+            <Text style={styles.title}>{t("planner.swapPreviewTitle")}</Text>
             <Text style={styles.subtitle}>
-              Thời gian sẽ được tính lại tự động
+              {t("planner.swapPreviewSubtitle")}
             </Text>
           </View>
           <TouchableOpacity
             onPress={onClose}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
-            <Text style={styles.cancelHeaderText}>Huỷ</Text>
+            <Text style={styles.cancelHeaderText}>{t("common.cancel")}</Text>
           </TouchableOpacity>
         </View>
 
@@ -78,9 +80,9 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
             <View style={styles.loadingCard}>
               <ActivityIndicator size="large" color={COLORS.primary} />
               <Text style={styles.loadingText}>
-                Đang tính toán lộ trình mới...
+                {t("planner.loadingNewRoute")}
               </Text>
-              <Text style={styles.loadingSubtext}>Xin chờ trong giây lát</Text>
+              <Text style={styles.loadingSubtext}>{t("planner.waitAMoment")}</Text>
             </View>
           </View>
         )}
@@ -91,7 +93,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
             <Ionicons name="alert-circle" size={48} color="#DC2626" />
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>Đóng</Text>
+              <Text style={styles.closeButtonText}>{t("common.close")}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -109,7 +111,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
               {/* ── Before Card ── */}
               <SectionLabel
                 icon="list-outline"
-                label="Thứ tự hiện tại"
+                label={t("planner.currentOrder")}
                 color="#6B7280"
               />
               <View style={styles.orderCard}>
@@ -139,7 +141,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
               {/* ── After Card ── */}
               <SectionLabel
                 icon="checkmark-circle-outline"
-                label="Thứ tự mới"
+                label={t("planner.newOrder")}
                 color="#059669"
               />
               <View style={[styles.orderCard, styles.afterCard]}>
@@ -147,7 +149,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
                   <React.Fragment key={`after-${item.id}`}>
                     <ItemRow item={item} timeKey="newTime" showWarning />
                     {idx < result.routes.length && (
-                      <RouteSegmentRow route={result.routes[idx]} />
+                      <RouteSegmentRow route={result.routes[idx]} t={t} />
                     )}
                   </React.Fragment>
                 ))}
@@ -168,7 +170,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
                         { color: result.isBlocked ? "#DC2626" : "#92400E" },
                       ]}
                     >
-                      {result.isBlocked ? "Không thể đổi thứ tự" : "Lưu ý"}
+                      {result.isBlocked ? t("planner.cannotSwapOrder") : t("common.note")}
                     </Text>
                   </View>
                   {result.warnings.map((w, i) => (
@@ -199,7 +201,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
                   onPress={onClose}
                   disabled={confirming}
                 >
-                  <Text style={styles.cancelButtonText}>Huỷ</Text>
+                  <Text style={styles.cancelButtonText}>{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
@@ -222,7 +224,7 @@ export default function SwapPreviewModal(props: SwapPreviewModalProps) {
                         color="#fff"
                       />
                       <Text style={styles.confirmButtonText}>
-                        {result.isBlocked ? "Không thể đổi" : "Xác nhận đổi"}
+                        {result.isBlocked ? t("planner.cannotSwapOrder") : t("planner.swapConfirmAction")}
                       </Text>
                     </>
                   )}
@@ -308,8 +310,8 @@ function ItemRow(props: {
   );
 }
 
-function RouteSegmentRow(props: { route: SwapRouteSegment }) {
-  const { route } = props;
+function RouteSegmentRow(props: { route: SwapRouteSegment, t: (key: string, options?: any) => string }) {
+  const { route, t } = props;
   const distText =
     route.distanceKm < 1
       ? `${Math.round(route.distanceKm * 1000)} m`
@@ -323,7 +325,7 @@ function RouteSegmentRow(props: { route: SwapRouteSegment }) {
       <View style={styles.routeInfo}>
         <Ionicons name="car-outline" size={14} color="#6B7280" />
         <Text style={styles.routeText}>
-          {formatMinutesVi(route.durationMin)} • {distText}
+          {formatDurationLocalized(route.durationMin, t)} • {distText}
         </Text>
       </View>
     </View>
