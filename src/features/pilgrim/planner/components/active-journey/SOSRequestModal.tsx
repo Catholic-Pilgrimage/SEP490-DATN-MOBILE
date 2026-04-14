@@ -16,6 +16,7 @@ import { COLORS, BORDER_RADIUS, SPACING, SHADOWS } from '../../../../../constant
 import pilgrimSOSApi from '../../../../../services/api/pilgrim/sosApi';
 import Toast from 'react-native-toast-message';
 import locationService from '../../../../../services/location/locationService';
+import { toastConfig } from '../../../../../config/toast.config';
 
 interface Props {
   visible: boolean;
@@ -63,15 +64,18 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
       });
 
       if (res.success) {
-        Toast.show({
-          type: 'success',
-          text1: 'Đã gửi yêu cầu',
-          text2: 'Ban quản lý đã nhận được thông tin cứu trợ của bạn.',
-        });
-        onClose();
         // Reset form
         setSelectedCategory(null);
         setDescription('');
+        onClose();
+
+        setTimeout(() => {
+          Toast.show({
+            type: 'success',
+            text1: 'Đã gửi yêu cầu',
+            text2: 'Ban quản lý đã nhận được thông tin cứu trợ của bạn.',
+          });
+        }, 300);
       } else {
         throw new Error(res.message);
       }
@@ -107,7 +111,7 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
       >
         <View style={styles.content}>
@@ -186,6 +190,7 @@ export const SOSRequestModal: React.FC<Props> = ({ visible, onClose, planId, sit
           </View>
         </View>
       </KeyboardAvoidingView>
+      <Toast config={toastConfig} />
     </Modal>
   );
 };

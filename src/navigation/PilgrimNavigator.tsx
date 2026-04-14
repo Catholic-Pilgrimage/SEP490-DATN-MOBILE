@@ -134,8 +134,6 @@ const ProfileStackNavigator = () => (
     <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
     <ProfileStack.Screen name="FavoriteSites" component={FavoriteSitesScreen} />
     <ProfileStack.Screen name="OfflineDownloads" component={OfflineDownloadsScreen} />
-    <ProfileStack.Screen name="SOSHistory" component={SOSHistoryScreen} />
-    <ProfileStack.Screen name="SOSDetail" component={SOSDetailScreen} />
     <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
     <ProfileStack.Screen name="Wallet" component={WalletScreen} />
     <ProfileStack.Screen name="MyReports" component={MyReportsScreen} />
@@ -285,6 +283,20 @@ export const PilgrimNavigator = () => {
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
           presentation: 'card',
+        }}
+      />
+      <MainStack.Screen
+        name="SOSHistory"
+        component={SOSHistoryScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        }}
+      />
+      <MainStack.Screen
+        name="SOSDetail"
+        component={SOSDetailScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
         }}
       />
     </MainStack.Navigator>

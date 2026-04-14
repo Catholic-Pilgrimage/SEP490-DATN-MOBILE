@@ -490,9 +490,41 @@ export const sendPlanMessage = async (
   planId: string,
   data: SendPlanMessageRequest,
 ): Promise<ApiResponse<PlannerMessage>> => {
+  if (data.message_type === "image" && data.imageUri) {
+    const formData = new FormData();
+    formData.append("message_type", "image");
+    
+    if (data.content) {
+      formData.append("content", data.content);
+    } else {
+      formData.append("content", "");
+    }
+
+    const uriParts = data.imageUri.split(".");
+    const fileExt = uriParts[uriParts.length - 1] || "jpg";
+    formData.append("image", {
+      uri: data.imageUri,
+      name: `chat_img_${Date.now()}.${fileExt}`,
+      type: `image/${fileExt.toLowerCase() === "png" ? "png" : "jpeg"}`,
+    } as any);
+
+    const response = await apiClient.post<ApiResponse<PlannerMessage>>(
+      PILGRIM_ENDPOINTS.PLANNER.MESSAGES(planId),
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+    return response.data;
+  }
+
+  // Fallback for text
+  const payload = {
+    message_type: data.message_type,
+    content: data.content || "",
+  };
+
   const response = await apiClient.post<ApiResponse<PlannerMessage>>(
     PILGRIM_ENDPOINTS.PLANNER.MESSAGES(planId),
-    data,
+    payload,
   );
   return response.data;
 };

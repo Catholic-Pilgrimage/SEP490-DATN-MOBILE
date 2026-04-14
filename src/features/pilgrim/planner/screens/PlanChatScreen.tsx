@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -32,11 +33,11 @@ import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
 const POLL_INTERVAL = 8000;
 const PAGE_SIZE = 30;
 
-/** Cũ → mới (tin mới nhất ở cuối mảng), giống Messenger / FB. */
-const sortMessagesOldestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
+/** Mới → cũ (tin mới nhất ở đầu mảng), dùng cho inverted list. */
+const sortMessagesNewestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
   [...msgs].sort(
     (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
 const PlanChatScreen = ({ route, navigation }: any) => {
@@ -106,10 +107,10 @@ const PlanChatScreen = ({ route, navigation }: any) => {
               const newOnes = fetched.filter(
                 (m: any) => !existingIds.has(m.id),
               );
-              return sortMessagesOldestFirst([...newOnes, ...prev]);
+              return sortMessagesNewestFirst([...newOnes, ...prev]);
             });
           } else {
-            setMessages(sortMessagesOldestFirst(fetched));
+            setMessages(sortMessagesNewestFirst(fetched));
           }
         }
         const total = data?.pagination?.total ?? 0;
@@ -137,17 +138,14 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     })();
   }, [fetchMessages]);
 
-  // Lần đầu vào: cuộn xuống cuối; tin mới (poll / gửi): cuộn theo nếu có tin mới nhất mới.
+  // Lần đầu vào hoặc có tin mới không cần cuộn vì inverted FlatList tự đẩy tin nhắn mới ở đáy màn hình.
   useEffect(() => {
     if (loading || messages.length === 0) return;
-    const newestId = messages[messages.length - 1]?.id ?? null;
+    const newestId = messages[0]?.id ?? null;
 
     if (!didInitialScrollRef.current) {
       didInitialScrollRef.current = true;
       if (newestId) lastNewestMessageIdRef.current = newestId;
-      requestAnimationFrame(() =>
-        flatListRef.current?.scrollToEnd({ animated: false }),
-      );
       return;
     }
 
@@ -157,9 +155,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
       newestId !== lastNewestMessageIdRef.current
     ) {
       lastNewestMessageIdRef.current = newestId;
-      requestAnimationFrame(() =>
-        flatListRef.current?.scrollToEnd({ animated: true }),
-      );
+      // Inverted automatically handles appending new items at the bottom visually
     }
   }, [loading, messages]);
 
@@ -180,7 +176,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
               (m: PlannerMessage) => !existingIds.has(m.id),
             );
             if (newOnes.length === 0) return prev;
-            return sortMessagesOldestFirst([...prev, ...newOnes]);
+            return sortMessagesNewestFirst([...prev, ...newOnes]);
           });
         }
       } catch {
@@ -203,21 +199,50 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     setLoadingMore(false);
   }, [hasMore, loadingMore, page, fetchMessages]);
 
-  // --- Send message ---
+  // --- Send message (Optimistic UI) ---
   const handleSend = useCallback(async () => {
     const content = text.trim();
     if (!content || sending) return;
 
-    setSending(true);
+    // Optimistic UI update
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: PlannerMessage = {
+      id: tempId,
+      message_type: "text",
+      content,
+      image_url: "",
+      sender: {
+        id: user?.id ? String(user.id) : "",
+        full_name: user?.full_name || "",
+        avatar_url: user?.avatar_url || "",
+      },
+      user_id: user?.id ? String(user.id) : "",
+      user: {
+        id: user?.id ? String(user.id) : "",
+        full_name: user?.full_name || "",
+        avatar_url: user?.avatar_url || "",
+      },
+      created_at: new Date().toISOString(),
+      planner_id: planId,
+    };
+
+    setMessages((prev) => sortMessagesNewestFirst([...prev, optimisticMsg]));
     setText("");
+    // We intentionally don't setSending(true) to allow rapid fire typing, 
+    // but you can if you want strictly one message at a time.
+
     try {
       const res = await pilgrimPlannerApi.sendPlanMessage(planId, {
         message_type: "text",
         content,
       });
       if ((res.success || res.data) && res.data) {
-        setMessages((prev) => sortMessagesOldestFirst([...prev, res.data!]));
+        setMessages((prev) => 
+          sortMessagesNewestFirst(prev.map((msg) => msg.id === tempId ? res.data! : msg))
+        );
       } else {
+        // Revert on failure
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
         Alert.alert(
           t("common.error", { defaultValue: "Lỗi" }),
           res.message ||
@@ -228,6 +253,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
         setText(content);
       }
     } catch (error: any) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
       const message =
         error?.response?.data?.message ||
         error?.message ||
@@ -236,10 +262,114 @@ const PlanChatScreen = ({ route, navigation }: any) => {
         });
       Alert.alert(t("common.error", { defaultValue: "Lỗi" }), message);
       setText(content);
-    } finally {
-      setSending(false);
     }
-  }, [text, sending, planId, t]);
+  }, [text, sending, planId, t, user]);
+
+  // --- Helper: Upload & Send Image ---
+  const uploadAndSendImage = async (uri: string) => {
+    const tempId = `temp-img-${Date.now()}`;
+    const optimisticMsg: PlannerMessage = {
+      id: tempId,
+      message_type: "image",
+      content: "",
+      image_url: uri,
+      sender: {
+        id: user?.id ? String(user.id) : "",
+        full_name: user?.full_name || "",
+        avatar_url: user?.avatar_url || "",
+      },
+      user_id: user?.id ? String(user.id) : "",
+      user: {
+        id: user?.id ? String(user.id) : "",
+        full_name: user?.full_name || "",
+        avatar_url: user?.avatar_url || "",
+      },
+      created_at: new Date().toISOString(),
+      planner_id: planId,
+    };
+
+    setMessages((prev) => sortMessagesNewestFirst([...prev, optimisticMsg]));
+
+    try {
+      const res = await pilgrimPlannerApi.sendPlanMessage(planId, {
+        message_type: "image",
+        imageUri: uri,
+      });
+
+      if ((res.success || res.data) && res.data) {
+        setMessages((prev) => 
+          sortMessagesNewestFirst(prev.map((msg) => msg.id === tempId ? res.data! : msg))
+        );
+      } else {
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+        Alert.alert(
+          t("common.error", { defaultValue: "Lỗi" }),
+          res.message || "Không thể gửi ảnh lúc này."
+        );
+      }
+    } catch (error: any) {
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
+      Alert.alert(
+        t("common.error", { defaultValue: "Lỗi" }),
+        error?.message || "Không thể gửi ảnh lúc này."
+      );
+    }
+  };
+
+  // --- Take Photo (Camera) ---
+  const handleTakeImage = useCallback(async () => {
+    try {
+      if (sending) return;
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          t("common.error", { defaultValue: "Lỗi" }),
+          "Cần cấp quyền truy cập máy ảnh để chụp hình."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+      await uploadAndSendImage(result.assets[0].uri);
+    } catch (error: any) {
+      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), "Không thể mở máy ảnh.");
+    }
+  }, [sending, planId, t, user]);
+
+  // --- Pick Image (Library) ---
+  const handlePickImage = useCallback(async () => {
+    try {
+      if (sending) return;
+      
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          t("common.error", { defaultValue: "Lỗi" }),
+          t("chat.permissionDenied", {
+            defaultValue: "Cần cấp quyền truy cập thư viện ảnh để gửi hình.",
+          })
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+      await uploadAndSendImage(result.assets[0].uri);
+    } catch (error: any) {
+      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), "Không thể mở thư viện ảnh.");
+    }
+  }, [sending, planId, t, user]);
 
   // --- Actions Menu ---
   const showMessageMenu = useCallback(
@@ -370,12 +500,14 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     });
   };
 
-  /** data cũ → mới: hiện nhãn ngày phía trên tin đầu của ngày mới. */
+  /** Inverted: data mới → cũ. older element is at index + 1, newer is index - 1. */
   const shouldShowDate = (index: number): boolean => {
-    if (index === 0) return true;
-    const prevDay = new Date(messages[index - 1].created_at).toDateString();
-    const curDay = new Date(messages[index].created_at).toDateString();
-    return prevDay !== curDay;
+    const current = messages[index];
+    const older = messages[index + 1];
+    if (!older) return true; // Show date above oldest message
+    const curDay = new Date(current.created_at).toDateString();
+    const olderDay = new Date(older.created_at).toDateString();
+    return curDay !== olderDay;
   };
 
   // --- Render message ---
@@ -386,14 +518,48 @@ const PlanChatScreen = ({ route, navigation }: any) => {
     item: PlannerMessage;
     index: number;
   }) => {
+    const isSystemMsg = item.message_type === 'system' || (!item.user_id && !item.sender && !item.user);
+
+    if (isSystemMsg) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <Text style={styles.systemMessageText}>{item.content}</Text>
+        </View>
+      );
+    }
+
     const own = isOwn(item);
     const sender = item.user ?? item.sender;
-    const next = messages[index + 1];
-    const showAvatar =
-      !own &&
-      (index === messages.length - 1 ||
-        String(next?.user_id) !== String(item.user_id) ||
-        (next != null && shouldShowDate(index + 1)));
+
+    const getSenderId = (msg: PlannerMessage) => String(msg.user_id || msg.sender?.id || msg.user?.id || msg.id);
+    const currentSenderId = getSenderId(item);
+    const isOwner = currentSenderId === String(ownerId);
+    
+    // In inverted mode: older messages are at index + 1 (visually above). Newer at index - 1 (visually below).
+    const visuallyAboveIndex = index + 1;
+    const visuallyBelowIndex = index - 1;
+
+    const prev = messages[visuallyAboveIndex];
+    const next = messages[visuallyBelowIndex];
+
+    const isPrevSameUser = prev && (getSenderId(prev) === currentSenderId) && !shouldShowDate(index) && prev.message_type !== 'system';
+    const isNextSameUser = next && (getSenderId(next) === currentSenderId) && !shouldShowDate(visuallyBelowIndex) && next.message_type !== 'system';
+
+    const showName = !own && !isPrevSameUser;
+    const showAvatar = !own && !isNextSameUser;
+
+    const isOptimistic = item.id.startsWith("temp-");
+    
+    const dynamicBubbleStyle: any = {};
+    if (own) {
+      dynamicBubbleStyle.borderTopRightRadius = isPrevSameUser ? 4 : 16;
+      dynamicBubbleStyle.borderBottomRightRadius = isNextSameUser ? 4 : 16;
+    } else {
+      dynamicBubbleStyle.borderTopLeftRadius = isPrevSameUser ? 4 : 16;
+      dynamicBubbleStyle.borderBottomLeftRadius = isNextSameUser ? 4 : 16;
+    }
+
+    const isImageOnly = item.message_type === "image" && !item.content;
 
     return (
       <View>
@@ -410,6 +576,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           style={[
             styles.messageRow,
             own ? styles.messageRowOwn : styles.messageRowOther,
+            { marginBottom: isNextSameUser ? 2 : SPACING.sm }
           ]}
         >
           {/* Avatar */}
@@ -434,30 +601,44 @@ const PlanChatScreen = ({ route, navigation }: any) => {
             </View>
           )}
 
-          <View
-            style={[styles.bubble, own ? styles.bubbleOwn : styles.bubbleOther]}
-          >
-            {!own && showAvatar && (
-              <Text style={styles.senderName}>
-                {sender?.full_name ||
-                  t("chat.unknown", { defaultValue: "Ẩn danh" })}
+          <View style={styles.messageContentWrapper}>
+            {showName && (
+              <Text style={[styles.senderName, own ? { textAlign: 'right' } : { textAlign: 'left' }]}>
+                {sender?.full_name || t("chat.unknown", { defaultValue: "Ẩn danh" })}
+                {isOwner ? " ✝️" : ""}
               </Text>
             )}
-            {item.message_type === "image" && item.image_url ? (
-              <Image
-                source={{ uri: item.image_url }}
-                style={styles.messageImage}
-                resizeMode="cover"
-              />
-            ) : null}
-            {item.content ? (
-              <Text style={[styles.messageText, own && styles.messageTextOwn]}>
-                {item.content}
-              </Text>
-            ) : null}
-            <Text style={[styles.timeText, own && styles.timeTextOwn]}>
-              {formatTime(item.created_at)}
-            </Text>
+
+            <View
+              style={[
+                styles.bubble, 
+                own ? styles.bubbleOwn : styles.bubbleOther,
+                dynamicBubbleStyle,
+                isOptimistic && { opacity: 0.6 },
+                isImageOnly && { paddingHorizontal: 0, paddingVertical: 0, backgroundColor: 'transparent', elevation: 0, shadowOpacity: 0 }
+              ]}
+            >
+              {item.message_type === "image" && item.image_url ? (
+                <Image
+                  source={{ uri: item.image_url }}
+                  style={[
+                    styles.messageImage, 
+                    isImageOnly ? dynamicBubbleStyle : { borderRadius: 8 }
+                  ]}
+                  resizeMode="cover"
+                />
+              ) : null}
+              {item.content ? (
+                <Text style={[styles.messageText, own && styles.messageTextOwn]}>
+                  {item.content}
+                </Text>
+              ) : null}
+              {(!isNextSameUser || item.message_type === "image") && (
+                <Text style={[styles.timeText, own ? (isImageOnly ? styles.timeTextImageOwn : styles.timeTextOwn) : (isImageOnly ? styles.timeTextImageOther : null)]}>
+                  {formatTime(item.created_at)}
+                </Text>
+              )}
+            </View>
           </View>
         </TouchableOpacity>
       </View>
@@ -511,6 +692,7 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           data={messages}
           renderItem={renderMessage}
           keyExtractor={(item) => item.id}
+          inverted={true}
           contentContainerStyle={styles.messageList}
           maintainVisibleContentPosition={
             loadingMore
@@ -541,33 +723,45 @@ const PlanChatScreen = ({ route, navigation }: any) => {
           },
         ]}
       >
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder={t("chat.placeholder", {
-            defaultValue: "Nhập tin nhắn...",
-          })}
-          placeholderTextColor={COLORS.textTertiary}
-          multiline
-          maxLength={1000}
-          editable={!sending}
-        />
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            (!text.trim() || sending) && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={!text.trim() || sending}
-        >
-          {sending ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name="send" size={20} color="#fff" />
-          )}
-        </TouchableOpacity>
-      </RNAnimated.View>
+          {/* Camera Button */}
+          <TouchableOpacity 
+             style={styles.cameraButton}
+             onPress={handleTakeImage}
+          >
+            <Ionicons name="camera" size={26} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+
+          {/* Gallery Button */}
+          <TouchableOpacity 
+             style={styles.cameraButton}
+             onPress={handlePickImage}
+          >
+            <Ionicons name="image" size={26} color={COLORS.textTertiary} />
+          </TouchableOpacity>
+
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder={t("chat.placeholder", {
+              defaultValue: "Nhập tin nhắn...",
+            })}
+            placeholderTextColor={COLORS.textTertiary}
+            multiline
+            maxLength={1000}
+            editable={!sending}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              (!text.trim()) && styles.sendButtonDisabled,
+            ]}
+            onPress={handleSend}
+            disabled={!text.trim()}
+          >
+            <Ionicons name="send" size={18} color="#fff" />
+          </TouchableOpacity>
+        </RNAnimated.View>
     </View>
   );
 };
@@ -639,7 +833,6 @@ const styles = StyleSheet.create({
   },
   messageRow: {
     flexDirection: "row",
-    marginBottom: 4,
     alignItems: "flex-end",
   },
   messageRowOwn: {
@@ -674,27 +867,28 @@ const styles = StyleSheet.create({
     height: 32,
   },
 
-  // Bubble
-  bubble: {
+  messageContentWrapper: {
+    flexDirection: 'column',
     maxWidth: "75%",
+  },
+  bubble: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 16,
   },
   bubbleOwn: {
     backgroundColor: COLORS.primary,
-    borderBottomRightRadius: 4,
   },
   bubbleOther: {
     backgroundColor: COLORS.white,
-    borderBottomLeftRadius: 4,
     ...SHADOWS.subtle,
   },
   senderName: {
     fontSize: TYPOGRAPHY.fontSize.xs,
     fontWeight: TYPOGRAPHY.fontWeight.semibold,
-    color: COLORS.accent,
-    marginBottom: 2,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    marginLeft: 4,
   },
   messageText: {
     fontSize: TYPOGRAPHY.fontSize.md,
@@ -705,10 +899,9 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   messageImage: {
-    width: 200,
-    height: 150,
-    borderRadius: BORDER_RADIUS.sm,
-    marginBottom: 4,
+    width: 220,
+    height: 300,
+    marginBottom: 2,
   },
   timeText: {
     fontSize: 10,
@@ -719,11 +912,33 @@ const styles = StyleSheet.create({
   timeTextOwn: {
     color: "rgba(255,255,255,0.7)",
   },
+  timeTextImageOwn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    color: COLORS.white,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  timeTextImageOther: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    color: COLORS.white,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
 
   // Date separator
   dateSeparator: {
     alignItems: "center",
-    marginVertical: SPACING.sm,
+    marginVertical: SPACING.md,
   },
   dateSeparatorText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -735,6 +950,20 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
 
+  // System message
+  systemMessageContainer: {
+    alignItems: "center",
+    marginVertical: SPACING.sm,
+    paddingHorizontal: SPACING.xl,
+  },
+  systemMessageText: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    fontStyle: "italic",
+    lineHeight: 18,
+  },
+
   // Input
   inputContainer: {
     flexDirection: "row",
@@ -744,6 +973,14 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+  },
+  cameraButton: {
+    width: 32,
+    height: 36,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+    marginRight: 4,
   },
   input: {
     flex: 1,
@@ -758,13 +995,13 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
   },
   sendButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 1,
+    marginBottom: 4,
   },
   sendButtonDisabled: {
     backgroundColor: COLORS.textTertiary,
