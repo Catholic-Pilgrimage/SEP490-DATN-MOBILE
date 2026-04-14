@@ -20,6 +20,7 @@ import Toast from 'react-native-toast-message';
 import { GUIDE_COLORS, GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { SACRED_COLORS } from "../../../../constants/sacred-theme.constants";
 import { getFontSize } from "../../../../utils/responsive";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import { useGuideSOSActions, useGuideSOSDetail } from "../hooks/useGuideSOS";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import { MapPin } from "../../../../components/map/VietmapView";
@@ -42,6 +43,7 @@ export const SOSDetailScreen = () => {
 
     const { data: sos, isLoading } = useGuideSOSDetail(id);
     const { assignSOS, resolveSOS, isAssigning, isResolving } = useGuideSOSActions();
+    const { confirm } = useConfirm();
     const processing = isAssigning || isResolving;
 
     // Map States
@@ -68,6 +70,17 @@ export const SOSDetailScreen = () => {
     };
 
     const handleResolve = async () => {
+        const isConfirmed = await confirm({
+            title: 'Xác nhận hoàn tất',
+            message: 'Bạn chắc chắn đã hoàn tất quá trình cứu trợ/hỗ trợ người dùng này? Yêu cầu sẽ được chuyển sang trạng thái đã xử lý.',
+            confirmText: 'Hoàn tất',
+            cancelText: 'Huỷ',
+            type: 'success',
+            iconName: 'checkmark-circle'
+        });
+
+        if (!isConfirmed) return;
+
         try {
             await resolveSOS({ id, data: { notes: "Đã xử lý xong" } });
             Toast.show({ type: 'success', text1: 'Thành công', text2: 'Đã giải quyết yêu cầu' });
@@ -162,7 +175,7 @@ export const SOSDetailScreen = () => {
                 <View style={styles.headerRight} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}>
                 {/* Status Card */}
                 <View style={styles.statusCard}>
                     <Text style={styles.statusLabel}>Trạng thái hiện tại</Text>

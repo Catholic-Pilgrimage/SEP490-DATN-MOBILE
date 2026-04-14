@@ -14,6 +14,7 @@ import {
     View
 } from 'react-native';
 import Toast from 'react-native-toast-message';
+import { toastConfig } from '../../../../config/toast.config';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
 import { CreateSOSRequest } from '../../../../types/pilgrim';
@@ -90,17 +91,18 @@ export const SOSModal: React.FC<SOSModalProps> = ({
 
             await pilgrimSOSApi.createSOS(payload);
 
-            Toast.show({
-                type: 'success',
-                text1: 'Đã gửi yêu cầu',
-                text2: 'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.'
-            });
             setMessage('');
             setSelectedChipId(null);
             onClose();
+            
+            setTimeout(() => {
+                Toast.show({
+                    type: 'success',
+                    text1: 'Đã gửi yêu cầu',
+                    text2: 'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.'
+                });
+            }, 300);
         } catch (error: any) {
-            console.error('Failed to send SOS request:', error);
-
             // Backend returns specific error when user is too far from the site (>1km)
             const apiMessage: string =
                 error?.response?.data?.message || error?.message || '';
@@ -139,7 +141,7 @@ export const SOSModal: React.FC<SOSModalProps> = ({
             statusBarTranslucent
         >
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={styles.keyboardView}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
@@ -251,6 +253,7 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                     </View>
                 </View>
             </KeyboardAvoidingView>
+            <Toast config={toastConfig} />
         </Modal>
     );
 };

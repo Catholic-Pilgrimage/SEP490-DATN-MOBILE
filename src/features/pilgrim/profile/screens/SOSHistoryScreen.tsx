@@ -170,7 +170,7 @@ export const SOSHistoryScreen = () => {
                     data={sosList}
                     renderItem={renderItem}
                     keyExtractor={(item) => item.id}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom || SPACING.md }]}
                     refreshControl={
                         <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} colors={[THEME.primary]} />
                     }

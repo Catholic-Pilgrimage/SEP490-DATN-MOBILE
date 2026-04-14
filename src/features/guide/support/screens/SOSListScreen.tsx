@@ -248,7 +248,7 @@ export const SOSListScreen = () => {
                             onMapPress={() => navigation.navigate("SOSDetail", { id: item.id, autoOpenMap: true })}
                         />
                     )}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + GUIDE_SPACING.lg }]}
                     refreshControl={
                         <RefreshControl
                             refreshing={isRefetching}

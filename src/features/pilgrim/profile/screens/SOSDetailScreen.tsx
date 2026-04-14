@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    Image,
     ImageBackground,
     Linking,
     ScrollView,
@@ -19,6 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
 import { SOSEntity } from '../../../../types/pilgrim';
+import { useConfirm } from '../../../../hooks/useConfirm';
+import Toast from 'react-native-toast-message';
 
 // Colors Theme (Terracotta)
 const THEME = {
@@ -47,10 +50,10 @@ export const SOSDetailScreen = () => {
     const route = useRoute<RouteProp<ParamList, 'SOSDetail'>>();
     const { sosId } = route.params;
     const insets = useSafeAreaInsets();
-
     const [sosData, setSosData] = useState<SOSEntity | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isCancelling, setIsCancelling] = useState(false);
+    const { confirm } = useConfirm();
 
     const fetchSOSDetail = async () => {
         try {
@@ -73,31 +76,29 @@ export const SOSDetailScreen = () => {
         }
     }, [sosId]);
 
-    const handleCancelSOS = () => {
-        Alert.alert(
-            t('sos.confirmCancelTitle'),
-            t('sos.confirmCancelMsg'),
-            [
-                { text: t('common.no'), style: 'cancel' },
-                {
-                    text: t('sos.cancelRequest'),
-                    style: 'destructive',
-                    onPress: async () => {
-                        setIsCancelling(true);
-                        try {
-                            await pilgrimSOSApi.cancelSOS(sosId);
-                            Alert.alert(t('common.success'), t('sos.cancelSuccess'));
-                            setSosData(prev => prev ? { ...prev, status: 'cancelled' } : null);
-                        } catch (error) {
-                            console.error('Failed to cancel SOS', error);
-                            Alert.alert(t('common.error'), t('sos.cancelError'));
-                        } finally {
-                            setIsCancelling(false);
-                        }
-                    },
-                },
-            ]
-        );
+    const handleCancelSOS = async () => {
+        const isConfirmed = await confirm({
+            title: t('sos.confirmCancelTitle'),
+            message: t('sos.confirmCancelMsg'),
+            confirmText: t('sos.cancelRequest'),
+            cancelText: t('common.no'),
+            type: 'danger',
+            iconName: 'warning'
+        });
+
+        if (!isConfirmed) return;
+
+        setIsCancelling(true);
+        try {
+            await pilgrimSOSApi.cancelSOS(sosId);
+            Toast.show({ type: 'success', text1: t('common.success'), text2: t('sos.cancelSuccess') });
+            setSosData(prev => prev ? { ...prev, status: 'cancelled' } : null);
+        } catch (error) {
+            console.error('Failed to cancel SOS', error);
+            Toast.show({ type: 'error', text1: t('common.error'), text2: t('sos.cancelError') });
+        } finally {
+            setIsCancelling(false);
+        }
     };
 
     const handleCallGuide = () => {
@@ -146,7 +147,7 @@ export const SOSDetailScreen = () => {
                 <View style={{ width: 40 }} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom || SPACING.md }]}>
 
                 {/* Status Card */}
                 <View style={[styles.statusCard, { borderLeftColor: statusInfo.color }]}>
@@ -201,17 +202,33 @@ export const SOSDetailScreen = () => {
                 {sosData.assignedGuide && (
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>{t('sos.helper')}</Text>
-                        <View style={styles.guideCard}>
-                            <View style={styles.guideAvatar}>
-                                <Ionicons name="person" size={24} color={THEME.primary} />
+                        <View style={styles.guideDetailedCard}>
+                            <View style={styles.guideHeader}>
+                                {sosData.assignedGuide.avatar_url ? (
+                                    <Image source={{ uri: sosData.assignedGuide.avatar_url }} style={styles.guideAvatarImage} />
+                                ) : (
+                                    <View style={styles.guideAvatar}>
+                                        <Ionicons name="person" size={28} color={THEME.primary} />
+                                    </View>
+                                )}
+                                <View style={styles.guideInfo}>
+                                    <Text style={styles.guideName}>{sosData.assignedGuide.full_name}</Text>
+                                    <Text style={styles.guideRole}>Local Guide • {sosData.site?.name || t('sos.role')}</Text>
+                                </View>
                             </View>
-                            <View style={styles.guideInfo}>
-                                <Text style={styles.guideName}>{sosData.assignedGuide.full_name}</Text>
-                                <Text style={styles.guideRole}>{t('sos.role')}</Text>
+                            
+                            <View style={styles.dividerLight} />
+                            
+                            <View style={styles.guideContactRow}>
+                                <View style={styles.contactDetails}>
+                                    <Text style={styles.contactLabel}>{t('common.phone') || 'Số điện thoại'}</Text>
+                                    <Text style={styles.contactValue}>{sosData.assignedGuide.phone || t('sos.noContact')}</Text>
+                                </View>
+                                <TouchableOpacity style={styles.callActionButton} onPress={handleCallGuide}>
+                                    <Ionicons name="call" size={20} color={THEME.white} />
+                                    <Text style={styles.callActionText}>{t('common.call') || 'Gọi ngay'}</Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={styles.callButton} onPress={handleCallGuide}>
-                                <Ionicons name="call" size={20} color={THEME.white} />
-                            </TouchableOpacity>
                         </View>
                     </View>
                 )}
@@ -345,42 +362,90 @@ const styles = RNStyleSheet.create({
         marginVertical: SPACING.md,
         marginLeft: 36, // align with content
     },
-    guideCard: {
+    guideDetailedCard: {
+        backgroundColor: THEME.primaryLight,
+        borderRadius: BORDER_RADIUS.lg,
+        borderWidth: 1,
+        borderColor: `${THEME.primary}20`,
+        overflow: 'hidden',
+    },
+    guideHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: THEME.primaryLight,
-        padding: SPACING.md,
-        borderRadius: BORDER_RADIUS.md,
+        padding: SPACING.lg,
+    },
+    guideAvatarImage: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        marginRight: SPACING.md,
+        borderWidth: 2,
+        borderColor: THEME.white,
     },
     guideAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: `${THEME.primary}20`,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: `${THEME.primary}15`,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: SPACING.md,
+        borderWidth: 2,
+        borderColor: THEME.white,
     },
     guideInfo: {
         flex: 1,
     },
     guideName: {
-        fontSize: TYPOGRAPHY.fontSize.md,
+        fontSize: TYPOGRAPHY.fontSize.lg,
         fontWeight: TYPOGRAPHY.fontWeight.bold,
-        color: THEME.primary,
+        color: THEME.textMain,
     },
     guideRole: {
         fontSize: TYPOGRAPHY.fontSize.sm,
-        color: THEME.textMuted,
+        color: THEME.primary,
+        marginTop: 4,
+        fontWeight: TYPOGRAPHY.fontWeight.medium,
     },
-    callButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: THEME.success,
-        justifyContent: 'center',
+    dividerLight: {
+        height: 1,
+        backgroundColor: `${THEME.primary}20`,
+        marginHorizontal: SPACING.lg,
+    },
+    guideContactRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
+        padding: SPACING.lg,
+        backgroundColor: `${THEME.primary}05`,
+    },
+    contactDetails: {
+        flex: 1,
+    },
+    contactLabel: {
+        fontSize: TYPOGRAPHY.fontSize.xs,
+        color: THEME.textMuted,
+        marginBottom: 2,
+    },
+    contactValue: {
+        fontSize: TYPOGRAPHY.fontSize.md,
+        fontWeight: TYPOGRAPHY.fontWeight.bold,
+        color: THEME.textMain,
+    },
+    callActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: THEME.success,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: BORDER_RADIUS.full,
+        gap: 6,
         ...SHADOWS.small,
+    },
+    callActionText: {
+        color: THEME.white,
+        fontWeight: TYPOGRAPHY.fontWeight.bold,
+        fontSize: TYPOGRAPHY.fontSize.sm,
     },
     cancelButton: {
         flexDirection: 'row',
