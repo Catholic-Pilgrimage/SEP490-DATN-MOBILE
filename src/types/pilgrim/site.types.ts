@@ -4,11 +4,11 @@
 
 // Enums
 import {
-    DayOfWeek,
-    NearbyPlaceCategory,
-    SiteMediaType,
-    SiteRegion,
-    SiteType,
+  DayOfWeek,
+  NearbyPlaceCategory,
+  SiteMediaType,
+  SiteRegion,
+  SiteType,
 } from "../common.types";
 
 // Site Base
@@ -321,6 +321,7 @@ export interface GetSiteReviewsParams {
 // Search
 export interface SearchSitesParams {
   query?: string;
+  search?: string;
   region?: SiteRegion;
   type?: SiteType;
   province?: string;

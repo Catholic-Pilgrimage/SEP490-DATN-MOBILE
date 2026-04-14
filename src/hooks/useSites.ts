@@ -5,21 +5,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pilgrimSiteApi } from "../services/api/pilgrim";
 import {
-    GetSiteEventsParams,
-    GetSiteMassSchedulesParams,
-    GetSiteMediaParams,
-    GetSiteNearbyPlacesParams,
-    GetSiteReviewsParams,
-    SearchSitesParams,
-    Site,
-    SiteEvent,
-    SiteMassSchedule,
-    SiteMedia,
-    SiteNearbyPlace,
-    SiteReview,
-    SiteReviewPagination,
-    SiteReviewSummary,
-    SiteSummary,
+  GetSiteEventsParams,
+  GetSiteMassSchedulesParams,
+  GetSiteMediaParams,
+  GetSiteNearbyPlacesParams,
+  GetSiteReviewsParams,
+  SearchSitesParams,
+  Site,
+  SiteEvent,
+  SiteMassSchedule,
+  SiteMedia,
+  SiteNearbyPlace,
+  SiteReview,
+  SiteReviewPagination,
+  SiteReviewSummary,
+  SiteSummary,
 } from "../types/pilgrim";
 
 // Helper: Map snake_case API response to camelCase SiteSummary
@@ -49,6 +49,20 @@ interface UseSitesOptions {
   onError?: (error: string) => void;
 }
 
+const normalizeSearchParams = (
+  params: SearchSitesParams,
+): SearchSitesParams => ({
+  ...params,
+  search:
+    typeof (params.search ?? params.query) === "string"
+      ? (params.search ?? params.query)?.trim() || undefined
+      : undefined,
+  query:
+    typeof (params.search ?? params.query) === "string"
+      ? (params.search ?? params.query)?.trim() || undefined
+      : undefined,
+});
+
 export function useSites(options: UseSitesOptions = {}) {
   const { filters, autoFetch = false, onSuccess, onError } = options;
 
@@ -66,7 +80,21 @@ export function useSites(options: UseSitesOptions = {}) {
     async (params?: SearchSitesParams) => {
       setIsLoading(true);
       setError(null);
-      const newFilters = { ...currentFilters.current, ...params, page: 1 };
+      const shouldResetSearchParams = Boolean(
+        params && ("query" in params || "search" in params),
+      );
+      const baseFilters = shouldResetSearchParams
+        ? {
+            ...currentFilters.current,
+            query: undefined,
+            search: undefined,
+          }
+        : currentFilters.current;
+      const newFilters = normalizeSearchParams({
+        ...baseFilters,
+        ...params,
+        page: 1,
+      });
       currentFilters.current = newFilters;
 
       try {
@@ -102,10 +130,11 @@ export function useSites(options: UseSitesOptions = {}) {
     setIsFetchingMore(true);
 
     try {
-      const response = await pilgrimSiteApi.getSites({
+      const nextFilters = normalizeSearchParams({
         ...currentFilters.current,
         page: page + 1,
       });
+      const response = await pilgrimSiteApi.getSites(nextFilters);
       if (isMounted.current && response.success && response.data) {
         const rawData =
           (response.data as any).data || response.data.items || [];
@@ -595,7 +624,9 @@ export function useSiteReviews(
 
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [summary, setSummary] = useState<SiteReviewSummary | null>(null);
-  const [pagination, setPagination] = useState<SiteReviewPagination | null>(null);
+  const [pagination, setPagination] = useState<SiteReviewPagination | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
