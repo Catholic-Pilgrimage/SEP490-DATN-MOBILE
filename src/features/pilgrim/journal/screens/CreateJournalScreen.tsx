@@ -216,6 +216,9 @@ export default function CreateJournalScreen() {
     uri: string;
   } | null>(null);
   const [isMediaPickerVisible, setMediaPickerVisible] = useState(false);
+  const [modalMediaTypes, setModalMediaTypes] = useState<
+    ImagePicker.MediaTypeOptions | ImagePicker.MediaTypeOptions[]
+  >(ImagePicker.MediaTypeOptions.All);
   const [isAudioPickerVisible, setAudioPickerVisible] = useState(false);
 
   // Audio Recording State
@@ -752,6 +755,14 @@ export default function CreateJournalScreen() {
     }
   };
 
+  const openMediaPicker = (
+    types: ImagePicker.MediaTypeOptions | ImagePicker.MediaTypeOptions[] = ImagePicker
+      .MediaTypeOptions.All,
+  ) => {
+    setModalMediaTypes(types);
+    setMediaPickerVisible(true);
+  };
+
   const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
     if (!result.canceled && result.assets.length > 0) {
       const images = result.assets.filter((a) => a.type !== "video");
@@ -1051,7 +1062,7 @@ export default function CreateJournalScreen() {
     };
   }, [recording, sound]);
 
-  const fetchJournalDetails = async () => {
+  async function fetchJournalDetails() {
     try {
       setInitialLoading(true);
       const response = await getJournalDetail(journalId);
@@ -1579,7 +1590,7 @@ export default function CreateJournalScreen() {
             <View style={styles.mediaToolbar}>
               <TouchableOpacity
                 style={styles.mediaBtn}
-                onPress={() => handlePickMedia("images")}
+                onPress={() => openMediaPicker(ImagePicker.MediaTypeOptions.Images)}
                 activeOpacity={0.85}
               >
                 <MaterialIcons
@@ -1591,7 +1602,7 @@ export default function CreateJournalScreen() {
 
               <TouchableOpacity
                 style={styles.mediaBtn}
-                onPress={() => handlePickMedia("videos")}
+                onPress={() => openMediaPicker(ImagePicker.MediaTypeOptions.Videos)}
                 activeOpacity={0.85}
               >
                 <MaterialIcons
@@ -2650,7 +2661,7 @@ export default function CreateJournalScreen() {
 
                 <TouchableOpacity
                   style={[styles.toolbarBtn, { marginLeft: "auto" }]}
-                  onPress={() => setMediaPickerVisible(true)}
+                  onPress={() => openMediaPicker()}
                 >
                   <MaterialIcons
                     name="add-photo-alternate"
@@ -2693,7 +2704,7 @@ export default function CreateJournalScreen() {
                 {/* Add button (MediaPickerModal) */}
                 <TouchableOpacity
                   style={styles.addMediaBtn}
-                  onPress={() => setMediaPickerVisible(true)}
+                  onPress={() => openMediaPicker()}
                 >
                   <MaterialIcons
                     name="add-circle-outline"
@@ -2926,10 +2937,16 @@ export default function CreateJournalScreen() {
         visible={isMediaPickerVisible}
         onClose={() => setMediaPickerVisible(false)}
         onMediaPicked={handleMediaPicked}
-        mediaTypes={["images", "videos"]}
-        allowsMultipleSelection={true}
-        selectionLimit={10}
-        title={t("journal.addMediaTitle")}
+        mediaTypes={modalMediaTypes}
+        allowsMultipleSelection={modalMediaTypes === ImagePicker.MediaTypeOptions.Images}
+        selectionLimit={modalMediaTypes === ImagePicker.MediaTypeOptions.Images ? 10 : 1}
+        title={
+          modalMediaTypes === ImagePicker.MediaTypeOptions.Images
+            ? t("journal.addPhotoTitle")
+            : modalMediaTypes === ImagePicker.MediaTypeOptions.Videos
+              ? t("journal.addVideoTitle")
+              : t("journal.addMediaTitle")
+        }
       />
 
       <AudioPickerModal
@@ -3045,7 +3062,7 @@ export default function CreateJournalScreen() {
                     <Text style={styles.plannerModalTitle}>
                       {pickerTab === "planner"
                         ? t("journal.plannerPickerTitle")
-                        : "Chọn địa điểm"}
+                        : t("journal.selectLocation")}
                     </Text>
                     <Text style={styles.plannerModalSubtitle}>
                       {pickerTab === "planner"
@@ -3085,7 +3102,7 @@ export default function CreateJournalScreen() {
                         pickerTab === "planner" && styles.pickerTabTextActive,
                       ]}
                     >
-                      {"Kế hoạch"}
+                      {t("journal.plansTab")}
                     </Text>
                   </TouchableOpacity>
 
@@ -3106,7 +3123,7 @@ export default function CreateJournalScreen() {
                         pickerTab === "locations" && styles.pickerTabTextActive,
                       ]}
                     >
-                      {"Địa điểm"}
+                      {t("journal.locationsTab")}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -3319,7 +3336,7 @@ export default function CreateJournalScreen() {
                                       ]}
                                     >
                                       {isSelected
-                                        ? "Đã chọn"
+                                        ? t("journal.selected")
                                         : t("journal.locationContextLabel")}
                                     </Text>
                                   </View>

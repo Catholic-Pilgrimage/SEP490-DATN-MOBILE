@@ -120,6 +120,9 @@ export interface SiteMedia {
   type: SiteMediaType;
   caption?: string;
   created_at: string;
+  /** Chỉ meaningful với `type === "model_3d"` — thuyết minh TTS / upload */
+  narration_text?: string | null;
+  audio_url?: string | null;
 }
 
 export interface GetSiteMediaParams {
