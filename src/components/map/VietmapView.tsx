@@ -21,7 +21,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
   StyleProp,
@@ -65,6 +65,11 @@ export interface MapPin {
   title: string;
   subtitle?: string;
   icon?: string;
+  markerType?: "restaurant" | "hotel" | "media" | "site" | "pick" | "sos";
+  chipMarkerType?: "restaurant" | "hotel" | "media" | "site" | "pick" | "sos";
+  chipPlainIcon?: boolean;
+  chipUseDefaultPin?: boolean;
+  chipIconColor?: string;
   color?: string;
 }
 
@@ -480,7 +485,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                       <LineLayer
                         id="route-line-main"
                         style={{
-                          lineColor: COLORS.accent,
+                          lineColor: '#2563EB',
                           lineWidth: 4,
                           lineJoin: 'round',
                           lineCap: 'round',
@@ -521,7 +526,9 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                   {isNumeric ? (
                     <Text style={styles.markerNumber}>{pin.icon}</Text>
                   ) : (
-                    <PinGlyph
+                    <MapPinGlyph
+                      icon={pin.icon}
+                      markerType={pin.markerType}
                       color={COLORS.white}
                       selected={isSelected}
                       size={isSelected ? 30 : 28}
@@ -547,7 +554,13 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                 ]}
               >
                 <View style={styles.pinCardIcon}>
-                  <PinGlyph color={COLORS.white} selected size={24} />
+                  <MapPinGlyph
+                    icon={selectedPin.icon}
+                    markerType={selectedPin.markerType}
+                    color={COLORS.white}
+                    selected
+                    size={24}
+                  />
                 </View>
               </View>
               <View style={styles.pinCardText}>
@@ -581,7 +594,7 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
                   ]}
                 >
                   <View style={styles.pinCardIcon}>
-                    <PinGlyph color={COLORS.white} selected size={24} />
+                    <MapPinGlyph color={COLORS.white} selected size={24} />
                   </View>
                 </View>
                 <View style={styles.pinCardText}>
@@ -616,21 +629,49 @@ export const VietmapView = forwardRef<VietmapViewRef, VietmapViewProps>(
 
 VietmapView.displayName = "VietmapView";
 
-const PinGlyph = ({
+export const MapPinGlyph = ({
+  icon,
+  markerType,
   color,
   selected = false,
   size = 28,
 }: {
+  icon?: string;
+  markerType?: MapPin["markerType"];
   color: string;
   selected?: boolean;
   size?: number;
-}) => (
-  <Ionicons
-    name={selected ? "location" : "location-outline"}
-    size={size}
-    color={color}
-  />
-);
+}) => {
+  if (markerType === "site" || icon === "⛪") {
+    return <MaterialIcons name="church" size={size} color={color} />;
+  }
+  if (markerType === "pick" || icon === "📌") {
+    return <Ionicons name="locate" size={size} color={color} />;
+  }
+  if (markerType === "sos" || icon === "🆘") {
+    return <MaterialIcons name="sos" size={size} color={color} />;
+  }
+  if (markerType === "restaurant") {
+    return <Ionicons name="restaurant" size={size} color={color} />;
+  }
+  if (markerType === "hotel") {
+    return <FontAwesome5 name="hotel" size={size - 2} color={color} />;
+  }
+  if (markerType === "media") {
+    return <MaterialIcons name="perm-media" size={size} color={color} />;
+  }
+  if (icon === "📍") {
+    return <Ionicons name="navigate" size={size - 2} color={color} />;
+  }
+
+  return (
+    <Ionicons
+      name={selected ? "location" : "location-outline"}
+      size={size}
+      color={color}
+    />
+  );
+};
 
 const styles = StyleSheet.create({
   container: {

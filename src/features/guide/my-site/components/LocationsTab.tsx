@@ -3,7 +3,7 @@
  * Map with pinned key points (Parking, Restroom, Reception, etc.)
  * Implements "Pin key points" functionality using Vietmap
  */
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { FontAwesome5, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React, {
   useCallback,
   useEffect,
@@ -63,43 +63,57 @@ import { PREMIUM_COLORS } from "../constants";
 import { GUIDE_FAB_SIZE } from "./GuideFabButton";
 import { styles } from "./LocationsTab.styles";
 
-function parseVietmapReverseFirstItem(
+function parseVietmapReverseCandidates(
   data: unknown,
-): Record<string, unknown> | null {
-  if (data == null) return null;
-  if (Array.isArray(data) && data.length > 0) {
-    const x = data[0];
-    return x && typeof x === "object" ? (x as Record<string, unknown>) : null;
+): Record<string, unknown>[] {
+  if (data == null) return [];
+  if (Array.isArray(data)) {
+    return data.filter(
+      (x): x is Record<string, unknown> => !!x && typeof x === "object",
+    );
   }
   if (typeof data === "object") {
     const o = data as Record<string, unknown>;
-    const tryArr = (a: unknown): Record<string, unknown> | null => {
-      if (!Array.isArray(a) || a.length === 0) return null;
-      const first = a[0];
-      return first && typeof first === "object"
-        ? (first as Record<string, unknown>)
-        : null;
+    const pickArray = (a: unknown): Record<string, unknown>[] => {
+      if (!Array.isArray(a)) return [];
+      return a.filter(
+        (x): x is Record<string, unknown> => !!x && typeof x === "object",
+      );
     };
-    return (
-      tryArr(o.value) ||
-      tryArr(o.data) ||
-      tryArr(o.list) ||
-      (typeof o.lat === "number" && typeof o.lng === "number" ? o : null)
-    );
+    const arr = pickArray(o.value).concat(pickArray(o.data), pickArray(o.list));
+    if (arr.length > 0) return arr;
+    if (typeof o.lat === "number" && typeof o.lng === "number") return [o];
   }
-  return null;
+  return [];
 }
 
 function addressStringFromReverseItem(
   first: Record<string, unknown> | null,
 ): string {
   if (!first) return "";
-  const display = first.display;
-  const address = first.address;
-  const name = first.name;
-  const strDisplay = typeof display === "string" ? display.trim() : "";
-  const strAddress = typeof address === "string" ? address.trim() : "";
-  const strName = typeof name === "string" ? name.trim() : "";
+  const toStr = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const houseNo = toStr(first.housenumber) || toStr(first.house_number);
+  const street = toStr(first.street) || toStr(first.street_name);
+  const ward = toStr(first.ward);
+  const district = toStr(first.district);
+  const province = toStr(first.province) || toStr(first.city);
+  const strDisplay = toStr(first.display);
+  const strAddress = toStr(first.address);
+  const strName = toStr(first.name);
+
+  const roadPart = [houseNo, street].filter(Boolean).join(" ").trim();
+  const uniqueParts = (parts: string[]) => {
+    const seen = new Set<string>();
+    return parts.filter((part) => {
+      const key = part.toLowerCase();
+      if (!part || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const detailed = uniqueParts([roadPart, ward, district, province]).join(", ");
+  if (detailed) return detailed;
+
   if (strDisplay) return strDisplay;
   if (strName && strAddress) return `${strName}, ${strAddress}`;
   if (strAddress) return strAddress;
@@ -114,8 +128,17 @@ async function reverseGeocodeToAddress(
   const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${lat}&lng=${lng}&display_type=1`;
   const res = await fetch(url);
   const data = await res.json();
-  const first = parseVietmapReverseFirstItem(data);
-  const addr = addressStringFromReverseItem(first);
+  const candidates = parseVietmapReverseCandidates(data);
+  const rankAddress = (addr: string) => {
+    // Prefer detailed strings: include numbers/slashes and longer address text.
+    const hasNumber = /\d/.test(addr);
+    const hasDetailSep = /[\/,\-]/.test(addr);
+    return (hasNumber ? 2000 : 0) + (hasDetailSep ? 1000 : 0) + addr.length;
+  };
+  const addr = candidates
+    .map((item) => addressStringFromReverseItem(item))
+    .filter(Boolean)
+    .sort((a, b) => rankAddress(b) - rankAddress(a))[0];
   if (addr) return addr;
   return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
 }
@@ -146,6 +169,23 @@ const getCategoryConfig = (
     emoji: "🏥",
   },
 });
+
+const renderCategoryGlyph = (
+  category: NearbyPlaceCategory | "all",
+  color: string,
+  size = 18,
+) => {
+  if (category === "food") {
+    return <Ionicons name="restaurant" size={size} color={color} />;
+  }
+  if (category === "lodging") {
+    return <FontAwesome5 name="hotel" size={Math.max(14, size - 2)} color={color} />;
+  }
+  if (category === "medical") {
+    return <MaterialIcons name="perm-media" size={size} color={color} />;
+  }
+  return <MaterialIcons name="place" size={size} color={color} />;
+};
 
 const CATEGORIES: NearbyPlaceCategory[] = ["food", "lodging", "medical"];
 
@@ -309,7 +349,7 @@ const PlaceCard: React.FC<{
     >
       {/* Category accent strip */}
       <View style={[styles.pinCardAccent, { backgroundColor: cfg.color }]}>
-        <Text style={styles.pinCardEmoji}>{cfg.emoji}</Text>
+        {renderCategoryGlyph(place.category, "#FFFFFF", 20)}
       </View>
 
       <View style={styles.pinCardDivider} />
@@ -528,7 +568,11 @@ const FilterSheet: React.FC<FilterSheetProps> = ({
                       ]}
                       onPress={() => setLocalCat(opt.key)}
                     >
-                      <Text style={{ fontSize: 16 }}>{opt.emoji}</Text>
+                      {renderCategoryGlyph(
+                        opt.key,
+                        active ? "#FFFFFF" : GUIDE_COLORS.textSecondary,
+                        16,
+                      )}
                       <Text
                         style={[
                           styles.sheetChipLabel,
@@ -776,6 +820,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
               latitude: Number(lat),
               longitude: Number(lng),
             }));
+            setPendingCoords({ latitude: Number(lat), longitude: Number(lng) });
             setNearbyPlaceErrors((prev) => ({ ...prev, coordinates: undefined }));
             if (coordsHintTimeoutRef.current) {
               clearTimeout(coordsHintTimeoutRef.current);
@@ -855,6 +900,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
               subtitle: siteLocation.address || "Nhấn để xem chi tiết",
               color: "#DC2626",
               icon: "⛪",
+              markerType: "site",
             },
           ]
         : []),
@@ -866,6 +912,14 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
         subtitle: p.address || CATEGORY_CONFIG[p.category]?.label,
         color: CATEGORY_CONFIG[p.category]?.color || PREMIUM_COLORS.gold,
         icon: CATEGORY_CONFIG[p.category]?.emoji || "📍",
+        markerType:
+          p.category === "food"
+            ? "restaurant"
+            : p.category === "lodging"
+              ? "hotel"
+              : p.category === "medical"
+                ? "media"
+                : undefined,
       })),
     ];
     if (pendingCoords) {
@@ -877,6 +931,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
         subtitle: t("locationsTab.map.pendingPickSubtitle"),
         color: PREMIUM_COLORS.sapphire,
         icon: "📌",
+        markerType: "pick",
       });
     }
     return pins;
@@ -965,7 +1020,7 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
       latitude: form.latitude,
       longitude: form.longitude,
     };
-    setPendingCoords(null);
+    setPendingCoords({ latitude: form.latitude, longitude: form.longitude });
     setIsSelectingOnMap(true);
     setShowFullMap(true);
     closeAddModal();
@@ -1419,7 +1474,11 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
                           }));
                         }}
                       >
-                        <Text>{cfg.emoji}</Text>
+                        {renderCategoryGlyph(
+                          cat,
+                          form.category === cat ? "#FFFFFF" : cfg.color,
+                          16,
+                        )}
                         <Text
                           style={[
                             styles.catChipLabel,
@@ -1616,8 +1675,16 @@ export const LocationsTab: React.FC<LocationsTabProps> = ({ siteLocation }) => {
         onClose={handleFullMapClose}
         pins={mapPins}
         initialRegion={{
-          latitude: siteLocation?.latitude || 10.762622,
-          longitude: siteLocation?.longitude || 106.660172,
+          latitude:
+            pendingCoords?.latitude ||
+            form.latitude ||
+            siteLocation?.latitude ||
+            10.762622,
+          longitude:
+            pendingCoords?.longitude ||
+            form.longitude ||
+            siteLocation?.longitude ||
+            106.660172,
           zoom: 14,
         }}
         title={t("locationsTab.fullMapTitle")}

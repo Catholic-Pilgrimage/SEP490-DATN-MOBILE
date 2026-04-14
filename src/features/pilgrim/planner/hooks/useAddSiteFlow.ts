@@ -130,13 +130,13 @@ export function useAddSiteFlow(params: {
 
   // ── Find the "previous item" to calculate travel from ──
   // For Day N first item: look up day N-1's last item (cross-day travel)
-  const findPreviousItem = useCallback((): { item: PlanItem; isCrossDay: boolean } | null => {
+  const findPreviousItem = useCallback((): { item: PlanItem; isCrossDay: boolean; dayNumber: number } | null => {
     if (!plan?.items_by_day) return null;
 
     // Same-day: last item in current day
     const itemsForDay = plan.items_by_day[selectedDay.toString()] || [];
     if (itemsForDay.length > 0) {
-      return { item: itemsForDay[itemsForDay.length - 1], isCrossDay: false };
+      return { item: itemsForDay[itemsForDay.length - 1], isCrossDay: false, dayNumber: selectedDay };
     }
 
     // Cross-day: look backwards for the nearest day that has items
@@ -144,7 +144,7 @@ export function useAddSiteFlow(params: {
       for (let d = selectedDay - 1; d >= 1; d--) {
         const prevDayItems = plan.items_by_day[d.toString()] || [];
         if (prevDayItems.length > 0) {
-          return { item: prevDayItems[prevDayItems.length - 1], isCrossDay: true };
+          return { item: prevDayItems[prevDayItems.length - 1], isCrossDay: true, dayNumber: d };
         }
       }
     }
@@ -254,7 +254,7 @@ export function useAddSiteFlow(params: {
         const previousResult = findPreviousItem();
 
         if (previousResult) {
-          const { item: lastItem, isCrossDay } = previousResult;
+          const { item: lastItem, isCrossDay, dayNumber: lastDayNumber } = previousResult;
           const lastSiteId = lastItem.site_id || lastItem.site?.id;
 
           if (lastSiteId) {
@@ -292,6 +292,10 @@ export function useAddSiteFlow(params: {
               travelTimeMinutes = routeResult.durationMinutes;
 
               const prevSiteName = (lastSite as any)?.name || lastItem.site?.name;
+              const dayDifference = selectedDay - lastDayNumber;
+              const effectiveFastestArrival = arrivalResult.daysAdded < dayDifference 
+                ? "00:00" 
+                : arrivalResult.time;
 
               travelData = {
                 ...travelData,
@@ -299,7 +303,7 @@ export function useAddSiteFlow(params: {
                 departureTimeFromPrev: departureResult.time,
                 travelMinutes: routeResult.durationMinutes,
                 travelDistanceKm: routeResult.distanceKm,
-                fastestArrival: arrivalResult.time,
+                fastestArrival: effectiveFastestArrival,
                 isCrossDayTravel: isCrossDay,
               };
 

@@ -129,10 +129,15 @@ export const SOSDetailScreen = () => {
                 id: 'sos_location',
                 latitude: Number(sos.latitude),
                 longitude: Number(sos.longitude),
-                title: '🆘 Người gặp nạn',
+                title: 'Người gặp nạn',
                 subtitle: sos.message || 'Cần hỗ trợ tại đây',
                 color: SACRED_COLORS.danger,
-                icon: '🆘'
+                icon: '🆘',
+                markerType: 'sos',
+                chipMarkerType: 'sos',
+                chipPlainIcon: true,
+                chipUseDefaultPin: false,
+                chipIconColor: SACRED_COLORS.danger,
             });
         }
         if (guideLocation) {
@@ -140,10 +145,13 @@ export const SOSDetailScreen = () => {
                 id: 'guide_location',
                 latitude: guideLocation.latitude,
                 longitude: guideLocation.longitude,
-                title: '📍 Vị trí của bạn',
+                title: 'Vị trí của bạn',
                 subtitle: 'Gần nhất thu thập được',
                 color: GUIDE_COLORS.primary,
-                icon: '📍'
+                icon: '📍',
+                chipPlainIcon: true,
+                chipUseDefaultPin: true,
+                chipIconColor: '#2563EB',
             });
         }
         return pins;

@@ -14,8 +14,6 @@ const DAY_PIN_COLORS = [
   "#8BC34A",
 ];
 
-const DAY_PIN_ICONS = ["📍", "📍", "📍", "📍", "📍", "📍", "📍", "📍", "📍", "📍"];
-
 export function buildPlanMapPins(plan: PlanEntity | null): MapPin[] {
   if (!plan?.items_by_day) return [];
 
@@ -25,7 +23,7 @@ export function buildPlanMapPins(plan: PlanEntity | null): MapPin[] {
   Object.entries(plan.items_by_day).forEach(([dayKey, items]) => {
     const dayIndex = parseInt(dayKey, 10) - 1;
     const pinColor = DAY_PIN_COLORS[dayIndex % DAY_PIN_COLORS.length];
-    const pinIcon = DAY_PIN_ICONS[dayIndex % DAY_PIN_ICONS.length];
+    const pinIcon = "⛪";
 
     items.forEach((item, index) => {
       const siteId = item.site_id || item.site?.id || "";
@@ -43,6 +41,7 @@ export function buildPlanMapPins(plan: PlanEntity | null): MapPin[] {
           title: item.site.name,
           subtitle: `Ngày ${dayKey}${item.site.address ? " • " + item.site.address : ""}`,
           icon: pinIcon,
+          markerType: "site",
           color: pinColor,
         });
       }

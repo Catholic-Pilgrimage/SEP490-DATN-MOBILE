@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -26,7 +26,11 @@ import { useAuth } from "../../../../contexts/AuthContext";
 import useI18n from "../../../../hooks/useI18n";
 import { useSites } from "../../../../hooks/useSites";
 import { useVerification } from "../../../../hooks/useVerification";
-import { MapPin, VietmapView } from "../../../../components/map/VietmapView";
+import {
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
+} from "../../../../components/map/VietmapView";
 import { VIETMAP_CONFIG } from "../../../../config/map.config";
 import { ReactNativeFile } from "../../../../types/pilgrim/verification.types";
 import {
@@ -38,6 +42,48 @@ import {
 type FormType = "new" | "transition";
 
 const EMPTY_VERIFICATION_MAP_PINS: MapPin[] = [];
+
+interface VietmapSearchItem {
+  ref_id?: string;
+  name?: string;
+  address?: string;
+  display?: string;
+  lat?: number | string;
+  lng?: number | string;
+}
+
+const normalizeText = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
+
+const rankAddress = (value: string): number => {
+  const hasNumber = /\d/.test(value);
+  const hasSeparator = /[\/,\-]/.test(value);
+  return (hasNumber ? 2000 : 0) + (hasSeparator ? 1000 : 0) + value.length;
+};
+
+const buildAddressFromReverseItem = (item: Record<string, unknown>): string => {
+  const houseNo =
+    normalizeText(item.housenumber) || normalizeText(item.house_number);
+  const street =
+    normalizeText(item.street) || normalizeText(item.street_name);
+  const ward = normalizeText(item.ward);
+  const district = normalizeText(item.district);
+  const province = normalizeText(item.province) || normalizeText(item.city);
+
+  const roadPart = [houseNo, street].filter(Boolean).join(" ").trim();
+  const parts = [roadPart, ward, district, province].filter(Boolean);
+  if (parts.length > 0) {
+    return parts
+      .filter((part, index, arr) => arr.indexOf(part) === index)
+      .join(", ");
+  }
+
+  return (
+    normalizeText(item.display) ||
+    normalizeText(item.address) ||
+    normalizeText(item.name)
+  );
+};
 
 const VerificationRequestScreen = () => {
   const navigation = useNavigation();
@@ -106,6 +152,10 @@ const VerificationRequestScreen = () => {
   );
 
   const [isAddressMapVisible, setIsAddressMapVisible] = useState(false);
+  const addressMapRef = useRef<VietmapViewRef>(null);
+  const mapSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [addressPickCoords, setAddressPickCoords] = useState<{
     latitude: number;
     longitude: number;
@@ -114,6 +164,41 @@ const VerificationRequestScreen = () => {
     null,
   );
   const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+  const [addressMapSearchText, setAddressMapSearchText] = useState("");
+  const [addressMapSearchResults, setAddressMapSearchResults] = useState<
+    VietmapSearchItem[]
+  >([]);
+  const [isAddressMapSearching, setIsAddressMapSearching] = useState(false);
+
+  const reverseGeocodeDetailedAddress = useCallback(
+    async (coords: { latitude: number; longitude: number }) => {
+      const fallback = `${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}`;
+      try {
+        const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${coords.latitude}&lng=${coords.longitude}&display_type=1`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        const candidates: Record<string, unknown>[] = Array.isArray(data)
+          ? data.filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+          : Array.isArray(data?.value)
+            ? data.value.filter(
+                (x: unknown): x is Record<string, unknown> =>
+                  !!x && typeof x === "object",
+              )
+            : [];
+
+        const best = candidates
+          .map(buildAddressFromReverseItem)
+          .filter(Boolean)
+          .sort((a, b) => rankAddress(b) - rankAddress(a))[0];
+
+        return best || fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    [],
+  );
 
   const addressSelectionPins = useMemo<MapPin[]>(() => {
     if (!addressPickCoords) return EMPTY_VERIFICATION_MAP_PINS;
@@ -126,6 +211,7 @@ const VerificationRequestScreen = () => {
         subtitle: pendingMapAddress ?? undefined,
         icon: "📍",
         color: "#D4AF37",
+        markerType: "pick",
       },
     ];
   }, [addressPickCoords, pendingMapAddress, t]);
@@ -138,15 +224,12 @@ const VerificationRequestScreen = () => {
       });
       setIsReverseGeocoding(true);
       try {
-        const url = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${e.latitude}&lng=${e.longitude}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        const first = Array.isArray(data) ? data[0] : data?.value?.[0];
-        const addr =
-          first?.display ||
-          first?.address ||
-          `${e.latitude.toFixed(5)}, ${e.longitude.toFixed(5)}`;
+        const addr = await reverseGeocodeDetailedAddress({
+          latitude: e.latitude,
+          longitude: e.longitude,
+        });
         setPendingMapAddress(addr);
+        setAddressMapSearchText(addr);
       } catch {
         setPendingMapAddress(
           `${e.latitude.toFixed(5)}, ${e.longitude.toFixed(5)}`,
@@ -155,8 +238,100 @@ const VerificationRequestScreen = () => {
         setIsReverseGeocoding(false);
       }
     },
-    [],
+    [reverseGeocodeDetailedAddress],
   );
+
+  const resolveSearchCoordinates = useCallback(async (item: VietmapSearchItem) => {
+    const lat = Number(item.lat);
+    const lng = Number(item.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+
+    if (!item.ref_id) return null;
+    try {
+      const detailUrl = `${VIETMAP_CONFIG.PLACE_DETAIL_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&refid=${item.ref_id}`;
+      const detailRes = await fetch(detailUrl);
+      const detailData = await detailRes.json();
+      const detailLat = Number(detailData?.lat);
+      const detailLng = Number(detailData?.lng);
+      if (Number.isFinite(detailLat) && Number.isFinite(detailLng)) {
+        return { latitude: detailLat, longitude: detailLng };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const runAddressMapSearch = useCallback(async (query: string) => {
+    const keyword = query.trim();
+    if (keyword.length < 2) {
+      setAddressMapSearchResults([]);
+      setIsAddressMapSearching(false);
+      return;
+    }
+    try {
+      setIsAddressMapSearching(true);
+      const url = `${VIETMAP_CONFIG.SEARCH_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&text=${encodeURIComponent(keyword)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAddressMapSearchResults(data.slice(0, 6));
+      } else {
+        setAddressMapSearchResults([]);
+      }
+    } catch {
+      setAddressMapSearchResults([]);
+    } finally {
+      setIsAddressMapSearching(false);
+    }
+  }, []);
+
+  const handleAddressMapSearchChange = useCallback(
+    (value: string) => {
+      setAddressMapSearchText(value);
+      if (mapSearchDebounceRef.current) {
+        clearTimeout(mapSearchDebounceRef.current);
+      }
+      if (value.trim().length < 2) {
+        setAddressMapSearchResults([]);
+        setIsAddressMapSearching(false);
+        return;
+      }
+      mapSearchDebounceRef.current = setTimeout(() => {
+        void runAddressMapSearch(value);
+      }, 350);
+    },
+    [runAddressMapSearch],
+  );
+
+  const handleAddressMapSearchResultPress = useCallback(
+    async (item: VietmapSearchItem) => {
+      const coords = await resolveSearchCoordinates(item);
+      if (!coords) return;
+      const label = item.name || item.display || item.address || "";
+      setAddressMapSearchResults([]);
+      setAddressPickCoords(coords);
+      setIsReverseGeocoding(true);
+      const reverseAddr = await reverseGeocodeDetailedAddress(coords);
+      const bestAddr =
+        rankAddress(reverseAddr) >= rankAddress(label) ? reverseAddr : label;
+      setPendingMapAddress(bestAddr);
+      setAddressMapSearchText(bestAddr);
+      setIsReverseGeocoding(false);
+      addressMapRef.current?.flyTo(coords.latitude, coords.longitude, 16);
+    },
+    [resolveSearchCoordinates, reverseGeocodeDetailedAddress],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (mapSearchDebounceRef.current) {
+        clearTimeout(mapSearchDebounceRef.current);
+      }
+    };
+  }, []);
   const [isTypeDropdownVisible, setIsTypeDropdownVisible] = useState(false);
   const [isRegionDropdownVisible, setIsRegionDropdownVisible] = useState(false);
 
@@ -746,6 +921,8 @@ const VerificationRequestScreen = () => {
           setIsAddressMapVisible(false);
           setAddressPickCoords(null);
           setPendingMapAddress(null);
+          setAddressMapSearchText("");
+          setAddressMapSearchResults([]);
         }}
       >
         <SafeAreaView style={styles.addressMapModal} edges={["top", "bottom"]}>
@@ -755,6 +932,8 @@ const VerificationRequestScreen = () => {
                 setIsAddressMapVisible(false);
                 setAddressPickCoords(null);
                 setPendingMapAddress(null);
+                setAddressMapSearchText("");
+                setAddressMapSearchResults([]);
               }}
               style={styles.addressMapClose}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -769,8 +948,63 @@ const VerificationRequestScreen = () => {
           <Text style={styles.addressMapHint}>
             {t("verification.addressMap.hint")}
           </Text>
+          <View style={styles.addressMapSearchWrap}>
+            <View style={styles.addressMapSearchBar}>
+              <Ionicons name="search" size={18} color="#6C8CA3" />
+              <TextInput
+                style={styles.addressMapSearchInput}
+                value={addressMapSearchText}
+                onChangeText={handleAddressMapSearchChange}
+                placeholder={t("verification.fields.addressPlaceholder")}
+                placeholderTextColor="#98A8B8"
+                returnKeyType="search"
+              />
+              {isAddressMapSearching ? (
+                <ActivityIndicator size="small" color="#D4AF37" />
+              ) : addressMapSearchText.length > 0 ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setAddressMapSearchText("");
+                    setAddressMapSearchResults([]);
+                  }}
+                >
+                  <Ionicons name="close" size={18} color="#6C8CA3" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            {addressMapSearchResults.length > 0 && (
+              <View style={styles.addressMapSearchResultList}>
+                {addressMapSearchResults.map((item, idx) => (
+                  <TouchableOpacity
+                    key={`${item.ref_id || item.name || "r"}-${idx}`}
+                    style={styles.addressMapSearchResultItem}
+                    onPress={() => {
+                      void handleAddressMapSearchResultPress(item);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="location-outline" size={16} color="#D4AF37" />
+                    <View style={styles.addressMapSearchResultTextWrap}>
+                      <Text style={styles.addressMapSearchResultTitle} numberOfLines={1}>
+                        {item.name || item.display || item.address || "Địa điểm"}
+                      </Text>
+                      {!!item.address && (
+                        <Text
+                          style={styles.addressMapSearchResultSubtitle}
+                          numberOfLines={1}
+                        >
+                          {item.address}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
           <View style={styles.addressMapContainer}>
             <VietmapView
+              ref={addressMapRef}
               style={StyleSheet.absoluteFill}
               pins={addressSelectionPins}
               showUserLocation
@@ -1282,6 +1516,59 @@ const styles = StyleSheet.create({
     color: "#6C8CA3",
     paddingHorizontal: 16,
     paddingBottom: 8,
+  },
+  addressMapSearchWrap: {
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  addressMapSearchBar: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(46, 95, 138, 0.25)",
+    backgroundColor: "rgba(255,255,255,0.96)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  addressMapSearchInput: {
+    flex: 1,
+    color: "#1A1A1A",
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  addressMapSearchResultList: {
+    marginTop: 6,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(46, 95, 138, 0.18)",
+    overflow: "hidden",
+    maxHeight: 220,
+  },
+  addressMapSearchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(46, 95, 138, 0.08)",
+  },
+  addressMapSearchResultTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  addressMapSearchResultTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1A1A1A",
+  },
+  addressMapSearchResultSubtitle: {
+    marginTop: 1,
+    fontSize: 12,
+    color: "#6C8CA3",
   },
   addressMapContainer: {
     flex: 1,

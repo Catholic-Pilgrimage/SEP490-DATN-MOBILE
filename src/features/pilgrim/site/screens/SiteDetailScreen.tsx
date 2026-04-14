@@ -1441,6 +1441,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                           .join(", "),
                         color: "#DC2626", // Red color for main site
                         icon: "⛪",
+                        markerType: "site",
                       } as MapPin,
                       // Nearby places pins - with category colors matching guide
                       ...((places || [])
@@ -1449,11 +1450,42 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                           // Category config matching guide's LocationsTab
                           const categoryConfig: Record<
                             string,
-                            { color: string; emoji: string }
+                            {
+                              color: string;
+                              emoji: string;
+                              markerType: "restaurant" | "hotel" | "media";
+                            }
                           > = {
-                            food: { color: "#F97316", emoji: "🍜" },
-                            lodging: { color: "#2563EB", emoji: "🏨" },
-                            medical: { color: "#10B981", emoji: "🏥" },
+                            food: {
+                              color: "#F97316",
+                              emoji: "🍜",
+                              markerType: "restaurant",
+                            },
+                            restaurant: {
+                              color: "#F97316",
+                              emoji: "🍜",
+                              markerType: "restaurant",
+                            },
+                            lodging: {
+                              color: "#2563EB",
+                              emoji: "🏨",
+                              markerType: "hotel",
+                            },
+                            hotel: {
+                              color: "#2563EB",
+                              emoji: "🏨",
+                              markerType: "hotel",
+                            },
+                            medical: {
+                              color: "#10B981",
+                              emoji: "🏥",
+                              markerType: "media",
+                            },
+                            media: {
+                              color: "#10B981",
+                              emoji: "🏥",
+                              markerType: "media",
+                            },
                           };
                           const config =
                             categoryConfig[place.category] ||
@@ -1467,6 +1499,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                             subtitle: place.address,
                             color: config.color,
                             icon: config.emoji,
+                            markerType: config.markerType,
                           };
                         }) as MapPin[]),
                     ]}
@@ -1516,7 +1549,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       name={place.name}
                       address={place.address}
                       distance={distanceStr}
-                      type={place.category as any}
+                      type={
+                        place.category === "food" || place.category === "restaurant"
+                          ? "restaurant"
+                          : place.category === "lodging" || place.category === "hotel"
+                            ? "hotel"
+                            : place.category === "medical" || place.category === "media"
+                              ? "media"
+                              : "other"
+                      }
                       onDirections={() => {
                         if (place.latitude && place.longitude && mapRef.current) {
                           mapRef.current.flyTo(
@@ -1600,15 +1641,50 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 .join(", "),
               color: "#DC2626",
               icon: "⛪",
+              markerType: "site",
             },
             ...(places || [])
               .filter((p) => p.latitude && p.longitude)
               .map((place) => {
-                const catCfg: Record<string, { color: string; emoji: string }> =
+                const catCfg: Record<
+                  string,
                   {
-                    food: { color: "#F97316", emoji: "🍜" },
-                    lodging: { color: "#2563EB", emoji: "🏨" },
-                    medical: { color: "#10B981", emoji: "🏥" },
+                    color: string;
+                    emoji: string;
+                    markerType: "restaurant" | "hotel" | "media";
+                  }
+                > =
+                  {
+                    food: {
+                      color: "#F97316",
+                      emoji: "🍜",
+                      markerType: "restaurant",
+                    },
+                    restaurant: {
+                      color: "#F97316",
+                      emoji: "🍜",
+                      markerType: "restaurant",
+                    },
+                    lodging: {
+                      color: "#2563EB",
+                      emoji: "🏨",
+                      markerType: "hotel",
+                    },
+                    hotel: {
+                      color: "#2563EB",
+                      emoji: "🏨",
+                      markerType: "hotel",
+                    },
+                    medical: {
+                      color: "#10B981",
+                      emoji: "🏥",
+                      markerType: "media",
+                    },
+                    media: {
+                      color: "#10B981",
+                      emoji: "🏥",
+                      markerType: "media",
+                    },
                   };
                 const cfg = catCfg[place.category] || catCfg.food;
                 return {
@@ -1619,6 +1695,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                   subtitle: place.address,
                   color: cfg.color,
                   icon: cfg.emoji,
+                  markerType: cfg.markerType,
                 };
               }),
           ]}

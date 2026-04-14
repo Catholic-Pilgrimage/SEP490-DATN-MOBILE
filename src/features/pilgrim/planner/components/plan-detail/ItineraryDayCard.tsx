@@ -4,6 +4,7 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { COLORS } from "../../../../../constants/theme.constants";
 import { PlanItem } from "../../../../../types/pilgrim/planner.types";
+import { formatDurationLocalized } from "../../utils/siteScheduleHelper";
 
 interface ItineraryDayCardProps {
   dayKey: string;
@@ -217,6 +218,59 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                         </Text>
                       </View>
                     </View>
+                    
+                    {/* Conflict Warning rendering */}
+                    {(() => {
+                      if (index > 0 && items[index - 1]) {
+                        const prevItem = items[index - 1];
+                        const prevEndTime = calculateEndTimeCalc(
+                          prevItem.estimated_time || prevItem.arrival_time,
+                          prevItem.rest_duration,
+                        );
+                        const currentStartTime = formatTimeValueCalc(
+                          item.estimated_time || item.arrival_time,
+                        );
+                        if (
+                          prevEndTime &&
+                          currentStartTime &&
+                          currentStartTime < prevEndTime &&
+                          prevEndTime <= "24:00"
+                        ) {
+                          return (
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                backgroundColor: "#FEF2F2",
+                                paddingVertical: 4,
+                                paddingHorizontal: 8,
+                                borderRadius: 6,
+                                marginTop: 6,
+                              }}
+                            >
+                              <Ionicons
+                                name="warning"
+                                size={14}
+                                color="#DC2626"
+                                style={{ marginRight: 4 }}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: "#DC2626",
+                                  fontWeight: "500",
+                                }}
+                              >
+                                {t("planner.timeConflictWarning", {
+                                  defaultValue: "Thời gian bị chồng chéo",
+                                })}
+                              </Text>
+                            </View>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
                     {item.note && item.note !== "Visited" && (
                       <Text style={styles.itemNote} numberOfLines={1}>
                         {item.note}
@@ -329,9 +383,9 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                     <View style={styles.travelBadge}>
                       <Ionicons name="car" size={14} color="#6B7280" />
                       <Text style={styles.travelText}>
-                        {t("planner.travelMinutesLabel", {
-                          minutes: Math.max(1, Math.round(travelMinutes)),
-                          defaultValue: "Di chuyển {{minutes}} phút",
+                        {t("planner.travelDurationLabel", {
+                          duration: formatDurationLocalized(Math.max(1, Math.round(travelMinutes)), t),
+                          defaultValue: "Di chuyển {{duration}}",
                         })}
                         {typeof travelDistanceKm === "number"
                           ? ` (${travelDistanceKm.toFixed(1)} km)`

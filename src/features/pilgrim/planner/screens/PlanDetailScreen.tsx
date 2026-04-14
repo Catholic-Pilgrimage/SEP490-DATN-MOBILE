@@ -66,6 +66,7 @@ import {
   PlanItem,
   UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
+import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { getInitialsFromFullName } from "../../../../utils/initials";
 import AddSiteModal from "../components/plan-detail/AddSiteModal";
 import EditItemModal, {
@@ -224,26 +225,155 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   );
 
   const mapRef = useRef<VietmapViewRef>(null);
+  const [plannerUserLocation, setPlannerUserLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [nearbyAmenityPins, setNearbyAmenityPins] = useState<MapPin[]>([]);
 
-  const mapPins: MapPin[] = useMemo(() => buildPlanMapPins(plan), [plan]);
-  const mapCenter = useMemo(() => getPlanMapCenter(mapPins), [mapPins]);
+  const pilgrimagePins: MapPin[] = useMemo(() => buildPlanMapPins(plan), [plan]);
+  const mapPins: MapPin[] = useMemo(
+    () => [...pilgrimagePins, ...nearbyAmenityPins],
+    [pilgrimagePins, nearbyAmenityPins],
+  );
+  const mapCenter = useMemo(
+    () => getPlanMapCenter(pilgrimagePins.length ? pilgrimagePins : mapPins),
+    [pilgrimagePins, mapPins],
+  );
   const groupPatronConstraint = useMemo(
     () => getGroupPatronConstraintFromPlan(plan),
     [plan],
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const getNearbyMarkerType = (
+      category?: string,
+    ): MapPin["markerType"] => {
+      const normalized = String(category || "").toLowerCase();
+      if (normalized === "food" || normalized === "restaurant") {
+        return "restaurant";
+      }
+      if (normalized === "lodging" || normalized === "hotel") {
+        return "hotel";
+      }
+      return "media";
+    };
+
+    const loadNearbyPins = async () => {
+      if (!plan?.items_by_day || isOffline) {
+        setNearbyAmenityPins([]);
+        return;
+      }
+
+      const uniqueSites = new Map<string, { name: string }>();
+      Object.values(plan.items_by_day).forEach((items) => {
+        items.forEach((item) => {
+          const siteId = String(item.site_id || item.site?.id || "").trim();
+          if (!siteId) return;
+          if (!item.site?.latitude || !item.site?.longitude) return;
+          if (!uniqueSites.has(siteId)) {
+            uniqueSites.set(siteId, { name: String(item.site?.name || "") });
+          }
+        });
+      });
+
+      if (!uniqueSites.size) {
+        setNearbyAmenityPins([]);
+        return;
+      }
+
+      const responses = await Promise.allSettled(
+        Array.from(uniqueSites.entries()).map(([siteId, site]) =>
+          pilgrimSiteApi
+            .getSiteNearbyPlaces(siteId, { limit: 50 })
+            .then((res) => ({
+              siteId,
+              siteName: site.name,
+              places: res?.data?.data || [],
+            })),
+        ),
+      );
+
+      if (cancelled) return;
+
+      const seen = new Set<string>();
+      const pins: MapPin[] = [];
+      responses.forEach((entry) => {
+        if (entry.status !== "fulfilled") return;
+        entry.value.places.forEach((place: SiteNearbyPlace) => {
+          const placeId = String(place?.id || "").trim();
+          const lat = Number(place?.latitude);
+          const lng = Number(place?.longitude);
+          if (!placeId || Number.isNaN(lat) || Number.isNaN(lng)) return;
+          if (seen.has(placeId)) return;
+          seen.add(placeId);
+
+          const markerType = getNearbyMarkerType(place.category);
+          const pinColor =
+            markerType === "restaurant"
+              ? "#DC2626"
+              : markerType === "hotel"
+                ? "#1D4ED8"
+                : "#0F766E";
+
+          pins.push({
+            id: `nearby_${placeId}`,
+            latitude: lat,
+            longitude: lng,
+            title: place.name || "Tiện ích xung quanh",
+            subtitle: `${entry.value.siteName || "Điểm hành hương"} • ${place.address || ""}`,
+            markerType,
+            color: pinColor,
+          });
+        });
+      });
+
+      setNearbyAmenityPins(pins);
+    };
+
+    void loadNearbyPins();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plan?.items_by_day, isOffline]);
+
+  const handlePlannerUserLocationUpdate = useCallback(
+    (loc: { latitude: number; longitude: number }) => {
+      setPlannerUserLocation((prev) => {
+        if (!prev) return loc;
+        const latMeters = (loc.latitude - prev.latitude) * 111000;
+        const lngMeters =
+          (loc.longitude - prev.longitude) *
+          111000 *
+          Math.cos((loc.latitude * Math.PI) / 180);
+        const movedMeters = Math.sqrt(latMeters ** 2 + lngMeters ** 2);
+        if (movedMeters < 80) return prev;
+        return loc;
+      });
+    },
+    [],
+  );
+
   // Fly camera to fit all pins when pins change
   useEffect(() => {
-    if (mapPins.length > 0 && mapRef.current) {
+    const pinsForFit = pilgrimagePins.length > 0 ? pilgrimagePins : mapPins;
+    if (pinsForFit.length > 0 && mapRef.current) {
       // Small delay to ensure the map is mounted & ready
       const timer = setTimeout(() => {
         if (!mapRef.current) return;
-        if (mapPins.length === 1) {
-          mapRef.current.flyTo(mapPins[0].latitude, mapPins[0].longitude, 13);
+        if (pinsForFit.length === 1) {
+          mapRef.current.flyTo(
+            pinsForFit[0].latitude,
+            pinsForFit[0].longitude,
+            13,
+          );
           return;
         }
-        const lats = mapPins.map((p) => p.latitude);
-        const lngs = mapPins.map((p) => p.longitude);
+        const lats = pinsForFit.map((p) => p.latitude);
+        const lngs = pinsForFit.map((p) => p.longitude);
         const minLat = Math.min(...lats);
         const maxLat = Math.max(...lats);
         const minLng = Math.min(...lngs);
@@ -268,7 +398,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [mapPins]);
+  }, [mapPins, pilgrimagePins]);
 
   // Add Item State
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
@@ -391,7 +521,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   // Route calculation (extracted to hook)
   const { routeCoordinates, routeSegments, routeSummary, routeLoading } =
-    usePlanRoute(plan, isOffline);
+    usePlanRoute(plan, isOffline, plannerUserLocation);
 
   // Calendar Sync Modal state
   const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
@@ -2888,6 +3018,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           scrollEnabled={false}
           showInfoCards={false}
           showUserLocation={true}
+          onUserLocationUpdate={handlePlannerUserLocationUpdate}
           tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
           routeSegments={routeSegments}
           cardBottomOffset={180}
@@ -3762,6 +3893,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         tileUrlTemplate={isOffline ? offlineTileUrlTemplate : undefined}
         title={plan?.name || "Bản đồ kế hoạch"}
         showUserLocation={true}
+        onUserLocationUpdate={handlePlannerUserLocationUpdate}
         routeCoordinates={routeCoordinates}
         routeSegments={routeSegments}
         routeSummary={routeSummary}
