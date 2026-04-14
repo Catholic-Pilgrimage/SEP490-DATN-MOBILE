@@ -122,6 +122,7 @@ export const PILGRIM_ENDPOINTS = {
     UPDATE_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}`,
     REORDER_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/reorder`,
+    SWAP_ITEMS: (id: string) => `${API_BASE}/planners/${id}/items/swap`,
     MESSAGES: (id: string) => `${API_BASE}/planners/${id}/messages`,
     DELETE_MESSAGE: (id: string, messageId: string) =>
       `${API_BASE}/planners/${id}/messages/${messageId}`,
@@ -139,8 +140,7 @@ export const PILGRIM_ENDPOINTS = {
     SHARE: (id: string) => `${API_BASE}/planners/${id}/share`,
     CLONE: (id: string) => `${API_BASE}/planners/${id}/clone`,
     TRANSACTIONS: (id: string) => `${API_BASE}/planners/${id}/transactions`,
-    CANCEL_DEPOSIT: (id: string) =>
-      `${API_BASE}/planners/${id}/cancel-deposit`,
+    CANCEL_DEPOSIT: (id: string) => `${API_BASE}/planners/${id}/cancel-deposit`,
     CALENDAR_SYNC: (id: string) => `${API_BASE}/planners/${id}/calendar-sync`,
     OFFLINE_DATA: (id: string) => `${API_BASE}/planners/${id}/offline-data`,
     SYNC_OFFLINE_ACTIONS: `${API_BASE}/planners/sync/offline-actions`,

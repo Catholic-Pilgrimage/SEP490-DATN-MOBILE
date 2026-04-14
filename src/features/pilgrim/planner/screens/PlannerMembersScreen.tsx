@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Image,
@@ -12,8 +13,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -21,15 +22,14 @@ import {
   SPACING,
   TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
-import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import type { 
-  PlannerMemberApiRow, 
-  PlannerProgressMember 
-} from "../../../../types/pilgrim/planner.types";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
+import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import type {
+  PlannerMemberApiRow,
+  PlannerProgressMember,
+} from "../../../../types/pilgrim/planner.types";
 import { useFriendship } from "../../profile/hooks/useFriendship";
-import { FriendshipListItem } from "../../../../types/pilgrim";
 import MemberHistoryList from "../components/shared/MemberHistoryList";
 
 type Props = {
@@ -37,14 +37,21 @@ type Props = {
   navigation: any;
 };
 
-
-
 export default function PlannerMembersScreen({ route, navigation }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const planId = route.params?.planId || "";
-  const planName = route.params?.planName || "Thành viên";
+  const planName =
+    route.params?.planName ||
+    t("planner.members.title", { defaultValue: "Thành viên" });
 
-  const { friends, pendingRequests, fetchFriends, fetchPendingRequests, sendRequest } = useFriendship();
+  const {
+    friends,
+    pendingRequests,
+    fetchFriends,
+    fetchPendingRequests,
+    sendRequest,
+  } = useFriendship();
   const { user: currentUser } = useAuth();
   const { confirm } = useConfirm();
 
@@ -52,10 +59,14 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState<PlannerMemberApiRow[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [progressMap, setProgressMap] = useState<Record<string, PlannerProgressMember>>({});
+  const [progressMap, setProgressMap] = useState<
+    Record<string, PlannerProgressMember>
+  >({});
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [allItems, setAllItems] = useState<any[]>([]);
-  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>({});
+  const [expandedRowIds, setExpandedRowIds] = useState<Record<string, boolean>>(
+    {},
+  );
   const [planStatus, setPlanStatus] = useState<string>("");
   const [planDetail, setPlanDetail] = useState<any>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
@@ -65,7 +76,9 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     available_slots?: number;
   } | null>(null);
 
-  const [sessionSentRequestIds, setSessionSentRequestIds] = useState<Set<string>>(new Set());
+  const [sessionSentRequestIds, setSessionSentRequestIds] = useState<
+    Set<string>
+  >(new Set());
 
   const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
 
@@ -84,14 +97,17 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
 
           let items: any[] = [];
           if ((detailRes.data as any).items_by_day) {
-             items = Object.values((detailRes.data as any).items_by_day).flat();
+            items = Object.values((detailRes.data as any).items_by_day).flat();
           } else if (detailRes.data.items) {
-             items = detailRes.data.items;
+            items = detailRes.data.items;
           }
           setAllItems(items);
         }
       } catch (err) {
-        console.warn("Failed to fetch plan detail (might be pending invite)", err);
+        console.warn(
+          "Failed to fetch plan detail (might be pending invite)",
+          err,
+        );
       }
 
       const membersRes = await pilgrimPlannerApi.getPlanMembers(planId);
@@ -127,62 +143,95 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         setSummary(null);
         Toast.show({
           type: "error",
-          text1: "Không thể tải danh sách thành viên",
-          text2: membersRes.message || "Vui lòng thử lại",
+          text1: t("planner.members.loadFailed", {
+            defaultValue: "Không thể tải danh sách thành viên",
+          }),
+          text2:
+            membersRes.message ||
+            t("common.retry", { defaultValue: "Vui lòng thử lại" }),
         });
       }
     } catch (e: any) {
       // ... errors handled
     }
-  }, [planId]);
+  }, [planId, t]);
 
   const confirmLeavePlan = async () => {
     if (!currentUser?.id) return;
-    
+
     // Backend: penalty only applies when planner is 'locked'
     // During 'planning': always clean exit with 100% refund
     const hasFinancialPenalty =
-      planStatus === 'locked' &&
+      planStatus === "locked" &&
       planDetail?.deposit_amount > 0 &&
       planDetail?.penalty_percentage > 0;
 
     const penaltyHint = hasFinancialPenalty
-      ? `\nLƯU Ý: Kế hoạch đã khoá — rời nhóm sẽ bị phạt ${planDetail.penalty_percentage}% tiền cọc (${Math.round(planDetail.deposit_amount * planDetail.penalty_percentage / 100).toLocaleString('vi-VN')} VND).`
+      ? `\n${t("planner.members.leavePenaltyHint", {
+          defaultValue:
+            "LƯU Ý: Kế hoạch đã khoá — rời nhóm sẽ bị phạt {{percent}}% tiền cọc ({{amount}} VND).",
+          percent: planDetail.penalty_percentage,
+          amount: Math.round(
+            (planDetail.deposit_amount * planDetail.penalty_percentage) / 100,
+          ).toLocaleString("vi-VN"),
+        })}`
       : planDetail?.deposit_amount > 0
-        ? '\nTiền cọc sẽ được hoàn 100% vào ví.'
-        : '';
-      
+        ? `\n${t("planner.members.leaveDepositRefundHint", {
+            defaultValue: "Tiền cọc sẽ được hoàn 100% vào ví.",
+          })}`
+        : "";
+
     const confirmed = await confirm({
       type: "danger",
-      title: "Rời khỏi nhóm?",
-      message: "Bạn có chắc chắn muốn rời khỏi đoàn này không?" + penaltyHint,
-      confirmText: "Rời nhóm",
-      cancelText: "Hủy",
+      title: t("planner.members.leaveTitle", {
+        defaultValue: "Rời khỏi nhóm?",
+      }),
+      message:
+        t("planner.members.leaveMessage", {
+          defaultValue: "Bạn có chắc chắn muốn rời khỏi đoàn này không?",
+        }) + penaltyHint,
+      confirmText: t("planner.members.leaveConfirm", {
+        defaultValue: "Rời nhóm",
+      }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
     if (confirmed) {
       try {
         setRemovingMemberId(currentUser.id);
-        const res = await pilgrimPlannerApi.removePlanMember(planId, currentUser.id);
+        const res = await pilgrimPlannerApi.removePlanMember(
+          planId,
+          currentUser.id,
+        );
         if (res.success) {
           Toast.show({
             type: "success",
-            text1: "Thành công",
-            text2: res.message || "Đã rời khỏi nhóm",
+            text1: t("common.success", { defaultValue: "Thành công" }),
+            text2:
+              res.message ||
+              t("planner.members.leaveSuccess", {
+                defaultValue: "Đã rời khỏi nhóm",
+              }),
           });
           navigation.goBack();
         } else {
           Toast.show({
             type: "error",
-            text1: "Lỗi",
-            text2: res.message || "Không thể rời nhóm",
+            text1: t("common.error", { defaultValue: "Lỗi" }),
+            text2:
+              res.message ||
+              t("planner.members.leaveFailed", {
+                defaultValue: "Không thể rời nhóm",
+              }),
           });
         }
       } catch (e: any) {
         Toast.show({
           type: "error",
-          text1: "Lỗi",
-          text2: "Có lỗi xảy ra khi rời nhóm.",
+          text1: t("common.error", { defaultValue: "Lỗi" }),
+          text2: t("planner.members.leaveUnexpectedError", {
+            defaultValue: "Có lỗi xảy ra khi rời nhóm.",
+          }),
         });
       } finally {
         setRemovingMemberId(null);
@@ -215,9 +264,17 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     if (!summary) return null;
     const cur = summary.current_members ?? members.length;
     const total = summary.total_slots;
-    if (typeof total === "number" && total > 0) return `${cur}/${total} người`;
-    return `${cur} người`;
-  }, [members.length, summary]);
+    if (typeof total === "number" && total > 0)
+      return t("planner.members.countSummaryWithTotal", {
+        defaultValue: "{{current}}/{{total}} người",
+        current: cur,
+        total,
+      });
+    return t("planner.members.countSummary", {
+      defaultValue: "{{count}} người",
+      count: cur,
+    });
+  }, [members.length, summary, t]);
 
   const filteredMembers = useMemo(() => {
     if (!searchQuery.trim()) return members;
@@ -232,7 +289,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const handleSendFriendRequest = async (userId: string) => {
     const success = await sendRequest(userId);
     if (success) {
-      setSessionSentRequestIds(prev => new Set(prev).add(userId));
+      setSessionSentRequestIds((prev) => new Set(prev).add(userId));
     }
   };
 
@@ -243,7 +300,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
           accessibilityRole="button"
-          accessibilityLabel="Quay lại"
+          accessibilityLabel={t("common.back", { defaultValue: "Quay lại" })}
         >
           <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
         </TouchableOpacity>
@@ -259,7 +316,9 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         <Ionicons name="search" size={20} color={COLORS.textTertiary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Tìm kiếm thành viên..."
+          placeholder={t("planner.members.searchPlaceholder", {
+            defaultValue: "Tìm kiếm thành viên...",
+          })}
           placeholderTextColor={COLORS.textTertiary}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -267,7 +326,11 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         />
         {searchQuery.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQuery("")}>
-            <Ionicons name="close-circle" size={20} color={COLORS.textTertiary} />
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color={COLORS.textTertiary}
+            />
           </TouchableOpacity>
         )}
       </View>
@@ -290,17 +353,30 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                 size={34}
                 color={COLORS.textTertiary}
               />
-              <Text style={styles.emptyTitle}>Chưa có thành viên</Text>
+              <Text style={styles.emptyTitle}>
+                {t("planner.members.emptyTitle", {
+                  defaultValue: "Chưa có thành viên",
+                })}
+              </Text>
               <Text style={styles.emptySub}>
-                Danh sách sẽ hiển thị khi có người tham gia.
+                {t("planner.members.emptyDescription", {
+                  defaultValue: "Danh sách sẽ hiển thị khi có người tham gia.",
+                })}
               </Text>
             </View>
           ) : filteredMembers.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="search" size={34} color={COLORS.textTertiary} />
-              <Text style={styles.emptyTitle}>Không tìm thấy kết quả</Text>
+              <Text style={styles.emptyTitle}>
+                {t("planner.members.searchEmptyTitle", {
+                  defaultValue: "Không tìm thấy kết quả",
+                })}
+              </Text>
               <Text style={styles.emptySub}>
-                Không có thành viên nào khớp với tìm kiếm của bạn.
+                {t("planner.members.searchEmptyDescription", {
+                  defaultValue:
+                    "Không có thành viên nào khớp với tìm kiếm của bạn.",
+                })}
               </Text>
             </View>
           ) : (
@@ -309,27 +385,43 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
               const isOwner = m.id === ownerId;
               const progressPercent = progress?.percent || 0;
               const isRowExpanded = !!expandedRowIds[m.id];
-              const canShowProgressDetail = (planStatus === "ongoing" || planStatus === "completed") && progress;
+              const canShowProgressDetail =
+                (planStatus === "ongoing" || planStatus === "completed") &&
+                progress;
 
               return (
                 <View key={m.id} style={styles.memberCard}>
-                  <TouchableOpacity activeOpacity={canShowProgressDetail ? 0.7 : 1} onPress={() => {
-                    if (canShowProgressDetail) {
-                       setExpandedRowIds(prev => ({ ...prev, [m.id]: !prev[m.id] }));
-                    }
-                  }}>
+                  <TouchableOpacity
+                    activeOpacity={canShowProgressDetail ? 0.7 : 1}
+                    onPress={() => {
+                      if (canShowProgressDetail) {
+                        setExpandedRowIds((prev) => ({
+                          ...prev,
+                          [m.id]: !prev[m.id],
+                        }));
+                      }
+                    }}
+                  >
                     <View style={styles.memberRow}>
                       <View style={styles.avatar}>
                         {m.avatar_url ? (
-                          <Image source={{ uri: m.avatar_url }} style={styles.avatarImage} />
+                          <Image
+                            source={{ uri: m.avatar_url }}
+                            style={styles.avatarImage}
+                          />
                         ) : (
                           <View style={styles.initialsAvatar}>
-                             <Text style={styles.initialsText}>{(() => {
+                            <Text style={styles.initialsText}>
+                              {(() => {
                                 const name = m.full_name || "";
                                 const parts = name.trim().split(" ");
-                                if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                                if (parts.length >= 2)
+                                  return (
+                                    parts[0][0] + parts[parts.length - 1][0]
+                                  ).toUpperCase();
                                 return name.substring(0, 2).toUpperCase();
-                             })()}</Text>
+                              })()}
+                            </Text>
                           </View>
                         )}
                       </View>
@@ -338,9 +430,27 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                           <Text style={styles.memberName} numberOfLines={1}>
                             {m.full_name || "—"}
                           </Text>
-                          <View style={[styles.roleBadge, isOwner ? styles.leaderBadge : styles.memberBadge]}>
-                            <Text style={[styles.roleBadgeText, isOwner ? styles.leaderBadgeText : styles.memberBadgeText]}>
-                              {isOwner ? "Trưởng đoàn" : "Thành viên"}
+                          <View
+                            style={[
+                              styles.roleBadge,
+                              isOwner ? styles.leaderBadge : styles.memberBadge,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.roleBadgeText,
+                                isOwner
+                                  ? styles.leaderBadgeText
+                                  : styles.memberBadgeText,
+                              ]}
+                            >
+                              {isOwner
+                                ? t("planner.roleOwner", {
+                                    defaultValue: "Trưởng đoàn",
+                                  })
+                                : t("planner.roleMember", {
+                                    defaultValue: "Thành viên",
+                                  })}
                             </Text>
                           </View>
                         </View>
@@ -353,33 +463,54 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
 
                       {m.id !== currentUser?.id && (
                         <View style={styles.actionBtnContainer}>
-                          {friends.some(f => f.user.id === m.id) ? (
-                             <View style={styles.friendBadge}>
-                              <Ionicons name="people" size={14} color={COLORS.success} />
-                              <Text style={styles.friendBadgeText}>Bạn bè</Text>
+                          {friends.some((f) => f.user.id === m.id) ? (
+                            <View style={styles.friendBadge}>
+                              <Ionicons
+                                name="people"
+                                size={14}
+                                color={COLORS.success}
+                              />
+                              <Text style={styles.friendBadgeText}>
+                                {t("planner.members.friend", {
+                                  defaultValue: "Bạn bè",
+                                })}
+                              </Text>
                             </View>
-                          ) : (pendingRequests.some(r => r.user.id === m.id) || sessionSentRequestIds.has(m.id)) ? (
+                          ) : pendingRequests.some((r) => r.user.id === m.id) ||
+                            sessionSentRequestIds.has(m.id) ? (
                             <View style={styles.pendingBadge}>
-                              <Text style={styles.pendingBadgeText}>Đã gửi</Text>
+                              <Text style={styles.pendingBadgeText}>
+                                {t("planner.members.requestSent", {
+                                  defaultValue: "Đã gửi",
+                                })}
+                              </Text>
                             </View>
                           ) : (
-                            <TouchableOpacity 
-                              style={styles.addFriendBtn} 
+                            <TouchableOpacity
+                              style={styles.addFriendBtn}
                               onPress={() => handleSendFriendRequest(m.id)}
                             >
-                              <Ionicons name="person-add" size={16} color="#fff" />
-                              <Text style={styles.addFriendBtnText}>Kết bạn</Text>
+                              <Ionicons
+                                name="person-add"
+                                size={16}
+                                color="#fff"
+                              />
+                              <Text style={styles.addFriendBtnText}>
+                                {t("planner.members.addFriend", {
+                                  defaultValue: "Kết bạn",
+                                })}
+                              </Text>
                             </TouchableOpacity>
                           )}
                         </View>
                       )}
 
                       {canShowProgressDetail && (
-                        <Ionicons 
-                          name={isRowExpanded ? "chevron-up" : "chevron-down"} 
-                          size={20} 
-                          color={COLORS.textTertiary} 
-                          style={{ marginLeft: 8 }} 
+                        <Ionicons
+                          name={isRowExpanded ? "chevron-up" : "chevron-down"}
+                          size={20}
+                          color={COLORS.textTertiary}
+                          style={{ marginLeft: 8 }}
                         />
                       )}
                     </View>
@@ -387,17 +518,22 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                     {progress && progress.total_items > 0 && (
                       <View style={styles.progressSection}>
                         <View style={styles.progressHeader}>
-                          <Text style={styles.progressLabel}>Tiến độ check-in</Text>
+                          <Text style={styles.progressLabel}>
+                            {t("planner.members.checkinProgress", {
+                              defaultValue: "Tiến độ check-in",
+                            })}
+                          </Text>
                           <Text style={styles.progressValue}>
-                            {progress.checked_in}/{progress.total_items} ({Math.round(progressPercent)}%)
+                            {progress.checked_in}/{progress.total_items} (
+                            {Math.round(progressPercent)}%)
                           </Text>
                         </View>
                         <View style={styles.progressBarBg}>
-                          <View 
+                          <View
                             style={[
-                              styles.progressBarFill, 
-                              { width: `${progressPercent}%` }
-                            ]} 
+                              styles.progressBarFill,
+                              { width: `${progressPercent}%` },
+                            ]}
                           />
                         </View>
                       </View>
@@ -406,7 +542,10 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
 
                   {isRowExpanded && canShowProgressDetail && (
                     <View style={styles.historyList}>
-                      <MemberHistoryList allItems={allItems} history={progress.history || []} />
+                      <MemberHistoryList
+                        allItems={allItems}
+                        history={progress.history || []}
+                      />
                     </View>
                   )}
                 </View>
@@ -416,24 +555,39 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         </ScrollView>
       )}
 
-      {!loading && currentUser?.id !== ownerId && ['planning', 'locked'].includes(planStatus) && (
-        <View style={[styles.footerBtnContainer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity 
-            style={styles.globalLeaveBtn} 
-            onPress={confirmLeavePlan}
-            disabled={removingMemberId !== null}
+      {!loading &&
+        currentUser?.id !== ownerId &&
+        ["planning", "locked"].includes(planStatus) && (
+          <View
+            style={[
+              styles.footerBtnContainer,
+              { paddingBottom: Math.max(insets.bottom, 16) },
+            ]}
           >
-            {removingMemberId !== null ? (
-              <ActivityIndicator size="small" color={COLORS.danger} />
-            ) : (
-              <>
-                <Ionicons name="log-out-outline" size={20} color={COLORS.danger} />
-                <Text style={styles.globalLeaveBtnText}>Rời khỏi nhóm</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
+            <TouchableOpacity
+              style={styles.globalLeaveBtn}
+              onPress={confirmLeavePlan}
+              disabled={removingMemberId !== null}
+            >
+              {removingMemberId !== null ? (
+                <ActivityIndicator size="small" color={COLORS.danger} />
+              ) : (
+                <>
+                  <Ionicons
+                    name="log-out-outline"
+                    size={20}
+                    color={COLORS.danger}
+                  />
+                  <Text style={styles.globalLeaveBtnText}>
+                    {t("planner.members.leaveConfirm", {
+                      defaultValue: "Rời nhóm",
+                    })}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
     </View>
   );
 }
@@ -566,14 +720,14 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 22,
-    backgroundColor: '#E5E1D8',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#E5E1D8",
+    justifyContent: "center",
+    alignItems: "center",
   },
   initialsText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#B8860B',
+    fontWeight: "700",
+    color: "#B8860B",
   },
   memberName: { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary },
   memberEmail: { fontSize: 13, color: COLORS.textSecondary, marginTop: 1 },
@@ -688,4 +842,3 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
 });
-

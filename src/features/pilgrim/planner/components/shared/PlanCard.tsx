@@ -2,20 +2,24 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Animated, ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Animated,
+  Pressable,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import {
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY
 } from "../../../../../constants/theme.constants";
-import {
-    PlanStatus,
-    PlanSummary,
-    TransportationType,
-} from "../../../../../types/pilgrim/planner.types";
 import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
+import {
+  PlanSummary,
+  TransportationType
+} from "../../../../../types/pilgrim/planner.types";
 
 export interface PlanUI extends PlanSummary {
   isShared?: boolean;
@@ -69,28 +73,40 @@ const getTransportLabel = (type: TransportationType, t: any): string => {
   }
 };
 
-export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEdit }) => {
-  const { t } = useTranslation();
-  
+export const PlanCard: React.FC<PlanCardProps> = ({
+  plan,
+  onPress,
+  onShare,
+  onEdit,
+}) => {
+  const { t, i18n } = useTranslation();
+
   // N+1 fallback: nếu API list không có số lượng, ta tự fetch detail để đếm.
-  const [realStopCount, setRealStopCount] = React.useState<number>(plan.stopCount);
+  const [realStopCount, setRealStopCount] = React.useState<number>(
+    plan.stopCount,
+  );
 
   React.useEffect(() => {
-    if (plan.stopCount === 0 && plan.id && plan.status !== 'planning') {
+    if (plan.stopCount === 0 && plan.id && plan.status !== "planning") {
       let isMounted = true;
-      pilgrimPlannerApi.getPlanDetail(plan.id).then(res => {
-        if (isMounted && res.success && res.data) {
-          const detail = res.data as any;
-          let count = 0;
-          if (detail.items_by_day) {
-            count = Object.values(detail.items_by_day).flat().length;
-          } else if (detail.items) {
-            count = detail.items.length;
+      pilgrimPlannerApi
+        .getPlanDetail(plan.id)
+        .then((res) => {
+          if (isMounted && res.success && res.data) {
+            const detail = res.data as any;
+            let count = 0;
+            if (detail.items_by_day) {
+              count = Object.values(detail.items_by_day).flat().length;
+            } else if (detail.items) {
+              count = detail.items.length;
+            }
+            if (count > 0) setRealStopCount(count);
           }
-          if (count > 0) setRealStopCount(count);
-        }
-      }).catch(() => {});
-      return () => { isMounted = false; };
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
     } else {
       setRealStopCount(plan.stopCount);
     }
@@ -119,47 +135,48 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
   const getStatusDisplay = (status?: string) => {
     const s = (status || "planning").toLowerCase();
     if (s === "ongoing") {
-      return { 
-        text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"), 
-        color: "#FFFFFF", 
-        bg: "#5C6B52", 
-        icon: "rocket-outline" 
+      return {
+        text: t("planner.statusOngoing", "ĐANG THỰC HIỆN"),
+        color: "#FFFFFF",
+        bg: "#5C6B52",
+        icon: "rocket-outline",
       };
     }
     if (s === "locked") {
-      return { 
-        text: t("planner.statusLocked", "SẴN SÀNG KHỞI HÀNH"), 
-        color: "#FFFFFF", 
-        bg: "#5C6B52", 
-        icon: "lock-closed-outline" 
+      return {
+        text: t("planner.statusLocked", "READY"),
+        color: "#FFFFFF",
+        bg: "#5C6B52",
+        icon: "lock-closed-outline",
       };
     }
     if (s === "completed") {
-      return { 
-        text: t("planner.statusCompleted", "HOÀN THÀNH"), 
-        color: "#FFFFFF", 
-        bg: "#4A6B58", 
-        icon: "checkmark-circle-outline" 
+      return {
+        text: t("planner.statusCompleted", "HOÀN THÀNH"),
+        color: "#FFFFFF",
+        bg: "#4A6B58",
+        icon: "checkmark-circle-outline",
       };
     }
     if (s === "cancelled") {
-      return { 
-        text: t("planner.statusCancelled", "ĐÃ HỦY"), 
-        color: "#FFFFFF", 
-        bg: "#8B5344", 
-        icon: "close-circle-outline" 
+      return {
+        text: t("planner.statusCancelled", "ĐÃ HỦY"),
+        color: "#FFFFFF",
+        bg: "#8B5344",
+        icon: "close-circle-outline",
       };
     }
     // Default to planning/draft
-    return { 
-      text: t("planner.statusPlanning", "ĐANG LÊN KẾ HOẠCH"), 
-      color: "#FFFFFF", 
-      bg: "#9E7B55", 
-      icon: "create-outline" 
+    return {
+      text: t("planner.statusPlanning", "ĐANG LÊN KẾ HOẠCH"),
+      color: "#FFFFFF",
+      bg: "#9E7B55",
+      icon: "create-outline",
     };
   };
 
   const statusDisplay = getStatusDisplay(plan.status);
+  const locale = (i18n.language || "vi").startsWith("en") ? "en-US" : "vi-VN";
 
   // Duration computation
   const start = plan.startDate ? new Date(plan.startDate) : null;
@@ -170,30 +187,41 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
       : null;
   const dateStr =
     start && end
-      ? `${start.toLocaleDateString("vi-VN", {
+      ? `${start.toLocaleDateString(locale, {
           day: "2-digit",
           month: "2-digit",
-        })} - ${end.toLocaleDateString("vi-VN", {
+        })} - ${end.toLocaleDateString(locale, {
           day: "2-digit",
           month: "2-digit",
         })}`
       : "";
 
   // Transport details
-  const primaryTransport = (plan.transportation && plan.transportation?.length > 0) ? plan.transportation[0] : "car";
+  const primaryTransport =
+    plan.transportation && plan.transportation?.length > 0
+      ? plan.transportation[0]
+      : "car";
 
   const renderAvatars = () => {
     if ((plan.participantCount || 0) <= 0) return null;
-    
+
     // Fake avatars for UI demo
     const count = Math.min(plan.participantCount, 3);
     const extraCount = plan.participantCount - count;
-    const arr = Array.from({length: count});
+    const arr = Array.from({ length: count });
 
     return (
-      <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 8 }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginLeft: 8 }}
+      >
         {arr.map((_, i) => (
-          <View key={i} style={[styles.miniAvatar, { marginLeft: i > 0 ? -8 : 0, zIndex: 10 - i }]}>
+          <View
+            key={i}
+            style={[
+              styles.miniAvatar,
+              { marginLeft: i > 0 ? -8 : 0, zIndex: 10 - i },
+            ]}
+          >
             <Ionicons name="person" size={12} color="#5C3D0E" />
           </View>
         ))}
@@ -202,7 +230,14 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
             <Text style={styles.miniAvatarExtraText}>+{extraCount}</Text>
           </View>
         )}
-        <Text style={{ fontSize: 13, color: "#5C3D0E", fontWeight: "600", marginLeft: 6 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            color: "#5C3D0E",
+            fontWeight: "600",
+            marginLeft: 6,
+          }}
+        >
           {plan.participantCount} {t("planner.people", "người")}
         </Text>
       </View>
@@ -214,7 +249,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
     return (
       <View style={styles.swipeActionLeft}>
         <Ionicons name="share-social" size={28} color="#FFFFFF" />
-        <Text style={styles.swipeActionText}>{t("planner.share", "Chia sẻ")}</Text>
+        <Text style={styles.swipeActionText}>
+          {t("planner.share", "Chia sẻ")}
+        </Text>
       </View>
     );
   };
@@ -245,8 +282,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
       >
-        <Animated.View style={[styles.card, { transform: [{ scale: scaleValue }] }]}>
-          
+        <Animated.View
+          style={[styles.card, { transform: [{ scale: scaleValue }] }]}
+        >
           {/* Torn edge top decoration */}
           <View style={styles.tornEdgeTop} />
 
@@ -258,15 +296,31 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
 
             <View style={styles.badgesRow}>
               <View style={{ flex: 1 }} />
-              <View style={[styles.statusBadge, { backgroundColor: statusDisplay.bg }]}>
-                <Ionicons name={statusDisplay.icon as any} size={13} color={statusDisplay.color} />
-                <Text style={[styles.statusBadgeText, { color: statusDisplay.color }]}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: statusDisplay.bg },
+                ]}
+              >
+                <Ionicons
+                  name={statusDisplay.icon as any}
+                  size={13}
+                  color={statusDisplay.color}
+                />
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    { color: statusDisplay.color },
+                  ]}
+                >
                   {statusDisplay.text}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.planTitle} numberOfLines={2}>{plan.title}</Text>
+            <Text style={styles.planTitle} numberOfLines={2}>
+              {plan.title}
+            </Text>
           </View>
 
           {/* Divider ornament */}
@@ -278,18 +332,20 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
 
           {/* Card Body content */}
           <View style={styles.bodyArea}>
-            
             {durationDays != null && dateStr ? (
               <View style={styles.infoSection}>
                 <View style={styles.sectionHeaderRow}>
                   <View style={styles.sectionLine} />
-                  <Text style={styles.sectionTitle}>Thời gian</Text>
+                  <Text style={styles.sectionTitle}>
+                    {t("planner.timeSection", { defaultValue: "Thời gian" })}
+                  </Text>
                 </View>
                 <View style={styles.infoRow}>
                   <Ionicons name="calendar" size={16} color="#4A7A95" />
                   <Text style={styles.infoText}>
                     <Text style={{ fontWeight: "700", color: "#2C5F73" }}>
-                      {durationDays} NGÀY{" "}
+                      {durationDays}{" "}
+                      {t("planner.daysUpper", { defaultValue: "NGÀY" })}{" "}
                     </Text>
                     <Text style={{ color: "#6B8CA3" }}>({dateStr})</Text>
                   </Text>
@@ -300,27 +356,40 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
             <View style={styles.infoSection}>
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.sectionLine} />
-                <Text style={styles.sectionTitle}>Nội dung</Text>
+                <Text style={styles.sectionTitle}>
+                  {t("planner.contentSection", { defaultValue: "Nội dung" })}
+                </Text>
               </View>
-              
+
               <View style={styles.infoRowDetails}>
                 <View style={styles.infoItem}>
                   <Ionicons name="location" size={18} color="#8B3A1A" />
-                  <Text style={styles.infoTextVal}>{realStopCount || 0} địa điểm</Text>
+                  <Text style={styles.infoTextVal}>
+                    {realStopCount || 0}{" "}
+                    {t("planner.sites", { defaultValue: "sites" })}
+                  </Text>
                 </View>
                 <View style={styles.infoItem}>
-                  <Ionicons name={getTransportIcon(primaryTransport)} size={18} color="#5A3D0E" />
-                  <Text style={styles.infoTextVal}>{getTransportLabel(primaryTransport, t)}</Text>
+                  <Ionicons
+                    name={getTransportIcon(primaryTransport)}
+                    size={18}
+                    color="#5A3D0E"
+                  />
+                  <Text style={styles.infoTextVal}>
+                    {getTransportLabel(primaryTransport, t)}
+                  </Text>
                 </View>
               </View>
 
-              {((plan.participantCount || 0) > 0 || plan.isShared) ? (
+              {(plan.participantCount || 0) > 0 || plan.isShared ? (
                 <View style={styles.infoRowDetails}>
                   {renderAvatars()}
                   {plan.isShared && (
                     <View style={[styles.infoItem, styles.sharedTag]}>
                       <Ionicons name="people" size={14} color="#6B4E0A" />
-                      <Text style={styles.sharedTagText}>{t("planner.shared", "Đã chia sẻ")}</Text>
+                      <Text style={styles.sharedTagText}>
+                        {t("planner.shared", "Đã chia sẻ")}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -333,15 +402,22 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
             <View style={styles.actionRowTop}>
               <Pressable style={styles.actionBtnOutline} onPress={onPress}>
                 <Ionicons name="document-text" size={18} color="#4A3110" />
-                <Text style={styles.actionTextOutline}>{t("planner.viewDetail", "Xem chi tiết")}</Text>
+                <Text style={styles.actionTextOutline}>
+                  {t("planner.viewDetail", "View detail")}
+                </Text>
               </Pressable>
-              
-              <Pressable style={styles.actionBtnOutline} onPress={() => onShare && onShare()}>
+
+              <Pressable
+                style={styles.actionBtnOutline}
+                onPress={() => onShare && onShare()}
+              >
                 <Ionicons name="share-social" size={18} color="#4A3110" />
-                <Text style={styles.actionTextOutline}>{t("planner.share", "Chia sẻ")}</Text>
+                <Text style={styles.actionTextOutline}>
+                  {t("planner.share", "Chia sẻ")}
+                </Text>
               </Pressable>
             </View>
-            
+
             <Pressable style={styles.actionBtnPrimary} onPress={onPress}>
               <LinearGradient
                 colors={["#A0845E", "#7A5C30"]}
@@ -349,7 +425,9 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
                 end={{ x: 1, y: 0 }}
                 style={styles.actionBtnPrimaryGradient}
               >
-                <Text style={styles.actionMainText}>{t("planner.continue", "Tiếp tục")} →</Text>
+                <Text style={styles.actionMainText}>
+                  {t("planner.continue", "Tiếp tục")} →
+                </Text>
               </LinearGradient>
             </Pressable>
           </View>
@@ -357,7 +435,6 @@ export const PlanCard: React.FC<PlanCardProps> = ({ plan, onPress, onShare, onEd
           {/* Corner decorations bottom */}
           <View style={styles.cornerBL} />
           <View style={styles.cornerBR} />
-
         </Animated.View>
       </Pressable>
     </Swipeable>

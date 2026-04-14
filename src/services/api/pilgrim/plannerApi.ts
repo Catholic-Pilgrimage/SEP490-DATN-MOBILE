@@ -15,37 +15,38 @@
 
 import { ApiResponse, PaginationParams } from "../../../types/api.types";
 import {
-    AddPlanItemRequest,
-    AddPlanItemResponse,
-    CheckInEntity,
-    CheckInItemRequest,
-    CheckInItemResponse,
-    CreatePlanRequest,
-    GetInvitesResponse,
-    GetMembersResponse,
-    GetPlanMessagesResponse,
-    GetPlansResponse,
-    InviteParticipantRequest,
-    MarkVisitedConfirmationResponse,
-    PlanCalendarSyncData,
-    PlanEntity,
-    PlanInvite,
-    PlanItem,
-    PlannerMessage,
-    PlannerMyInvite,
-    PlannerProgressResponse,
-    PlannerTransactionsResponse,
-    PlanOwner,
-    PlanParticipant,
-    RespondInviteRequest,
-    RespondInviteResponse,
-    ReorderPlannerItemsRequest,
-    SendPlanMessageRequest,
-    UpdatePlanItemRequest,
-    UpdatePlannerItemStatusRequest,
-    UpdatePlannerLockRequest,
-    UpdatePlannerStatusRequest,
-    UpdatePlanRequest,
+  AddPlanItemRequest,
+  AddPlanItemResponse,
+  CheckInEntity,
+  CheckInItemRequest,
+  CheckInItemResponse,
+  CreatePlanRequest,
+  GetInvitesResponse,
+  GetMembersResponse,
+  GetPlanMessagesResponse,
+  GetPlansResponse,
+  InviteParticipantRequest,
+  MarkVisitedConfirmationResponse,
+  PlanCalendarSyncData,
+  PlanEntity,
+  PlanInvite,
+  PlanItem,
+  PlannerMessage,
+  PlannerMyInvite,
+  PlannerProgressResponse,
+  PlannerTransactionsResponse,
+  PlanOwner,
+  PlanParticipant,
+  ReorderPlannerItemsRequest,
+  RespondInviteRequest,
+  RespondInviteResponse,
+  SendPlanMessageRequest,
+  SwapPlannerItemsRequest,
+  UpdatePlanItemRequest,
+  UpdatePlannerItemStatusRequest,
+  UpdatePlannerLockRequest,
+  UpdatePlannerStatusRequest,
+  UpdatePlanRequest,
 } from "../../../types/pilgrim";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -137,7 +138,12 @@ function normalizeInvitePreviewPayload(
       email: String(inv.email ?? ""),
       inviter_id: inv.inviter_id != null ? String(inv.inviter_id) : undefined,
       role: inv.role === "viewer" ? "viewer" : "viewer",
-      invite_type: inv.invite_type === "friend" ? "friend" : inv.invite_type === "external" ? "external" : undefined,
+      invite_type:
+        inv.invite_type === "friend"
+          ? "friend"
+          : inv.invite_type === "external"
+            ? "external"
+            : undefined,
       status: coerceInviteStatus(inv.status),
       created_at: String(inv.created_at ?? ""),
       expires_at: inv.expires_at != null ? String(inv.expires_at) : undefined,
@@ -153,7 +159,10 @@ function normalizeInvitePreviewPayload(
 }
 
 export const getPlans = async (
-  params?: PaginationParams & { role?: "owner" | "member" },
+  params?: PaginationParams & {
+    role?: "owner" | "member";
+    status?: "planning" | "locked" | "ongoing" | "completed" | "cancelled";
+  },
 ): Promise<ApiResponse<GetPlansResponse>> => {
   const response = await apiClient.get<ApiResponse<GetPlansResponse>>(
     PILGRIM_ENDPOINTS.PLANNER.LIST,
@@ -279,6 +288,17 @@ export const reorderPlannerItems = async (
 ): Promise<ApiResponse<{ items: PlanItem[] }>> => {
   const response = await apiClient.post<ApiResponse<{ items: PlanItem[] }>>(
     PILGRIM_ENDPOINTS.PLANNER.REORDER_ITEMS(planId),
+    data,
+  );
+  return response.data;
+};
+
+export const swapPlannerItems = async (
+  planId: string,
+  data: SwapPlannerItemsRequest,
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.patch<ApiResponse<PlanEntity>>(
+    PILGRIM_ENDPOINTS.PLANNER.SWAP_ITEMS(planId),
     data,
   );
   return response.data;
@@ -586,6 +606,7 @@ const pilgrimPlannerApi = {
   clearPlanItems,
   updatePlanItem,
   reorderPlannerItems,
+  swapPlannerItems,
   deletePlanItem,
   getPlanMessages,
   sendPlanMessage,
