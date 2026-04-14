@@ -58,6 +58,8 @@ import {
   QuickActionButton,
   SOSModal,
 } from "../components";
+import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
+import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
 
 // ============================================
 // GRADIENT THEME FOR EVENT CARDS (Pilgrim side)
@@ -163,6 +165,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [isSavingReview, setIsSavingReview] = useState(false);
   const [isDeletingReview, setIsDeletingReview] = useState(false);
   const [reviewKeyboardHeight, setReviewKeyboardHeight] = useState(0);
+  const [is3dModalVisible, setIs3dModalVisible] = useState(false);
+  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -212,6 +216,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   } = useSiteReviews(siteId, {
     autoFetch: true,
     params: { limit: 50, sort: "newest" },
+  });
+
+  const {
+    media: models3d,
+    isLoading: isLoadingModels,
+  } = useSiteMedia(siteId, {
+    autoFetch: true,
+    params: { limit: 10, type: "model_3d" },
   });
 
   const isLoading =
@@ -882,8 +894,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             {site.contactInfo?.phone && (
               <QuickActionButton icon="call" label={t('siteDetail.call', { defaultValue: 'Gọi điện' })} onPress={handleCallClick} />
             )}
-            {site.contactInfo?.website && (
-              <QuickActionButton icon="globe-outline" label={t('siteDetail.website', { defaultValue: 'Website' })} />
+            {models3d && models3d.length > 0 && (
+              <QuickActionButton 
+                icon="cube-outline" 
+                label={t('siteModels3d.title', { defaultValue: 'Mô hình 3D' })} 
+                onPress={() => {
+                  setSelectedModelIndex(0);
+                  setIs3dModalVisible(true);
+                }} 
+              />
             )}
             <QuickActionButton
               icon="alert-circle-outline"
@@ -1748,14 +1767,83 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       />
 
       {site && (
-        <AddToPlanModal
-          visible={showAddToPlan}
-          onClose={() => setShowAddToPlan(false)}
-          siteId={site.id}
-          siteName={site.name}
-          siteCoverImage={site.coverImage}
-          navigation={navigation}
-        />
+        <>
+          {/* 3D Model Viewer Modal */}
+          <Modal
+            visible={is3dModalVisible}
+            animationType="slide"
+            onRequestClose={() => setIs3dModalVisible(false)}
+            transparent={false}
+          >
+            <SafeAreaView style={styles.modalFullContainer}>
+              <StatusBar barStyle="light-content" />
+              
+              <View style={styles.modalHeader}>
+                <TouchableOpacity 
+                  style={styles.modalCloseButton} 
+                  onPress={() => setIs3dModalVisible(false)}
+                >
+                  <Ionicons name="close" size={28} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>
+                  {t('siteModels3d.title', { defaultValue: 'Mô hình 3D' })}
+                </Text>
+                <View style={{ width: 44 }} />
+              </View>
+
+              {models3d && models3d.length > 1 && (
+                <View style={styles.modelPickerRow}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
+                    {models3d.map((m, idx) => (
+                      <TouchableOpacity
+                        key={m.id}
+                        onPress={() => setSelectedModelIndex(idx)}
+                        style={[
+                          styles.modelChip,
+                          selectedModelIndex === idx && styles.modelChipActive
+                        ]}
+                      >
+                        <Text style={[
+                          styles.modelChipText,
+                          selectedModelIndex === idx && styles.modelChipTextActive
+                        ]}>
+                          {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <View style={styles.modelViewerContainer}>
+                {models3d && models3d[selectedModelIndex] && (
+                  <ModelViewerWebView 
+                    modelUrl={models3d[selectedModelIndex].url} 
+                    fullscreen 
+                  />
+                )}
+
+                {models3d && models3d[selectedModelIndex] && (
+                  <View style={styles.narrativePanelOverlay}>
+                    <SiteModelNarrativePanel 
+                      media={models3d[selectedModelIndex]} 
+                      bottomInset={insets.bottom} 
+                    />
+                  </View>
+                )}
+              </View>
+            </SafeAreaView>
+          </Modal>
+
+          <AddToPlanModal
+            visible={showAddToPlan}
+            onClose={() => setShowAddToPlan(false)}
+            siteId={site.id}
+            siteName={site.name}
+            siteCoverImage={site.coverImage}
+            navigation={navigation}
+          />
+        </>
       )}
 
       <ConfirmModal />
@@ -2728,6 +2816,75 @@ const styles = StyleSheet.create({
     fontWeight: TYPOGRAPHY.fontWeight.bold,
     color: "#fff",
     letterSpacing: 0.3,
+  },
+
+  // 3D Modal Styles
+  modalFullContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: "#000",
+  },
+  modalCloseButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  modelViewerContainer: {
+    flex: 1,
+    backgroundColor: "#12100c",
+    position: 'relative', // To allow absolute children
+  },
+  narrativePanelOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  modelPickerRow: {
+    paddingVertical: SPACING.sm,
+    backgroundColor: "#000",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.12)",
+  },
+  modelPickerContent: {
+    paddingHorizontal: SPACING.md,
+    gap: 8,
+  },
+  modelChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  modelChipActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  modelChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
+  },
+  modelChipTextActive: {
+    color: COLORS.primaryDark,
   },
 });
 
