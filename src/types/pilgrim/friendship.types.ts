@@ -1,12 +1,15 @@
-import { ApiResponse, PaginationParams } from "../api.types";
-
 export type FriendshipStatus = "pending" | "accepted" | "rejected" | "blocked";
+export type FriendshipSearchStatus = FriendshipStatus | null;
 
 export interface FriendUser {
   id: string;
   full_name: string;
   email: string;
   avatar_url?: string;
+}
+
+export interface FriendshipSearchResponse extends FriendUser {
+  friendship_status: FriendshipSearchStatus;
 }
 
 export interface FriendshipListItem {

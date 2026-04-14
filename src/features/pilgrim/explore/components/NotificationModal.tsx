@@ -176,6 +176,7 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         return (
           category === "account" ||
           category === "content" ||
+          category === "social" ||
           category === "sos" ||
           category === "review" ||
           category === "general"
@@ -235,6 +236,9 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         color = "#B8860B"; // Dark Goldenrod
         bg = "rgba(184, 134, 11, 0.12)"; // Soft gold
         break;
+      case "social":
+        bg = `${color}1F`;
+        break;
       case "sos":
         name = "alert-circle";
         color = "#D32F2F";
@@ -245,10 +249,22 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
           name = "checkmark-circle";
           color = "#388E3C";
           bg = "rgba(56, 142, 60, 0.12)"; // Soft green
-        } else {
+        } else if (
+          type.includes("rejected") ||
+          ["site_hidden", "content_deleted", "content_warning"].includes(type)
+        ) {
           name = "close-circle";
           color = "#D32F2F";
           bg = "rgba(211, 47, 47, 0.12)";
+        } else if (
+          type.endsWith("_submitted") ||
+          type === "site_update_submitted"
+        ) {
+          name = "document-text";
+          color = "#1976D2";
+          bg = "rgba(25, 118, 210, 0.12)";
+        } else {
+          bg = `${color}15`;
         }
         break;
       case "account":
