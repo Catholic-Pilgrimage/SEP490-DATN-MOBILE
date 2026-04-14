@@ -71,14 +71,14 @@ export const subtractMinutes = (time: string, mins: number): string =>
 export const addMinutes = (time: string, mins: number): string =>
   minutesToTime(timeToMinutes(time) + mins);
 
-/** Format minutes to Vietnamese duration text */
-export const formatMinutesVi = (min: number): string => {
-  if (min <= 0) return '0 phút';
+/** Format minutes to localized duration text */
+export const formatDurationLocalized = (min: number, t: (key: string, options?: any) => string): string => {
+  if (min <= 0) return t("planner.term.durationMinutes", { m: 0 });
   const h = Math.floor(min / 60);
   const m = min % 60;
-  if (h > 0 && m > 0) return `${h} giờ ${m} phút`;
-  if (h > 0) return `${h} giờ`;
-  return `${m} phút`;
+  if (h > 0 && m > 0) return t("planner.term.durationHoursMinutes", { h, m });
+  if (h > 0) return t("planner.term.durationHours", { h });
+  return t("planner.term.durationMinutes", { m });
 };
 
 // ─── Opening Hours Parser ─────────────────────────────────────────────────────
@@ -229,8 +229,9 @@ export const suggestArrivalTime = (params: {
   openTime?: string;
   closeTime?: string;
   fastestArrival?: string; // earliest possible given travel constraints
+  t: (key: string, options?: any) => string;
 }): SuggestedArrival => {
-  const { eventStartTime, eventName, massTimesForDay, openTime, fastestArrival } = params;
+  const { eventStartTime, eventName, massTimesForDay, openTime, fastestArrival, t } = params;
   const minArrival = fastestArrival ? timeToMinutes(fastestArrival) : 0;
 
   // Priority 1: Event / Sự kiện
@@ -239,7 +240,11 @@ export const suggestArrivalTime = (params: {
     const finalMin = Math.max(suggestedMin, minArrival);
     return {
       time: minutesToTime(finalMin),
-      reason: `Nên đến trước ${eventName || 'sự kiện'} lúc ${eventStartTime} khoảng ${PRE_EVENT_BUFFER_MINUTES} phút`,
+      reason: t("planner.suggested.event", { 
+        name: eventName || t("planner.term.event"), 
+        time: eventStartTime, 
+        buffer: PRE_EVENT_BUFFER_MINUTES 
+      }),
       priority: 'event',
     };
   }
@@ -254,7 +259,10 @@ export const suggestArrivalTime = (params: {
       const suggestedMin = timeToMinutes(attendableMass) - PRE_EVENT_BUFFER_MINUTES;
       return {
         time: minutesToTime(suggestedMin),
-        reason: `Nên đến sớm ${PRE_EVENT_BUFFER_MINUTES} phút trước Giờ Lễ lúc ${attendableMass}`,
+        reason: t("planner.suggested.mass", { 
+          buffer: PRE_EVENT_BUFFER_MINUTES, 
+          time: attendableMass 
+        }),
         priority: 'mass',
       };
     }
@@ -266,7 +274,10 @@ export const suggestArrivalTime = (params: {
     const finalMin = Math.max(suggestedMin, minArrival);
     return {
       time: minutesToTime(finalMin),
-      reason: `Mở cửa lúc ${openTime}, nên đến sau ${POST_OPEN_BUFFER_MINUTES} phút`,
+      reason: t("planner.suggested.opening", { 
+        time: openTime, 
+        buffer: POST_OPEN_BUFFER_MINUTES 
+      }),
       priority: 'opening',
     };
   }
@@ -275,7 +286,7 @@ export const suggestArrivalTime = (params: {
   const defaultMin = Math.max(timeToMinutes(DEFAULT_START_TIME), minArrival);
   return {
     time: minutesToTime(defaultMin),
-    reason: 'Giờ bắt đầu mặc định',
+    reason: t("planner.suggested.default"),
     priority: 'default',
   };
 };
@@ -324,6 +335,7 @@ export const generateInsight = (params: {
   closeTime?: string;
   massTimesForDay: string[];
   restDuration?: number;
+  t: (key: string, options?: any) => string;
 }): ScheduleInsight => {
   const {
     estimatedTime,
@@ -336,6 +348,7 @@ export const generateInsight = (params: {
     closeTime,
     massTimesForDay,
     restDuration,
+    t,
   } = params;
 
   const selectedMin = timeToMinutes(estimatedTime);
@@ -348,8 +361,12 @@ export const generateInsight = (params: {
       const shortage = fastestMin - selectedMin;
       return {
         type: 'error',
-        title: 'Không đủ thời gian di chuyển',
-        message: `Di chuyển mất ${formatMinutesVi(travelMinutes || 0)}, nhanh nhất ${fastestArrival} mới tới.\nBạn đang chọn sớm hơn ${formatMinutesVi(shortage)}. Vui lòng chọn giờ muộn hơn hoặc bấm "Đặt giờ gợi ý".`,
+        title: t("planner.insight.notEnoughTravelTime.title"),
+        message: t("planner.insight.notEnoughTravelTime.message", {
+          duration: formatDurationLocalized(travelMinutes || 0, t),
+          fastest: fastestArrival,
+          shortage: formatDurationLocalized(shortage, t)
+        }),
         color: '#DC2626',
         bgColor: '#FEF2F2',
         iconName: 'car-sport',
@@ -365,8 +382,14 @@ export const generateInsight = (params: {
     if (diffMin < 0) {
       return {
         type: 'event_late',
-        title: `Trễ hơn ${eventName || 'Sự kiện'} (${eventStartTime})`,
-        message: `Giờ bạn chọn (${estimatedTime}) muộn hơn sự kiện ${formatMinutesVi(Math.abs(diffMin))}.\nHãy đi sớm hơn để kịp tham dự!`,
+        title: t("planner.insight.eventLate.title", {
+          name: eventName || t("planner.term.event"),
+          time: eventStartTime
+        }),
+        message: t("planner.insight.eventLate.message", {
+          selected: estimatedTime,
+          diff: formatDurationLocalized(Math.abs(diffMin), t)
+        }),
         color: '#BE123C',
         bgColor: '#FFE4E6',
         iconName: 'alert-circle',
@@ -374,16 +397,15 @@ export const generateInsight = (params: {
       };
     }
 
-    const eventLabel = eventName || 'Sự kiện';
-    const isEvent = eventLabel.toLowerCase().includes('sự kiện');
-    const typeLabel = isEvent ? 'Sự kiện' : 'Lễ';
+    const eventLabel = eventName || t("planner.term.event");
+    const typeLabel = eventLabel.toLowerCase().includes(t("planner.term.event").toLowerCase()) ? t("planner.term.event") : t("planner.term.mass");
 
     return {
       type: 'event_ok',
-      title: `${eventLabel} diễn ra lúc ${eventStartTime}`,
+      title: t("planner.insight.eventOk.title", { name: eventLabel, time: eventStartTime }),
       message: diffMin >= PRE_EVENT_BUFFER_MINUTES
-        ? `Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu ${typeLabel}: ~${formatMinutesVi(diffMin)}.`
-        : `Bạn sẽ đến trước ${typeLabel} chỉ ${formatMinutesVi(diffMin)}. Nên đến sớm hơn chút nữa.\nThời gian ở lại đến khi bắt đầu ${typeLabel}: ~${formatMinutesVi(diffMin)}.`,
+        ? t("planner.insight.eventOk.message", { type: typeLabel, window: formatDurationLocalized(diffMin, t) })
+        : t("planner.insight.eventOk.messageShort", { type: typeLabel, window: formatDurationLocalized(diffMin, t) }),
       color: diffMin >= PRE_EVENT_BUFFER_MINUTES ? '#1D4ED8' : '#D97706',
       bgColor: diffMin >= PRE_EVENT_BUFFER_MINUTES ? 'rgba(29, 78, 216, 0.08)' : 'rgba(217, 119, 6, 0.08)',
       iconName: 'calendar',
@@ -396,8 +418,11 @@ export const generateInsight = (params: {
   if (!eventStartTime && closeTime && selectedMin > timeToMinutes(closeTime)) {
     return {
       type: 'error_closed',
-      title: `Đã đóng cửa (${closeTime})`,
-      message: `Giờ bạn chọn (${estimatedTime}) muộn hơn giờ đóng cửa ${formatMinutesVi(selectedMin - timeToMinutes(closeTime))}.\nHãy dời sang sáng sớm hơn hoặc ngày khác.`,
+      title: t("planner.insight.siteClosed.title", { time: closeTime }),
+      message: t("planner.insight.siteClosed.message", {
+        selected: estimatedTime,
+        diff: formatDurationLocalized(selectedMin - timeToMinutes(closeTime), t)
+      }),
       color: '#BE123C',
       bgColor: '#FFE4E6',
       iconName: 'warning',
@@ -416,8 +441,11 @@ export const generateInsight = (params: {
       const late = selectedMin - timeToMinutes(currentMass);
       return {
         type: 'event_late',
-        title: `Giờ Lễ lúc ${currentMass} đã bắt đầu`,
-        message: `Bạn sẽ đến muộn ${formatMinutesVi(late)} so với giờ lễ. Nên đến trước lúc ${subtractMinutes(currentMass, PRE_EVENT_BUFFER_MINUTES)}.`,
+        title: t("planner.insight.massStarted.title", { time: currentMass }),
+        message: t("planner.insight.massStarted.message", {
+          late: formatDurationLocalized(late, t),
+          target: subtractMinutes(currentMass, PRE_EVENT_BUFFER_MINUTES)
+        }),
         color: '#D97706',
         bgColor: 'rgba(217, 119, 6, 0.08)',
         iconName: 'time-outline',
@@ -430,8 +458,8 @@ export const generateInsight = (params: {
       if (buffer <= 120 && buffer > 0) {
         return {
           type: 'event_ok',
-          title: `Giờ Lễ diễn ra lúc ${nextMass}`,
-          message: `Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(buffer)}.`,
+          title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: nextMass }),
+          message: t("planner.insight.eventOk.message", { type: t("planner.term.mass"), window: formatDurationLocalized(buffer, t) }),
           color: '#1D4ED8',
           bgColor: 'rgba(29, 78, 216, 0.08)',
           iconName: 'calendar',
@@ -447,8 +475,8 @@ export const generateInsight = (params: {
     const waitMin = timeToMinutes(openTime) - selectedMin;
     return {
       type: 'early',
-      title: `Đến sớm (Mở cửa lúc ${openTime})`,
-      message: `Bạn tới sớm hơn giờ mở cửa ${formatMinutesVi(waitMin)}. Có thể tham quan bên ngoài hoặc chụp ảnh trong khi chờ.`,
+      title: t("planner.insight.arriveEarly.title", { time: openTime }),
+      message: t("planner.insight.arriveEarly.message", { wait: formatDurationLocalized(waitMin, t) }),
       color: '#D97706',
       bgColor: 'rgba(217, 119, 6, 0.08)',
       iconName: 'time-outline',
@@ -465,8 +493,15 @@ export const generateInsight = (params: {
       const visitWindow = closeMin - selectedMin;
       return {
         type: 'late',
-        title: `Thời gian nghỉ vượt giờ đóng cửa`,
-        message: `Bạn đến lúc ${estimatedTime} và nghỉ ${formatMinutesVi(restDuration)}, rời đi lúc ${minutesToTime(leaveMin)} — muộn hơn giờ đóng cửa (${closeTime}) ${formatMinutesVi(overMin)}.\nCó ${formatMinutesVi(visitWindow)} tham quan thực tế.`,
+        title: t("planner.insight.stayPastClosing.title"),
+        message: t("planner.insight.stayPastClosing.message", {
+          selected: estimatedTime,
+          duration: formatDurationLocalized(restDuration, t),
+          leave: minutesToTime(leaveMin),
+          close: closeTime,
+          over: formatDurationLocalized(overMin, t),
+          window: formatDurationLocalized(visitWindow, t)
+        }),
         color: '#D97706',
         bgColor: 'rgba(217, 119, 6, 0.08)',
         iconName: 'time-outline',
@@ -494,8 +529,8 @@ export const generateInsight = (params: {
       if (upcomingMass && massCountdown && massCountdown > 0) {
         return {
           type: 'event_ok',
-          title: `Giờ Lễ diễn ra lúc ${upcomingMass}`,
-          message: `Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(massCountdown)}.`,
+          title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: upcomingMass }),
+          message: t("planner.insight.eventOk.message", { type: t("planner.term.mass"), window: formatDurationLocalized(massCountdown, t) }),
           color: '#1D4ED8',
           bgColor: 'rgba(29, 78, 216, 0.08)',
           iconName: 'calendar',
@@ -504,15 +539,12 @@ export const generateInsight = (params: {
         };
       }
 
-      let msg = `Bạn có dư ${formatMinutesVi(bufferMin)} dự phòng trên đường đi.`;
-      if (visitWindow && visitWindow > 0) {
-        msg += `\nThời gian ở lại đến khi đóng cửa: ~${formatMinutesVi(visitWindow)}.`;
-      }
-
       return {
         type: 'buffer',
-        title: 'Quỹ thời gian thoải mái',
-        message: msg,
+        title: t("planner.insight.goodBuffer.title"),
+        message: visitWindow && visitWindow > 0 
+          ? t("planner.insight.goodBuffer.message", { buffer: formatDurationLocalized(bufferMin, t), window: formatDurationLocalized(visitWindow, t) })
+          : t("planner.insight.goodBuffer.messageOnly", { buffer: formatDurationLocalized(bufferMin, t) }),
         color: '#059669',
         bgColor: 'rgba(5, 150, 105, 0.08)',
         iconName: 'shield-checkmark-outline',
@@ -534,13 +566,16 @@ export const generateInsight = (params: {
     // If there's an upcoming mass, show mass-focused insight
     if (upcomingMass && massCountdown && massCountdown > 0) {
       const scheduleParts: string[] = [];
-      if (openTime) scheduleParts.push(`Mở cửa: ${openTime}`);
-      if (closeTime) scheduleParts.push(`Đóng cửa: ${closeTime}`);
+      if (openTime) scheduleParts.push(`${t("planner.openingHours")}: ${openTime}`);
+      if (closeTime) scheduleParts.push(`${t("planner.closingHours")}: ${closeTime}`);
 
       return {
         type: 'first_stop',
-        title: `Giờ Lễ diễn ra lúc ${upcomingMass}`,
-        message: `${scheduleParts.length > 0 ? scheduleParts.join(' • ') + '. ' : ''}Hãy canh giờ phù hợp!\nThời gian ở lại đến khi bắt đầu Lễ: ~${formatMinutesVi(massCountdown)}.`,
+        title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: upcomingMass }),
+        message: t("planner.insight.firstStop.message", {
+          schedule: scheduleParts.length > 0 ? scheduleParts.join(' • ') : '',
+          window: formatDurationLocalized(massCountdown, t)
+        }),
         color: '#1D4ED8',
         bgColor: 'rgba(29, 78, 216, 0.08)',
         iconName: 'calendar',
@@ -551,24 +586,25 @@ export const generateInsight = (params: {
 
     // No mass — show opening hours info
     const parts: string[] = [];
-    if (openTime) parts.push(`Mở cửa: ${openTime}`);
-    if (closeTime) parts.push(`Đóng cửa: ${closeTime}`);
-    if (massTimesForDay.length > 0) parts.push(`Lễ: ${massTimesForDay.join(', ')}`);
+    if (openTime) parts.push(`${t("planner.openingHours")}: ${openTime}`);
+    if (closeTime) parts.push(`${t("planner.closingHours")}: ${closeTime}`);
+    if (massTimesForDay.length > 0) parts.push(`${t("planner.term.mass")}: ${massTimesForDay.join(', ')}`);
 
     const visitWindow = closeTime
       ? timeToMinutes(closeTime) - selectedMin
       : undefined;
 
     let msg = parts.length > 0
-      ? `${parts.join(' • ')}. Hãy canh giờ phù hợp!`
-      : 'Hãy chọn giờ bắt đầu hành trình. Nhớ canh đúng giờ mở cửa nhé!';
+      ? `${parts.join(' • ')}. `
+      : '';
+    msg += t("planner.insight.firstStop.messageNoMass");
     if (visitWindow && visitWindow > 0 && closeTime) {
-      msg += `\nThời gian ở lại đến khi đóng cửa: ~${formatMinutesVi(visitWindow)}.`;
+      msg += `\n${t("planner.stayUntilClosing")}: ~${formatDurationLocalized(visitWindow, t)}.`;
     }
 
     return {
       type: 'first_stop',
-      title: 'Điểm xuất phát trong ngày',
+      title: t("planner.insight.firstStop.title"),
       message: msg,
       color: '#059669',
       bgColor: 'rgba(5, 150, 105, 0.08)',
@@ -585,10 +621,10 @@ export const generateInsight = (params: {
 
   return {
     type: 'ideal',
-    title: 'Giờ giấc hợp lý',
+    title: t("planner.insight.ideal.title"),
     message: visitWindow && visitWindow > 0
-      ? `Thời gian bạn chọn rất phù hợp. Có ~${formatMinutesVi(visitWindow)} ở lại thoải mái.`
-      : 'Thời gian bạn chọn rất phù hợp với lịch trình.',
+      ? t("planner.insight.ideal.message", { window: formatDurationLocalized(visitWindow, t) })
+      : t("planner.insight.ideal.messageNoWindow"),
     color: '#059669',
     bgColor: 'rgba(5, 150, 105, 0.08)',
     iconName: 'checkmark-circle-outline',

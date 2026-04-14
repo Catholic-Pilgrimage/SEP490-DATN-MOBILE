@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Toast from 'react-native-toast-message';
 import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
 import vietmapService from '../../../../services/map/vietmapService';
@@ -21,6 +22,7 @@ import {
   type DaySchedule,
   type ScheduleInsight,
   type SuggestedArrival,
+  formatDurationLocalized,
   generateInsight,
   getDateForLeg,
   getEventsForDate,
@@ -103,6 +105,7 @@ export function useAddSiteFlow(params: {
   siteEvents: SiteEvent[];
 }) {
   const { plan, selectedDay, siteEvents } = params;
+  const { t } = useTranslation();
 
   const [state, setState] = useState<AddSiteFlowState>({ ...INITIAL_STATE });
   const flowIdRef = useRef(0); // Guard against stale async completions
@@ -121,8 +124,9 @@ export function useAddSiteFlow(params: {
       closeTime: state.travelData.closeTime,
       massTimesForDay: state.travelData.massTimesForDay,
       restDuration: state.restDuration,
+      t,
     });
-  }, [state.estimatedTime, state.restDuration, state.travelData]);
+  }, [state.estimatedTime, state.restDuration, state.travelData, t]);
 
   // ── Find the "previous item" to calculate travel from ──
   // For Day N first item: look up day N-1's last item (cross-day travel)
@@ -232,7 +236,7 @@ export function useAddSiteFlow(params: {
 
         // 6. Calculate route from previous item (same-day or cross-day)
         let travelData: SiteTravelData = {
-          newSiteName: (newSite as any)?.name || 'Địa điểm mới',
+          newSiteName: (newSite as any)?.name || t("planner.typeLocation"),
           openTime,
           closeTime,
           massTimesForDay,
@@ -242,7 +246,7 @@ export function useAddSiteFlow(params: {
         };
 
         let estimatedTime = '08:00';
-        let routeInfo = 'Địa điểm đầu tiên trong ngày';
+        let routeInfo = t("planner.firstLocationOfDay", { defaultValue: "Địa điểm đầu tiên trong ngày" });
         let travelTimeMinutes: number | undefined;
         let crossDayWarning: string | null = null;
         let crossDaysAdded = 0;
@@ -304,17 +308,18 @@ export function useAddSiteFlow(params: {
                   ? `${Math.round(routeResult.distance)} m`
                   : `${routeResult.distanceKm.toFixed(1)} km`;
 
+              const durLocalized = formatDurationLocalized(routeResult.durationMinutes, t);
+
               routeInfo = isCrossDay
-                ? `📍 Từ "${prevSiteName}" (ngày trước) • ${distanceDisplay} • ${routeResult.durationText}`
-                : `Khoảng cách: ${distanceDisplay} • Thời gian di chuyển: ${routeResult.durationText}`;
+                ? t("planner.crossDayRouteInfo", { name: prevSiteName, distance: distanceDisplay, duration: durLocalized, defaultValue: `📍 Từ "${prevSiteName}" (ngày trước) • ${distanceDisplay} • ${durLocalized}` })
+                : t("planner.sameDayRouteInfo", { distance: distanceDisplay, duration: durLocalized, defaultValue: `Khoảng cách: ${distanceDisplay} • Thời gian di chuyển: ${durLocalized}` });
 
               if (arrivalResult.daysAdded > 0 && !isCrossDay) {
                 crossDaysAdded = arrivalResult.daysAdded;
-                crossDayWarning =
-                  'Thời gian di chuyển vượt qua ngày hiện tại. Vui lòng chọn ngày khác cho địa điểm này.';
+                crossDayWarning = t("planner.crossDayWarning", { defaultValue: "Thời gian di chuyển vượt qua ngày hiện tại. Vui lòng chọn ngày khác cho địa điểm này." });
               }
             } else {
-              routeInfo = 'Không có tọa độ để tính toán lộ trình';
+              routeInfo = t("planner.noCoordinatesError", { defaultValue: "Không có tọa độ để tính toán lộ trình" });
             }
           }
         }
@@ -327,6 +332,7 @@ export function useAddSiteFlow(params: {
           openTime,
           closeTime,
           fastestArrival: travelData.fastestArrival,
+          t,
         });
 
         // Use suggested time
@@ -350,18 +356,18 @@ export function useAddSiteFlow(params: {
       } catch (error: any) {
         Toast.show({
           type: 'error',
-          text1: 'Không thể tải thông tin địa điểm',
-          text2: error?.message || 'Vui lòng thử lại',
+          text1: t("planner.loadSiteError", { defaultValue: "Không thể tải thông tin địa điểm" }),
+          text2: error?.message || t("common.tryAgain", { defaultValue: "Vui lòng thử lại" }),
         });
         if (flowId !== flowIdRef.current) return;
         setState(prev => ({
           ...prev,
           estimatedTime: '08:00',
-          routeInfo: 'Lỗi tải thông tin địa điểm',
+          routeInfo: t("planner.loadSiteErrorShort", { defaultValue: "Lỗi tải thông tin địa điểm" }),
           calculatingRoute: false,
           showTimeInputModal: true,
           travelData: {
-            newSiteName: 'Địa điểm',
+            newSiteName: t("planner.typeLocation"),
             massTimesForDay: [],
             eventsForDay: [],
           },

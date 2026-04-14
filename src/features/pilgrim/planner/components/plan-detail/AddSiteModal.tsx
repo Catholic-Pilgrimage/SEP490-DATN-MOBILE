@@ -146,17 +146,17 @@ export default function AddSiteModal({
       .trim()
       .toLowerCase();
     const byEnum: Record<SiteType, string> = {
-      church: "Nhà thờ",
-      shrine: "Thánh địa",
-      monastery: "Tu viện",
-      center: "Trung tâm",
-      other: "Địa điểm",
+      church: t("explore.typeChurch"),
+      shrine: t("planner.typeHolyLand"),
+      monastery: t("explore.typeMonastery"),
+      center: t("explore.typeCenter"),
+      other: t("planner.typeLocation"),
     };
     if (raw in byEnum) return byEnum[raw as SiteType];
     if (raw.includes("cathedral") || raw.includes("vương cung"))
-      return "Thánh địa";
-    if (raw.includes("parish") || raw.includes("giáo xứ")) return "Giáo xứ";
-    return "Hành hương";
+      return t("planner.typeHolyLand");
+    if (raw.includes("parish") || raw.includes("giáo xứ")) return t("planner.typeParish");
+    return t("planner.typePilgrimage");
   };
 
   const getShortLocation = (address?: string) => {
@@ -216,7 +216,7 @@ export default function AddSiteModal({
               </View>
               {featured && (
                 <View style={localStyles.featuredBadge}>
-                  <Text style={localStyles.featuredBadgeText}>Nổi bật</Text>
+                  <Text style={localStyles.featuredBadgeText}>{t("planner.featuredLabel")}</Text>
                 </View>
               )}
               {item.patronSaint && (
@@ -310,7 +310,7 @@ export default function AddSiteModal({
                 activeTab === "events" && sharedStyles.activeTabText,
               ]}
             >
-              Sự kiện
+              {t("planner.events")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -377,10 +377,10 @@ export default function AddSiteModal({
         </View>
         <View style={localStyles.regionChipsRow}>
           {[
-            { key: "all", label: "Tất cả" },
-            { key: "north", label: "Miền Bắc" },
-            { key: "central", label: "Miền Trung" },
-            { key: "south", label: "Miền Nam" },
+            { key: "all", label: t("explore.allRegions") },
+            { key: "north", label: t("explore.north") },
+            { key: "central", label: t("explore.central") },
+            { key: "south", label: t("explore.south") },
           ].map((chip) => (
             <TouchableOpacity
               key={chip.key}
@@ -435,8 +435,7 @@ export default function AddSiteModal({
                   textAlign: "center",
                 }}
               >
-                Hiện tại không có địa điểm nào có sự kiện diễn ra trong thời
-                gian lịch trình của bạn.
+                {t("planner.noEventSitesHint")}
               </Text>
             </View>
           ) : (
@@ -463,7 +462,7 @@ export default function AddSiteModal({
                       style={sharedStyles.siteItemAddress}
                       numberOfLines={1}
                     >
-                      Chọn để xem sự kiện
+                      {t("planner.selectToSeeEvents")}
                     </Text>
                   </View>
                   <Ionicons
@@ -484,7 +483,7 @@ export default function AddSiteModal({
               activeTab === "all" && featuredSites.length > 0 ? (
                 <View style={{ marginBottom: 10 }}>
                   <Text style={localStyles.featuredSectionTitle}>
-                    Gợi ý nổi tiếng
+                    {t("planner.featuredSuggestions")}
                   </Text>
                   {featuredSites.map((s) => (
                     <View key={`featured_${s.id}`}>
@@ -492,7 +491,7 @@ export default function AddSiteModal({
                     </View>
                   ))}
                   <Text style={localStyles.normalSectionTitle}>
-                    Tất cả địa điểm
+                    {t("planner.allLocationsSection")}
                   </Text>
                 </View>
               ) : null
@@ -511,7 +510,7 @@ export default function AddSiteModal({
         >
           <View style={localStyles.bottomBar}>
             <Text style={localStyles.bottomBarText} numberOfLines={1}>
-              Đã thêm: {addedCount} địa điểm
+              {t("planner.addedCountLabel", { count: addedCount })}
             </Text>
             <TouchableOpacity
               style={localStyles.bottomBarButton}
@@ -519,7 +518,7 @@ export default function AddSiteModal({
               activeOpacity={0.85}
             >
               <Text style={localStyles.bottomBarButtonText}>
-                Xem lịch trình
+                {t("planner.viewItineraryCta")}
               </Text>
             </TouchableOpacity>
           </View>

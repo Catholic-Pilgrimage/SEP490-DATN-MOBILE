@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Modal,
   Pressable,
@@ -28,6 +29,7 @@ export default function CheckinPhotoSheet({
   onCamera,
   onGallery,
 }: Props) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -49,10 +51,10 @@ export default function CheckinPhotoSheet({
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="camera" size={22} color={COLORS.accent} />
-            <Text style={styles.headerTitle}>Ảnh check-in</Text>
+            <Text style={styles.headerTitle}>{t("planner.checkin.title")}</Text>
           </View>
           <Text style={styles.subtitle}>
-            Chụp hoặc chọn ảnh tại địa điểm để xác nhận check-in
+            {t("planner.checkin.subtitle")}
           </Text>
 
           {/* Options */}
@@ -71,9 +73,9 @@ export default function CheckinPhotoSheet({
                 <Ionicons name="camera-outline" size={24} color="#D35400" />
               </View>
               <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>Chụp ảnh</Text>
+                <Text style={styles.optionTitle}>{t("planner.checkin.takePhoto")}</Text>
                 <Text style={styles.optionDesc}>
-                  Sử dụng camera để chụp ngay
+                  {t("planner.checkin.takePhotoDesc")}
                 </Text>
               </View>
               <Ionicons
@@ -99,9 +101,9 @@ export default function CheckinPhotoSheet({
                 <Ionicons name="images-outline" size={24} color="#7C3AED" />
               </View>
               <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>Chọn từ thư viện</Text>
+                <Text style={styles.optionTitle}>{t("planner.checkin.chooseLibrary")}</Text>
                 <Text style={styles.optionDesc}>
-                  Chọn ảnh có sẵn trong máy
+                  {t("planner.checkin.chooseLibraryDesc")}
                 </Text>
               </View>
               <Ionicons
@@ -118,7 +120,7 @@ export default function CheckinPhotoSheet({
             onPress={onClose}
             activeOpacity={0.7}
           >
-            <Text style={styles.cancelText}>Hủy</Text>
+            <Text style={styles.cancelText}>{t("planner.checkin.cancel", { defaultValue: "Hủy" })}</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

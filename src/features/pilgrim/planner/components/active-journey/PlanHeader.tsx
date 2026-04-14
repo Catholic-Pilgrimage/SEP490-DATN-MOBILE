@@ -1,5 +1,6 @@
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Image, StyleSheet, Text, View } from "react-native";
 import { COLORS, SPACING } from "../../../../../constants/theme.constants";
 import { PlanEntity, PlanItem } from "../../../../../types/pilgrim/planner.types";
@@ -11,6 +12,7 @@ type Props = {
 };
 
 export default function PlanHeader({ plan, firstItem, compact }: Props) {
+  const { t } = useTranslation();
   return (
     <View style={[styles.container, compact && { borderRadius: 0 }]}>
       <Image
@@ -27,7 +29,7 @@ export default function PlanHeader({ plan, firstItem, compact }: Props) {
         style={styles.gradientOverlay}
       >
         <Text style={styles.subtitle}>
-          {firstItem?.site?.name || "Điểm đến kế tiếp sẽ hiển thị tại đây"}
+          {firstItem?.site?.name || t("planner.active.nextStopPlaceholder", { defaultValue: "Điểm đến kế tiếp sẽ hiển thị tại đây" })}
         </Text>
         {!!firstItem?.site?.address && (
           <Text style={styles.address} numberOfLines={1}>

@@ -115,6 +115,7 @@ import {
   getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
 import { getGroupPatronConstraintFromPlan } from "../utils/planPatronScope.utils";
+import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
 
@@ -181,13 +182,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     if (typeof value === "object" && value.hours !== undefined) {
       const hours = value.hours || 0;
       const minutes = value.minutes || 0;
-      if (hours > 0 && minutes > 0) {
-        return `${hours} ${t("planner.hours")} ${minutes} ${t("planner.minutes")}`;
-      } else if (hours > 0) {
-        return `${hours} ${t("planner.hours")}`;
-      } else if (minutes > 0) {
-        return `${minutes} ${t("planner.minutes")}`;
-      }
+      return formatDurationLocalized(hours * 60 + minutes, t);
     }
     return String(value);
   };
@@ -1282,7 +1277,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           : "flag-outline",
       title,
       message: msg,
-      confirmText: isLock ? "Chốt ngay" : isStart ? "Bắt đầu" : title,
+      confirmText: isLock 
+        ? t("planner.finalizeNow") 
+        : isStart 
+          ? t("planner.startNow") 
+          : title,
       cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
 
@@ -2525,15 +2524,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   };
 
   const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    if (hours > 0 && remainingMinutes > 0) {
-      return `${hours} ${t("planner.hours")} ${remainingMinutes} ${t("planner.minutes")}`;
-    } else if (hours > 0) {
-      return `${hours} ${t("planner.hours")}`;
-    } else {
-      return `${minutes} ${t("planner.minutes")}`;
-    }
+    return formatDurationLocalized(minutes, t);
   };
 
   // parseDurationToMinutes removed — use parseDurationToMinutesRaw directly if needed
@@ -2582,7 +2573,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     try {
       setAddingItem(true);
 
-      // Convert minutes to duration format with proper singular/plural
+      // Convert minutes to duration format (backend expects English for this specific field)
       const totalMinutes = addSiteFlow.restDuration;
       const durationHours = Math.floor(totalMinutes / 60);
       const remainingMinutes = totalMinutes % 60;
@@ -3172,7 +3163,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="#FFF8E7"
                 />
                 <Text style={styles.quickActionText}>
-                  {isCompletedPlan ? "Chia sẻ" : "Mời bạn bè"}
+                  {isCompletedPlan ? t("common.share") : t("planner.inviteFriends")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -3198,8 +3189,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 lineHeight: 18,
               }}
             >
-              Bạn đã rời nhóm, nhưng vẫn có thể xem lại kế hoạch do có liên quan
-              đến tiền cọc.
+              {t("planner.droppedOutBanner")}
             </Text>
           </View>
         )}
@@ -3534,7 +3524,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   <Text
                     style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}
                   >
-                    + Thêm địa điểm đầu tiên
+                    + {t("planner.addFirstLocation")}
                   </Text>
                 </TouchableOpacity>
               )}
@@ -3597,8 +3587,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             ev.end_date && ev.end_date !== ev.start_date
               ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
               : "";
-          const timeStr = ev.start_time ? ` lúc ${ev.start_time}` : "";
-          const noteText = `🎉 Chọn Sự kiện: ${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
+          const timeStr = ev.start_time ? t("planner.atTime", { time: ev.start_time }) : "";
+          const noteText = `${t("planner.eventSelectionPrefix")}${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
           addSiteFlow.setNote(noteText);
           setShowEventListModal(false);
           if (eventSite) {

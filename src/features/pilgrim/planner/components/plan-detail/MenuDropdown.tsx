@@ -100,7 +100,7 @@ export const MenuDropdown: React.FC<MenuDropdownProps> = ({
                 fontWeight: "500",
               }}
             >
-              Sửa kế hoạch
+              {t("planner.editPlanMenu")}
             </Text>
           </TouchableOpacity>
         )}
@@ -331,7 +331,7 @@ export const MenuDropdown: React.FC<MenuDropdownProps> = ({
                 fontWeight: "500",
               }}
             >
-              Xóa kế hoạch
+              {t("planner.deletePlanMenu")}
             </Text>
           </TouchableOpacity>
         )}

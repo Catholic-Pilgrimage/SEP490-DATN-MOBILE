@@ -35,12 +35,12 @@ interface Props {
   t: TFn;
 }
 
-const formatDays = (days: DayOfWeek[]): string => {
-  if (days.includes(0) && days.length === 1) return "Chúa Nhật";
-  if (days.length === 6 && !days.includes(0)) return "Ngày thường";
-  if (days.includes(6) && days.length === 1) return "Thứ Bảy";
+const formatDays = (days: DayOfWeek[], t: TFn): string => {
+  if (days.includes(0) && days.length === 1) return t("planner.dayNames.sunday");
+  if (days.length === 6 && !days.includes(0)) return t("planner.dayNames.weekday");
+  if (days.includes(6) && days.length === 1) return t("planner.dayNames.saturday");
   return days
-    .map((d) => (d === 0 ? "CN" : `T${d + 1}`))
+    .map((d) => (d === 0 ? t("planner.dayNames.sun") : t(`planner.dayNames.${["mon", "tue", "wed", "thu", "fri", "sat"][d - 1]}`)))
     .join(", ");
 };
 
@@ -90,19 +90,17 @@ export default function ItemDetailSiteInfoSections({
     if (!schedules?.length) return [];
     return schedules.map((s) => {
       const rawDays = (s as { days_of_week?: DayOfWeek[] }).days_of_week;
-      const dayStr = formatDays((rawDays ?? []) as DayOfWeek[]);
+      const dayStr = formatDays((rawDays ?? []) as DayOfWeek[], t);
       const timeStr = s.time?.substring(0, 5) ?? "";
       const note = s.note ? ` (${s.note})` : "";
       return `${dayStr}: ${timeStr}${note}`;
     });
-  }, [schedules]);
+  }, [schedules, t]);
 
   if (!siteId) {
     return (
       <Text style={styles.muted}>
-        {t("planner.itemDetailNoSiteId", {
-          defaultValue: "Không có mã địa điểm để tải thông tin.",
-        })}
+        {t("planner.itemDetailNoSiteId")}
       </Text>
     );
   }
@@ -112,10 +110,7 @@ export default function ItemDetailSiteInfoSections({
       <View style={styles.offlineBanner}>
         <Ionicons name="cloud-offline-outline" size={20} color="#C2410C" />
         <Text style={styles.offlineText}>
-          {t("planner.itemDetailSiteInfoOffline", {
-            defaultValue:
-              "Bật mạng để xem giới thiệu, hình ảnh, lịch lễ, sự kiện và địa điểm lân cận.",
-          })}
+          {t("planner.itemDetailSiteInfoOffline")}
         </Text>
       </View>
     );
@@ -127,14 +122,10 @@ export default function ItemDetailSiteInfoSections({
   return (
     <View style={styles.wrap}>
       <Text style={styles.sectionHead}>
-        {t("planner.itemDetailDiscoverTitle", {
-          defaultValue: "Tìm hiểu địa điểm",
-        })}
+        {t("planner.itemDetailDiscoverTitle")}
       </Text>
       <Text style={styles.sectionSub}>
-        {t("planner.itemDetailDiscoverSubtitle", {
-          defaultValue: "Tham khảo khi sắp lịch trình trong kế hoạch.",
-        })}
+        {t("planner.itemDetailDiscoverSubtitle")}
       </Text>
 
       {loadingAny ? (
@@ -146,7 +137,7 @@ export default function ItemDetailSiteInfoSections({
       {site?.description ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            {t("planner.aboutSite", { defaultValue: "Giới thiệu" })}
+            {t("planner.aboutSite")}
           </Text>
           <Text
             style={styles.body}
@@ -176,7 +167,7 @@ export default function ItemDetailSiteInfoSections({
       ) : media && media.length > 0 ? (
         <View style={styles.card}>
           <Text style={styles.cardTitle}>
-            {t("planner.mediaGallery", { defaultValue: "Hình ảnh & video" })}
+            {t("planner.mediaGallery")}
           </Text>
           <ScrollView
             horizontal
@@ -205,7 +196,7 @@ export default function ItemDetailSiteInfoSections({
         <View style={styles.cardTitleRow}>
           <Ionicons name="calendar-outline" size={20} color={COLORS.accent} />
           <Text style={styles.cardTitle}>
-            {t("planner.massSchedule", { defaultValue: "Lịch phụng vụ" })}
+            {t("planner.massSchedule")}
           </Text>
         </View>
         {loadingSchedules ? (
@@ -218,9 +209,7 @@ export default function ItemDetailSiteInfoSections({
           ))
         ) : (
           <Text style={styles.muted}>
-            {t("planner.massScheduleEmpty", {
-              defaultValue: "Đang cập nhật lịch lễ…",
-            })}
+            {t("planner.massScheduleEmpty")}
           </Text>
         )}
       </View>
@@ -229,7 +218,7 @@ export default function ItemDetailSiteInfoSections({
         <View style={styles.cardTitleRow}>
           <Ionicons name="ticket-outline" size={20} color={COLORS.accent} />
           <Text style={styles.cardTitleInRow}>
-            {t("planner.upcomingEvents", { defaultValue: "Sự kiện sắp tới" })}
+            {t("planner.upcomingEvents")}
           </Text>
         </View>
         {loadingEvents ? (
@@ -275,7 +264,7 @@ export default function ItemDetailSiteInfoSections({
           </ScrollView>
         ) : (
           <Text style={styles.muted}>
-            {t("planner.eventsEmpty", { defaultValue: "Chưa có sự kiện sắp tới." })}
+            {t("planner.eventsEmpty")}
           </Text>
         )}
       </View>
@@ -284,9 +273,7 @@ export default function ItemDetailSiteInfoSections({
         <View style={styles.cardTitleRow}>
           <Ionicons name="map-outline" size={20} color={COLORS.accent} />
           <Text style={styles.cardTitleInRow}>
-            {t("planner.nearbyAreaTitle", {
-              defaultValue: "Xung quanh nhà thờ",
-            })}
+            {t("planner.nearbyAreaTitle")}
           </Text>
         </View>
         {loadingPlaces ? (
@@ -309,9 +296,7 @@ export default function ItemDetailSiteInfoSections({
           ))
         ) : (
           <Text style={styles.muted}>
-            {t("planner.nearbyEmpty", {
-              defaultValue: "Không có địa điểm lân cận.",
-            })}
+            {t("planner.nearbyEmpty")}
           </Text>
         )}
       </View>

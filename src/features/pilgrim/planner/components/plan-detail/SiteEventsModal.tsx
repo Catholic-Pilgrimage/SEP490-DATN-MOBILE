@@ -77,7 +77,7 @@ export default function SiteEventsModal({
                 textAlign: "center",
               }}
             >
-              Không có sự kiện sắp tới tại địa điểm này
+              {t("planner.noEventsAtThisLocation")}
             </Text>
           </View>
         ) : (
@@ -97,7 +97,7 @@ export default function SiteEventsModal({
                 ev.end_date && ev.end_date !== ev.start_date
                   ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
                   : "";
-              const timeStr = ev.start_time ? ` lúc ${ev.start_time}` : "";
+              const timeStr = ev.start_time ? t("planner.atTime", { time: ev.start_time }) : "";
 
               return (
                 <TouchableOpacity

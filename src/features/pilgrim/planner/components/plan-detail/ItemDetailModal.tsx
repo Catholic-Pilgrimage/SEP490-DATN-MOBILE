@@ -58,9 +58,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
     }
     if (typeof min === "number" && !Number.isNaN(min)) {
       parts.push(
-        `${Math.max(1, Math.round(min))} ${t("planner.itemDetailTravelMinSuffix", {
-          defaultValue: "phút di chuyển (ước tính)",
-        })}`,
+        `${Math.max(1, Math.round(min))} ${t("planner.itemDetailTravelMinSuffix")}`,
       );
     }
     return parts.length ? parts.join(" · ") : null;
@@ -106,9 +104,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                     }}
                     hitSlop={10}
                     accessibilityRole="button"
-                    accessibilityLabel={t("planner.editTimeAndNote", {
-                      defaultValue: "Chỉnh sửa thời gian & ghi chú",
-                    })}
+                    accessibilityLabel={t("planner.editTimeAndNote")}
                   >
                     <Ionicons name="create-outline" size={24} color={COLORS.primary} />
                   </TouchableOpacity>
@@ -119,9 +115,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                     }}
                     hitSlop={10}
                     accessibilityRole="button"
-                    accessibilityLabel={t("planner.removeFromItinerary", {
-                      defaultValue: "Xóa khỏi lịch trình",
-                    })}
+                    accessibilityLabel={t("planner.removeFromItinerary")}
                   >
                     <Ionicons name="trash-outline" size={24} color="#EF4444" />
                   </TouchableOpacity>
@@ -174,18 +168,14 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
 
             <View style={s.itemDetailScheduleCard}>
               <Text style={s.itemDetailScheduleCardTitle}>
-                {t("planner.itemDetailScheduleSection", {
-                  defaultValue: "Lịch trình & di chuyển (trong kế hoạch)",
-                })}
+                {t("planner.itemDetailScheduleSection")}
               </Text>
 
               {travelLine ? (
                 <View style={s.itemDetailTravelBanner}>
                   <Ionicons name="navigate-outline" size={22} color="#B45309" />
                   <Text style={s.itemDetailTravelBannerText}>
-                    {t("planner.itemDetailFromPreviousStop", {
-                      defaultValue: "Từ điểm trước",
-                    })}
+                    {t("planner.itemDetailFromPreviousStop")}
                     {": "}
                     {travelLine}
                   </Text>
@@ -199,9 +189,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={s.itemDetailInfoLabel}>
-                      {t("planner.itemDetailTimeWindow", {
-                        defaultValue: "Khung giờ dự kiến",
-                      })}
+                      {t("planner.itemDetailTimeWindow")}
                     </Text>
                     <Text style={s.itemDetailInfoValue}>{scheduleTimeDisplay.primary}</Text>
                   </View>
@@ -215,9 +203,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={s.itemDetailInfoLabel}>
-                      {t("planner.itemDetailRestAtSite", {
-                        defaultValue: "Thời gian dừng tại điểm",
-                      })}
+                      {t("planner.itemDetailRestAtSite")}
                     </Text>
                     <Text style={s.itemDetailInfoValue}>
                       {formatTimeValue(selectedItem.rest_duration)}
@@ -228,10 +214,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
 
               {!scheduleTimeDisplay.primary && !selectedItem.rest_duration ? (
                 <Text style={s.itemDetailRowText}>
-                  {t("planner.itemDetailNoScheduleYet", {
-                    defaultValue:
-                      "Chưa đặt giờ — chỉnh bằng biểu tượng bút ở góc trên.",
-                  })}
+                  {t("planner.itemDetailNoScheduleYet")}
                 </Text>
               ) : null}
             </View>
@@ -241,7 +224,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
             String(selectedItem.note).trim() ? (
               <View style={s.itemDetailScheduleCard}>
                 <Text style={s.itemDetailScheduleCardTitle}>
-                  {t("planner.note", { defaultValue: "Ghi chú (kế hoạch)" })}
+                  {t("planner.note")}
                 </Text>
                 <View style={[s.itemDetailInfoRow, s.itemDetailInfoRowLast]}>
                   <View style={s.itemDetailInfoIconContainer}>
