@@ -16,6 +16,7 @@
     "no": "No",
     "ok": "OK",
     "retry": "Retry",
+    "share": "Share",
     "pleaseWait": "Please wait",
     "processing": "Processing...",
     "search": "Search",
@@ -591,7 +592,23 @@
     "fundStatement": "Group Fund Statement",
     "txLocked": "Deposit",
     "txPenaltyPending": "Pending penalty",
+    "txPenaltyReceived": "Penalty received",
+    "txRefunded": "Refunded",
     "transactionsEmpty": "No group fund transactions yet.",
+    "transactionsLoadFailed": "Failed to load statement.",
+    "txLabels": {
+      "deposit_locked": "Deposit committed",
+      "deposit_refunded": "Deposit refunded",
+      "penalty_deducted": "Penalty deducted",
+      "penalty_received": "Owner received penalty",
+      "unknown": "Transaction"
+    },
+    "txStatus": {
+      "pending": "Pending",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
     "inviteCta": "Invite",
     "dayLabelMeta": "Day",
     "featuredSuggestions": "Popular Suggestions",
@@ -1055,6 +1072,33 @@
     "logoutError": "Unable to log out. Please try again.",
     "version": "Version 1.0.0",
     "featureComingSoon": "Feature coming soon"
+  },
+  "historyScreen": {
+    "title": "Faith Journey",
+    "stats": {
+      "trips": "Trips",
+      "destinations": "Destinations",
+      "journals": "Journals"
+    },
+    "tabs": {
+      "journeys": "Journey Memories",
+      "footprints": "Footprints"
+    },
+    "completed": "COMPLETED",
+    "people": "people",
+    "unknownDate": "Unknown",
+    "unknownLocation": "Unknown location",
+    "at": "at",
+    "empty": {
+      "journeys": {
+        "title": "No completed trips yet",
+        "description": "When you complete a trip, it will be saved here as a memory book."
+      },
+      "footprints": {
+        "title": "No footprints yet",
+        "description": "Sites you've visited (Check-in) will be saved here."
+      }
+    }
   },
   "settings": {
     "languageChanged": "Language changed to English",
@@ -2256,6 +2300,38 @@
     "emptyTitle": "No requests yet",
     "emptyText": "Your SOS request history will appear here.",
     "unknownLocation": "Unknown location",
+    "requestModal": {
+      "title": "Need help?",
+      "subtitle": "Connect with Site Manager at {{siteName}}",
+      "defaultSiteName": "destination",
+      "sectionIssue": "Issue you're facing:",
+      "sectionDetails": "Details (optional):",
+      "detailsPlaceholder": "Describe your issue in more detail...",
+      "locationNotice": "Your current location is attached to help local guide find you more easily.",
+      "close": "Close",
+      "submit": "Send request",
+      "categories": {
+        "lost": "Lost group / Relative",
+        "health": "Health issue",
+        "item_lost": "Lost belongings",
+        "direction": "Need urgent directions"
+      },
+      "errors": {
+        "missingCategory": "Missing information",
+        "missingCategoryMsg": "Please select the issue you're facing",
+        "missingSite": "Unable to determine support location",
+        "outOfRange": "Out of range",
+        "outOfRangeMsg": "You are too far from this location. You need to be within 1 km to send SOS.",
+        "alreadyPending": "Notice",
+        "alreadyPendingMsg": "You already have a pending SOS request.",
+        "sendError": "Error sending request",
+        "sendErrorMsg": "Please try again later"
+      },
+      "success": {
+        "title": "Request sent",
+        "message": "Site management has received your support request."
+      }
+    },
     "guideList": {
       "title": "Emergency support",
       "tabs": {

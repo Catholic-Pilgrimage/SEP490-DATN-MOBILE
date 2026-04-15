@@ -4,20 +4,27 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -35,6 +42,34 @@ import { usePlanData } from "../hooks/usePlanData";
 type Props = {
   route: { params?: { planId?: string } };
   navigation: any;
+};
+
+const parseTimeToMinutes = (value?: string) => {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+  const match = value.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+  return hour * 60 + minute;
+};
+
+const compareItemsInDay = (a: PlanItem, b: PlanItem) => {
+  const orderA = Number.isFinite(a.order_index)
+    ? Number(a.order_index)
+    : Number.MAX_SAFE_INTEGER;
+  const orderB = Number.isFinite(b.order_index)
+    ? Number(b.order_index)
+    : Number.MAX_SAFE_INTEGER;
+  if (orderA !== orderB) return orderA - orderB;
+
+  const timeA = parseTimeToMinutes(a.arrival_time || a.estimated_time);
+  const timeB = parseTimeToMinutes(b.arrival_time || b.estimated_time);
+  if (timeA !== timeB) return timeA - timeB;
+
+  return String(a.site?.name || "").localeCompare(String(b.site?.name || ""));
 };
 
 export default function ActiveJourneyScreen({ route, navigation }: Props) {
@@ -72,6 +107,12 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   );
   const [sosModalVisible, setSosModalVisible] = React.useState(false);
   const [photoSheetVisible, setPhotoSheetVisible] = React.useState(false);
+  const [skipReasonModalVisible, setSkipReasonModalVisible] =
+    React.useState(false);
+  const [skipReason, setSkipReason] = React.useState("");
+  const [skipReasonItem, setSkipReasonItem] = React.useState<PlanItem | null>(
+    null,
+  );
 
   // Owner action sheet & mark visited modal state
   const [actionSheetItem, setActionSheetItem] = React.useState<PlanItem | null>(
@@ -118,13 +159,89 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
   const allItemsFlat = useMemo(() => {
     if (!plan?.items_by_day) return [];
-    return Object.values(plan.items_by_day).flat();
-  }, [plan?.items_by_day]);
+    return sortedDays.flatMap((dayKey) =>
+      [...(plan.items_by_day?.[dayKey] || [])].sort(compareItemsInDay),
+    );
+  }, [plan?.items_by_day, sortedDays]);
+
+  const nextPendingItem = useMemo(
+    () =>
+      allItemsFlat.find((item) => {
+        if (!item?.id) return false;
+        const status = String(item.status || "").toLowerCase();
+        return status !== "visited" && status !== "skipped";
+      }) || null,
+    [allItemsFlat],
+  );
+
+  const journalPrefillItem = useMemo(() => {
+    if (!allItemsFlat.length) return nextPendingItem;
+
+    const isVisitedLike = (item: PlanItem) => {
+      const status = String(item.status || "").toLowerCase();
+      return (
+        status === "visited" ||
+        status === "checked_in" ||
+        (item.id ? checkedInIds.has(item.id) : false)
+      );
+    };
+
+    if (nextPendingItem?.id) {
+      const nextIndex = allItemsFlat.findIndex(
+        (item) => item.id === nextPendingItem.id,
+      );
+      if (nextIndex > 0) {
+        for (let i = nextIndex - 1; i >= 0; i -= 1) {
+          const item = allItemsFlat[i];
+          if (isVisitedLike(item)) return item;
+        }
+      }
+    }
+
+    for (let i = allItemsFlat.length - 1; i >= 0; i -= 1) {
+      const item = allItemsFlat[i];
+      if (isVisitedLike(item)) return item;
+    }
+
+    return nextPendingItem;
+  }, [allItemsFlat, checkedInIds, nextPendingItem]);
+
+  const journalPrefillItemIds = useMemo(() => {
+    if (!allItemsFlat.length) return [] as string[];
+
+    const isVisitedLike = (item: PlanItem) => {
+      const status = String(item.status || "").toLowerCase();
+      return (
+        status === "visited" ||
+        status === "checked_in" ||
+        (item.id ? checkedInIds.has(item.id) : false)
+      );
+    };
+
+    const nextIndex = nextPendingItem?.id
+      ? allItemsFlat.findIndex((item) => item.id === nextPendingItem.id)
+      : -1;
+    const candidateRange =
+      nextIndex > 0 ? allItemsFlat.slice(0, nextIndex) : allItemsFlat;
+
+    const visitedIds = candidateRange
+      .filter((item) => !!item.id && isVisitedLike(item))
+      .map((item) => item.id as string);
+
+    if (visitedIds.length > 0) return visitedIds;
+    return journalPrefillItem?.id ? [journalPrefillItem.id] : [];
+  }, [allItemsFlat, checkedInIds, journalPrefillItem, nextPendingItem]);
+
+  const selectedDayItems = useMemo(
+    () =>
+      [...(plan?.items_by_day?.[selectedDay] || [])].sort(compareItemsInDay),
+    [plan?.items_by_day, selectedDay],
+  );
 
   const isLastItem = useMemo(() => {
-    if (allItemsFlat.length === 0 || !firstItem) return false;
-    return firstItem.id === allItemsFlat[allItemsFlat.length - 1].id;
-  }, [allItemsFlat, firstItem]);
+    if (allItemsFlat.length === 0 || !nextPendingItem) return false;
+    return nextPendingItem.id === allItemsFlat[allItemsFlat.length - 1].id;
+  }, [allItemsFlat, nextPendingItem]);
 
   const onCompleted = useCallback(() => {
     navigation.replace("PlanDetailScreen", { planId });
@@ -133,6 +250,38 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const { checkingInItemId, skippingItemId, checkIn, skipItem, markVisited } =
     useJourneyExecution(planId, refreshPlan, onCompleted);
   const { takePhoto, pickFromGallery } = useCheckinPhoto();
+
+  const handleOpenSkipReasonModal = useCallback((item: PlanItem) => {
+    setSkipReasonItem(item);
+    setSkipReason("");
+    setSkipReasonModalVisible(true);
+  }, []);
+
+  const handleCloseSkipReasonModal = useCallback(() => {
+    if (skippingItemId) return;
+    setSkipReasonModalVisible(false);
+    setSkipReason("");
+    setSkipReasonItem(null);
+  }, [skippingItemId]);
+
+  const handleSubmitSkipReason = useCallback(async () => {
+    if (!skipReasonItem) return;
+    const reason = skipReason.trim();
+    if (!reason) {
+      Toast.show({
+        type: "info",
+        text1: "Thiếu lý do",
+        text2: "Vui lòng nhập lý do bỏ qua địa điểm.",
+      });
+      return;
+    }
+
+    await skipItem(skipReasonItem, reason);
+    setSkipReasonModalVisible(false);
+    setSkipReason("");
+    setSkipReasonItem(null);
+  }, [skipItem, skipReason, skipReasonItem]);
+
   const isOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
@@ -288,11 +437,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   );
 
   // Determine check-in button state
-  const isAlreadyCheckedIn = firstItem ? checkedInIds.has(firstItem.id) : false;
+  const isAlreadyCheckedIn = nextPendingItem
+    ? checkedInIds.has(nextPendingItem.id)
+    : false;
   const isCheckInDisabled =
-    !firstItem || checkingInItemId === firstItem?.id || isAlreadyCheckedIn;
+    !nextPendingItem ||
+    checkingInItemId === nextPendingItem?.id ||
+    isAlreadyCheckedIn;
   const nextSiteName =
-    firstItem?.site?.name ||
+    nextPendingItem?.site?.name ||
     t("planner.active.nextStop", { defaultValue: "Điểm tiếp theo" });
 
   // Calculate floating CTA height for ScrollView padding (only check-in btn now)
@@ -378,7 +531,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         showsVerticalScrollIndicator={false}
       >
         {/* BANNER */}
-        <PlanHeader plan={plan} firstItem={firstItem} />
+        <PlanHeader plan={plan} firstItem={nextPendingItem || firstItem} />
 
         {/* TOOLBAR: Quick-Access Buttons */}
         <View style={styles.toolbar}>
@@ -389,7 +542,10 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                 screen: "CreateJournalScreen",
                 params: {
                   planId: plan.id,
-                  plannerItemId: firstItem?.id,
+                  planName: plan.name,
+                  plannerItemId: journalPrefillItem?.id,
+                  plannerItemIds: journalPrefillItemIds,
+                  siteName: journalPrefillItem?.site?.name,
                   from: "ActiveJourney",
                 },
               })
@@ -496,7 +652,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               })}
               selectedDay={selectedDay}
               onSelectDay={setSelectedDay}
-              items={plan.items_by_day?.[selectedDay] || []}
+              items={selectedDayItems}
               isOwner={isOwner}
               onItemAction={(item) => setActionSheetItem(item)}
               onViewRoute={(item) =>
@@ -544,7 +700,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           onPress={() => setPhotoSheetVisible(true)}
           activeOpacity={0.82}
         >
-          {checkingInItemId === firstItem?.id ? (
+          {checkingInItemId === nextPendingItem?.id ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <>
@@ -575,19 +731,19 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         onCamera={async () => {
           setPhotoSheetVisible(false);
           const photo = await takePhoto();
-          if (!photo || !firstItem) return;
-          const success = await checkIn(firstItem, photo.uri);
+          if (!photo || !nextPendingItem) return;
+          const success = await checkIn(nextPendingItem, photo.uri);
           if (success) {
-            setCheckedInIds((prev) => new Set(prev).add(firstItem.id));
+            setCheckedInIds((prev) => new Set(prev).add(nextPendingItem.id));
           }
         }}
         onGallery={async () => {
           setPhotoSheetVisible(false);
           const photo = await pickFromGallery();
-          if (!photo || !firstItem) return;
-          const success = await checkIn(firstItem, photo.uri);
+          if (!photo || !nextPendingItem) return;
+          const success = await checkIn(nextPendingItem, photo.uri);
           if (success) {
-            setCheckedInIds((prev) => new Set(prev).add(firstItem.id));
+            setCheckedInIds((prev) => new Set(prev).add(nextPendingItem.id));
           }
         }}
       />
@@ -612,9 +768,76 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           setMarkVisitedItem(actionSheetItem);
         }}
         onSkip={() => {
-          if (actionSheetItem) skipItem(actionSheetItem);
+          if (actionSheetItem) handleOpenSkipReasonModal(actionSheetItem);
         }}
       />
+
+      <Modal
+        visible={skipReasonModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCloseSkipReasonModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.skipReasonModalRoot}
+          behavior="padding"
+          keyboardVerticalOffset={insets.top + 8}
+        >
+          <Pressable
+            style={styles.skipReasonOverlay}
+            onPress={handleCloseSkipReasonModal}
+          />
+
+          <SafeAreaView edges={["bottom"]} style={styles.skipReasonSafeArea}>
+            <Pressable
+              style={styles.skipReasonCard}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={styles.skipReasonTitle}>Lý do bỏ qua</Text>
+              <Text style={styles.skipReasonSubtitle}>
+                {skipReasonItem?.site?.name
+                  ? `Nhập lý do bỏ qua điểm "${skipReasonItem.site.name}"`
+                  : "Nhập lý do bỏ qua địa điểm"}
+              </Text>
+
+              <TextInput
+                style={styles.skipReasonInput}
+                value={skipReason}
+                onChangeText={setSkipReason}
+                placeholder="Ví dụ: Trời mưa lớn, đoàn không thể tiếp tục"
+                placeholderTextColor={COLORS.textTertiary}
+                multiline
+                textAlignVertical="top"
+                editable={!skippingItemId}
+              />
+
+              <View style={styles.skipReasonActions}>
+                <TouchableOpacity
+                  style={styles.skipReasonCancelBtn}
+                  onPress={handleCloseSkipReasonModal}
+                  disabled={!!skippingItemId}
+                >
+                  <Text style={styles.skipReasonCancelText}>Hủy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.skipReasonSubmitBtn}
+                  onPress={() => void handleSubmitSkipReason()}
+                  disabled={!!skippingItemId}
+                >
+                  {skippingItemId ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.skipReasonSubmitText}>
+                      Xác nhận bỏ qua
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* OWNER: Mark Visited Confirmation Modal */}
       <MarkVisitedModal
@@ -635,8 +858,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         visible={sosModalVisible}
         onClose={() => setSosModalVisible(false)}
         planId={planId}
-        siteId={firstItem?.site?.id}
-        siteName={firstItem?.site?.name}
+        siteId={nextPendingItem?.site?.id}
+        siteName={nextPendingItem?.site?.name}
       />
     </View>
   );
@@ -801,5 +1024,80 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 0.5,
     maxWidth: "75%",
+  },
+
+  skipReasonOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  skipReasonModalRoot: {
+    flex: 1,
+  },
+  skipReasonSafeArea: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  skipReasonCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 18,
+    padding: 18,
+    ...SHADOWS.medium,
+  },
+  skipReasonTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+  },
+  skipReasonSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.textSecondary,
+  },
+  skipReasonInput: {
+    marginTop: 12,
+    minHeight: 96,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.surface0,
+  },
+  skipReasonActions: {
+    marginTop: 14,
+    flexDirection: "row",
+    gap: 10,
+  },
+  skipReasonCancelBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderMedium,
+    backgroundColor: COLORS.surface0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  skipReasonCancelText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+  },
+  skipReasonSubmitBtn: {
+    flex: 1.4,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#9A3412",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  skipReasonSubmitText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#fff",
   },
 });

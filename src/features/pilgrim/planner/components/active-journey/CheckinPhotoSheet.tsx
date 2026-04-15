@@ -10,7 +10,10 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BORDER_RADIUS, COLORS, SHADOWS } from "../../../../../constants/theme.constants";
+import {
+  BORDER_RADIUS,
+  COLORS
+} from "../../../../../constants/theme.constants";
 
 type Props = {
   visible: boolean;
@@ -30,6 +33,7 @@ export default function CheckinPhotoSheet({
   onGallery,
 }: Props) {
   const { t } = useTranslation();
+  const checkinT = "planner.members.checkin";
   const insets = useSafeAreaInsets();
 
   return (
@@ -51,11 +55,9 @@ export default function CheckinPhotoSheet({
           {/* Header */}
           <View style={styles.header}>
             <Ionicons name="camera" size={22} color={COLORS.accent} />
-            <Text style={styles.headerTitle}>{t("planner.checkin.title")}</Text>
+            <Text style={styles.headerTitle}>{t(`${checkinT}.title`)}</Text>
           </View>
-          <Text style={styles.subtitle}>
-            {t("planner.checkin.subtitle")}
-          </Text>
+          <Text style={styles.subtitle}>{t(`${checkinT}.subtitle`)}</Text>
 
           {/* Options */}
           <View style={styles.options}>
@@ -64,18 +66,15 @@ export default function CheckinPhotoSheet({
               onPress={onCamera}
               activeOpacity={0.7}
             >
-              <View
-                style={[
-                  styles.optionIcon,
-                  { backgroundColor: "#FFF3E0" },
-                ]}
-              >
+              <View style={[styles.optionIcon, { backgroundColor: "#FFF3E0" }]}>
                 <Ionicons name="camera-outline" size={24} color="#D35400" />
               </View>
               <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>{t("planner.checkin.takePhoto")}</Text>
+                <Text style={styles.optionTitle}>
+                  {t(`${checkinT}.takePhoto`)}
+                </Text>
                 <Text style={styles.optionDesc}>
-                  {t("planner.checkin.takePhotoDesc")}
+                  {t(`${checkinT}.takePhotoDesc`)}
                 </Text>
               </View>
               <Ionicons
@@ -92,18 +91,15 @@ export default function CheckinPhotoSheet({
               onPress={onGallery}
               activeOpacity={0.7}
             >
-              <View
-                style={[
-                  styles.optionIcon,
-                  { backgroundColor: "#EDE9FE" },
-                ]}
-              >
+              <View style={[styles.optionIcon, { backgroundColor: "#EDE9FE" }]}>
                 <Ionicons name="images-outline" size={24} color="#7C3AED" />
               </View>
               <View style={styles.optionTextWrap}>
-                <Text style={styles.optionTitle}>{t("planner.checkin.chooseLibrary")}</Text>
+                <Text style={styles.optionTitle}>
+                  {t(`${checkinT}.chooseLibrary`)}
+                </Text>
                 <Text style={styles.optionDesc}>
-                  {t("planner.checkin.chooseLibraryDesc")}
+                  {t(`${checkinT}.chooseLibraryDesc`)}
                 </Text>
               </View>
               <Ionicons
@@ -120,7 +116,9 @@ export default function CheckinPhotoSheet({
             onPress={onClose}
             activeOpacity={0.7}
           >
-            <Text style={styles.cancelText}>{t("planner.checkin.cancel", { defaultValue: "Hủy" })}</Text>
+            <Text style={styles.cancelText}>
+              {t(`${checkinT}.cancel`, { defaultValue: "Hủy" })}
+            </Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

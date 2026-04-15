@@ -1,6 +1,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     KeyboardAvoidingView,
@@ -17,8 +18,8 @@ import Toast from 'react-native-toast-message';
 import { toastConfig } from '../../../../config/toast.config';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import pilgrimSOSApi from '../../../../services/api/pilgrim/sosApi';
-import { CreateSOSRequest } from '../../../../types/pilgrim';
 import locationService from '../../../../services/location/locationService';
+import { CreateSOSRequest } from '../../../../types/pilgrim';
 
 interface SOSModalProps {
     visible: boolean;
@@ -31,13 +32,6 @@ interface SOSModalProps {
     };
 }
 
-const SUPPORT_CHIPS = [
-    { id: 'lost', label: 'Lạc đoàn / Người thân', icon: 'people' },
-    { id: 'health', label: 'Vấn đề sức khỏe', icon: 'medkit' },
-    { id: 'items', label: 'Thất lạc đồ đạc', icon: 'briefcase' },
-    { id: 'guide', label: 'Cần chỉ dẫn gấp', icon: 'navigate' },
-];
-
 // Terracotta color for "Support" mood
 const SUPPORT_COLOR = '#C05621';
 
@@ -48,9 +42,41 @@ export const SOSModal: React.FC<SOSModalProps> = ({
     siteName,
     siteLocation,
 }) => {
+    const { t } = useTranslation();
     const [message, setMessage] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [selectedChipId, setSelectedChipId] = useState<string | null>(null);
+
+    const SUPPORT_CHIPS = [
+        {
+            id: 'lost',
+            label: t('sos.requestModal.categories.lost', {
+                defaultValue: 'Lạc đoàn / Người thân',
+            }),
+            icon: 'people',
+        },
+        {
+            id: 'health',
+            label: t('sos.requestModal.categories.health', {
+                defaultValue: 'Vấn đề sức khỏe',
+            }),
+            icon: 'medkit',
+        },
+        {
+            id: 'items',
+            label: t('sos.requestModal.categories.item_lost', {
+                defaultValue: 'Thất lạc đồ đạc',
+            }),
+            icon: 'briefcase',
+        },
+        {
+            id: 'guide',
+            label: t('sos.requestModal.categories.direction', {
+                defaultValue: 'Cần chỉ dẫn gấp',
+            }),
+            icon: 'navigate',
+        },
+    ];
 
     const handleChipPress = (chipId: string, label: string) => {
         if (selectedChipId === chipId) {
@@ -68,12 +94,26 @@ export const SOSModal: React.FC<SOSModalProps> = ({
 
     const handleSubmit = async () => {
         if (!message.trim()) {
-            Toast.show({ type: 'info', text1: 'Thông báo', text2: 'Vui lòng chọn vấn đề hoặc nhập nội dung cần hỗ trợ.' });
+            Toast.show({
+                type: 'info',
+                text1: t('sos.requestModal.errors.missingCategory', {
+                    defaultValue: 'Thông báo',
+                }),
+                text2: t('sos.requestModal.errors.missingCategoryMsg', {
+                    defaultValue: 'Vui lòng chọn vấn đề hoặc nhập nội dung cần hỗ trợ.',
+                }),
+            });
             return;
         }
 
         if (!siteLocation) {
-            Toast.show({ type: 'error', text1: 'Lỗi', text2: 'Không xác định được vị trí của bạn.' });
+            Toast.show({
+                type: 'error',
+                text1: t('common.error', { defaultValue: 'Lỗi' }),
+                text2: t('sos.requestModal.errors.missingSite', {
+                    defaultValue: 'Không xác định được vị trí của bạn.',
+                }),
+            });
             return;
         }
 
@@ -98,8 +138,13 @@ export const SOSModal: React.FC<SOSModalProps> = ({
             setTimeout(() => {
                 Toast.show({
                     type: 'success',
-                    text1: 'Đã gửi yêu cầu',
-                    text2: 'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.'
+                    text1: t('sos.requestModal.success.title', {
+                        defaultValue: 'Đã gửi yêu cầu',
+                    }),
+                    text2: t('sos.requestModal.success.message', {
+                        defaultValue:
+                            'Yêu cầu hỗ trợ của bạn đã được gửi thành công. Ban quản lý sẽ liên hệ sớm nhất có thể.',
+                    }),
                 });
             }, 300);
         } catch (error: any) {
@@ -110,21 +155,38 @@ export const SOSModal: React.FC<SOSModalProps> = ({
             if (apiMessage.includes('quá xa') || apiMessage.includes('too far')) {
                 Toast.show({
                     type: 'error',
-                    text1: 'Ngoài phạm vi',
-                    text2: apiMessage || 'Bạn đang quá xa địa điểm này. Cần ở trong phạm vi 1 km để gửi SOS.',
+                    text1: t('sos.requestModal.errors.outOfRange', {
+                        defaultValue: 'Ngoài phạm vi',
+                    }),
+                    text2:
+                        apiMessage ||
+                        t('sos.requestModal.errors.outOfRangeMsg', {
+                            defaultValue:
+                                'Bạn đang quá xa địa điểm này. Cần ở trong phạm vi 1 km để gửi SOS.',
+                        }),
                     visibilityTime: 5000,
                 });
             } else if (apiMessage.includes('already') || apiMessage.includes('đang chờ')) {
                 Toast.show({
                     type: 'info',
-                    text1: 'Thông báo',
-                    text2: 'Bạn đã có một yêu cầu SOS đang chờ xử lý.',
+                    text1: t('sos.requestModal.errors.alreadyPending', {
+                        defaultValue: 'Thông báo',
+                    }),
+                    text2: t('sos.requestModal.errors.alreadyPendingMsg', {
+                        defaultValue: 'Bạn đã có một yêu cầu SOS đang chờ xử lý.',
+                    }),
                 });
             } else {
                 Toast.show({
                     type: 'error',
-                    text1: 'Thất bại',
-                    text2: apiMessage || 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.',
+                    text1: t('sos.requestModal.errors.sendError', {
+                        defaultValue: 'Thất bại',
+                    }),
+                    text2:
+                        apiMessage ||
+                        t('sos.requestModal.errors.sendErrorMsg', {
+                            defaultValue: 'Gửi yêu cầu thất bại. Vui lòng thử lại sau.',
+                        }),
                 });
             }
         } finally {
@@ -159,9 +221,16 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                             <Ionicons name="hand-right" size={32} color={SUPPORT_COLOR} />
                         </View>
                         <View style={styles.headerTextContainer}>
-                            <Text style={styles.title}>Bạn cần hỗ trợ?</Text>
+                            <Text style={styles.title}>
+                                {t('sos.requestModal.title', {
+                                    defaultValue: 'Bạn cần hỗ trợ?',
+                                })}
+                            </Text>
                             <Text style={styles.subtitle}>
-                                Kết nối với Ban quản lý tại <Text style={{ fontWeight: 'bold' }}>{siteName}</Text>
+                                {t('sos.requestModal.subtitle', {
+                                    siteName,
+                                    defaultValue: 'Kết nối với Ban quản lý tại {{siteName}}',
+                                })}
                             </Text>
                         </View>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -178,7 +247,11 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                         contentContainerStyle={styles.content}
                     >
                         {/* Quick Chips */}
-                        <Text style={styles.label}>Vấn đề bạn đang gặp phải:</Text>
+                        <Text style={styles.label}>
+                            {t('sos.requestModal.sectionIssue', {
+                                defaultValue: 'Vấn đề bạn đang gặp phải:',
+                            })}
+                        </Text>
                         <View style={styles.chipContainer}>
                             {SUPPORT_CHIPS.map((chip) => (
                                 <TouchableOpacity
@@ -205,10 +278,16 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                         </View>
 
                         {/* Message Input */}
-                        <Text style={[styles.label, { marginTop: SPACING.md }]}>Chi tiết (nếu cần):</Text>
+                        <Text style={[styles.label, { marginTop: SPACING.md }]}>
+                            {t('sos.requestModal.sectionDetails', {
+                                defaultValue: 'Chi tiết (nếu cần):',
+                            })}
+                        </Text>
                         <TextInput
                             style={styles.input}
-                            placeholder="Mô tả thêm về vấn đề của bạn..."
+                            placeholder={t('sos.requestModal.detailsPlaceholder', {
+                                defaultValue: 'Mô tả thêm về vấn đề của bạn...',
+                            })}
                             placeholderTextColor={COLORS.textSecondary}
                             multiline
                             numberOfLines={3}
@@ -221,7 +300,10 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                         <View style={styles.locationInfo}>
                             <Ionicons name="location" size={16} color={SUPPORT_COLOR} />
                             <Text style={styles.locationText}>
-                                Đã đính kèm vị trí hiện tại để hỗ trợ viên tìm thấy bạn dễ dàng hơn.
+                                {t('sos.requestModal.locationNotice', {
+                                    defaultValue:
+                                        'Đã đính kèm vị trí hiện tại để hỗ trợ viên tìm thấy bạn dễ dàng hơn.',
+                                })}
                             </Text>
                         </View>
                     </ScrollView>
@@ -233,7 +315,9 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                             onPress={onClose}
                             disabled={isLoading}
                         >
-                            <Text style={styles.cancelButtonText}>Đóng</Text>
+                            <Text style={styles.cancelButtonText}>
+                                {t('sos.requestModal.close', { defaultValue: 'Đóng' })}
+                            </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -246,7 +330,11 @@ export const SOSModal: React.FC<SOSModalProps> = ({
                             ) : (
                                 <>
                                     <Ionicons name="paper-plane" size={18} color={COLORS.white} />
-                                    <Text style={styles.submitButtonText}>Gửi yêu cầu</Text>
+                                    <Text style={styles.submitButtonText}>
+                                        {t('sos.requestModal.submit', {
+                                            defaultValue: 'Gửi yêu cầu',
+                                        })}
+                                    </Text>
                                 </>
                             )}
                         </TouchableOpacity>
