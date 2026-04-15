@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Audio } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
@@ -49,6 +49,7 @@ import {
   getPlanDetail,
   getPlans,
 } from "../../../../services/api/pilgrim/plannerApi";
+import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
 import {
   JournalVisibility,
   PrayerSuggestionResult,
@@ -286,6 +287,10 @@ export default function CreateJournalScreen() {
   const [aiBottomSheetVisible, setAiBottomSheetVisible] = useState(false);
   const prayerSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 3D Model State
+  const [has3dModel, setHas3dModel] = useState(false);
+  const [selectedSiteId, setSelectedSiteId] = useState<string | null>(null);
+
   const clearPrayerSlowTimer = () => {
     if (prayerSlowTimerRef.current) {
       clearTimeout(prayerSlowTimerRef.current);
@@ -320,6 +325,16 @@ export default function CreateJournalScreen() {
       clearPrayerSlowTimer();
     };
   }, []);
+
+  // Hydrate selectedSiteId from paramPlannerItemId if present on mount
+  useEffect(() => {
+    if (paramPlannerItemId && !selectedSiteId && allCheckIns.length > 0) {
+      const match = allCheckIns.find(c => c.planner_item_id === paramPlannerItemId);
+      if (match?.site?.id) {
+        setSelectedSiteId(match.site.id);
+      }
+    }
+  }, [paramPlannerItemId, allCheckIns]);
 
   const resetDraftMediaState = () => {
     if (sound) {
@@ -511,6 +526,7 @@ export default function CreateJournalScreen() {
         setSelectedPlannerItemIds(
           matchedCheckIns.map((checkIn) => checkIn.planner_item_id),
         );
+        setSelectedSiteId(matchedCheckIns[0]?.site?.id || null);
         setLocation(buildLocationFromCheckIns(matchedCheckIns));
         return;
       }
@@ -521,11 +537,13 @@ export default function CreateJournalScreen() {
         filtered[0].site
       ) {
         setSelectedPlannerItemIds([filtered[0].planner_item_id]);
+        setSelectedSiteId(filtered[0].site.id || null);
         setLocation(filtered[0].site.name);
         return;
       }
 
       setSelectedPlannerItemIds([]);
+      setSelectedSiteId(null);
       setLocation(options?.fallbackLocation || "");
     } catch (error) {
       console.error("Failed to fetch planner detail", error);
@@ -542,11 +560,13 @@ export default function CreateJournalScreen() {
         setSelectedPlannerItemIds(
           matchedCheckIns.map((checkIn) => checkIn.planner_item_id),
         );
+        setSelectedSiteId(matchedCheckIns[0]?.site?.id || null);
         setLocation(buildLocationFromCheckIns(matchedCheckIns));
         return;
       }
 
       setSelectedPlannerItemIds([]);
+      setSelectedSiteId(null);
       setLocation(options?.fallbackLocation || "");
     } finally {
       setCheckInLoading(false);
@@ -619,15 +639,19 @@ export default function CreateJournalScreen() {
   const handleSelectLocation = (checkIn: CheckInEntity) => {
     if (!checkIn.site) return;
     const id = checkIn.planner_item_id;
-    setSelectedPlannerItemIds((prev) => {
+    setSelectedPlannerItemIds((prev: string[]) => {
       const isSelected = prev.includes(id);
       const next = isSelected
         ? prev.filter((x) => x !== id)
         : Array.from(new Set([...prev, id]));
-      // Update location text
+      
       const selectedCheckIns = filteredCheckIns.filter((c) =>
         next.includes(c.planner_item_id),
       );
+      
+      const firstSiteId = selectedCheckIns[0]?.site?.id;
+      setSelectedSiteId(firstSiteId || null);
+
       setLocation(
         selectedCheckIns
           .map((c) => c.site?.name || "")
@@ -635,6 +659,42 @@ export default function CreateJournalScreen() {
           .join(", "),
       );
       return next;
+    });
+  };
+
+  /** Check for 3D model availability whenever selectedSiteId changes. */
+  useEffect(() => {
+    if (!selectedSiteId) {
+      setHas3dModel(false);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await pilgrimSiteApi.getSiteMedia(selectedSiteId, { type: "model_3d" });
+        if (!cancelled && response.success && response.data) {
+          // SiteMediaResponse structure: { success, data: { site, data: SiteMedia[], pagination } }
+          const models = (response.data as any).data?.data || [];
+          setHas3dModel(models.length > 0);
+        }
+      } catch (error) {
+        console.error("Error checking site 3D media:", error);
+        if (!cancelled) setHas3dModel(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [selectedSiteId]);
+
+  const handleSwitchTo3D = () => {
+    if (!selectedSiteId) return;
+    navigation.navigate("JournalStack", {
+      screen: "JournalDetail",
+      params: { 
+        siteId: selectedSiteId,
+        journalId: journalId // Pass if editing existing
+      }
     });
   };
 
@@ -1078,6 +1138,17 @@ export default function CreateJournalScreen() {
         setSelectedPlannerItemIds(plannerItemIds);
         setJournalPrivacy(data.privacy || "private");
         setLocation(fallbackLocation);
+        
+        // Hydrate selectedSiteId from the first planner item if possible
+        if (plannerItemIds.length > 0 && allCheckIns.length > 0) {
+          const matched = allCheckIns.find(c => plannerItemIds.includes(c.planner_item_id));
+          if (matched?.site?.id) {
+            setSelectedSiteId(matched.site.id);
+          }
+        } else if (data.site?.id) {
+          setSelectedSiteId(data.site.id);
+        }
+
         applyServerMediaState(data);
         if (plannerId) {
           setSelectedPlanner(
@@ -1557,7 +1628,26 @@ export default function CreateJournalScreen() {
               <Text style={styles.locationSub} numberOfLines={1}>
                 {locationBarSubtitle}
               </Text>
+
             </View>
+
+            {has3dModel && (
+              <TouchableOpacity
+                style={styles.switch3dBtnMini}
+                onPress={handleSwitchTo3D}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={["#ECB613", "#FFD700"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.switch3dGradientMini}
+                >
+                  <MaterialIcons name="view-in-ar" size={16} color={COLORS.textPrimary} />
+                  <Text style={styles.switch3dTextMini}>3D Mode</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
 
             <MaterialIcons
               name="chevron-right"
@@ -2141,23 +2231,60 @@ export default function CreateJournalScreen() {
                     >
                       <View style={styles.selectedLocationHeroOverlay} />
                       <View style={styles.selectedLocationHeroContent}>
-                        <View style={styles.selectedLocationHeroBadge}>
-                          <MaterialIcons
-                            name="place"
-                            size={12}
-                            color={COLORS.white}
-                          />
-                          <Text style={styles.selectedLocationHeroBadgeText}>
-                            {t("journal.locationContextLabel")}
-                          </Text>
+                        <View style={styles.siteInfoOverlayRow}>
+                          <View style={styles.siteInfoLeft}>
+                            <View style={styles.siteThumbnailWrap}>
+                              <Image
+                                source={{ uri: locationPreviewImage }}
+                                style={styles.siteImage}
+                              />
+                              <View style={styles.siteThumbnailBadge}>
+                                <MaterialIcons name="place" size={10} color={COLORS.white} />
+                              </View>
+                            </View>
+                            <View style={styles.siteTextContainer}>
+                              <Text style={styles.siteHeroLabel}>{t("journal.locationContextLabel")}</Text>
+                              <Text style={styles.siteNamePremium} numberOfLines={1}>
+                                {locationDisplayValue}
+                              </Text>
+                              {selectedPlanner && (
+                                <Text style={styles.sitePlanNamePremium} numberOfLines={1}>
+                                  {selectedPlanner.name}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+
+                          {has3dModel && (
+                            <TouchableOpacity
+                              style={styles.switch3dBtnPremium}
+                              onPress={handleSwitchTo3D}
+                              activeOpacity={0.8}
+                            >
+                              <LinearGradient
+                                colors={["#ECB613", "#FFD700"]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.switch3dGradientPremium}
+                              >
+                                <MaterialIcons name="view-in-ar" size={20} color={COLORS.textPrimary} />
+                                <Text style={styles.switch3dTextPremium}>3D Mode</Text>
+                              </LinearGradient>
+                            </TouchableOpacity>
+                          )}
                         </View>
-                        <Text style={styles.selectedLocationHeroTitle}>
-                          {locationDisplayValue}
-                        </Text>
-                        {selectedPlanner ? (
-                          <Text style={styles.selectedLocationHeroSubtitle}>
-                            {selectedPlanner.name}
-                          </Text>
+                        
+                        {has3dModel ? (
+                          <TouchableOpacity 
+                            style={styles.immersiveHintBanner}
+                            onPress={handleSwitchTo3D}
+                          >
+                            <MaterialIcons name="auto-awesome" size={14} color="#ECB613" />
+                            <Text style={styles.immersiveHintText}>
+                              {t("journal.immersiveWritingAvailable", "Sẵn sàng viết nhật ký trong không gian 3D")}
+                            </Text>
+                            <MaterialIcons name="arrow-forward" size={14} color="#ECB613" />
+                          </TouchableOpacity>
                         ) : null}
                       </View>
                     </ImageBackground>
@@ -2223,6 +2350,24 @@ export default function CreateJournalScreen() {
                             })}
                           </Text>
                         </View>
+                      )}
+                      
+                      {!locationPreviewImage && has3dModel && (
+                        <TouchableOpacity
+                          style={styles.switch3dBtnMini}
+                          onPress={handleSwitchTo3D}
+                          activeOpacity={0.8}
+                        >
+                          <LinearGradient
+                            colors={["#ECB613", "#FFD700"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.switch3dGradientMini}
+                          >
+                            <MaterialIcons name="view-in-ar" size={14} color={COLORS.textPrimary} />
+                            <Text style={styles.switch3dTextMini}>3D Mode</Text>
+                          </LinearGradient>
+                        </TouchableOpacity>
                       )}
                     </View>
 
@@ -4050,6 +4195,153 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.white,
     textTransform: "uppercase",
+  },
+  siteInfoOverlayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 8,
+  },
+  siteInfoLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  siteImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+  },
+  siteTextContainer: {
+    flex: 1,
+  },
+  siteName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.white,
+  },
+  sitePlanName: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
+  },
+  siteAddress: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  siteThumbnailWrap: {
+    position: 'relative',
+  },
+  siteThumbnailBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: COLORS.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  siteHeroLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.8)',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  siteNamePremium: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.white,
+    fontFamily: FontDisplay,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  sitePlanNamePremium: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.92)',
+    fontWeight: '600',
+  },
+  switch3dBtnPremium: {
+    borderRadius: 14,
+    overflow: 'hidden',
+    ...SHADOWS.medium,
+  },
+  switch3dGradientPremium: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  switch3dTextPremium: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  immersiveHintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  immersiveHintText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.white,
+  },
+  switch3dBtnMini: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    ...SHADOWS.small,
+  },
+  switch3dGradientMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 4,
+  },
+  switch3dTextMini: {
+    color: COLORS.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  switch3dBtn: {
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 3,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  switch3dGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  switch3dText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "bold",
   },
   selectedLocationHeroTitle: {
     fontSize: 22,

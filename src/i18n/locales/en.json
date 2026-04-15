@@ -1868,6 +1868,11 @@
     "prayersCount": "{{count}} Likes",
     "commentsCount": "{{count}} Comments",
     "share": "Share",
+    "filters": {
+      "all": "All",
+      "journal": "Spiritual Journal",
+      "planner": "Planner"
+    },
     "locatedAt": "At",
     "defaultLocation": "Notre Dame Cathedral of Saigon",
     "anonymousUser": "Anonymous user",
@@ -2156,6 +2161,7 @@
     "saving": "Saving...",
     "savePrivate": "Save Private",
     "saveJournal": "Save Journal",
+    "existingAudioFile": "Existing audio recording",
     "posting": "Posting...",
     "postPublic": "Post Public",
     "saveSuccessUpdate": "Journal updated{{shareMsg}}{{imagesMsg}}{{audioMsg}}",

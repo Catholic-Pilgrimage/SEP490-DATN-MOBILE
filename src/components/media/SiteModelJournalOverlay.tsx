@@ -31,7 +31,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { COLORS, SHADOWS, SPACING, BORDER_RADIUS } from "../../constants/theme.constants";
-import { getMyJournals, updateJournal } from "../../services/api/pilgrim/journalApi";
+import { getJournalDetail, getMyJournals, updateJournal } from "../../services/api/pilgrim/journalApi";
 import { JournalEntry, UpdateJournalRequest } from "../../types/pilgrim/journal.types";
 import { SiteMedia } from "../../types/pilgrim";
 import Toast from "react-native-toast-message";
@@ -76,6 +76,7 @@ const privacyLabel = (privacy?: string) => {
 
 interface Props {
   siteId: string;
+  journalId?: string;
   siteName?: string;
   siteCoverImage?: string;
   navigation?: any;
@@ -87,12 +88,14 @@ interface Props {
   isExpanded?: boolean;
   /** Callback to change expansion state */
   onToggleExpanded?: (val: boolean) => void;
+  visible: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const SiteModelJournalOverlay: React.FC<Props> = ({
   siteId,
+  journalId,
   siteName,
   siteCoverImage,
   navigation,
@@ -100,6 +103,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   currentMedia,
   isExpanded = false,
   onToggleExpanded,
+  visible,
 }) => {
   const [journal, setJournal] = useState<JournalEntry | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -543,6 +547,15 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     setIsLoading(true);
     (async () => {
       try {
+        if (journalId) {
+          const res = await getJournalDetail(journalId);
+          if (res.success && res.data && !cancelled) {
+            setJournal(res.data);
+            setIsLoading(false);
+            return;
+          }
+        }
+        
         const res = await getMyJournals({ siteId, limit: 20, page: 1 });
         const entries: JournalEntry[] = res?.data?.journals ?? [];
         if (cancelled || entries.length === 0) { setIsLoading(false); return; }
@@ -554,7 +567,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [siteId]);
+  }, [siteId, journalId]);
 
   if (isLoading || !journal) return null;
 
