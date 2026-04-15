@@ -19,6 +19,9 @@ interface ItineraryDayCardProps {
   setSelectedItem: (item: PlanItem | null) => void;
   handleReorderIconPress: (dayKey: string, item: PlanItem) => void;
   handleDeleteItem: (itemId: string) => void;
+  onReloadDayFromPrevious?: (dayNumber: number) => void;
+  reloadingDayNumber?: number | null;
+  showEtaSyncWarning?: boolean;
   openAddModal: (day: number) => void;
   t: (key: string, opts?: any) => string;
   getDateForDayCalc: (startDate: string, day: number) => string;
@@ -66,6 +69,9 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   setSelectedItem,
   handleReorderIconPress,
   handleDeleteItem,
+  onReloadDayFromPrevious,
+  reloadingDayNumber,
+  showEtaSyncWarning,
   openAddModal,
   t,
   getDateForDayCalc,
@@ -74,8 +80,76 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   formatTimeValueCalc,
   calculateEndTimeCalc,
 }) => {
+  const conflictedItemIds = React.useMemo(() => {
+    const toMinutes = (value: string): number | null => {
+      const m = value.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) return null;
+      const hh = Number(m[1]);
+      const mm = Number(m[2]);
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+      return hh * 60 + mm;
+    };
+
+    const seq = items
+      .map((item, index) => {
+        const start = formatTimeValueCalc(
+          item.estimated_time || item.arrival_time,
+        );
+        const end = calculateEndTimeCalc(
+          item.estimated_time || item.arrival_time,
+          item.rest_duration,
+        );
+        return {
+          id: item.id,
+          index,
+          startMinutes: toMinutes(start),
+          endMinutes: toMinutes(end),
+        };
+      })
+      .filter(
+        (
+          entry,
+        ): entry is {
+          id: string;
+          index: number;
+          startMinutes: number;
+          endMinutes: number | null;
+        } => !!entry.id && entry.startMinutes !== null,
+      )
+      .sort((a, b) => {
+        if (a.startMinutes !== b.startMinutes) {
+          return a.startMinutes - b.startMinutes;
+        }
+        return a.index - b.index;
+      });
+
+    const conflictIds = new Set<string>();
+    let latestEnd = -1;
+
+    seq.forEach((entry) => {
+      if (latestEnd >= 0 && entry.startMinutes < latestEnd) {
+        conflictIds.add(entry.id);
+      }
+      const safeEnd = entry.endMinutes ?? entry.startMinutes;
+      if (safeEnd > latestEnd) {
+        latestEnd = safeEnd;
+      }
+    });
+
+    return conflictIds;
+  }, [items, formatTimeValueCalc, calculateEndTimeCalc]);
+
   return (
     <View style={styles.dayContainer}>
+      {/** Sync warning is shown only for days flagged as timeline-dependent after add/delete changes. */}
+      {(() => {
+        const dayNumber = Number(dayKey);
+        const canReload =
+          isPlanOwner &&
+          !!showEtaSyncWarning &&
+          typeof onReloadDayFromPrevious === "function";
+
+        return (
       <View
         style={[
           styles.dayHeader,
@@ -92,6 +166,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             fontSize: 16,
             fontWeight: "700",
             color: COLORS.textPrimary,
+            flex: 1,
           }}
         >
           {t("planner.dayWithDate", {
@@ -100,7 +175,34 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             defaultValue: "Ngày {{day}} • {{date}}",
           })}
         </Text>
+        {canReload && (
+          <TouchableOpacity
+            onPress={() => onReloadDayFromPrevious(dayNumber)}
+            disabled={reloadingDayNumber === dayNumber}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              paddingHorizontal: 8,
+              paddingVertical: 6,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: "#FDE68A",
+              backgroundColor: "#FFFBEB",
+              opacity: reloadingDayNumber === dayNumber ? 0.6 : 1,
+            }}
+          >
+            <Ionicons name="warning-outline" size={14} color="#B45309" />
+            <Text style={{ fontSize: 12, fontWeight: "700", color: "#B45309" }}>
+              {reloadingDayNumber === dayNumber
+                ? t("planner.syncingEtaShort", { defaultValue: "Đang đồng bộ" })
+                : t("planner.syncShort", { defaultValue: "Đồng bộ" })}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
+        );
+      })()}
 
       <View style={styles.timelineContainer}>
         <View
@@ -166,6 +268,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             ).travel_distance_km;
             const swapSelected =
               swapPick?.dayKey === dayKey && swapPick?.itemId === item.id;
+            const hasTimeConflict = conflictedItemIds.has(item.id);
             const cardBody = (
               <View style={styles.itemCardInner}>
                 <TouchableOpacity
@@ -218,59 +321,38 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                         </Text>
                       </View>
                     </View>
-                    
-                    {/* Conflict Warning rendering */}
-                    {(() => {
-                      if (index > 0 && items[index - 1]) {
-                        const prevItem = items[index - 1];
-                        const prevEndTime = calculateEndTimeCalc(
-                          prevItem.estimated_time || prevItem.arrival_time,
-                          prevItem.rest_duration,
-                        );
-                        const currentStartTime = formatTimeValueCalc(
-                          item.estimated_time || item.arrival_time,
-                        );
-                        if (
-                          prevEndTime &&
-                          currentStartTime &&
-                          currentStartTime < prevEndTime &&
-                          prevEndTime <= "24:00"
-                        ) {
-                          return (
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                backgroundColor: "#FEF2F2",
-                                paddingVertical: 4,
-                                paddingHorizontal: 8,
-                                borderRadius: 6,
-                                marginTop: 6,
-                              }}
-                            >
-                              <Ionicons
-                                name="warning"
-                                size={14}
-                                color="#DC2626"
-                                style={{ marginRight: 4 }}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 12,
-                                  color: "#DC2626",
-                                  fontWeight: "500",
-                                }}
-                              >
-                                {t("planner.timeConflictWarning", {
-                                  defaultValue: "Thời gian bị chồng chéo",
-                                })}
-                              </Text>
-                            </View>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
+
+                    {hasTimeConflict && (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: "#FEF2F2",
+                          paddingVertical: 4,
+                          paddingHorizontal: 8,
+                          borderRadius: 6,
+                          marginTop: 6,
+                        }}
+                      >
+                        <Ionicons
+                          name="warning"
+                          size={14}
+                          color="#DC2626"
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: "#DC2626",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {t("planner.timeConflictWarning", {
+                            defaultValue: "Thời gian bị chồng chéo",
+                          })}
+                        </Text>
+                      </View>
+                    )}
                     {item.note && item.note !== "Visited" && (
                       <Text style={styles.itemNote} numberOfLines={1}>
                         {item.note}
@@ -384,7 +466,10 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                       <Ionicons name="car" size={14} color="#6B7280" />
                       <Text style={styles.travelText}>
                         {t("planner.travelDurationLabel", {
-                          duration: formatDurationLocalized(Math.max(1, Math.round(travelMinutes)), t),
+                          duration: formatDurationLocalized(
+                            Math.max(1, Math.round(travelMinutes)),
+                            t,
+                          ),
                           defaultValue: "Di chuyển {{duration}}",
                         })}
                         {typeof travelDistanceKm === "number"

@@ -524,9 +524,11 @@ export default function AddSiteModal({
           </View>
         </View>
       </View>
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
-        <Toast config={toastConfig} />
-      </View>
+      {visible ? (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999, elevation: 9999 }} pointerEvents="box-none">
+          <Toast config={toastConfig} />
+        </View>
+      ) : null}
     </Modal>
   );
 }
