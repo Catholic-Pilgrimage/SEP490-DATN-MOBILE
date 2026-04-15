@@ -15,9 +15,9 @@
  */
 
 import {
-    ApiResponse,
-    Pagination,
-    PaginationParams,
+  ApiResponse,
+  Pagination,
+  PaginationParams,
 } from "../../../types/api.types";
 import apiClient from "../apiClient";
 import { SHARED_ENDPOINTS } from "../endpoints";
@@ -39,31 +39,65 @@ export type NotificationType =
   // Shift (lịch trực)
   | "shift_assigned" // Lịch trực được duyệt
   | "shift_rejected" // Lịch trực bị từ chối
+  | "shift_submitted" // Local Guide gửi lịch trực chờ duyệt
 
   // Content approval results
+  | "site_update_submitted" // Yêu cầu cập nhật site được gửi
+  | "site_approved" // Site được duyệt
+  | "site_rejected" // Site bị từ chối
+  | "site_hidden" // Site bị ẩn
   | "media_approved" // Media được duyệt
   | "media_rejected" // Media bị từ chối
+  | "media_submitted" // Media được gửi chờ duyệt
   | "event_approved" // Sự kiện được duyệt
   | "event_rejected" // Sự kiện bị từ chối
+  | "event_submitted" // Sự kiện được gửi chờ duyệt
   | "schedule_approved" // Lịch lễ được duyệt
   | "schedule_rejected" // Lịch lễ bị từ chối
+  | "schedule_submitted" // Lịch lễ được gửi chờ duyệt
   | "nearby_place_approved" // Địa điểm lân cận được duyệt
   | "nearby_place_rejected" // Địa điểm lân cận bị từ chối
+  | "nearby_place_submitted" // Địa điểm lân cận được gửi chờ duyệt
+  | "narrative_approved" // Bài tường thuật được duyệt
+  | "narrative_rejected" // Bài tường thuật bị từ chối
+  | "content_deleted" // Nội dung bị xóa do vi phạm
+  | "content_warning" // Cảnh báo nội dung
+
+  // Admin / Manager
+  | "verification_submitted" // Có yêu cầu xác minh mới
+  | "site_registration_submitted" // Có yêu cầu đăng ký site mới
 
   // ========== PILGRIM NOTIFICATIONS ==========
   | "planner_invite" // Được mời tham gia kế hoạch
   | "planner_joined" // Có người tham gia kế hoạch
+  | "planner_kicked" // Bị mời ra khỏi kế hoạch
+  | "planner_deposit_refunded" // Hoàn cọc kế hoạch
+  | "planner_member_left" // Thành viên rời kế hoạch
   | "planner_first_checkin" // Có người check-in đầu tiên tại điểm
   | "planner_item_missed" // Bị đánh dấu vắng khi trưởng đoàn chốt
   | "planner_item_skipped" // Điểm bị bỏ qua (còn điểm sau)
   | "planner_item_skipped_last" // Điểm cuối bị bỏ qua
   | "planner_item_added" // Thêm địa điểm vào lịch
+  | "planner_started" // Kế hoạch bắt đầu
   | "planner_schedule_changed" // Thay đổi lịch / điểm tiếp theo
   | "favorite_site_update" // Site yêu thích có cập nhật
+  | "friend_request" // Nhận lời mời kết bạn
+  | "friend_accepted" // Lời mời kết bạn được chấp nhận
+  | "planner_friend_invite" // Bạn bè mời vào planner
+  | "post_liked" // Có người thích bài viết
+  | "post_commented" // Có người bình luận bài viết
+  | "post_comment_replied" // Có người trả lời bình luận
 
   // SOS
+  | "sos_created" // SOS vừa được tạo
+  | "sos_assigned_to_guide" // SOS được giao cho hướng dẫn viên
+  | "sos_planner_alert" // Cảnh báo SOS từ planner
   | "sos_assigned" // SOS được tiếp nhận
-  | "sos_resolved"; // SOS đã được giải quyết
+  | "sos_resolved"
+
+  // Review notifications
+  | "new_site_review"
+  | "review_replied"; // Có phản hồi đánh giá
 
 // DTO Types (Data Transfer Objects - from API)
 export interface NotificationDto {
@@ -257,21 +291,42 @@ const isReviewNotificationType = (type: string): boolean => {
 };
 
 export const isLocalGuideNotification = (type: string): boolean => {
-  return [
-    "local_guide_created",
-    "local_guide_disabled",
-    "local_guide_removed",
-    "shift_assigned",
-    "shift_rejected",
-    "media_approved",
-    "media_rejected",
-    "event_approved",
-    "event_rejected",
-    "schedule_approved",
-    "schedule_rejected",
-    "nearby_place_approved",
-    "nearby_place_rejected",
-  ].includes(type) || isReviewNotificationType(type);
+  return (
+    [
+      "local_guide_created",
+      "local_guide_disabled",
+      "local_guide_removed",
+      "shift_assigned",
+      "shift_rejected",
+      "shift_submitted",
+      "site_update_submitted",
+      "site_approved",
+      "site_rejected",
+      "site_hidden",
+      "media_approved",
+      "media_rejected",
+      "media_submitted",
+      "event_approved",
+      "event_rejected",
+      "event_submitted",
+      "schedule_approved",
+      "schedule_rejected",
+      "schedule_submitted",
+      "nearby_place_approved",
+      "nearby_place_rejected",
+      "nearby_place_submitted",
+      "narrative_approved",
+      "narrative_rejected",
+      "sos_created",
+      "sos_assigned_to_guide",
+      "verification_submitted",
+      "site_registration_submitted",
+      "content_deleted",
+      "content_warning",
+      "new_site_review",
+      "review_replied",
+    ].includes(type) || isReviewNotificationType(type)
+  );
 };
 
 /**
@@ -281,13 +336,25 @@ export const isPilgrimNotification = (type: string): boolean => {
   return [
     "planner_invite",
     "planner_joined",
+    "planner_kicked",
+    "planner_deposit_refunded",
+    "planner_member_left",
     "planner_first_checkin",
     "planner_item_missed",
     "planner_item_skipped",
     "planner_item_skipped_last",
     "planner_item_added",
+    "planner_started",
     "planner_schedule_changed",
     "favorite_site_update",
+    "friend_request",
+    "friend_accepted",
+    "planner_friend_invite",
+    "post_liked",
+    "post_commented",
+    "post_comment_replied",
+    "sos_created",
+    "sos_planner_alert",
     "sos_assigned",
     "sos_resolved",
   ].includes(type);
@@ -311,7 +378,9 @@ export const isPositiveNotification = (type: string): boolean => {
     "event_approved",
     "schedule_approved",
     "nearby_place_approved",
+    "narrative_approved",
     "planner_joined",
+    "friend_accepted",
     "sos_resolved",
   ].includes(type);
 };
@@ -328,6 +397,10 @@ export const isNegativeNotification = (type: string): boolean => {
     "event_rejected",
     "schedule_rejected",
     "nearby_place_rejected",
+    "site_hidden",
+    "content_deleted",
+    "content_warning",
+    "planner_kicked",
     "planner_item_missed",
   ].includes(type);
 };
@@ -337,7 +410,15 @@ export const isNegativeNotification = (type: string): boolean => {
  */
 export const getNotificationCategory = (
   type: string,
-): "account" | "shift" | "content" | "planner" | "sos" | "review" | "general" => {
+):
+  | "account"
+  | "shift"
+  | "content"
+  | "planner"
+  | "social"
+  | "sos"
+  | "review"
+  | "general" => {
   if (isReviewNotificationType(type)) {
     return "review";
   }
@@ -346,32 +427,70 @@ export const getNotificationCategory = (
       "local_guide_created",
       "local_guide_disabled",
       "local_guide_removed",
+      "verification_submitted",
+      "site_registration_submitted",
     ].includes(type)
   ) {
     return "account";
   }
-  if (["shift_assigned", "shift_rejected"].includes(type)) {
+  if (["shift_assigned", "shift_rejected", "shift_submitted"].includes(type)) {
     return "shift";
   }
-  if (isApprovalNotification(type)) {
+  if (
+    isApprovalNotification(type) ||
+    [
+      "site_update_submitted",
+      "site_hidden",
+      "media_submitted",
+      "event_submitted",
+      "schedule_submitted",
+      "nearby_place_submitted",
+      "content_deleted",
+      "content_warning",
+    ].includes(type)
+  ) {
     return "content";
   }
   if (
     [
       "planner_invite",
       "planner_joined",
+      "planner_kicked",
+      "planner_deposit_refunded",
+      "planner_member_left",
       "planner_first_checkin",
       "planner_item_missed",
       "planner_item_skipped",
       "planner_item_skipped_last",
       "planner_item_added",
+      "planner_started",
       "planner_schedule_changed",
       "favorite_site_update",
     ].includes(type)
   ) {
     return "planner";
   }
-  if (["sos_assigned", "sos_resolved"].includes(type)) {
+  if (
+    [
+      "post_liked",
+      "post_commented",
+      "post_comment_replied",
+      "friend_request",
+      "friend_accepted",
+      "planner_friend_invite",
+    ].includes(type)
+  ) {
+    return "social";
+  }
+  if (
+    [
+      "sos_created",
+      "sos_assigned_to_guide",
+      "sos_planner_alert",
+      "sos_assigned",
+      "sos_resolved",
+    ].includes(type)
+  ) {
     return "sos";
   }
   return "general";
@@ -391,6 +510,14 @@ export const getNotificationIcon = (type: string): string => {
       return isPositiveNotification(type) ? "checkmark-circle" : "close-circle";
     case "planner":
       return "map";
+    case "social":
+      if (type === "post_liked") return "heart";
+      if (type === "post_commented") return "chatbubble";
+      if (type === "post_comment_replied") return "chatbubbles";
+      if (type === "friend_request") return "person-add";
+      if (type === "friend_accepted") return "people";
+      if (type === "planner_friend_invite") return "people-circle";
+      return "chatbubble";
     case "review":
       return "star";
     case "sos":
@@ -406,6 +533,27 @@ export const getNotificationIcon = (type: string): string => {
  * Get notification color (for UI)
  */
 export const getNotificationColor = (type: string): string => {
+  if (type === "post_liked") {
+    return "#E91E63";
+  }
+  if (type === "post_commented" || type === "post_comment_replied") {
+    return "#5C6BC0";
+  }
+  if (type === "friend_request") {
+    return "#3F51B5";
+  }
+  if (type === "friend_accepted") {
+    return "#4CAF50";
+  }
+  if (type === "planner_friend_invite") {
+    return "#009688";
+  }
+  if (type === "sos_created" || type === "sos_planner_alert") {
+    return "#F44336";
+  }
+  if (type === "sos_assigned" || type === "sos_assigned_to_guide") {
+    return "#FF9800";
+  }
   if (getNotificationCategory(type) === "review") {
     return "#D4AF37";
   }

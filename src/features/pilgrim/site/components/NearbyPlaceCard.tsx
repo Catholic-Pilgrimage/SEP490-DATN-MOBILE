@@ -1,9 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BORDER_RADIUS, COLORS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 
-type PlaceType = 'hotel' | 'restaurant' | 'church' | 'medical' | 'other';
+type PlaceType =
+    | 'hotel'
+    | 'restaurant'
+    | 'church'
+    | 'medical'
+    | 'food'
+    | 'lodging'
+    | 'media'
+    | 'other';
 
 interface NearbyPlaceCardProps {
     name: string;
@@ -13,18 +21,20 @@ interface NearbyPlaceCardProps {
     onDirections?: () => void;
 }
 
-const getIconForType = (type: PlaceType): keyof typeof Ionicons.glyphMap => {
+const normalizeType = (type: PlaceType) => {
     switch (type) {
-        case 'hotel':
-            return 'bed-outline';
+        case 'food':
         case 'restaurant':
-            return 'restaurant-outline';
+            return 'restaurant' as const;
+        case 'lodging':
+        case 'hotel':
+            return 'hotel' as const;
+        case 'media':
         case 'church':
-            return 'business-outline';
         case 'medical':
-            return 'medkit-outline';
+            return 'media' as const;
         default:
-            return 'location-outline';
+            return 'other' as const;
     }
 };
 
@@ -35,15 +45,21 @@ export const NearbyPlaceCard: React.FC<NearbyPlaceCardProps> = ({
     address,
     onDirections,
 }) => {
+    const normalizedType = normalizeType(type);
+
     return (
         <View style={styles.container}>
             <View style={styles.leftSection}>
                 <View style={styles.iconContainer}>
-                    <Ionicons
-                        name={getIconForType(type)}
-                        size={20}
-                        color={COLORS.textSecondary}
-                    />
+                    {normalizedType === 'restaurant' ? (
+                        <Ionicons name="restaurant" size={20} color={COLORS.textSecondary} />
+                    ) : normalizedType === 'hotel' ? (
+                        <FontAwesome5 name="hotel" size={18} color={COLORS.textSecondary} />
+                    ) : normalizedType === 'media' ? (
+                        <MaterialIcons name="perm-media" size={20} color={COLORS.textSecondary} />
+                    ) : (
+                        <Ionicons name="location-outline" size={20} color={COLORS.textSecondary} />
+                    )}
                 </View>
                 <View style={styles.info}>
                     <Text style={styles.name}>{name}</Text>

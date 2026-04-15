@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -9,14 +9,21 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { useTranslation } from "react-i18next";
+import { VIETMAP_CONFIG } from "../../config/map.config";
 import { toastConfig } from "../../config/toast.config";
-import { MapPin, VietmapView, VietmapViewRef } from "./VietmapView";
+import {
+  MapPin,
+  MapPinGlyph,
+  VietmapView,
+  VietmapViewRef,
+} from "./VietmapView";
 import {
   COLORS,
   BORDER_RADIUS,
@@ -37,6 +44,7 @@ interface FullMapModalProps {
   tileUrlTemplate?: string;
   title?: string;
   showUserLocation?: boolean;
+  onUserLocationUpdate?: (location: { latitude: number; longitude: number }) => void;
   /** When provided, shows an "add place" FAB. Called with coordinates when user taps the button. */
   onAddPlace?: (coords: { latitude: number; longitude: number }) => void;
   /** When true, the next map tap will call onLocationSelected instead of normal behavior. */
@@ -56,6 +64,63 @@ interface FullMapModalProps {
   routeLoading?: boolean;
 }
 
+interface VietmapSearchItem {
+  ref_id?: string;
+  name?: string;
+  address?: string;
+  display?: string;
+  lat?: number | string;
+  lng?: number | string;
+}
+
+interface VietmapReverseItem {
+  address?: string;
+  display?: string;
+  name?: string;
+  housenumber?: string;
+  house_number?: string;
+  street?: string;
+  street_name?: string;
+  ward?: string;
+  district?: string;
+  province?: string;
+  city?: string;
+}
+
+const normalizeText = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
+
+const uniqueParts = (parts: string[]) => {
+  const seen = new Set<string>();
+  return parts.filter((part) => {
+    const key = part.toLowerCase();
+    if (!part || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const detailedAddressFromReverseItem = (item?: VietmapReverseItem): string => {
+  if (!item) return "";
+
+  const houseNo = normalizeText(item.housenumber) || normalizeText(item.house_number);
+  const street = normalizeText(item.street) || normalizeText(item.street_name);
+  const ward = normalizeText(item.ward);
+  const district = normalizeText(item.district);
+  const province = normalizeText(item.province) || normalizeText(item.city);
+
+  const roadPart = [houseNo, street].filter(Boolean).join(" ").trim();
+  const granular = uniqueParts([roadPart, ward, district, province]).join(", ");
+  if (granular) return granular;
+
+  const display = normalizeText(item.display);
+  const address = normalizeText(item.address);
+  const name = normalizeText(item.name);
+  if (display) return display;
+  if (name && address) return `${name}, ${address}`;
+  return address || name;
+};
+
 export const FullMapModal: React.FC<FullMapModalProps> = ({
   visible,
   onClose,
@@ -64,6 +129,7 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   tileUrlTemplate,
   title,
   showUserLocation = true,
+  onUserLocationUpdate,
   onAddPlace,
   isSelectingLocation = false,
   onLocationSelected,
@@ -78,16 +144,182 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<VietmapViewRef>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lastTapCoords, setLastTapCoords] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<VietmapSearchItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchMarkerPin, setSearchMarkerPin] = useState<MapPin | null>(null);
+  const initialRegionRef = useRef<{ latitude: number; longitude: number; zoom: number } | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      initialRegionRef.current = null;
+      return;
+    }
+    if (!initialRegionRef.current) {
+      initialRegionRef.current = {
+        latitude: initialRegion?.latitude || pins[0]?.latitude || 10.762622,
+        longitude: initialRegion?.longitude || pins[0]?.longitude || 106.660172,
+        zoom: initialRegion?.zoom || 15,
+      };
+    }
+  }, [visible, initialRegion, pins]);
+
+  const stableInitialRegion = useMemo(
+    () =>
+      initialRegionRef.current || {
+        latitude: initialRegion?.latitude || pins[0]?.latitude || 10.762622,
+        longitude: initialRegion?.longitude || pins[0]?.longitude || 106.660172,
+        zoom: initialRegion?.zoom || 15,
+      },
+    [initialRegion, pins],
+  );
+
+  const mergedPins = React.useMemo(() => {
+    if (isSelectingLocation) return pins;
+    if (!searchMarkerPin) return pins;
+    return [...pins, searchMarkerPin];
+  }, [isSelectingLocation, pins, searchMarkerPin]);
+
+  const runVietmapSearch = useCallback(async (query: string) => {
+    const keyword = query.trim();
+    if (keyword.length < 2) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    try {
+      setSearchLoading(true);
+      const searchUrl = `${VIETMAP_CONFIG.SEARCH_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&text=${encodeURIComponent(keyword)}`;
+      const response = await fetch(searchUrl);
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setSearchResults(data.slice(0, 6));
+      } else {
+        setSearchResults([]);
+      }
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchText(value);
+
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+
+      if (value.trim().length < 2) {
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+
+      searchDebounceRef.current = setTimeout(() => {
+        void runVietmapSearch(value);
+      }, 350);
+    },
+    [runVietmapSearch],
+  );
+
+  const resolveSearchCoordinates = useCallback(async (item: VietmapSearchItem) => {
+    const lat = Number(item.lat);
+    const lng = Number(item.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      return { latitude: lat, longitude: lng };
+    }
+
+    if (!item.ref_id) return null;
+
+    try {
+      const detailUrl = `${VIETMAP_CONFIG.PLACE_DETAIL_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&refid=${item.ref_id}`;
+      const detailRes = await fetch(detailUrl);
+      const detailData = await detailRes.json();
+      const detailLat = Number(detailData?.lat);
+      const detailLng = Number(detailData?.lng);
+      if (Number.isFinite(detailLat) && Number.isFinite(detailLng)) {
+        return { latitude: detailLat, longitude: detailLng };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const reverseGeocodeLabel = useCallback(async (coords: { latitude: number; longitude: number }) => {
+    try {
+      const reverseUrl = `${VIETMAP_CONFIG.REVERSE_GEOCODING_URL}?apikey=${VIETMAP_CONFIG.SERVICES_KEY}&lat=${coords.latitude}&lng=${coords.longitude}&display_type=1`;
+      const reverseRes = await fetch(reverseUrl);
+      const reverseData = await reverseRes.json();
+      const candidates: VietmapReverseItem[] = Array.isArray(reverseData)
+        ? reverseData
+        : Array.isArray(reverseData?.value)
+          ? reverseData.value
+          : [];
+
+      // Prefer the most specific candidate (usually longer formatted address).
+      const best = candidates
+        .map((item) => detailedAddressFromReverseItem(item as VietmapReverseItem))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length)[0];
+
+      return best || `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+    } catch {
+      return `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`;
+    }
+  }, []);
+
+  const handleSearchResultPress = useCallback(
+    async (item: VietmapSearchItem) => {
+      const label = item.name || item.display || item.address || searchText;
+      setSearchText(label);
+      setSearchResults([]);
+
+      const coordinates = await resolveSearchCoordinates(item);
+      if (!coordinates) {
+        Toast.show({
+          type: "error",
+          text1: "Không tìm thấy vị trí",
+          text2: "Không lấy được tọa độ từ kết quả VietMap",
+        });
+        return;
+      }
+
+      mapRef.current?.flyTo(coordinates.latitude, coordinates.longitude, 16);
+      setSearchMarkerPin({
+        id: "search-location-pin",
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        title: label,
+        subtitle: item.address || item.display,
+        color: "#8B3A3A",
+      });
+    },
+    [resolveSearchCoordinates, searchText],
+  );
+
+  React.useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
 
   const handleFitAllPins = useCallback(() => {
-    if (pins.length === 0) return;
+    if (mergedPins.length === 0) return;
 
-    const lats = pins.map((p) => p.latitude);
-    const lngs = pins.map((p) => p.longitude);
+    const lats = mergedPins.map((p) => p.latitude);
+    const lngs = mergedPins.map((p) => p.longitude);
 
     const minLat = Math.min(...lats);
     const maxLat = Math.max(...lats);
@@ -107,7 +339,7 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
     if (maxDiff > 1) zoom = 8;
 
     mapRef.current?.flyTo(centerLat, centerLng, zoom);
-  }, [pins]);
+  }, [mergedPins]);
 
   const handlePinChipPress = useCallback((pin: MapPin) => {
     mapRef.current?.flyTo(pin.latitude, pin.longitude, 16);
@@ -115,29 +347,39 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
   }, []);
 
   const handleMapPress = useCallback(
-    (event: { latitude: number; longitude: number }) => {
+    async (event: { latitude: number; longitude: number }) => {
       if (isSelectingLocation && onLocationSelected) {
         onLocationSelected(event);
-        return;
       }
       if (onAddPlace) {
         setLastTapCoords(event);
       }
-    },
-    [onAddPlace, isSelectingLocation, onLocationSelected],
-  );
 
-  const mapPressEnabled =
-    (isSelectingLocation && onLocationSelected) || onAddPlace;
+      const address = await reverseGeocodeLabel(event);
+      setSearchText(address);
+      setSearchResults([]);
+      if (!isSelectingLocation) {
+        setSearchMarkerPin({
+          id: "search-location-pin",
+          latitude: event.latitude,
+          longitude: event.longitude,
+          title: address,
+          subtitle: t("map.selectedLocation", { defaultValue: "Vị trí đã chọn" }),
+          color: "#8B3A3A",
+        });
+      }
+    },
+    [onAddPlace, isSelectingLocation, onLocationSelected, reverseGeocodeLabel, t],
+  );
 
   const handleAddPress = useCallback(() => {
     if (!onAddPlace) return;
     const coords = lastTapCoords || {
-      latitude: initialRegion?.latitude || pins[0]?.latitude || 10.762622,
-      longitude: initialRegion?.longitude || pins[0]?.longitude || 106.660172,
+      latitude: stableInitialRegion.latitude,
+      longitude: stableInitialRegion.longitude,
     };
     onAddPlace(coords);
-  }, [onAddPlace, lastTapCoords, initialRegion, pins]);
+  }, [onAddPlace, lastTapCoords, stableInitialRegion]);
 
   return (
     <Modal
@@ -159,7 +401,62 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
           </TouchableOpacity>
         </View>
 
-        {pins.length > 0 && (
+        <View style={styles.searchBarWrap}>
+          <View style={styles.searchBar}>
+            <MaterialIcons name="search" size={18} color={COLORS.textSecondary} />
+            <TextInput
+              value={searchText}
+              onChangeText={handleSearchChange}
+              placeholder={t("siteDetail.searchNearbyPlaceholder", {
+                defaultValue: "Tìm vị trí trên VietMap...",
+              })}
+              placeholderTextColor={COLORS.textTertiary}
+              style={styles.searchInput}
+              returnKeyType="search"
+            />
+            {searchLoading ? (
+              <ActivityIndicator size="small" color={COLORS.accent} />
+            ) : searchText.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setSearchText("");
+                  setSearchResults([]);
+                  setSearchMarkerPin(null);
+                }}
+              >
+                <MaterialIcons name="close" size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {searchResults.length > 0 && (
+            <View style={styles.searchResultList}>
+              {searchResults.map((item, idx) => (
+                <TouchableOpacity
+                  key={`${item.ref_id || item.name || "result"}-${idx}`}
+                  style={styles.searchResultItem}
+                  activeOpacity={0.75}
+                  onPress={() => {
+                    void handleSearchResultPress(item);
+                  }}
+                >
+                  <MaterialIcons name="place" size={16} color={COLORS.accent} />
+                  <View style={styles.searchResultTextWrap}>
+                    <Text style={styles.searchResultTitle} numberOfLines={1}>
+                      {item.name || item.display || item.address || "Địa điểm"}
+                    </Text>
+                    {!!item.address && (
+                      <Text style={styles.searchResultSubtitle} numberOfLines={1}>
+                        {item.address}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {mergedPins.length > 0 && (
           <View style={styles.legendBar}>
             <ScrollView
               horizontal
@@ -173,25 +470,51 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
               >
                 <MaterialIcons name="place" size={14} color={COLORS.accent} />
                 <Text style={styles.pinChipAllText}>
-                  {pins.length} {t("map.location").toLowerCase()}
+                  {mergedPins.length} {t("map.location").toLowerCase()}
                 </Text>
               </TouchableOpacity>
 
-              {pins.map((pin) => (
+              {mergedPins.map((pin) => (
                 <TouchableOpacity
                   key={pin.id}
                   style={styles.pinChip}
                   onPress={() => handlePinChipPress(pin)}
                   activeOpacity={0.7}
                 >
-                  <View
-                    style={[
-                      styles.pinChipDot,
-                      { backgroundColor: pin.color || COLORS.accent },
-                    ]}
-                  >
-                    <Text style={styles.pinChipEmoji}>{pin.icon || "📍"}</Text>
-                  </View>
+                  {pin.chipPlainIcon ? (
+                    <MapPinGlyph
+                      icon={pin.chipUseDefaultPin ? undefined : pin.icon}
+                      markerType={
+                        pin.chipUseDefaultPin
+                          ? undefined
+                          : (pin.chipMarkerType ?? pin.markerType)
+                      }
+                      color={pin.chipIconColor || pin.color || COLORS.accent}
+                      size={14}
+                    />
+                  ) : (
+                    <View
+                      style={[
+                        styles.pinChipDot,
+                        { backgroundColor: pin.color || COLORS.accent },
+                      ]}
+                    >
+                      {pin.icon && /^\d+$/.test(pin.icon) ? (
+                        <Text style={styles.pinChipNumber}>{pin.icon}</Text>
+                      ) : (
+                        <MapPinGlyph
+                          icon={pin.chipUseDefaultPin ? undefined : pin.icon}
+                          markerType={
+                            pin.chipUseDefaultPin
+                              ? undefined
+                              : (pin.chipMarkerType ?? pin.markerType)
+                          }
+                          color={pin.chipIconColor || COLORS.white}
+                          size={12}
+                        />
+                      )}
+                    </View>
+                  )}
                   <Text style={styles.pinChipText} numberOfLines={1}>
                     {pin.title}
                   </Text>
@@ -204,16 +527,11 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
         <View style={styles.mapWrapper}>
           <VietmapView
             ref={mapRef}
-            initialRegion={
-              initialRegion || {
-                latitude: pins[0]?.latitude || 10.762622,
-                longitude: pins[0]?.longitude || 106.660172,
-                zoom: 15,
-              }
-            }
-            pins={pins}
+            initialRegion={stableInitialRegion}
+            pins={mergedPins}
             showUserLocation={showUserLocation}
-            onMapPress={mapPressEnabled ? handleMapPress : undefined}
+            onUserLocationUpdate={onUserLocationUpdate}
+            onMapPress={handleMapPress}
             tileUrlTemplate={tileUrlTemplate}
             style={styles.map}
             tapRelocatesPin={tapRelocatesPin}
@@ -243,6 +561,14 @@ export const FullMapModal: React.FC<FullMapModalProps> = ({
                 { paddingBottom: SPACING.md + insets.bottom },
               ]}
             >
+              {!!searchText && (
+                <View style={styles.selectedAddressCard}>
+                  <MaterialIcons name="place" size={16} color={COLORS.accent} />
+                  <Text style={styles.selectedAddressText} numberOfLines={2}>
+                    {searchText}
+                  </Text>
+                </View>
+              )}
               <Text style={styles.selectionHint}>
                 {t("locationsTab.modal.selectOnMapHint")}
               </Text>
@@ -329,6 +655,61 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  searchBarWrap: {
+    backgroundColor: COLORS.parchment,
+    paddingHorizontal: SPACING.md,
+    paddingBottom: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  searchBar: {
+    height: 42,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: SPACING.sm + 4,
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: TYPOGRAPHY.fontSize.md,
+    paddingVertical: 0,
+  },
+  searchResultList: {
+    marginTop: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  searchResultItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: SPACING.sm + 4,
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.borderLight,
+  },
+  searchResultTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  searchResultTitle: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+  },
+  searchResultSubtitle: {
+    fontSize: TYPOGRAPHY.fontSize.xs,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
   legendBar: {
     backgroundColor: COLORS.parchment,
     borderBottomWidth: 1,
@@ -377,8 +758,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  pinChipEmoji: {
-    fontSize: 11,
+  pinChipNumber: {
+    fontSize: 10,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.white,
   },
   pinChipText: {
     fontSize: TYPOGRAPHY.fontSize.sm,
@@ -438,6 +821,25 @@ const styles = StyleSheet.create({
         elevation: 12,
       },
     }),
+  },
+  selectedAddressCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm + 2,
+    paddingVertical: SPACING.sm,
+    marginBottom: SPACING.sm,
+  },
+  selectedAddressText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textPrimary,
+    fontWeight: TYPOGRAPHY.fontWeight.medium,
   },
   selectionHint: {
     fontSize: TYPOGRAPHY.fontSize.sm,

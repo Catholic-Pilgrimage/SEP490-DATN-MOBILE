@@ -11,22 +11,23 @@
 export type { SOSEntity, SOSStatus } from "../pilgrim/sos.types";
 
 export interface GuideSOSListParams {
-    page?: number;
-    limit?: number;
-    status?: import("../pilgrim/sos.types").SOSStatus;
-    show_all?: boolean;
+  page?: number;
+  limit?: number;
+  status?: import("../pilgrim/sos.types").SOSStatus;
+  show_all?: boolean;
 }
 
 export interface GetGuideSOSListResponse {
-    sosRequests: import("../pilgrim/sos.types").SOSEntity[];
-    pagination: {
-        page: number;
-        limit: number;
-        totalItems: number;
-        totalPages: number;
-    };
+  sosRequests: import("../pilgrim/sos.types").SOSEntity[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }
 
 export interface ResolveSOSRequest {
-    notes?: string;
+  note?: string;
+  notes?: string;
 }

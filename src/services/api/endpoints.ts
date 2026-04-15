@@ -157,6 +157,7 @@ export const PILGRIM_ENDPOINTS = {
   // Friendship - Social relations
   FRIENDSHIP: {
     LIST: `${API_BASE}/friendships`,
+    SEARCH: `${API_BASE}/friendships/search`,
     REQUEST: `${API_BASE}/friendships/request`,
     RESPOND: (id: string) => `${API_BASE}/friendships/${id}/respond`,
     REMOVE: (friendId: string) => `${API_BASE}/friendships/${friendId}`,

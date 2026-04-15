@@ -22,15 +22,15 @@ const DAY_ROUTE_COLORS = [
 export const usePlanRoute = (
   plan: PlanEntity | null,
   isOffline: boolean,
+  currentLocation?: RoutePoint | null,
 ): PlanRouteResult => {
   const [routeCoordinates, setRouteCoordinates] = useState<LngLat[]>([]);
   const [routeSegments, setRouteSegments] = useState<{ coordinates: LngLat[]; color?: string }[]>([]);
   const [routeSummary, setRouteSummary] = useState<string>("");
   const [routeLoading, setRouteLoading] = useState(false);
-  const [hasCalcRoute, setHasCalcRoute] = useState(false);
 
   useEffect(() => {
-    if (hasCalcRoute || !plan?.items_by_day || isOffline) return;
+    if (!plan?.items_by_day || isOffline) return;
 
     const calculatePlanRoute = async () => {
       // Collect all waypoints ordered by day then by leg_number/order
@@ -56,7 +56,8 @@ export const usePlanRoute = (
         }
       }
 
-      if (waypoints.length < 2) {
+      const minWaypoints = currentLocation ? 1 : 2;
+      if (waypoints.length < minWaypoints) {
         setRouteCoordinates([]);
         setRouteSegments([]);
         setRouteSummary("");
@@ -65,6 +66,51 @@ export const usePlanRoute = (
 
       try {
         setRouteLoading(true);
+        // If we already know user location, draw guidance from user -> each destination.
+        if (currentLocation?.latitude && currentLocation?.longitude) {
+          const requests = waypoints.map((to, index) =>
+            vietmapService
+              .calculateRouteWithGeometry(currentLocation, to)
+              .then((route) => ({ route, index }))
+              .catch(() => null),
+          );
+          const responses = await Promise.all(requests);
+          const valid = responses
+            .filter((entry): entry is { route: Awaited<ReturnType<typeof vietmapService.calculateRouteWithGeometry>>; index: number } => entry !== null)
+            .sort((a, b) => a.index - b.index);
+
+          if (valid.length) {
+            const segs = valid.map(({ route, index }) => ({
+              coordinates: route.coordinates,
+              color: DAY_ROUTE_COLORS[index % DAY_ROUTE_COLORS.length],
+            }));
+            const merged: LngLat[] = segs.flatMap((seg) => seg.coordinates);
+
+            const totalKm = valid.reduce((sum, entry) => sum + entry.route.distanceKm, 0);
+            const totalMin = valid.reduce((sum, entry) => sum + entry.route.durationMinutes, 0);
+            const distText = totalKm < 1
+              ? `${Math.round(totalKm * 1000)} m`
+              : `${totalKm.toFixed(1)} km`;
+            let timeText: string;
+            if (totalMin < 60) {
+              timeText = `${totalMin} phút`;
+            } else {
+              const h = Math.floor(totalMin / 60);
+              const m = totalMin % 60;
+              timeText = m === 0 ? `${h} giờ` : `${h} giờ ${m} phút`;
+            }
+
+            setRouteCoordinates(merged);
+            setRouteSegments(segs);
+            setRouteSummary(`Từ vị trí của bạn: ${distText} • ${timeText} • ${valid.length} điểm`);
+          } else {
+            setRouteCoordinates([]);
+            setRouteSegments([]);
+            setRouteSummary("");
+          }
+          return;
+        }
+
         const result = await vietmapService.calculateMultiPointRoute(waypoints);
 
         if (result.allCoordinates.length >= 2) {
@@ -92,18 +138,23 @@ export const usePlanRoute = (
           setRouteSummary(
             `Tổng: ${distText} • ${timeText} • ${waypoints.length} điểm dừng`,
           );
+        } else {
+          setRouteCoordinates([]);
+          setRouteSegments([]);
+          setRouteSummary("");
         }
       } catch (err) {
         console.log("Route calculation failed:", err);
         setRouteSummary("");
+        setRouteCoordinates([]);
+        setRouteSegments([]);
       } finally {
         setRouteLoading(false);
-        setHasCalcRoute(true);
       }
     };
 
     calculatePlanRoute();
-  }, [hasCalcRoute, plan?.items_by_day, isOffline]);
+  }, [plan?.items_by_day, isOffline, currentLocation?.latitude, currentLocation?.longitude]);
 
   return { routeCoordinates, routeSegments, routeSummary, routeLoading };
 };

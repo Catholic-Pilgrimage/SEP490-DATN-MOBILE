@@ -117,6 +117,9 @@ const NotificationsScreen = ({ navigation }: any) => {
         color = "#B8860B";
         bg = "rgba(184, 134, 11, 0.12)";
         break;
+      case "social":
+        bg = `${color}1F`;
+        break;
       case "sos":
         name = "alert-circle";
         color = "#D32F2F";
@@ -127,10 +130,22 @@ const NotificationsScreen = ({ navigation }: any) => {
           name = "checkmark-circle";
           color = "#388E3C";
           bg = "rgba(56, 142, 60, 0.12)";
-        } else {
+        } else if (
+          type.includes("rejected") ||
+          ["site_hidden", "content_deleted", "content_warning"].includes(type)
+        ) {
           name = "close-circle";
           color = "#D32F2F";
           bg = "rgba(211, 47, 47, 0.12)";
+        } else if (
+          type.endsWith("_submitted") ||
+          type === "site_update_submitted"
+        ) {
+          name = "document-text";
+          color = "#1976D2";
+          bg = "rgba(25, 118, 210, 0.12)";
+        } else {
+          bg = `${color}15`;
         }
         break;
       case "account":

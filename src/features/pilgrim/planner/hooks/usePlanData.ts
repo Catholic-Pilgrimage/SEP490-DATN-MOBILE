@@ -73,7 +73,8 @@ export const usePlanData = (planId: string) => {
           title: item.site.name,
           subtitle: `Ngày ${dayKey}`,
           color: "#cfaa3a",
-          icon: "📍",
+          icon: "⛪",
+          markerType: "site",
         });
       });
     });
