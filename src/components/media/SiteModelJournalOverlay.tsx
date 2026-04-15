@@ -9,6 +9,8 @@
  */
 
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 import { Audio, Video, ResizeMode } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -23,12 +25,18 @@ import {
   PanResponder,
   ActivityIndicator,
   Modal,
+  TextInput,
+  Platform,
+  Keyboard,
+  KeyboardAvoidingView,
 } from "react-native";
 import { COLORS, SHADOWS, SPACING, BORDER_RADIUS } from "../../constants/theme.constants";
-import { getMyJournals } from "../../services/api/pilgrim/journalApi";
-import { JournalEntry } from "../../types/pilgrim/journal.types";
+import { getMyJournals, updateJournal } from "../../services/api/pilgrim/journalApi";
+import { JournalEntry, UpdateJournalRequest } from "../../types/pilgrim/journal.types";
 import { SiteMedia } from "../../types/pilgrim";
 import Toast from "react-native-toast-message";
+import { MediaPickerModal } from "../common/MediaPickerModal";
+import { AudioPickerModal } from "../common/AudioPickerModal";
 
 const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
 
@@ -114,12 +122,32 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   // Media preview state
   type MediaItem = { type: 'image' | 'video', uri: string };
   const [previewMedia, setPreviewMedia] = useState<MediaItem | null>(null);
+  
+  // Edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // New Media Management State
+  const [remainingImages, setRemainingImages] = useState<string[]>([]);
+  const [newImages, setNewImages] = useState<string[]>([]);
+  const [isAudioDeleted, setIsAudioDeleted] = useState(false);
+  const [newAudioUri, setNewAudioUri] = useState<string | null>(null);
+  const [isVideoDeleted, setIsVideoDeleted] = useState(false);
+  const [newVideoUri, setNewVideoUri] = useState<string | null>(null);
+
+  // Picker Modals
+  const [mediaPickerVisible, setMediaPickerVisible] = useState(false);
+  const [audioPickerVisible, setAudioPickerVisible] = useState(false);
 
   // Animations
   const panelAnim = useRef(new Animated.Value(0)).current; // 0=collapsed, 1=expanded
+  const keyboardShift = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
-  const entryAlpha = useRef(new Animated.Value(0)).current; // For fade-in on mount/show
+  const entryAlpha = useRef(new Animated.Value(0)).current; 
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   // Draggable state
   const pan = useRef(new Animated.ValueXY()).current;
@@ -168,6 +196,92 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
       await journalSoundRef.current.stopAsync();
       setIsPlayingJournal(false);
     }
+  };
+
+  const narrationAudioUrl = currentMedia?.audio_url;
+
+  useEffect(() => {
+    if (!journal) return;
+    setEditTitle(journal.title);
+    setEditContent(journal.content);
+    setRemainingImages(journal.image_url || []);
+  }, [journal]);
+
+  const handleStartEdit = () => {
+    if (!journal) return;
+    setEditTitle(journal.title);
+    setEditContent(journal.content);
+    setRemainingImages(journal.image_url || []);
+    setNewImages([]);
+    setNewVideoUri(null);
+    setNewAudioUri(null);
+    setIsAudioDeleted(false);
+    setIsVideoDeleted(false);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    Keyboard.dismiss();
+    setIsEditing(false);
+    setEditTitle(journal?.title || "");
+    setEditContent(journal?.content || "");
+    setNewImages([]);
+    setNewVideoUri(null);
+    setNewAudioUri(null);
+    setIsAudioDeleted(false);
+    setIsVideoDeleted(false);
+  };
+
+  const handleSaveUpdate = async () => {
+    if (!journal) return;
+    if (!editTitle.trim() || !editContent.trim()) {
+      Toast.show({ type: "error", text1: "Thiếu thông tin", text2: "Tiêu đề và nội dung không được để trống" });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const updateData: UpdateJournalRequest = {
+        title: editTitle.trim(),
+        content: editContent.trim(),
+        image_url: remainingImages,
+        images: newImages,
+        audio: newAudioUri || undefined,
+        video: newVideoUri || undefined,
+        clear_audio: isAudioDeleted && !newAudioUri,
+        clear_video: isVideoDeleted && !newVideoUri,
+      };
+
+      const res = await updateJournal(journal.id, updateData);
+      if (res.success && res.data) {
+        setJournal(res.data);
+        setIsEditing(false);
+        Toast.show({ type: "success", text1: "Thành công", text2: "Đã cập nhật nhật ký" });
+      }
+    } catch (error) {
+      console.error("Update journal error:", error);
+      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể cập nhật nhật ký" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeImage = (uri: string, isNew: boolean) => {
+    if (isNew) {
+      setNewImages(prev => prev.filter(i => i !== uri));
+    } else {
+      setRemainingImages(prev => prev.filter(i => i !== uri));
+    }
+  };
+
+  const removeVideo = () => {
+    setIsVideoDeleted(true);
+    setNewVideoUri(null);
+  };
+
+  const removeAudio = () => {
+    setIsAudioDeleted(true);
+    setNewAudioUri(null);
   };
 
   const toggleNarration = async () => {
@@ -221,7 +335,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   };
 
   const toggleJournalAudio = async () => {
-    const audioUrl = journal?.audio_url;
+    const audioUrl = newAudioUri || journal?.audio_url;
     if (!audioUrl) return;
 
     try {
@@ -294,27 +408,133 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     );
     pulse.start();
     glow.start();
-    return () => { pulse.stop(); glow.stop(); };
-  }, [journal]);
+}, [journal]);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setIsKeyboardVisible(true);
+        Animated.timing(keyboardShift, {
+          toValue: -e.endCoordinates.height + (Platform.OS === "android" ? 0 : 0),
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setIsKeyboardVisible(false);
+        Animated.timing(keyboardShift, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardShift]);
+
+  const handlePickAudio = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "audio/*",
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const uri = result.assets[0].uri;
+        setNewAudioUri(uri);
+        setIsAudioDeleted(false);
+        // Reset player for new audio
+        if (journalSoundRef.current) {
+          await journalSoundRef.current.unloadAsync();
+          journalSoundRef.current = null;
+        }
+        setIsPlayingJournal(false);
+        setJournalDuration(0);
+        setJournalPosition(0);
+      }
+    } catch (error) {
+      console.error("Error picking audio:", error);
+      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể chọn tệp âm thanh" });
+    }
+  };
+
+  // Audio Recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const recordingInterval = useRef<NodeJS.Timeout | null>(null);
+
+  const startRecording = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Toast.show({ type: "error", text1: "Quyền truy cập", text2: "Cần quyền Micro để ghi âm" });
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(newRecording);
+      setIsRecording(true);
+      setRecordingDuration(0);
+      
+      recordingInterval.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể bắt đầu ghi âm" });
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    try {
+      setIsRecording(false);
+      if (recordingInterval.current) clearInterval(recordingInterval.current);
+      
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      if (uri) {
+        setNewAudioUri(uri);
+        setIsAudioDeleted(false);
+        // Reset player for new recording
+        if (journalSoundRef.current) {
+          await journalSoundRef.current.unloadAsync();
+          journalSoundRef.current = null;
+        }
+        setIsPlayingJournal(false);
+        setJournalDuration(0);
+        setJournalPosition(0);
+      }
+      setRecording(null);
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+    }
+  };
 
   // Panel slide
   useEffect(() => {
-    Animated.spring(panelAnim, {
+    Animated.timing(panelAnim, {
       toValue: isExpanded ? 1 : 0,
-      useNativeDriver: true,
-      speed: 18,
-      bounciness: 4,
-    }).start();
-  }, [isExpanded]);
-
-  // Fade in on appear
-  useEffect(() => {
-    Animated.timing(entryAlpha, {
-      toValue: 1,
-      duration: 400,
+      duration: 450,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [isExpanded, panelAnim]);
 
   // Fetch journal
   useEffect(() => {
@@ -353,156 +573,300 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
 
   return (
     <View style={styles.root} pointerEvents="box-none">
-      {/* ── Panel card ── */}
-      <Animated.View
-        style={[
-          styles.panel,
-          {
-            transform: [{ translateY: panelTranslateY }],
-            paddingBottom: bottomInset + 12,
-          },
-        ]}
-        pointerEvents={isExpanded ? "box-none" : "none"}
-      >
-        {/* Panel header */}
-        <View style={styles.panelHeader}>
-          <View style={styles.panelHeaderLeft}>
-            <MaterialCommunityIcons name="book-open-page-variant" size={18} color="#8B6914" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.panelHeaderTitle}>NHẬT KÝ TÂM LINH</Text>
-              <Text style={styles.panelSiteName} numberOfLines={1}>{siteName}</Text>
+        <Animated.View
+          style={[
+            styles.panel,
+            {
+              transform: [
+                { translateY: panelTranslateY },
+                { translateY: keyboardShift },
+              ],
+              paddingBottom: isKeyboardVisible ? 2 : (bottomInset + 12),
+            },
+          ]}
+          pointerEvents={isExpanded ? "box-none" : "none"}
+        >
+          {/* Panel header */}
+          <View style={styles.panelHeader}>
+            <View style={styles.panelHeaderLeft}>
+              <MaterialCommunityIcons name="book-open-page-variant" size={18} color="#8B6914" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.panelHeaderTitle}>NHẬT KÝ TÂM LINH</Text>
+                <Text style={styles.panelSiteName} numberOfLines={1}>{siteName}</Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.panelHeaderRight}>
-            {hasNarrationAudio && (
-              <TouchableOpacity
-                style={[styles.audioIconBtn, isPlayingNarration && styles.audioIconBtnActive]}
-                onPress={toggleNarration}
-                activeOpacity={0.7}
-              >
-                {narrationLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.accent} />
-                ) : (
-                  <MaterialIcons
-                    name={isPlayingNarration ? "pause" : "record-voice-over"}
-                    size={20}
-                    color={isPlayingNarration ? "#fff" : COLORS.accent}
-                  />
-                )}
-                {isPlayingNarration && <View style={styles.playingWave} />}
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => onToggleExpanded?.(false)}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <Ionicons name="close" size={18} color="#6B5307" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Divider */}
-        <View style={styles.divider} />
-
-        {/* Body */}
-        <View style={[styles.panelBody, showScript && { marginTop: 0 }]}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled
-          >
-            <Text style={styles.journalTitle}>{journal.title}</Text>
-            <Text style={styles.journalContent}>{journal.content}</Text>
-
-            {/* Journal Audio Player (Waveform Style) */}
-            {journal.audio_url && (
-              <View style={[styles.journalAudioCard, { marginTop: 12, marginBottom: 4 }]}>
-                <TouchableOpacity 
-                  style={styles.journalPlayBtn} 
-                  onPress={toggleJournalAudio}
-                  activeOpacity={0.8}
+            <View style={styles.panelHeaderRight}>
+              {hasNarrationAudio && (
+                <TouchableOpacity
+                  style={[styles.audioIconBtn, isPlayingNarration && styles.audioIconBtnActive]}
+                  onPress={toggleNarration}
+                  activeOpacity={0.7}
                 >
-                  {journalAudioLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                  {narrationLoading ? (
+                    <ActivityIndicator size="small" color={COLORS.accent} />
                   ) : (
-                    <MaterialIcons 
-                      name={isPlayingJournal ? "pause" : "play-arrow"} 
-                      size={20} 
-                      color="#fff" 
+                    <MaterialIcons
+                      name={isPlayingNarration ? "pause" : "record-voice-over"}
+                      size={20}
+                      color={isPlayingNarration ? "#fff" : COLORS.accent}
                     />
                   )}
+                  {isPlayingNarration && <View style={styles.playingWave} />}
                 </TouchableOpacity>
+              )}
 
-                {/* Simplified Waveform Visualization */}
-                <View style={styles.waveformContainer}>
-                  {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.4, 0.7, 0.5, 0.4, 0.6, 0.8, 0.5, 0.9, 0.6, 0.4, 0.7, 0.5, 0.4, 0.6, 0.8, 0.4, 0.5, 0.7, 0.6].map((h, i) => {
-                    // Highlight bars based on current position
-                    const progress = journalDuration > 0 ? (journalPosition / journalDuration) * 25 : 0;
-                    const isActive = i < progress;
-                    return (
-                      <View 
-                        key={i} 
-                        style={[
-                          styles.waveBar, 
-                          { height: 16 * h },
-                          isActive && { backgroundColor: COLORS.accent }
-                        ]} 
-                      />
-                    );
-                  })}
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => onToggleExpanded?.(false)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={18} color="#6B5307" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Body */}
+          <View style={[styles.panelBody, showScript && { marginTop: 0 }]}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {isEditing ? (
+                <View style={[styles.editForm, { maxHeight: SCREEN_H * 0.14 }]}>
+                  {isRecording && (
+                    <View style={styles.recordingOverlay}>
+                      <View style={styles.recordingDot} />
+                      <Text style={styles.recordingTimer}>{Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</Text>
+                      <TouchableOpacity style={styles.stopRecordingBtn} onPress={stopRecording}>
+                        <MaterialIcons name="stop" size={20} color="#FFF" />
+                        <Text style={styles.stopRecordingText}>Dừng ghi</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  <TextInput
+                    style={styles.editTitleInput}
+                    value={editTitle}
+                    onChangeText={setEditTitle}
+                    placeholder="Nhập tiêu đề..."
+                    placeholderTextColor="rgba(26,40,69,0.4)"
+                  />
+                  <TextInput
+                    style={styles.editContentInput}
+                    value={editContent}
+                    onChangeText={setEditContent}
+                    multiline
+                    placeholder="Cảm nghĩ của bạn..."
+                    placeholderTextColor="rgba(26,40,69,0.4)"
+                  />
                 </View>
+              ) : (
+                <>
+                  <Text style={styles.journalTitle}>{journal?.title}</Text>
+                  <Text style={styles.journalContent}>{journal?.content}</Text>
+                </>
+              )}
 
-                <Text style={styles.audioDurationText}>
-                  {formatDuration(isPlayingJournal ? journalPosition : journalDuration)}
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        </View>
+              {/* Journal Audio Player (Waveform Style) */}
+              {(newAudioUri || (!isAudioDeleted && journal?.audio_url)) && (
+                <View style={[styles.journalAudioCard, { marginTop: 12, marginBottom: 4 }]}>
+                  <TouchableOpacity 
+                    style={styles.journalPlayBtn} 
+                    onPress={toggleJournalAudio}
+                    activeOpacity={0.8}
+                  >
+                    {journalAudioLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <MaterialIcons 
+                        name={isPlayingJournal ? "pause" : "play-arrow"} 
+                        size={20} 
+                        color="#fff" 
+                      />
+                    )}
+                  </TouchableOpacity>
 
-        {/* Media Gallery */}
-        {galleryItems.length > 0 && (
+                  {/* Simplified Waveform Visualization */}
+                  <View style={styles.waveformContainer}>
+                    {[0.4, 0.7, 0.5, 0.9, 0.6, 0.8, 0.4, 0.7, 0.5, 0.4, 0.6, 0.8, 0.5, 0.9, 0.6, 0.4, 0.7, 0.5, 0.4, 0.6, 0.8, 0.4, 0.5, 0.7, 0.6].map((h, i) => {
+                      // Highlight bars based on current position
+                      const progress = journalDuration > 0 ? (journalPosition / journalDuration) * 25 : 0;
+                      const isActive = i < progress;
+                      return (
+                        <View 
+                          key={i} 
+                          style={[
+                            styles.waveBar, 
+                            { height: 16 * h },
+                            isActive && { backgroundColor: COLORS.accent }
+                          ]} 
+                        />
+                      );
+                    })}
+                  </View>
+
+                  <Text style={styles.audioDurationText}>
+                    {formatDuration(isPlayingJournal ? journalPosition : journalDuration)}
+                  </Text>
+
+                  {isEditing && (
+                    <TouchableOpacity 
+                      style={styles.audioDeleteBtn}
+                      onPress={removeAudio}
+                    >
+                      <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              {isEditing && !(newAudioUri || (!isAudioDeleted && journal?.audio_url)) && (
+                <TouchableOpacity 
+                  style={styles.addAudioBtn}
+                  onPress={() => setAudioPickerVisible(true)}
+                >
+                  <MaterialIcons name="mic" size={16} color={DARK_GOLD} />
+                  <Text style={styles.addAudioText}>Thêm ghi âm</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+
+          {/* Media Gallery */}
           <View style={styles.galleryWrapper}>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.galleryContent}
             >
-              {galleryItems.map((item, idx) => (
+              {isEditing && (
                 <TouchableOpacity 
-                  key={`${item.type}-${idx}`} 
-                  style={styles.galleryItem}
-                  activeOpacity={0.8}
-                  onPress={() => setPreviewMedia(item)}
+                  style={styles.addMediaBtn}
+                  onPress={() => setMediaPickerVisible(true)}
                 >
-                  <Image source={{ uri: item.uri }} style={styles.galleryImage} />
-                  {item.type === 'video' && (
+                  <Ionicons name="add" size={24} color={DARK_GOLD} />
+                </TouchableOpacity>
+              )}
+
+              {/* Existing Images */}
+              {remainingImages.map((uri, idx) => (
+                <View key={`exist-${idx}`} style={styles.galleryItem}>
+                  <TouchableOpacity onPress={() => setPreviewMedia({ type: 'image', uri })}>
+                    <Image source={{ uri }} style={styles.galleryImage} />
+                  </TouchableOpacity>
+                  {isEditing && (
+                    <TouchableOpacity 
+                      style={styles.deleteBadge}
+                      onPress={() => removeImage(uri, false)}
+                    >
+                      <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+
+              {/* New Images */}
+              {newImages.map((uri, idx) => (
+                <View key={`new-${idx}`} style={[styles.galleryItem, styles.newMediaItem]}>
+                  <TouchableOpacity onPress={() => setPreviewMedia({ type: 'image', uri })}>
+                    <Image source={{ uri }} style={styles.galleryImage} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.deleteBadge}
+                    onPress={() => removeImage(uri, true)}
+                  >
+                    <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Video (Existing or New) */}
+              {(newVideoUri || (!isVideoDeleted && journal?.video_url)) && (
+                <View style={styles.galleryItem}>
+                  <TouchableOpacity onPress={() => setPreviewMedia({ type: 'video', uri: newVideoUri || journal?.video_url! })}>
+                    <Image source={{ uri: newVideoUri || journal?.video_url! }} style={styles.galleryImage} />
                     <View style={styles.videoOverlay}>
                       <Ionicons name="play-circle" size={24} color="#FFF" />
                     </View>
+                  </TouchableOpacity>
+                  {isEditing && (
+                    <TouchableOpacity 
+                      style={styles.deleteBadge}
+                      onPress={removeVideo}
+                    >
+                      <Ionicons name="close-circle" size={18} color={COLORS.danger} />
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
-              ))}
+                </View>
+              )}
             </ScrollView>
           </View>
-        )}
 
-        {/* Read more button */}
-        <TouchableOpacity
-          style={styles.readMoreBtn}
-          activeOpacity={0.85}
-          onPress={() => {
-            onToggleExpanded?.(false);
-            if (navigation) {
-              navigation.navigate("JournalDetail", { journalId: journal.id });
+
+        {/* Action Buttons */}
+        {isEditing ? (
+          <View style={styles.editActions}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.cancelBtn]}
+              onPress={handleCancelEdit}
+              disabled={isSaving}
+            >
+              <Text style={styles.cancelBtnText}>Hủy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.saveBtn]}
+              onPress={handleSaveUpdate}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <MaterialIcons name="done" size={16} color="#fff" />
+                  <Text style={styles.saveBtnText}>Lưu thay đổi</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.readMoreBtn}
+            activeOpacity={0.85}
+            onPress={handleStartEdit}
+          >
+            <MaterialCommunityIcons name="pencil" size={16} color="#1A2845" />
+            <Text style={styles.readMoreText}>Chỉnh sửa bài viết</Text>
+          </TouchableOpacity>
+        )}
+        </Animated.View>
+
+      {/* ── Media Picker Modals ── */}
+      <MediaPickerModal
+        visible={mediaPickerVisible}
+        onClose={() => setMediaPickerVisible(false)}
+        onMediaPicked={(res) => {
+          if (!res.canceled && res.assets && res.assets[0].uri) {
+            const asset = res.assets[0];
+            if (asset.type === 'video') {
+              setNewVideoUri(asset.uri);
+              setIsVideoDeleted(false);
+            } else {
+              setNewImages(prev => [...prev, asset.uri]);
             }
-          }}
-        >
-          <MaterialCommunityIcons name="book-open-page-variant" size={16} color="#1A2845" />
-          <Text style={styles.readMoreText}>Đọc tiếp nhật ký</Text>
-        </TouchableOpacity>
-      </Animated.View>
+          }
+        }}
+        mediaTypes={["images", "videos"]}
+        allowsMultipleSelection={true}
+      />
+
+      <AudioPickerModal
+        visible={audioPickerVisible}
+        onClose={() => setAudioPickerVisible(false)}
+        onRecordNow={startRecording}
+        onUploadFile={handlePickAudio}
+      />
 
       {/* ── Media Preview Lightbox Modal ── */}
       <Modal
@@ -519,13 +883,13 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
           />
           
           <View style={styles.modalContent}>
-            {previewMedia?.type === 'image' ? (
+            {previewMedia?.type === 'image' && previewMedia?.uri ? (
               <Image 
                 source={{ uri: previewMedia.uri }} 
                 style={styles.modalMedia} 
                 resizeMode="contain" 
               />
-            ) : previewMedia?.type === 'video' ? (
+            ) : previewMedia?.type === 'video' && previewMedia?.uri ? (
               <Video
                 source={{ uri: previewMedia.uri }}
                 style={styles.modalMedia}
@@ -558,15 +922,22 @@ const PARCHMENT_BORDER = "#D4B896";
 
 const styles = StyleSheet.create({
   root: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 20,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  keyboardView: {
+    flex: 1,
+    justifyContent: "flex-end",
   },
 
   // ── Panel ──
   panel: {
+    position: "absolute",
+    bottom: 0,
     width: "94%",
     alignSelf: "center",
     backgroundColor: PARCHMENT,
@@ -650,7 +1021,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     minHeight: 40,
-    maxHeight: SCREEN_H * 0.12, 
+    maxHeight: SCREEN_H * 0.18, 
   },
 
   journalTitle: {
@@ -665,6 +1036,28 @@ const styles = StyleSheet.create({
     color: "#3D2B0A",
     lineHeight: 18,
     fontStyle: "italic",
+  },
+
+  // Edit Form
+  editForm: {
+    gap: 8,
+    marginBottom: 8,
+  },
+  editTitleInput: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1A2845",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(139, 105, 20, 0.2)",
+    paddingVertical: 4,
+  },
+  editContentInput: {
+    fontSize: 12,
+    color: "#3D2B0A",
+    lineHeight: 18,
+    fontStyle: "italic",
+    minHeight: 60,
+    textAlignVertical: "top",
   },
 
   // Journal Audio Player
@@ -695,6 +1088,28 @@ const styles = StyleSheet.create({
     gap: 3,
     height: 20,
   },
+  audioDeleteBtn: {
+    padding: 2,
+    marginLeft: 4,
+  },
+  addAudioBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: DARK_GOLD,
+    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: "rgba(139, 105, 20, 0.05)",
+  },
+  addAudioText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: DARK_GOLD,
+  },
   waveBar: {
     width: 2,
     backgroundColor: "rgba(139, 105, 20, 0.2)",
@@ -724,6 +1139,30 @@ const styles = StyleSheet.create({
     borderColor: PARCHMENT_BORDER,
     overflow: "hidden",
     position: "relative",
+  },
+  newMediaItem: {
+    borderColor: GOLD,
+    borderWidth: 1.5,
+  },
+  addMediaBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 8,
+    backgroundColor: "rgba(139, 105, 20, 0.08)",
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: DARK_GOLD,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#fff",
+    borderRadius: 9,
+    zIndex: 10,
+    ...SHADOWS.subtle,
   },
   galleryImage: {
     width: "100%",
@@ -761,6 +1200,46 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
+  // Edit Actions
+  editActions: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  actionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  cancelBtn: {
+    backgroundColor: "rgba(0,0,0,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  saveBtn: {
+    backgroundColor: GOLD,
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+  },
+  saveBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1A2845",
+  },
+
   // Lightbox Modal
   modalOverlay: {
     flex: 1,
@@ -793,6 +1272,43 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     justifyContent: "center",
     alignItems: "center",
+  },
+
+  // Recording UI
+  recordingOverlay: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(220, 76, 76, 0.1)",
+    padding: 8,
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 10,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.danger,
+  },
+  recordingTimer: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: COLORS.danger,
+    minWidth: 40,
+  },
+  stopRecordingBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.danger,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 16,
+    gap: 4,
+  },
+  stopRecordingText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
 

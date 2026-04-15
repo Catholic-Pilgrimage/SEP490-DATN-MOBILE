@@ -138,8 +138,12 @@ export const MediaPickerModal: React.FC<MediaPickerModalProps> = ({
             return;
           }
 
+          const selectionMediaType = hasImages && hasVideos 
+            ? ImagePicker.MediaTypeOptions.All 
+            : firstMediaType;
+
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: firstMediaType,
+            mediaTypes: selectionMediaType,
             allowsEditing,
             aspect,
             quality,

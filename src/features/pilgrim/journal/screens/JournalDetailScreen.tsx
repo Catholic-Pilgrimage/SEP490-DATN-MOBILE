@@ -1112,7 +1112,7 @@ export default function JournalDetailScreen() {
 
           <View style={[
             s.modelViewerContainer, 
-            isJournalUiVisible && { marginBottom: 320 }
+            isJournalUiVisible && { marginBottom: 200 }
           ]}>
             {/* Spotlight & Pedestal effect behind/under model */}
             <View style={s.modelStageContainer}>
