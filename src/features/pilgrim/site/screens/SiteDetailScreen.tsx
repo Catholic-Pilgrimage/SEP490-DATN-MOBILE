@@ -29,6 +29,7 @@ import {
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
+import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
