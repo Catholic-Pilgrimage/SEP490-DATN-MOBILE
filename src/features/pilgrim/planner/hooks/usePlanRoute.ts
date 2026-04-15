@@ -70,7 +70,11 @@ export const usePlanRoute = (
         if (currentLocation?.latitude && currentLocation?.longitude) {
           const requests = waypoints.map((to, index) =>
             vietmapService
-              .calculateRouteWithGeometry(currentLocation, to)
+              .calculateRouteWithGeometry(
+                currentLocation,
+                to,
+                plan?.transportation,
+              )
               .then((route) => ({ route, index }))
               .catch(() => null),
           );
@@ -111,7 +115,10 @@ export const usePlanRoute = (
           return;
         }
 
-        const result = await vietmapService.calculateMultiPointRoute(waypoints);
+        const result = await vietmapService.calculateMultiPointRoute(
+          waypoints,
+          plan?.transportation,
+        );
 
         if (result.allCoordinates.length >= 2) {
           setRouteCoordinates(result.allCoordinates);
@@ -154,7 +161,13 @@ export const usePlanRoute = (
     };
 
     calculatePlanRoute();
-  }, [plan?.items_by_day, isOffline, currentLocation?.latitude, currentLocation?.longitude]);
+  }, [
+    plan?.items_by_day,
+    plan?.transportation,
+    isOffline,
+    currentLocation?.latitude,
+    currentLocation?.longitude,
+  ]);
 
   return { routeCoordinates, routeSegments, routeSummary, routeLoading };
 };

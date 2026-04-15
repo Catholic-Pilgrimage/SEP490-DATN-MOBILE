@@ -16,6 +16,7 @@
     "no": "Không",
     "ok": "Đồng ý",
     "retry": "Thử lại",
+    "share": "Chia sẻ",
     "pleaseWait": "Vui lòng chờ",
     "processing": "Đang xử lý...",
     "search": "Tìm kiếm",
@@ -592,7 +593,23 @@
     "fundStatement": "Sao kê quỹ nhóm",
     "txLocked": "Cam kết",
     "txPenaltyPending": "Phạt chờ",
+    "txPenaltyReceived": "Phạt nhận",
+    "txRefunded": "Đã hoàn",
     "transactionsEmpty": "Chưa có giao dịch quỹ nhóm.",
+    "transactionsLoadFailed": "Không tải được sao kê.",
+    "txLabels": {
+      "deposit_locked": "Đóng tiền cam kết",
+      "deposit_refunded": "Hoàn cọc",
+      "penalty_deducted": "Bị trừ tiền phạt",
+      "penalty_received": "Owner nhận tiền phạt",
+      "unknown": "Giao dịch"
+    },
+    "txStatus": {
+      "pending": "Đang xử lý",
+      "completed": "Hoàn tất",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
     "inviteCta": "+ Mời",
     "dayLabelMeta": "Ngày",
     "featuredSuggestions": "Gợi ý nổi tiếng",
@@ -1056,6 +1073,33 @@
     "logoutError": "Không thể đăng xuất. Vui lòng thử lại.",
     "version": "Phiên bản 1.0.0",
     "featureComingSoon": "Tính năng đang phát triển"
+  },
+  "historyScreen": {
+    "title": "Hành trình Đức Tin",
+    "stats": {
+      "trips": "Chuyến đi",
+      "destinations": "Điểm đến",
+      "journals": "Nhật ký"
+    },
+    "tabs": {
+      "journeys": "Kỷ niệm chuyến đi",
+      "footprints": "Dấu chân"
+    },
+    "completed": "ĐÃ HOÀN THÀNH",
+    "people": "người",
+    "unknownDate": "Chưa rõ",
+    "unknownLocation": "Địa điểm chưa rõ",
+    "at": "Lúc",
+    "empty": {
+      "journeys": {
+        "title": "Chưa có chuyến đi hoàn thành",
+        "description": "Khi bạn hoàn thành 1 chuyến đi, nó sẽ được lưu lại như một quyển sách kỷ niệm tại đây."
+      },
+      "footprints": {
+        "title": "Chưa có dấu chân nào",
+        "description": "Các địa điểm bạn đã viếng thăm (Check-in) sẽ được lưu lại tại đây."
+      }
+    }
   },
   "settings": {
     "languageChanged": "Đã đổi ngôn ngữ sang Tiếng Việt",
@@ -2263,6 +2307,38 @@
     "emptyTitle": "Chưa có yêu cầu nào",
     "emptyText": "Lịch sử các yêu cầu hỗ trợ của bạn sẽ xuất hiện tại đây.",
     "unknownLocation": "Vị trí không xác định",
+    "requestModal": {
+      "title": "Bạn cần hỗ trợ?",
+      "subtitle": "Kết nối với Ban quản lý tại {{siteName}}",
+      "defaultSiteName": "điểm đến",
+      "sectionIssue": "Vấn đề bạn đang gặp phải:",
+      "sectionDetails": "Chi tiết (nếu cần):",
+      "detailsPlaceholder": "Mô tả thêm về vấn đề của bạn...",
+      "locationNotice": "Đã đính kèm vị trí hiện tại để hướng dẫn viên địa phương tìm thấy bạn dễ dàng hơn.",
+      "close": "Đóng",
+      "submit": "Gửi yêu cầu",
+      "categories": {
+        "lost": "Lạc đoàn / Người thân",
+        "health": "Vấn đề sức khỏe",
+        "item_lost": "Thất lạc đồ đạc",
+        "direction": "Cần chỉ dẫn gấp"
+      },
+      "errors": {
+        "missingCategory": "Thiếu thông tin",
+        "missingCategoryMsg": "Vui lòng chọn vấn đề bạn đang gặp phải",
+        "missingSite": "Không xác định được địa điểm cứu trợ",
+        "outOfRange": "Ngoài phạm vi",
+        "outOfRangeMsg": "Bạn đang quá xa địa điểm này. Cần ở trong phạm vi 1 km để gửi SOS.",
+        "alreadyPending": "Thông báo",
+        "alreadyPendingMsg": "Bạn đã có một yêu cầu SOS đang chờ xử lý.",
+        "sendError": "Lỗi gửi yêu cầu",
+        "sendErrorMsg": "Vui lòng thử lại sau"
+      },
+      "success": {
+        "title": "Đã gửi yêu cầu",
+        "message": "Ban quản lý đã nhận được thông tin cứu trợ của bạn."
+      }
+    },
     "guideList": {
       "title": "Hỗ trợ khẩn cấp",
       "tabs": {

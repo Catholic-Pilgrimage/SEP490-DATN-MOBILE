@@ -69,9 +69,6 @@ import {
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { getInitialsFromFullName } from "../../../../utils/initials";
 import AddSiteModal from "../components/plan-detail/AddSiteModal";
-import EditItemModal, {
-  type EditItemModalProps,
-} from "../components/plan-detail/EditItemModal";
 import EditPlanModal from "../components/plan-detail/EditPlanModal";
 import { InviteDecisionButtons } from "../components/plan-detail/InviteDecisionButtons";
 import InvitePreviewCard from "../components/plan-detail/InvitePreviewCard";
@@ -89,6 +86,11 @@ import { useChatUnreadCount } from "../hooks/useChatUnreadCount";
 import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
+import {
+  type PlannerItemPatch,
+  usePlannerDayPatching,
+} from "../hooks/usePlannerDayPatching";
+import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
   MAX_DEPOSIT_VND,
@@ -112,6 +114,7 @@ import {
   getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
+  buildDurationString,
   calculateEndTimeRaw,
   getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
@@ -231,7 +234,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   } | null>(null);
   const [nearbyAmenityPins, setNearbyAmenityPins] = useState<MapPin[]>([]);
 
-  const pilgrimagePins: MapPin[] = useMemo(() => buildPlanMapPins(plan), [plan]);
+  const pilgrimagePins: MapPin[] = useMemo(
+    () => buildPlanMapPins(plan),
+    [plan],
+  );
   const mapPins: MapPin[] = useMemo(
     () => [...pilgrimagePins, ...nearbyAmenityPins],
     [pilgrimagePins, nearbyAmenityPins],
@@ -248,9 +254,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   useEffect(() => {
     let cancelled = false;
 
-    const getNearbyMarkerType = (
-      category?: string,
-    ): MapPin["markerType"] => {
+    const getNearbyMarkerType = (category?: string): MapPin["markerType"] => {
       const normalized = String(category || "").toLowerCase();
       if (normalized === "food" || normalized === "restaurant") {
         return "restaurant";
@@ -403,6 +407,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   // Add Item State
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number>(1);
+  const [addFlowOriginDay, setAddFlowOriginDay] = useState<number | null>(null);
   const { sites, isLoading: isLoadingSites, fetchSites } = useSites();
   const [favorites, setFavorites] = useState<SiteSummary[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
@@ -419,11 +424,45 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const [isLoadingEventSites, setIsLoadingEventSites] = useState(false);
   const [hasLoadedEventSites, setHasLoadedEventSites] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const addItemInFlightRef = useRef(false);
+  const [reloadingDayNumber, setReloadingDayNumber] = useState<number | null>(
+    null,
+  );
+  const [etaSyncFromDay, setEtaSyncFromDay] = useState<number | null>(null);
 
   // Time picker state (shared)
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
+
+  const selectedDayDateLabel = useMemo(() => {
+    if (!plan?.start_date) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: selectedDay,
+      });
+    }
+
+    const baseDate = new Date(plan.start_date);
+    if (Number.isNaN(baseDate.getTime())) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: selectedDay,
+      });
+    }
+
+    baseDate.setDate(baseDate.getDate() + Math.max(0, selectedDay - 1));
+
+    const weekday = baseDate.toLocaleDateString("vi-VN", {
+      weekday: "long",
+    });
+    const dateText = baseDate.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+    return `${weekday}, ${dateText}`;
+  }, [plan?.start_date, selectedDay, t]);
 
   // ── Add Site Flow (hook) ──
   const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
@@ -444,17 +483,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     setShowEditItemModal,
     editingItem,
     editEstimatedTime,
-    setEditEstimatedTime,
     editRestDuration,
     setEditRestDuration,
     editNote,
     setEditNote,
     showEditTimePicker,
-    setShowEditTimePicker,
     editTempTime,
     savingEdit,
-    editRouteInfo,
     calculatingEditRoute,
+    editScheduleContext,
+    editInsight,
+    editSuggestedTime,
     handleOpenEditItem,
     handleEditTimeChange,
     openEditTimePicker,
@@ -465,8 +504,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     t,
     applyPlanMutation,
     loadPlan,
-    formatTimeValue,
   });
+
+  const editSelectedDay = Number(
+    editingItem?.day_number ?? editingItem?.leg_number ?? 1,
+  );
+
+  const editSelectedDayDateLabel = useMemo(() => {
+    if (!plan?.start_date) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: editSelectedDay,
+      });
+    }
+
+    const baseDate = new Date(plan.start_date);
+    if (Number.isNaN(baseDate.getTime())) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: editSelectedDay,
+      });
+    }
+
+    baseDate.setDate(baseDate.getDate() + Math.max(0, editSelectedDay - 1));
+
+    const weekday = baseDate.toLocaleDateString("vi-VN", {
+      weekday: "long",
+    });
+    const dateText = baseDate.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+    return `${weekday}, ${dateText}`;
+  }, [editSelectedDay, plan?.start_date, t]);
 
   // Nearby Places Hook
   const {
@@ -479,7 +551,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     nearbySiteName,
     savingNearbyPlaceId,
     savedNearbyPlaceIds,
-    handleLoadNearbyPlaces: handleOpenNearbyPlaces,
     handleSaveNearbyPlace,
   } = useNearbyPlaces({
     planId,
@@ -701,8 +772,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
 
     if (cachedPlan) {
-      setPlan(cachedPlan);
-      return cachedPlan;
+      const nextPlan = localUpdater(cachedPlan);
+      setPlan(nextPlan);
+      return nextPlan;
     }
 
     setPlan((currentPlan) =>
@@ -867,7 +939,18 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       const response = await pilgrimPlannerApi.getPlanDetail(planId);
       if (response?.success && response.data) {
         const nextPlan = response.data;
-        setPlan(nextPlan);
+        setPlan((prev) => {
+          const incomingDays = Math.max(
+            Number(nextPlan.number_of_days || 0),
+            Object.keys(nextPlan.items_by_day || {}).length,
+            1,
+          );
+          const previousDays = Math.max(Number(prev?.number_of_days || 0), 1);
+          return {
+            ...nextPlan,
+            number_of_days: Math.max(previousDays, incomingDays),
+          };
+        });
         try {
           const memRes = await pilgrimPlannerApi.getPlanMembers(planId);
           if (memRes.success && memRes.data?.members?.length) {
@@ -1407,10 +1490,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           : "flag-outline",
       title,
       message: msg,
-      confirmText: isLock 
-        ? t("planner.finalizeNow") 
-        : isStart 
-          ? t("planner.startNow") 
+      confirmText: isLock
+        ? t("planner.finalizeNow")
+        : isStart
+          ? t("planner.startNow")
           : title,
       cancelText: t("common.cancel", { defaultValue: "Hủy" }),
     });
@@ -1783,6 +1866,32 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     );
   };
 
+  const handleReloadEtaFromMenu = async () => {
+    setShowMenuDropdown(false);
+
+    const targetDay =
+      etaSyncFromDay ||
+      Object.keys(plan?.items_by_day || {})
+        .map((day) => Number(day))
+        .filter((day) => Number.isFinite(day) && day > 1)
+        .sort((a, b) => a - b)[0];
+    if (!targetDay) {
+      Toast.show({
+        type: "info",
+        text1: t("planner.reloadEtaNotNeededTitle", {
+          defaultValue: "Không cần đồng bộ giờ dự kiến",
+        }),
+        text2: t("planner.reloadEtaNotNeededMessage", {
+          defaultValue:
+            "Hiện chưa có ngày phụ thuộc (từ ngày 2) để đồng bộ giờ dự kiến theo điểm liền kề.",
+        }),
+      });
+      return;
+    }
+
+    await handleReloadDayFromPrevious(targetDay);
+  };
+
   const handleDeleteOfflineData = async () => {
     setShowMenuDropdown(false);
     const confirmed = await confirm({
@@ -1828,6 +1937,20 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     if (!confirmed) return;
 
     try {
+      const currentPlan = plan;
+      const changedDay = currentPlan
+        ? Object.entries(currentPlan.items_by_day || {}).reduce<number>(
+            (found, [dayKey, dayItems]) => {
+              if (found > 0) return found;
+              const hasItem = (dayItems || []).some(
+                (item) => String(item.id || "") === String(itemId || ""),
+              );
+              return hasItem ? Number(dayKey) || 0 : 0;
+            },
+            0,
+          )
+        : 0;
+
       const isOnline = await networkService.checkConnection();
 
       if (!isOnline) {
@@ -1840,22 +1963,25 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
 
         await applyPlanMutation(
-          (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
-          () => offlinePlannerService.deletePlannerItem(planId, itemId),
+          (nextPlan) => applyLocalDeleteItem(nextPlan, itemId),
+          async () => offlinePlannerService.deletePlannerItem(planId, itemId),
         );
         Toast.show({
           type: "success",
           text1: t("common.success"),
           text2: t("offline.changesSavedOffline"),
         });
+        if (changedDay > 0) {
+          markEtaSyncFromDay(changedDay + 1);
+        }
         return;
       }
 
       const response = await pilgrimPlannerApi.deletePlanItem(planId, itemId);
       if (response.success) {
         await applyPlanMutation(
-          (currentPlan) => applyLocalDeleteItem(currentPlan, itemId),
-          () => offlinePlannerService.deletePlannerItem(planId, itemId),
+          (nextPlan) => applyLocalDeleteItem(nextPlan, itemId),
+          async () => offlinePlannerService.deletePlannerItem(planId, itemId),
         );
         Toast.show({
           type: "success",
@@ -1864,6 +1990,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             defaultValue: "Đã xóa địa điểm khỏi lịch trình",
           }),
         });
+        if (changedDay > 0) {
+          markEtaSyncFromDay(changedDay + 1);
+        }
         loadPlan({ silent: true });
       } else {
         Toast.show({
@@ -1890,743 +2019,27 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
-  const handleReorderIconPress = (dayKey: string, item: PlanItem) => {
-    if (!plan || isReadOnlyPlannerView) return;
-    const id = item.id;
-    if (!id) return;
-
-    if (!swapPick) {
-      setSwapPick({ dayKey, itemId: id });
-      return;
-    }
-    if (swapPick.itemId === id) {
-      setSwapPick(null);
-      return;
-    }
-
-    // Cross-day swap: execute directly (without same-day preview modal)
-    if (swapPick.dayKey !== dayKey) {
-      const firstPick = swapPick;
-      setSwapPick(null);
-      void executeCrossDaySwap(firstPick.dayKey, firstPick.itemId, dayKey, id);
-      return;
-    }
-
-    // Same-day swap: use confirm modal (same UX style as cross-day)
-    const firstPick = swapPick;
-    void executeSameDaySwap(firstPick.dayKey, firstPick.itemId, id);
-    setSwapPick(null);
-  };
-
-  type PlannerItemPatch = {
-    id: string;
-    day_number: number;
-    order_index: number;
-    estimated_time: string;
-    travel_time_minutes: number;
-  };
-
-  const toHHmm = (value?: string): string => {
-    if (!value) return "08:00";
-    const text = String(value);
-    return text.length >= 5 ? text.slice(0, 5) : "08:00";
-  };
-
-  const hhmmToMinutes = (value?: string): number => {
-    const normalized = toHHmm(value);
-    const [h, m] = normalized.split(":").map(Number);
-    if (Number.isNaN(h) || Number.isNaN(m)) return 0;
-    return h * 60 + m;
-  };
-
-  const pickLaterTime = (left?: string, right?: string): string => {
-    const l = toHHmm(left);
-    const r = toHHmm(right);
-    return hhmmToMinutes(r) > hhmmToMinutes(l) ? r : l;
-  };
-
-  const shouldFallbackLegacySwap = (error: any): boolean => {
-    const status = Number(error?.response?.status || 0);
-    return status === 404 || status === 405 || status === 501;
-  };
-
-  const toDisplayHHmm = (value?: string): string => {
-    if (!value) return "";
-    const text = String(value).trim();
-    if (/^\d{2}:\d{2}:\d{2}$/.test(text)) return text.slice(0, 5);
-    if (/^\d{2}:\d{2}$/.test(text)) return text;
-    return text;
-  };
-
-  const normalizeSwapBackendMessage = (message: string): string => {
-    const raw = String(message || "").trim();
-    if (!raw) {
-      return t("planner.swapInvalidTimeData", {
-        defaultValue: "Không thể đổi thứ tự do dữ liệu thời gian chưa hợp lệ.",
-      });
-    }
-
-    const invalidArrival = raw.match(
-      /Invalid arrival time suggested:\s*([0-9:]+),\s*departure\s*([0-9:]+),\s*travel\s*(\d+)m,\s*suggested\s*([0-9:]+)/i,
-    );
-
-    if (invalidArrival) {
-      const arrival = toDisplayHHmm(invalidArrival[1]);
-      const departure = toDisplayHHmm(invalidArrival[2]);
-      const travel = invalidArrival[3];
-      const suggested = toDisplayHHmm(invalidArrival[4]);
-
-      return t("planner.swapInvalidArrivalTemplate", {
-        arrival,
-        departure,
-        travel,
-        suggested,
-        defaultValue:
-          "Lộ trình sau khi đổi chưa hợp lệ: giờ đến {{arrival}} không khớp với điểm trước (rời {{departure}}, di chuyển {{travel}} phút). Hệ thống gợi ý tối thiểu {{suggested}}.",
-      });
-    }
-
-    if (/Item A ID|Item B ID/i.test(raw)) {
-      return t("planner.swapMissingPair", {
-        defaultValue:
-          "Không xác định được 2 điểm cần đổi chỗ. Vui lòng chọn lại rồi thử lại.",
-      });
-    }
-
-    if (/Dữ liệu không hợp lệ/i.test(raw)) {
-      return t("planner.swapInvalidRouteData", {
-        defaultValue:
-          "Không thể đổi thứ tự vì dữ liệu lộ trình chưa hợp lệ. Vui lòng thử lại.",
-      });
-    }
-
-    return raw;
-  };
-
-  const getSwapValidationMessage = (error: any, fallback: string): string => {
-    const details = error?.response?.data?.error?.details;
-    if (Array.isArray(details) && details.length > 0) {
-      const messages = details
-        .map((detail: any) => {
-          if (typeof detail === "string") return detail;
-          return detail?.message || detail?.msg || "";
-        })
-        .filter(Boolean);
-
-      if (messages.length > 0) {
-        return messages.map(normalizeSwapBackendMessage).join(". ");
-      }
-    }
-
-    const extracted = extractApiErrorMessage(error, fallback);
-    return normalizeSwapBackendMessage(extracted);
-  };
-
-  const applyLocalItemPatches = (
-    currentPlan: PlanEntity,
-    patches: PlannerItemPatch[],
-  ): PlanEntity => {
-    const patchById = patches.reduce<Record<string, PlannerItemPatch>>(
-      (acc, patch) => {
-        acc[patch.id] = patch;
-        return acc;
-      },
-      {},
-    );
-
-    const originalItems = Object.values(currentPlan.items_by_day || {}).flat();
-    const patchedItems = originalItems.map((item) => {
-      if (!item.id || !patchById[item.id]) return item;
-      const patch = patchById[item.id];
-      return {
-        ...item,
-        day_number: patch.day_number,
-        leg_number: patch.day_number,
-        order_index: patch.order_index,
-        estimated_time: patch.estimated_time,
-        travel_time_minutes: patch.travel_time_minutes,
-      };
-    });
-
-    const regrouped: Record<string, PlanItem[]> = {};
-    patchedItems.forEach((item) => {
-      const resolvedDay =
-        Number(item.day_number ?? item.leg_number ?? 1) > 0
-          ? Number(item.day_number ?? item.leg_number ?? 1)
-          : 1;
-      const dayKey = String(resolvedDay);
-      if (!regrouped[dayKey]) regrouped[dayKey] = [];
-      regrouped[dayKey].push({
-        ...item,
-        day_number: resolvedDay,
-        leg_number: resolvedDay,
-      });
-    });
-
-    Object.keys(regrouped).forEach((dayKey) => {
-      regrouped[dayKey] = sortPlanDayItems(regrouped[dayKey]).map(
-        (item, index) => ({
-          ...item,
-          day_number: Number(dayKey),
-          leg_number: Number(dayKey),
-          order_index: index + 1,
-        }),
-      );
-    });
-
-    const sortedDayKeys = Object.keys(regrouped).sort(
-      (a, b) => Number(a) - Number(b),
-    );
-    const flattened = sortedDayKeys.flatMap((dayKey) => regrouped[dayKey]);
-
-    return {
-      ...currentPlan,
-      items_by_day: regrouped,
-      items: flattened,
-      number_of_days:
-        sortedDayKeys.length > 0
-          ? Math.max(...sortedDayKeys.map((key) => Number(key)))
-          : currentPlan.number_of_days,
-    };
-  };
-
-  const buildDayPatches = async (
-    orderedItems: PlanItem[],
-    dayNumber: number,
-    anchorTime: string,
-    siteCache: Record<
-      string,
-      { latitude: number; longitude: number; name?: string }
-    >,
-    earliestStartTime?: string,
-  ): Promise<PlannerItemPatch[]> => {
-    const resolveSiteData = async (item: PlanItem) => {
-      const siteId = item.site_id || item.site?.id || "";
-      if (siteId && siteCache[siteId]) return siteCache[siteId];
-
-      const lat = Number(item.site?.latitude || 0);
-      const lng = Number(item.site?.longitude || 0);
-      if (siteId && lat && lng) {
-        siteCache[siteId] = {
-          latitude: lat,
-          longitude: lng,
-          name: item.site?.name,
-        };
-        return siteCache[siteId];
-      }
-
-      if (siteId) {
-        try {
-          const response = await pilgrimSiteApi.getSiteDetail(siteId);
-          const site = response?.data as any;
-          siteCache[siteId] = {
-            latitude: Number(site?.latitude || lat || 0),
-            longitude: Number(site?.longitude || lng || 0),
-            name: site?.name || item.site?.name,
-          };
-          return siteCache[siteId];
-        } catch {
-          // Ignore and fallback below
-        }
-      }
-
-      return {
-        latitude: lat,
-        longitude: lng,
-        name: item.site?.name,
-      };
-    };
-
-    const patches: PlannerItemPatch[] = [];
-
-    for (let index = 0; index < orderedItems.length; index++) {
-      const item = orderedItems[index];
-      if (!item.id) continue;
-
-      let travelTimeMinutes =
-        index === 0 ? 0 : Math.max(0, Number(item.travel_time_minutes) || 0);
-
-      if (index > 0) {
-        const prevItem = orderedItems[index - 1];
-        const [from, to] = await Promise.all([
-          resolveSiteData(prevItem),
-          resolveSiteData(item),
-        ]);
-
-        if (from.latitude && from.longitude && to.latitude && to.longitude) {
-          try {
-            const routeResult = await vietmapService.calculateRoute(
-              { latitude: from.latitude, longitude: from.longitude },
-              { latitude: to.latitude, longitude: to.longitude },
-            );
-            travelTimeMinutes = Math.max(
-              0,
-              Math.round(routeResult.durationMinutes || 0),
-            );
-          } catch {
-            travelTimeMinutes = 30;
-          }
-        } else {
-          travelTimeMinutes = 30;
-        }
-      }
-
-      const time =
-        index === 0
-          ? pickLaterTime(anchorTime, earliestStartTime)
-          : (() => {
-              const prev = patches[index - 1];
-              const prevItem = orderedItems[index - 1];
-              const prevRest = parseDurationToMinutes(prevItem.rest_duration);
-              const safePrevRest = prevRest > 0 ? prevRest : 120;
-              return vietmapService.calculateArrivalTime(
-                prev.estimated_time,
-                safePrevRest + travelTimeMinutes,
-              ).time;
-            })();
-
-      patches.push({
-        id: item.id,
-        day_number: dayNumber,
-        order_index: index + 1,
-        estimated_time: toHHmm(time),
-        travel_time_minutes: travelTimeMinutes,
-      });
-    }
-
-    return patches;
-  };
-
-  const executeCrossDaySwap = async (
-    dayKeyA: string,
-    itemIdA: string,
-    dayKeyB: string,
-    itemIdB: string,
-  ) => {
-    if (!plan) return;
-
-    const confirmed = await confirm({
-      type: "info",
-      iconName: "swap-horizontal-outline",
-      title: t("planner.swapCrossDayTitle", {
-        defaultValue: "Đổi chỗ khác ngày",
-      }),
-      message: t("planner.swapCrossDayMessage", {
-        defaultValue:
-          "Bạn đang đổi 2 điểm ở 2 ngày khác nhau. Hệ thống sẽ tính lại giờ theo lộ trình mới.",
-      }),
-      confirmText: t("planner.swapConfirm", {
-        defaultValue: "Đổi chỗ",
-      }),
-      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
-    });
-
-    if (!confirmed) return;
-
-    try {
-      const dayAItems = sortPlanDayItems(plan.items_by_day?.[dayKeyA] || []);
-      const dayBItems = sortPlanDayItems(plan.items_by_day?.[dayKeyB] || []);
-      const indexA = dayAItems.findIndex((i) => i.id === itemIdA);
-      const indexB = dayBItems.findIndex((i) => i.id === itemIdB);
-
-      if (indexA < 0 || indexB < 0) {
-        throw new Error(
-          t("planner.swapItemNotFound", {
-            defaultValue: "Không tìm thấy điểm cần đổi",
-          }),
-        );
-      }
-
-      const nextDayA = [...dayAItems];
-      const nextDayB = [...dayBItems];
-      const pickedA = nextDayA[indexA];
-      const pickedB = nextDayB[indexB];
-
-      nextDayA[indexA] = {
-        ...pickedB,
-        day_number: Number(dayKeyA),
-        leg_number: Number(dayKeyA),
-      };
-      nextDayB[indexB] = {
-        ...pickedA,
-        day_number: Number(dayKeyB),
-        leg_number: Number(dayKeyB),
-      };
-
-      const siteCache: Record<
-        string,
-        { latitude: number; longitude: number; name?: string }
-      > = {};
-
-      const dayItemsByNumber: Record<number, PlanItem[]> = {
-        [Number(dayKeyA)]: nextDayA,
-        [Number(dayKeyB)]: nextDayB,
-      };
-      const dayAnchorByNumber: Record<number, string> = {
-        [Number(dayKeyA)]: toHHmm(dayAItems[0]?.estimated_time),
-        [Number(dayKeyB)]: toHHmm(dayBItems[0]?.estimated_time),
-      };
-
-      const affectedDayNumbers = Array.from(
-        new Set([Number(dayKeyA), Number(dayKeyB)]),
-      ).sort((a, b) => a - b);
-
-      const patchesByDayNumber: Record<number, PlannerItemPatch[]> = {};
-
-      for (const dayNumber of affectedDayNumbers) {
-        let earliestStartTime: string | undefined;
-        const previousDayNumber = dayNumber - 1;
-
-        const previousDayPatches = patchesByDayNumber[previousDayNumber];
-        if (previousDayPatches?.length) {
-          const previousLastPatch =
-            previousDayPatches[previousDayPatches.length - 1];
-          const previousDayItems = dayItemsByNumber[previousDayNumber] || [];
-          const previousLastItem = previousDayItems.find(
-            (item) => item.id === previousLastPatch.id,
-          );
-          const previousRest = parseDurationToMinutes(
-            previousLastItem?.rest_duration,
-          );
-          const safePreviousRest = previousRest > 0 ? previousRest : 120;
-          earliestStartTime = vietmapService.calculateArrivalTime(
-            previousLastPatch.estimated_time,
-            safePreviousRest,
-          ).time;
-        } else {
-          const previousPlanDayItems = sortPlanDayItems(
-            plan.items_by_day?.[String(previousDayNumber)] || [],
-          );
-          const previousLastItem =
-            previousPlanDayItems[previousPlanDayItems.length - 1];
-          if (previousLastItem?.estimated_time) {
-            const previousRest = parseDurationToMinutes(
-              previousLastItem.rest_duration,
-            );
-            const safePreviousRest = previousRest > 0 ? previousRest : 120;
-            earliestStartTime = vietmapService.calculateArrivalTime(
-              toHHmm(previousLastItem.estimated_time),
-              safePreviousRest,
-            ).time;
-          }
-        }
-
-        patchesByDayNumber[dayNumber] = await buildDayPatches(
-          dayItemsByNumber[dayNumber],
-          dayNumber,
-          dayAnchorByNumber[dayNumber],
-          siteCache,
-          earliestStartTime,
-        );
-      }
-
-      const patchesDayA = patchesByDayNumber[Number(dayKeyA)] || [];
-      const patchesDayB = patchesByDayNumber[Number(dayKeyB)] || [];
-
-      const allPatches = [...patchesDayA, ...patchesDayB];
-      const affectedDays = [
-        {
-          leg_number: Number(dayKeyA),
-          items: patchesDayA.map((patch) => ({
-            id: patch.id,
-            estimated_time: patch.estimated_time,
-            travel_time_minutes: patch.travel_time_minutes,
-          })),
-        },
-        {
-          leg_number: Number(dayKeyB),
-          items: patchesDayB.map((patch) => ({
-            id: patch.id,
-            estimated_time: patch.estimated_time,
-            travel_time_minutes: patch.travel_time_minutes,
-          })),
-        },
-      ];
-
-      const isOnline = await networkService.checkConnection();
-
-      if (!isOnline) {
-        for (const patch of allPatches) {
-          await networkService.addToOfflineQueue({
-            endpoint: `/api/planners/${planId}/items/${patch.id}`,
-            method: "PATCH",
-            data: {
-              day_number: patch.day_number,
-              order_index: patch.order_index,
-              estimated_time: patch.estimated_time,
-              travel_time_minutes: patch.travel_time_minutes,
-            },
-          });
-        }
-
-        await applyPlanMutation((currentPlan) =>
-          applyLocalItemPatches(currentPlan, allPatches),
-        );
-
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("offline.changesSavedOffline"),
-        });
-        return;
-      }
-
-      try {
-        const swapPayload = {
-          item_id_a: itemIdA,
-          item_id_b: itemIdB,
-          affected_days: affectedDays,
-        };
-
-        if (__DEV__) {
-          console.log("[Swap][CrossDay] payload:", JSON.stringify(swapPayload));
-        }
-
-        const swapResponse = await pilgrimPlannerApi.swapPlannerItems(
-          planId,
-          swapPayload,
-        );
-
-        if (!swapResponse.success) {
-          throw new Error(
-            swapResponse.message ||
-              t("planner.swapApiFailed", {
-                defaultValue: "Không thể đổi thứ tự bằng API swap",
-              }),
-          );
-        }
-      } catch (swapError: any) {
-        if (!shouldFallbackLegacySwap(swapError)) {
-          throw swapError;
-        }
-
-        for (const patch of allPatches) {
-          await pilgrimPlannerApi.updatePlanItem(planId, patch.id, {
-            day_number: patch.day_number,
-            order_index: patch.order_index,
-            estimated_time: patch.estimated_time,
-            travel_time_minutes: patch.travel_time_minutes,
-          });
-        }
-      }
-
-      await applyPlanMutation((currentPlan) =>
-        applyLocalItemPatches(currentPlan, allPatches),
-      );
-
-      Toast.show({
-        type: "success",
-        text1: t("planner.swapSuccessTitle", {
-          defaultValue: "Đã đổi thứ tự",
-        }),
-        text2: t("planner.swapSuccessCrossDayBody", {
-          defaultValue: "Đã cập nhật lịch trình cho cả 2 ngày.",
-        }),
-      });
-      loadPlan({ silent: true });
-    } catch (error: any) {
-      console.log("Cross-day swap error:", error);
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: getSwapValidationMessage(
-          error,
-          t("planner.swapCrossDayFailed", {
-            defaultValue: "Không thể đổi thứ tự khác ngày",
-          }),
-        ),
-      });
-    } finally {
-      // noop
-    }
-  };
-
-  const executeSameDaySwap = async (
-    dayKey: string,
-    itemIdA: string,
-    itemIdB: string,
-  ) => {
-    if (!plan) return;
-
-    const confirmed = await confirm({
-      type: "info",
-      iconName: "swap-horizontal-outline",
-      title: t("planner.swapSameDayTitle", {
-        defaultValue: "Đổi thứ tự trong ngày",
-      }),
-      message: t("planner.swapSameDayMessage", {
-        defaultValue:
-          "Bạn đang đổi 2 điểm trong cùng ngày. Hệ thống sẽ tính lại giờ theo lộ trình mới.",
-      }),
-      confirmText: t("planner.swapConfirm", {
-        defaultValue: "Đổi chỗ",
-      }),
-      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
-    });
-
-    if (!confirmed) return;
-
-    try {
-      const dayItems = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
-      const indexA = dayItems.findIndex((i) => i.id === itemIdA);
-      const indexB = dayItems.findIndex((i) => i.id === itemIdB);
-
-      if (indexA < 0 || indexB < 0) {
-        throw new Error(
-          t("planner.swapItemNotFound", {
-            defaultValue: "Không tìm thấy điểm cần đổi",
-          }),
-        );
-      }
-
-      const swapped = [...dayItems];
-      [swapped[indexA], swapped[indexB]] = [swapped[indexB], swapped[indexA]];
-
-      const dayNumber = Number(dayKey);
-      const anchorTime = toHHmm(dayItems[0]?.estimated_time);
-      const siteCache: Record<
-        string,
-        { latitude: number; longitude: number; name?: string }
-      > = {};
-
-      let earliestStartTime: string | undefined;
-      const previousDayItems = sortPlanDayItems(
-        plan.items_by_day?.[String(dayNumber - 1)] || [],
-      );
-      const previousLastItem = previousDayItems[previousDayItems.length - 1];
-      if (previousLastItem?.estimated_time) {
-        const previousRest = parseDurationToMinutes(
-          previousLastItem.rest_duration,
-        );
-        const safePreviousRest = previousRest > 0 ? previousRest : 120;
-        earliestStartTime = vietmapService.calculateArrivalTime(
-          toHHmm(previousLastItem.estimated_time),
-          safePreviousRest,
-        ).time;
-      }
-
-      const patches = await buildDayPatches(
-        swapped,
-        dayNumber,
-        anchorTime,
-        siteCache,
-        earliestStartTime,
-      );
-
-      const affectedDays = [
-        {
-          leg_number: dayNumber,
-          items: patches.map((patch) => ({
-            id: patch.id,
-            estimated_time: patch.estimated_time,
-            travel_time_minutes: patch.travel_time_minutes,
-          })),
-        },
-      ];
-
-      const isOnline = await networkService.checkConnection();
-
-      if (!isOnline) {
-        for (const patch of patches) {
-          await networkService.addToOfflineQueue({
-            endpoint: `/api/planners/${planId}/items/${patch.id}`,
-            method: "PATCH",
-            data: {
-              day_number: patch.day_number,
-              order_index: patch.order_index,
-              estimated_time: patch.estimated_time,
-              travel_time_minutes: patch.travel_time_minutes,
-            },
-          });
-        }
-
-        await applyPlanMutation((currentPlan) =>
-          applyLocalItemPatches(currentPlan, patches),
-        );
-
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("offline.changesSavedOffline"),
-        });
-        return;
-      }
-
-      try {
-        const swapPayload = {
-          item_id_a: itemIdA,
-          item_id_b: itemIdB,
-          affected_days: affectedDays,
-        };
-
-        if (__DEV__) {
-          console.log(
-            "[Swap][SameDay][Confirm] payload:",
-            JSON.stringify(swapPayload),
-          );
-        }
-
-        const swapResponse = await pilgrimPlannerApi.swapPlannerItems(
-          planId,
-          swapPayload,
-        );
-
-        if (!swapResponse.success) {
-          throw new Error(
-            swapResponse.message ||
-              t("planner.swapApiFailed", {
-                defaultValue: "Không thể đổi thứ tự bằng API swap",
-              }),
-          );
-        }
-      } catch (swapError: any) {
-        if (!shouldFallbackLegacySwap(swapError)) {
-          throw swapError;
-        }
-
-        for (const patch of patches) {
-          await pilgrimPlannerApi.updatePlanItem(planId, patch.id, {
-            day_number: patch.day_number,
-            order_index: patch.order_index,
-            estimated_time: patch.estimated_time,
-            travel_time_minutes: patch.travel_time_minutes,
-          });
-        }
-      }
-
-      await applyPlanMutation((currentPlan) =>
-        applyLocalItemPatches(currentPlan, patches),
-      );
-
-      Toast.show({
-        type: "success",
-        text1: t("planner.swapSuccessTitle", {
-          defaultValue: "Đã đổi thứ tự",
-        }),
-        text2: t("planner.swapSuccessSameDayBody", {
-          defaultValue: "Thời gian đã được tính lại theo lộ trình mới.",
-        }),
-      });
-      loadPlan({ silent: true });
-    } catch (error: any) {
-      console.log("Same-day swap error:", error);
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: getSwapValidationMessage(
-          error,
-          t("planner.swapSameDayFailed", {
-            defaultValue: "Không thể đổi thứ tự",
-          }),
-        ),
-      });
-    } finally {
-      // noop
-    }
-  };
+  const { applyLocalItemPatches, buildDayPatches } = usePlannerDayPatching(
+    plan?.transportation,
+  );
+
+  const { handleReorderIconPress } = usePlannerSwapActions({
+    plan,
+    planId,
+    isReadOnlyPlannerView,
+    swapPick,
+    setSwapPick,
+    t,
+    confirm,
+    loadPlan,
+    applyPlanMutation,
+    buildDayPatches,
+    applyLocalItemPatches,
+  });
 
   const openAddModal = (day: number) => {
     setSelectedDay(day);
+    setAddFlowOriginDay(day);
     setIsAddModalVisible(true);
   };
 
@@ -2657,8 +2070,6 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     return formatDurationLocalized(minutes, t);
   };
 
-  // parseDurationToMinutes removed — use parseDurationToMinutesRaw directly if needed
-
   const calculateEndTime = (startTimeStr: any, durationStr: any): string =>
     calculateEndTimeRaw(startTimeStr, durationStr, formatTimeValue);
 
@@ -2666,22 +2077,889 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     getDateForDayRaw(startDateStr, dayNumber);
 
   const handleAddItem = async (siteId: string, eventId?: string) => {
-    setSelectedEventId(eventId || null);
+    setAddFlowOriginDay(selectedDay);
     await addSiteFlow.startFlow(siteId, eventId);
   };
 
+  const closeAddTimeModal = () => {
+    addSiteFlow.closeTimeModal();
+    setAddFlowOriginDay(null);
+  };
+
+  const markEtaSyncFromDay = (fromDay: number | null | undefined) => {
+    const safeDay = Number(fromDay || 0);
+    if (!Number.isFinite(safeDay) || safeDay < 1) return;
+    setEtaSyncFromDay((current) =>
+      current === null ? safeDay : Math.min(current, safeDay),
+    );
+  };
+
+  const hasItemsInDay = useCallback(
+    (sourcePlan: PlanEntity | null | undefined, dayNumber: number): boolean => {
+      if (!sourcePlan?.items_by_day || dayNumber < 1) return false;
+      return (sourcePlan.items_by_day[String(dayNumber)] || []).length > 0;
+    },
+    [],
+  );
+
+  const findPreviousNonEmptyDay = useCallback(
+    (sourcePlan: PlanEntity | null | undefined, dayNumber: number): number => {
+      if (!sourcePlan?.items_by_day || dayNumber <= 1) return 0;
+      let cursor = dayNumber - 1;
+      while (cursor >= 1) {
+        const items = sortPlanDayItems(sourcePlan.items_by_day?.[String(cursor)] || []);
+        if (items.length > 0) return cursor;
+        cursor -= 1;
+      }
+      return 0;
+    },
+    [],
+  );
+
+  const detectFirstEtaOutOfSyncDay = useCallback(
+    (sourcePlan: PlanEntity | null | undefined): number | null => {
+      if (!sourcePlan?.items_by_day) return null;
+
+      const dayKeys = Object.keys(sourcePlan.items_by_day)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value >= 2)
+        .sort((a, b) => a - b);
+
+      for (const dayNumber of dayKeys) {
+        const dayItems = sortPlanDayItems(
+          sourcePlan.items_by_day?.[String(dayNumber)] || [],
+        );
+        if (dayItems.length === 0) continue;
+
+        const previousNonEmptyDay = findPreviousNonEmptyDay(sourcePlan, dayNumber);
+        if (previousNonEmptyDay < 1) continue;
+
+        const previousItems = sortPlanDayItems(
+          sourcePlan.items_by_day?.[String(previousNonEmptyDay)] || [],
+        );
+        const prevLast = previousItems[previousItems.length - 1];
+        const firstOfDay = dayItems[0];
+        if (!prevLast || !firstOfDay) continue;
+
+        const prevLastTime = toHHmm(prevLast.estimated_time || prevLast.arrival_time);
+        const prevRest = parseDurationToMinutes(prevLast.rest_duration);
+        const safePrevRest = prevRest > 0 ? prevRest : 120;
+        const firstTravel = Math.max(
+          0,
+          Number(firstOfDay.travel_time_minutes) || 0,
+        );
+        const safeTravel = firstTravel > 0 ? firstTravel : 30;
+
+        const expectedFromPrevious = vietmapService.calculateArrivalTime(
+          prevLastTime,
+          safePrevRest + safeTravel,
+        );
+        const expectedTime = toHHmm(expectedFromPrevious.time);
+        const currentTime = toHHmm(
+          firstOfDay.estimated_time || firstOfDay.arrival_time,
+        );
+        const expectedDay = Math.max(
+          1,
+          Math.min(
+            dayNumber,
+            previousNonEmptyDay +
+              Math.max(0, Number(expectedFromPrevious.daysAdded) || 0),
+          ),
+        );
+        const currentDay = Number(
+          firstOfDay.day_number ?? firstOfDay.leg_number ?? dayNumber,
+        );
+
+        if (currentDay !== expectedDay || currentTime !== expectedTime) {
+          return dayNumber;
+        }
+      }
+
+      return null;
+    },
+    [findPreviousNonEmptyDay],
+  );
+
+  useEffect(() => {
+    if (!plan?.items_by_day) return;
+
+    const autoSyncDay = detectFirstEtaOutOfSyncDay(plan);
+    setEtaSyncFromDay((current) => {
+      if (current !== null && hasItemsInDay(plan, current)) {
+        return current;
+      }
+      return autoSyncDay;
+    });
+  }, [detectFirstEtaOutOfSyncDay, hasItemsInDay, plan]);
+
+  const filterMeaningfulPatches = useCallback(
+    (
+      sourcePlan: PlanEntity,
+      patches: PlannerItemPatch[],
+    ): PlannerItemPatch[] => {
+      const itemById = new Map<string, PlanItem>();
+      Object.values(sourcePlan.items_by_day || {}).forEach((dayItems) => {
+        (dayItems || []).forEach((item) => {
+          if (!item?.id) return;
+          itemById.set(item.id, item);
+        });
+      });
+
+      return patches.filter((patch) => {
+        const currentItem = itemById.get(patch.id);
+        if (!currentItem) return true;
+
+        const currentDay = Number(
+          currentItem.day_number ?? currentItem.leg_number ?? 1,
+        );
+        const currentOrder = Number(currentItem.order_index ?? 0);
+        const currentEstimated = toHHmm(
+          currentItem.estimated_time || currentItem.arrival_time,
+        );
+        const currentTravel = Math.max(
+          0,
+          Number(currentItem.travel_time_minutes) || 0,
+        );
+
+        const nextEstimated = toHHmm(patch.estimated_time);
+        const nextTravel = Math.max(0, Number(patch.travel_time_minutes) || 0);
+
+        return (
+          currentDay !== patch.day_number ||
+          currentOrder !== patch.order_index ||
+          currentEstimated !== nextEstimated ||
+          currentTravel !== nextTravel
+        );
+      });
+    },
+    [],
+  );
+
+  const handleMoveAddToPreviousDay = async (targetDay: number) => {
+    if (!addSiteFlow.selectedSiteId || targetDay < 1) return;
+    setSelectedDay(targetDay);
+    await addSiteFlow.startFlow(
+      addSiteFlow.selectedSiteId,
+      addSiteFlow.selectedEventId || undefined,
+      targetDay,
+    );
+  };
+
+  const handleMoveAddBackToOriginDay = async (targetDay: number) => {
+    if (!addSiteFlow.selectedSiteId || targetDay < 1) return;
+    setSelectedDay(targetDay);
+    await addSiteFlow.startFlow(
+      addSiteFlow.selectedSiteId,
+      addSiteFlow.selectedEventId || undefined,
+      targetDay,
+    );
+  };
+
+  const handleMoveAddToNextDay = async (targetDay: number) => {
+    if (!addSiteFlow.selectedSiteId || targetDay < 1) return;
+    setSelectedDay(targetDay);
+    await addSiteFlow.startFlow(
+      addSiteFlow.selectedSiteId,
+      addSiteFlow.selectedEventId || undefined,
+      targetDay,
+    );
+  };
+
+  const parseClockToMinutes = (value?: string | null): number | null => {
+    if (!value) return null;
+    const normalized = String(value).trim().slice(0, 5);
+    const [h, m] = normalized.split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  };
+
+  const toHHmm = (value?: string | null): string => {
+    if (!value) return "00:00";
+    const text = String(value).trim();
+    return text.length >= 5 ? text.slice(0, 5) : "00:00";
+  };
+
+  const extractCreatedItemId = (response: any): string | undefined => {
+    const rawId =
+      response?.data?.item?.id ??
+      response?.data?.id ??
+      response?.item?.id ??
+      response?.id;
+    if (!rawId) return undefined;
+    const id = String(rawId).trim();
+    return id || undefined;
+  };
+
+
+  const computeFirstItemPatchFromPrevious = useCallback(
+    async (
+      basePlan: PlanEntity,
+      dayNumber: number,
+    ): Promise<PlannerItemPatch | null> => {
+      if (!basePlan?.items_by_day || dayNumber <= 1) return null;
+
+      const currentDayItems = sortPlanDayItems(
+        basePlan.items_by_day?.[String(dayNumber)] || [],
+      );
+      if (currentDayItems.length === 0) return null;
+
+      const firstItem = currentDayItems[0];
+      if (!firstItem?.id) return null;
+
+      let sourceDay = dayNumber - 1;
+      let previousDayItems: PlanItem[] = [];
+      while (sourceDay >= 1) {
+        previousDayItems = sortPlanDayItems(
+          basePlan.items_by_day?.[String(sourceDay)] || [],
+        );
+        if (previousDayItems.length > 0) break;
+        sourceDay -= 1;
+      }
+      if (sourceDay < 1 || previousDayItems.length === 0) return null;
+
+      const prevLast = previousDayItems[previousDayItems.length - 1];
+      if (!prevLast) return null;
+
+      const resolveLatLng = async (item: PlanItem) => {
+        const localLat = Number(item.site?.latitude || 0);
+        const localLng = Number(item.site?.longitude || 0);
+        if (localLat && localLng) {
+          return { latitude: localLat, longitude: localLng };
+        }
+
+        const siteId = item.site_id || item.site?.id;
+        if (!siteId) return { latitude: 0, longitude: 0 };
+
+        try {
+          const detail = await pilgrimSiteApi.getSiteDetail(siteId);
+          const site = detail?.data as any;
+          return {
+            latitude: Number(site?.latitude || 0),
+            longitude: Number(site?.longitude || 0),
+          };
+        } catch {
+          return { latitude: 0, longitude: 0 };
+        }
+      };
+
+      const [from, to] = await Promise.all([
+        resolveLatLng(prevLast),
+        resolveLatLng(firstItem),
+      ]);
+
+      let travelMinutes = Math.max(
+        0,
+        Number(firstItem.travel_time_minutes) || 0,
+      );
+
+      if (from.latitude && from.longitude && to.latitude && to.longitude) {
+        try {
+          const route = await vietmapService.calculateRoute(
+            { latitude: from.latitude, longitude: from.longitude },
+            { latitude: to.latitude, longitude: to.longitude },
+            plan?.transportation,
+          );
+          travelMinutes = Math.max(1, Math.round(route.durationMinutes || 0));
+        } catch {
+          travelMinutes = Math.max(travelMinutes, 30);
+        }
+      } else if (travelMinutes <= 0) {
+        travelMinutes = 30;
+      }
+
+      const prevLastTime = toHHmm(prevLast.estimated_time || prevLast.arrival_time);
+      const prevRest = parseDurationToMinutes(prevLast.rest_duration);
+      const safePrevRest = prevRest > 0 ? prevRest : 120;
+      const arrival = vietmapService.calculateArrivalTime(
+        prevLastTime,
+        safePrevRest + travelMinutes,
+      );
+
+      const targetDay = Math.max(
+        1,
+        Math.min(
+          dayNumber,
+          sourceDay + Math.max(0, Number(arrival.daysAdded) || 0),
+        ),
+      );
+
+      return {
+        id: firstItem.id,
+        day_number: targetDay,
+        order_index: Number(firstItem.order_index || 1),
+        estimated_time: toHHmm(arrival.time),
+        travel_time_minutes: travelMinutes,
+      };
+    },
+    [],
+  );
+
+  const computeReflowFromChangedDay = async (
+    basePlan: PlanEntity,
+    changedDay: number,
+  ): Promise<PlannerItemPatch[]> => {
+    if (!basePlan?.items_by_day || changedDay < 1) {
+      return [];
+    }
+
+    const firstItemPatch = await computeFirstItemPatchFromPrevious(
+      basePlan,
+      changedDay,
+    );
+    if (!firstItemPatch) return [];
+
+    return filterMeaningfulPatches(basePlan, [firstItemPatch]);
+  };
+
+  const buildReloadEtaErrorMessage = useCallback(
+    (error: any) => {
+      const fallback = extractApiErrorMessage(
+        error,
+        t("planner.reloadEtaFailed", {
+          defaultValue: "Không thể đồng bộ giờ dự kiến cho lịch trình.",
+        }),
+      );
+
+      const details = error?.response?.data?.error?.details;
+      const primaryDetail = Array.isArray(details) ? details[0] : undefined;
+      const detailRecord =
+        primaryDetail && typeof primaryDetail === "object"
+          ? (primaryDetail as Record<string, any>)
+          : null;
+
+      const normalizeClock = (value?: unknown): string | undefined => {
+        if (value == null) return undefined;
+        const text = String(value).trim();
+        const match = text.match(/(\d{1,2}:\d{2})/);
+        return match ? match[1] : undefined;
+      };
+
+      const readTravelMinutes = (value?: unknown): number | undefined => {
+        if (value == null) return undefined;
+        const numeric = Number(value);
+        if (Number.isFinite(numeric) && numeric > 0) {
+          return Math.round(numeric);
+        }
+        const m = String(value).match(/(\d+)/);
+        if (!m) return undefined;
+        const fromText = Number(m[1]);
+        return Number.isFinite(fromText) && fromText > 0 ? fromText : undefined;
+      };
+
+      const siteName =
+        detailRecord?.site_name ||
+        detailRecord?.siteName ||
+        detailRecord?.name ||
+        String(fallback).match(/(?:site|địa điểm)\s*[:\-]?\s*"?([^".,\n]+)/i)?.[1];
+
+      const travelMinutes =
+        readTravelMinutes(detailRecord?.travel_time_minutes) ||
+        readTravelMinutes(detailRecord?.travelMinutes) ||
+        readTravelMinutes(detailRecord?.travel_minutes) ||
+        readTravelMinutes(String(fallback).match(/travel\s*(\d+)\s*(?:m|min|minutes)/i)?.[1]) ||
+        readTravelMinutes(String(fallback).match(/di chuyển\s*(\d+)\s*(?:phút|m)/i)?.[1]);
+
+      const eta =
+        normalizeClock(detailRecord?.estimated_time) ||
+        normalizeClock(detailRecord?.eta) ||
+        normalizeClock(detailRecord?.arrival_time) ||
+        normalizeClock(detailRecord?.arrival) ||
+        normalizeClock(
+          String(fallback).match(/(?:estimated|arrival|đến dự kiến)\s*(?:time)?\s*[:\-]?\s*(\d{1,2}:\d{2})/i)?.[1],
+        ) ||
+        normalizeClock(String(fallback).match(/\b(\d{1,2}:\d{2})\b/)?.[1]);
+
+      const closeTime =
+        normalizeClock(detailRecord?.close_time) ||
+        normalizeClock(detailRecord?.closing_time) ||
+        normalizeClock(detailRecord?.site_close_time) ||
+        normalizeClock(String(fallback).match(/(?:close|đóng cửa)\s*(?:at|lúc)?\s*(\d{1,2}:\d{2})/i)?.[1]);
+
+      const openTime =
+        normalizeClock(detailRecord?.open_time) ||
+        normalizeClock(detailRecord?.opening_time) ||
+        normalizeClock(detailRecord?.site_open_time);
+
+      const windowFromDetail =
+        detailRecord?.opening_window ||
+        detailRecord?.openingWindow ||
+        detailRecord?.open_hours ||
+        detailRecord?.opening_hours;
+
+      const windowFromMessage =
+        String(fallback).match(/(\d{1,2}:\d{2})\s*[\-–]\s*(\d{1,2}:\d{2})/) ||
+        null;
+
+      const openingWindow =
+        (typeof windowFromDetail === "string" && windowFromDetail.trim()) ||
+        (openTime && closeTime ? `${openTime}-${closeTime}` : undefined) ||
+        (windowFromMessage
+          ? `${windowFromMessage[1]}-${windowFromMessage[2]}`
+          : undefined);
+
+      const fallbackText = String(fallback || "").toLowerCase();
+      const isBeforeOpening =
+        /before\s+opening|not\s+open\s+yet|chưa\s*(đến|toi)\s*giờ\s*mở\s*cửa|sớm\s*hơn\s*giờ\s*mở\s*cửa/i.test(
+          fallbackText,
+        );
+      const isAfterClosing =
+        /after\s+closing|closed|quá\s*giờ\s*đóng\s*cửa|trễ\s*hơn\s*giờ\s*đóng\s*cửa/i.test(
+          fallbackText,
+        );
+
+      if (!siteName && !eta && !travelMinutes && !openingWindow && !closeTime) {
+        return fallback;
+      }
+
+      return t("planner.reloadEtaConflictDetailed", {
+        defaultValue:
+          "Không thể đồng bộ {{site}}: thời gian di chuyển đến điểm này khoảng {{travel}}, giờ đến dự kiến {{eta}}{{closeSuffix}} {{reason}} (khung mở cửa {{window}}).",
+        site:
+          siteName ||
+          t("planner.thisLocation", { defaultValue: "địa điểm này" }),
+        travel:
+          travelMinutes && travelMinutes > 0
+            ? formatDurationLocalized(travelMinutes, t)
+            : t("planner.unknownTravelDuration", {
+                defaultValue: "không xác định",
+              }),
+        eta:
+          eta ||
+          t("planner.unknownEta", {
+            defaultValue: "không xác định",
+          }),
+        closeSuffix: closeTime
+          ? t("planner.reloadEtaCloseSuffix", {
+              defaultValue: " (đóng cửa lúc {{time}})",
+              time: closeTime,
+            })
+          : "",
+        reason: isBeforeOpening
+          ? t("planner.reloadEtaBeforeOpeningReason", {
+              defaultValue: "nên bị sớm hơn giờ mở cửa",
+            })
+          : isAfterClosing
+            ? t("planner.reloadEtaAfterClosingReason", {
+                defaultValue: "nên bị trễ hơn giờ đóng cửa",
+              })
+            : t("planner.reloadEtaOutsideWindowReason", {
+                defaultValue: "nên nằm ngoài khung mở cửa",
+              }),
+        window:
+          openingWindow ||
+          t("planner.unknownOpeningWindow", {
+            defaultValue: "không xác định",
+          }),
+      });
+    },
+    [t],
+  );
+
+  const resolveEtaSyncDayAfterPatch = useCallback(
+    (
+      sourcePlan: PlanEntity,
+      syncedDay: number,
+      appliedPatch: PlannerItemPatch | undefined,
+    ): number | null => {
+      if (!appliedPatch) {
+        const nextDay = syncedDay + 1;
+        return hasItemsInDay(sourcePlan, nextDay) ? nextDay : null;
+      }
+
+      const movedOutOfSyncedDay = appliedPatch.day_number !== syncedDay;
+      const sameDayItems = sortPlanDayItems(
+        sourcePlan.items_by_day?.[String(syncedDay)] || [],
+      );
+      const remainingAfterMove = sameDayItems.filter(
+        (item) => item.id && item.id !== appliedPatch.id,
+      );
+
+      if (movedOutOfSyncedDay && remainingAfterMove.length > 0) {
+        // First item was moved out; keep syncing same day for the new first item.
+        return syncedDay;
+      }
+
+      const nextDay = syncedDay + 1;
+      return hasItemsInDay(sourcePlan, nextDay) ? nextDay : null;
+    },
+    [hasItemsInDay],
+  );
+
+  const handleReloadDayFromPrevious = useCallback(
+    async (dayNumber: number) => {
+      if (!plan || !isPlanOwner) return;
+
+      if (dayNumber < 1) return;
+
+      if (reloadingDayNumber !== null) {
+        return;
+      }
+
+      try {
+        setReloadingDayNumber(dayNumber);
+        const patches = await computeReflowFromChangedDay(plan, dayNumber);
+
+        if (patches.length === 0) {
+          Toast.show({
+            type: "info",
+            text1: t("planner.reloadEtaNoChangesTitle", {
+              defaultValue: "Không có thay đổi giờ dự kiến",
+            }),
+            text2: t("planner.reloadEtaNoChangesMessage", {
+              defaultValue:
+                "Không có điểm phụ thuộc cần đồng bộ từ ngày đã chọn.",
+            }),
+          });
+          setEtaSyncFromDay(null);
+          return;
+        }
+
+        const appliedPatch = patches[0];
+        const nextEtaSyncDay = resolveEtaSyncDayAfterPatch(
+          plan,
+          dayNumber,
+          appliedPatch,
+        );
+
+        const isOnline = await networkService.checkConnection();
+
+        if (!isOnline) {
+          for (const patch of patches) {
+            await networkService.addToOfflineQueue({
+              endpoint: `/api/planners/${planId}/items/${patch.id}`,
+              method: "PATCH",
+              data: {
+                day_number: patch.day_number,
+                leg_number: patch.day_number,
+                order_index: patch.order_index,
+                estimated_time: patch.estimated_time,
+                travel_time_minutes: patch.travel_time_minutes,
+                planner_item_id: patch.id,
+              },
+            });
+          }
+
+          await applyPlanMutation(
+            (currentPlan) => applyLocalItemPatches(currentPlan, patches),
+            async () => {
+              let mirroredPlan = await offlinePlannerService.getPlannerEntity(planId);
+              for (const patch of patches) {
+                const next = await offlinePlannerService.updatePlannerItem(
+                  planId,
+                  patch.id,
+                  {
+                    day_number: patch.day_number,
+                    estimated_time: patch.estimated_time,
+                    travel_time_minutes: patch.travel_time_minutes,
+                  },
+                );
+                if (next) mirroredPlan = next;
+              }
+              return mirroredPlan;
+            },
+          );
+
+          Toast.show({
+            type: "success",
+            text1: t("common.success"),
+            text2: t("offline.changesSavedOffline"),
+          });
+          setEtaSyncFromDay(nextEtaSyncDay);
+          return;
+        }
+
+        const originalDayByItemId = new Map<string, number>();
+        Object.entries(plan.items_by_day || {}).forEach(([dayKey, dayItems]) => {
+          const normalizedDay = Number(dayKey);
+          if (!Number.isFinite(normalizedDay) || normalizedDay < 1) return;
+          (dayItems || []).forEach((item) => {
+            if (!item?.id) return;
+            originalDayByItemId.set(item.id, normalizedDay);
+          });
+        });
+
+        for (const patch of patches) {
+          if (String(patch.id || "").startsWith("offline_")) {
+            continue;
+          }
+          const originalItem = Object.values(plan.items_by_day || {})
+            .flat()
+            .find((item) => item.id === patch.id);
+
+          const originalDayNumber = Number(
+            originalDayByItemId.get(patch.id) ??
+              originalItem?.leg_number ??
+              originalItem?.day_number ??
+              0,
+          );
+          const shouldMoveAcrossDay =
+            !!originalItem &&
+            originalDayNumber > 0 &&
+            patch.day_number > 0 &&
+            patch.day_number !== originalDayNumber;
+
+          const updatePayload = {
+            day_number: patch.day_number,
+            leg_number: patch.day_number,
+            order_index: patch.order_index,
+            estimated_time: patch.estimated_time,
+            travel_time_minutes: patch.travel_time_minutes,
+          } as any;
+
+          if (shouldMoveAcrossDay) {
+            // First attempt: ask backend to move the same item across day directly.
+            // This keeps operation idempotent and avoids duplicate create on retries.
+            const directMoveResponse = await pilgrimPlannerApi.updatePlanItem(
+              planId,
+              patch.id,
+              updatePayload,
+            );
+
+            if (directMoveResponse?.success) {
+              const movedData: any = directMoveResponse.data;
+              const hasDayInfo =
+                movedData &&
+                (movedData.day_number !== undefined ||
+                  movedData.leg_number !== undefined);
+              const movedDayNumber = Number(
+                movedData?.day_number ?? movedData?.leg_number ?? patch.day_number,
+              );
+
+              if (!hasDayInfo || movedDayNumber === patch.day_number) {
+                continue;
+              }
+            }
+
+            // Fallback for backends that cannot move item across day in-place.
+            const moveSiteId = originalItem?.site_id || originalItem?.site?.id;
+            if (!moveSiteId) {
+              throw new Error(
+                t("planner.reloadEtaMoveFallbackMissingSite", {
+                  defaultValue:
+                    "Không thể đồng bộ vì thiếu thông tin địa điểm để chuyển ngày.",
+                }),
+              );
+            }
+
+            const moveCreateResponse = await pilgrimPlannerApi.addPlanItem(planId, {
+              site_id: String(moveSiteId),
+              leg_number: patch.day_number,
+              event_id: originalItem?.event_id || undefined,
+              note: originalItem?.note || undefined,
+              estimated_time: patch.estimated_time,
+              rest_duration: originalItem?.rest_duration || undefined,
+              travel_time_minutes: patch.travel_time_minutes,
+            });
+
+            const movedItemId = extractCreatedItemId(moveCreateResponse);
+
+            if (!moveCreateResponse?.success || !movedItemId) {
+              throw new Error(
+                moveCreateResponse?.message ||
+                  t("planner.reloadEtaMoveFallbackCreateFailed", {
+                    defaultValue:
+                      "Không thể tạo điểm mới khi đồng bộ chuyển ngày.",
+                  }),
+              );
+            }
+
+            const movePatchResponse = await pilgrimPlannerApi.updatePlanItem(
+              planId,
+              movedItemId,
+              {
+                day_number: patch.day_number,
+                leg_number: patch.day_number,
+                order_index: patch.order_index,
+                estimated_time: patch.estimated_time,
+                travel_time_minutes: patch.travel_time_minutes,
+                note: originalItem?.note || undefined,
+                rest_duration: originalItem?.rest_duration || undefined,
+              } as any,
+            );
+
+            if (!movePatchResponse?.success) {
+              throw new Error(
+                movePatchResponse?.message ||
+                  t("planner.reloadEtaMoveFallbackPatchFailed", {
+                    defaultValue:
+                      "Không thể cập nhật giờ dự kiến cho điểm vừa chuyển ngày.",
+                  }),
+              );
+            }
+
+            const deleteMovedOldResponse = await pilgrimPlannerApi.deletePlanItem(
+              planId,
+              patch.id,
+            );
+
+            if (!deleteMovedOldResponse?.success) {
+              // Compensate partial success to avoid duplicate item (new + old).
+              try {
+                await pilgrimPlannerApi.deletePlanItem(planId, movedItemId);
+              } catch {
+                // Ignore rollback failure and surface deterministic error below.
+              }
+
+              throw new Error(
+                t("planner.reloadEtaMoveFallbackDeleteFailed", {
+                  defaultValue:
+                    "Không thể xóa điểm cũ sau khi chuyển ngày. Vui lòng thử lại.",
+                }),
+              );
+            }
+
+            continue;
+          }
+
+          const updateResponse = await pilgrimPlannerApi.updatePlanItem(
+            planId,
+            patch.id,
+            updatePayload,
+          );
+
+          if (!updateResponse?.success) {
+            throw new Error(
+              updateResponse?.message ||
+                t("planner.reloadEtaUpdateFailed", {
+                  defaultValue: "Không thể cập nhật ETA cho điểm hành hương.",
+                }),
+            );
+          }
+        }
+
+        await loadPlan({ silent: true });
+
+        Toast.show({
+          type: "success",
+          text1: t("planner.reloadEtaSuccessTitle", {
+            defaultValue: "Đã đồng bộ giờ dự kiến",
+          }),
+          text2: t("planner.reloadEtaSuccessMessage", {
+            defaultValue:
+              "Đã tính lại giờ dự kiến từ ngày {{day}} trở đi theo thời gian rời và di chuyển.",
+            day: dayNumber,
+          }),
+        });
+        setEtaSyncFromDay(nextEtaSyncDay);
+      } catch (error: any) {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: buildReloadEtaErrorMessage(error),
+          visibilityTime: 5000,
+        });
+      } finally {
+        setReloadingDayNumber(null);
+      }
+    },
+    [
+      applyLocalItemPatches,
+      applyPlanMutation,
+      buildReloadEtaErrorMessage,
+      computeReflowFromChangedDay,
+      isPlanOwner,
+      plan,
+      planId,
+      reloadingDayNumber,
+      resolveEtaSyncDayAfterPatch,
+      loadPlan,
+      t,
+    ],
+  );
+
   const addItemToItinerary = async (siteId: string) => {
-    if (addSiteFlow.crossDaysAdded > 0) {
+    const previousSourceDay = Number(
+      addSiteFlow.travelData?.sourceDayNumber ?? selectedDay,
+    );
+    const isSameDayConsecutiveSite =
+      !!addSiteFlow.travelData?.previousSiteId &&
+      String(addSiteFlow.travelData.previousSiteId) === String(siteId) &&
+      Number.isFinite(previousSourceDay) &&
+      previousSourceDay === selectedDay;
+
+    if (
+      isSameDayConsecutiveSite
+    ) {
       Toast.show({
         type: "error",
-        text1: t("common.error"),
-        text2: t("planner.cannotAddItemCrossDay"),
+        text1: t("planner.sameSiteConsecutiveTitle", {
+          defaultValue: "Không thể thêm trùng địa điểm",
+        }),
+        text2: t("planner.sameSiteConsecutiveMessage", {
+          defaultValue:
+            "Địa điểm này đang trùng với điểm ngay trước đó. Hãy chọn địa điểm khác hoặc đổi thứ tự trước khi thêm.",
+        }),
       });
       return;
     }
 
+    if (addSiteFlow.crossDaysAdded > 0) {
+      Toast.show({
+        type: "info",
+        text1: t("planner.journeyWarning", {
+          defaultValue: "Lưu ý hành trình",
+        }),
+        text2: t("planner.cannotAddItemCrossDay"),
+      });
+    }
+
+    if (addItemInFlightRef.current || addingItem) {
+      Toast.show({
+        type: "info",
+        text1: t("planner.addInProgressTitle", {
+          defaultValue: "Đang thêm địa điểm",
+        }),
+        text2: t("planner.addInProgressMessage", {
+          defaultValue: "Vui lòng đợi thao tác hiện tại hoàn tất.",
+        }),
+      });
+      return;
+    }
+    addItemInFlightRef.current = true;
+
     // Modal confirmation if plan is ongoing
     const currentStatus = String(plan?.status || "").toLowerCase();
+
+    const sourceDepartureMin = parseClockToMinutes(
+      addSiteFlow.travelData?.departureTimeFromPrev,
+    );
+    const travelMinutesFromSource = Number(
+      addSiteFlow.travelData?.travelMinutes || 0,
+    );
+    const canArriveWithinSourceDay =
+      sourceDepartureMin !== null &&
+      travelMinutesFromSource > 0 &&
+      sourceDepartureMin + travelMinutesFromSource < 24 * 60;
+    const isTrueEarlyFromPreviousDay =
+      addSiteFlow.travelData?.fastestArrival === "00:00" &&
+      Number(addSiteFlow.travelData?.fastestArrivalDayOffset || 0) <= 0;
+    const canActuallyArriveFromSourceDay =
+      addSiteFlow.travelData?.isCrossDayTravel === true &&
+      canArriveWithinSourceDay &&
+      isTrueEarlyFromPreviousDay;
+
+    if (canActuallyArriveFromSourceDay) {
+      const keepCurrentDay = await confirm({
+        title: t("planner.crossDayKeepCurrentTitle", {
+          defaultValue: "Xác nhận thêm địa điểm",
+        }),
+        message: t("planner.crossDayKeepCurrentMessage", {
+          defaultValue:
+            "Lộ trình từ ngày trước cho thấy bạn có thể đến sớm hơn. Nếu giữ ở ngày hiện tại, giờ dự kiến có thể lệch khỏi tiến trình ban đầu. Chọn 'Xem lại' để chỉnh giờ trước khi thêm.",
+        }),
+        confirmText: t("planner.crossDayKeepCurrentConfirm", {
+          defaultValue: "Thêm địa điểm",
+        }),
+        cancelText: t("planner.reviewBeforeAdd", { defaultValue: "Xem lại" }),
+        type: "warning",
+      });
+
+      if (!keepCurrentDay) {
+        addItemInFlightRef.current = false;
+        return;
+      }
+    }
+
     if (currentStatus === "ongoing") {
       const isConfirmed = await confirm({
         title: t("planner.addItemConfirmTitle", {
@@ -2697,25 +2975,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         cancelText: t("common.cancel", { defaultValue: "Hủy" }),
         type: "warning",
       });
-      if (!isConfirmed) return;
+      if (!isConfirmed) {
+        addItemInFlightRef.current = false;
+        return;
+      }
     }
 
     try {
       setAddingItem(true);
 
-      // Convert minutes to duration format (backend expects English for this specific field)
-      const totalMinutes = addSiteFlow.restDuration;
-      const durationHours = Math.floor(totalMinutes / 60);
-      const remainingMinutes = totalMinutes % 60;
-
-      let restDurationStr: string;
-      if (durationHours > 0 && remainingMinutes > 0) {
-        restDurationStr = `${durationHours} hour${durationHours > 1 ? "s" : ""} ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}`;
-      } else if (durationHours > 0) {
-        restDurationStr = `${durationHours} hour${durationHours > 1 ? "s" : ""}`;
-      } else {
-        restDurationStr = `${totalMinutes} minute${totalMinutes > 1 ? "s" : ""}`;
-      }
+      // Keep duration format consistent with edit/swap flows.
+      const restDurationStr = buildDurationString(addSiteFlow.restDuration);
 
       // Use flow's selectedEventId (includes auto-detected events)
       const flowEventId = addSiteFlow.selectedEventId;
@@ -2756,16 +3026,17 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         });
 
         await applyPlanMutation(
-          (currentPlan) =>
-            applyLocalAddItem(
+          (currentPlan) => {
+            return applyLocalAddItem(
               currentPlan,
               planId,
               localDraft,
               tempItemId,
               siteSnapshot,
-            ),
-          () =>
-            offlinePlannerService.addPlannerItem(planId, {
+            );
+          },
+          async () => {
+            return offlinePlannerService.addPlannerItem(planId, {
               id: tempItemId,
               ...localDraft,
               site: siteSnapshot
@@ -2778,37 +3049,42 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                     longitude: siteSnapshot.longitude,
                   }
                 : undefined,
-            }),
+            });
+          },
         );
 
-        addSiteFlow.closeTimeModal();
+        closeAddTimeModal();
         setIsAddModalVisible(false);
         addSiteFlow.setNote("");
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("planner.itemAddedOffline"),
-        });
+        setTimeout(() => {
+          Toast.show({
+            type: "success",
+            text1: t("common.success"),
+            text2: t("planner.itemAddedOffline"),
+          });
+        }, 80);
+        markEtaSyncFromDay(selectedDay + 1);
         return;
       }
 
       const response = await pilgrimPlannerApi.addPlanItem(planId, apiPayload);
 
       if (response.success) {
-        const createdItemId = response.data?.item?.id;
+        const createdItemId = extractCreatedItemId(response);
 
         await applyPlanMutation(
-          (currentPlan) =>
-            applyLocalAddItem(
+          (currentPlan) => {
+            return applyLocalAddItem(
               currentPlan,
               planId,
               localDraft,
               createdItemId,
               siteSnapshot,
-            ),
+            );
+          },
           createdItemId
-            ? () =>
-                offlinePlannerService.addPlannerItem(planId, {
+            ? async () => {
+                return offlinePlannerService.addPlannerItem(planId, {
                   id: createdItemId,
                   ...localDraft,
                   site: siteSnapshot
@@ -2821,20 +3097,24 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                         longitude: siteSnapshot.longitude,
                       }
                     : undefined,
-                })
+                });
+              }
             : undefined,
         );
-        addSiteFlow.closeTimeModal();
+        closeAddTimeModal();
         setIsAddModalVisible(false);
         addSiteFlow.setNote("");
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("planner.itemAddedSuccess", {
-            defaultValue: "Đã thêm địa điểm vào lịch trình",
-          }),
-        });
-        loadPlan({ silent: true });
+        setTimeout(() => {
+          Toast.show({
+            type: "success",
+            text1: t("common.success"),
+            text2: t("planner.itemAddedSuccess", {
+              defaultValue: "Đã thêm địa điểm vào lịch trình",
+            }),
+          });
+        }, 80);
+        markEtaSyncFromDay(selectedDay + 1);
+        void loadPlan({ silent: true });
       } else {
         Toast.show({
           type: "error",
@@ -2888,6 +3168,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       });
     } finally {
       setAddingItem(false);
+      addItemInFlightRef.current = false;
     }
   };
 
@@ -3068,6 +3349,8 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             isPlanOwner={isPlanOwner}
             isOffline={isOffline}
             isGroupPlan={(plan?.number_of_people || 1) > 1}
+            reloadingEta={reloadingDayNumber !== null}
+            showEtaSyncAction={etaSyncFromDay !== null}
             syncingCalendar={syncingCalendar}
             syncingOfflineActions={syncingOfflineActions}
             downloadingOffline={downloadingOffline}
@@ -3075,6 +3358,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             isAvailableOffline={isAvailableOffline}
             setShowMenuDropdown={setShowMenuDropdown}
             handleOpenEditPlan={handleOpenEditPlan}
+            handleReloadEta={handleReloadEtaFromMenu}
             handleSyncCalendar={handleSyncCalendar}
             handleSyncOfflineActions={handleSyncOfflineActions}
             handleClearOfflineActions={handleClearOfflineActions}
@@ -3294,7 +3578,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   color="#FFF8E7"
                 />
                 <Text style={styles.quickActionText}>
-                  {isCompletedPlan ? t("common.share") : t("planner.inviteFriends")}
+                  {isCompletedPlan
+                    ? t("common.share")
+                    : t("planner.inviteFriends")}
                 </Text>
               </TouchableOpacity>
             )}
@@ -3601,6 +3887,12 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         {sortedDays.length > 0 ? (
           sortedDays.map((dayKey) => {
             const items = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
+            const dayNumber = Number(dayKey);
+            const showEtaSyncWarning =
+              etaSyncFromDay !== null &&
+              Number.isFinite(dayNumber) &&
+              dayNumber === etaSyncFromDay &&
+              items.length > 0;
             return (
               <ItineraryDayCard
                 key={dayKey}
@@ -3614,6 +3906,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 setSelectedItem={setSelectedItem}
                 handleReorderIconPress={handleReorderIconPress}
                 handleDeleteItem={handleDeleteItem}
+                onReloadDayFromPrevious={handleReloadDayFromPrevious}
+                reloadingDayNumber={reloadingDayNumber}
+                showEtaSyncWarning={showEtaSyncWarning}
                 openAddModal={openAddModal}
                 t={t}
                 getDateForDayCalc={getDateForDay}
@@ -3718,7 +4013,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             ev.end_date && ev.end_date !== ev.start_date
               ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
               : "";
-          const timeStr = ev.start_time ? t("planner.atTime", { time: ev.start_time }) : "";
+          const timeStr = ev.start_time
+            ? t("planner.atTime", { time: ev.start_time })
+            : "";
           const noteText = `${t("planner.eventSelectionPrefix")}${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
           addSiteFlow.setNote(noteText);
           setShowEventListModal(false);
@@ -3729,14 +4026,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       />
 
       <TimeInputModal
-        visible={addSiteFlow.showTimeInputModal}
-        onClose={addSiteFlow.closeTimeModal}
+        visible={addSiteFlow.showTimeInputModal && !showEditItemModal}
+        onClose={closeAddTimeModal}
         t={t}
         styles={styles}
         selectedDay={selectedDay}
+        selectedDayDateLabel={selectedDayDateLabel}
+        originalSelectedDay={addFlowOriginDay ?? undefined}
         calculatingRoute={addSiteFlow.calculatingRoute}
-        routeInfo={addSiteFlow.routeInfo}
         crossDayWarning={addSiteFlow.crossDayWarning}
+        crossDaysAdded={addSiteFlow.crossDaysAdded}
         estimatedTime={addSiteFlow.estimatedTime}
         restDuration={addSiteFlow.restDuration}
         setRestDuration={addSiteFlow.setRestDuration}
@@ -3748,40 +4047,61 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         selectedSiteId={addSiteFlow.selectedSiteId}
         onConfirmAdd={() => addItemToItinerary(addSiteFlow.selectedSiteId!)}
         {...(addSiteFlow.travelData || {})}
+        previousSiteId={addSiteFlow.travelData?.previousSiteId}
         insight={addSiteFlow.insight}
         suggestedTime={addSiteFlow.suggestedTime}
-        onApplySuggestedTime={() => {
-          if (addSiteFlow.suggestedTime) {
-            addSiteFlow.setEstimatedTime(addSiteFlow.suggestedTime.time);
-          }
-        }}
+        onMoveToPreviousDay={handleMoveAddToPreviousDay}
+        onMoveToNextDay={handleMoveAddToNextDay}
+        onMoveBackToOriginalDay={handleMoveAddBackToOriginDay}
       />
 
-      <EditItemModal
-        {...({
-          visible: showEditItemModal,
-          onClose: () => setShowEditItemModal(false),
-          t,
-          styles,
-          editingItem,
-          calculatingEditRoute,
-          editRouteInfo,
-          openEditTimePicker,
-          editEstimatedTime,
-          editRestDuration,
-          setEditRestDuration,
-          formatDuration,
-          editNote,
-          setEditNote,
-          handleSaveEditItem,
-          savingEdit,
-          onOpenNearbyPlaces: editingItem
-            ? () => {
-                setShowEditItemModal(false);
-                setTimeout(() => void handleOpenNearbyPlaces(editingItem), 280);
-              }
-            : undefined,
-        } satisfies EditItemModalProps)}
+      <TimeInputModal
+        visible={showEditItemModal}
+        onClose={() => setShowEditItemModal(false)}
+        t={t}
+        styles={styles}
+        modalTitle={t("planner.editLocationTitle", {
+          defaultValue: "Chỉnh sửa địa điểm",
+        })}
+        confirmButtonLabel={t("planner.saveChanges", {
+          defaultValue: "Lưu thay đổi",
+        })}
+        selectedDay={editSelectedDay}
+        selectedDayDateLabel={editSelectedDayDateLabel}
+        calculatingRoute={calculatingEditRoute}
+        crossDayWarning={editScheduleContext.crossDayWarning}
+        crossDaysAdded={editScheduleContext.crossDaysAdded}
+        estimatedTime={editEstimatedTime}
+        restDuration={editRestDuration}
+        setRestDuration={setEditRestDuration}
+        note={editNote}
+        setNote={setEditNote}
+        openTimePicker={openEditTimePicker}
+        formatDuration={formatDuration}
+        addingItem={savingEdit}
+        selectedSiteId={editingItem?.site_id || editingItem?.site?.id || ""}
+        onConfirmAdd={handleSaveEditItem}
+        previousSiteName={editScheduleContext.previousSiteName}
+        previousSiteId={editScheduleContext.previousSiteId}
+        departureTimeFromPrev={editScheduleContext.departureTimeFromPrev}
+        travelMinutes={editScheduleContext.travelMinutes}
+        travelDistanceKm={editScheduleContext.travelDistanceKm}
+        fastestArrival={editScheduleContext.fastestArrival}
+        fastestArrivalDayOffset={editScheduleContext.fastestArrivalDayOffset}
+        sourceDayNumber={editScheduleContext.sourceDayNumber}
+        isCrossDayTravel={editScheduleContext.isCrossDayTravel}
+        newSiteName={editScheduleContext.newSiteName}
+        newSiteAddress={editScheduleContext.newSiteAddress}
+        newSitePatronSaint={editScheduleContext.newSitePatronSaint}
+        newSiteCoverImage={editScheduleContext.newSiteCoverImage}
+        openTime={editScheduleContext.openTime}
+        closeTime={editScheduleContext.closeTime}
+        massTimesForDay={editScheduleContext.massTimesForDay}
+        eventsForDay={editScheduleContext.eventsForDay}
+        eventStartTime={editScheduleContext.eventStartTime}
+        eventName={editScheduleContext.eventName}
+        insight={editInsight}
+        suggestedTime={editSuggestedTime}
       />
 
       <NearbyPlacesModal

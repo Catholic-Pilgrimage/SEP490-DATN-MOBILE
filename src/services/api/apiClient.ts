@@ -280,9 +280,24 @@ function transformError(error: AxiosError): Error {
       .join(". ");
   }
 
-  // Ưu tiên chi tiết validation (errors/details) hơn message tổng quát như
-  // "Dữ liệu không hợp lệ" để FE hiển thị rõ nguyên nhân cụ thể.
-  const fullMessage = detailMessage || apiMessage;
+  // Ưu tiên message rõ ràng từ BE (vd: "Bạn đã có lịch trình...").
+  // Chỉ fallback sang details khi message tổng quát/không hữu ích.
+  const isGenericApiMessage = (msg: string | null): boolean => {
+    if (!msg) return true;
+    const normalized = msg.trim().toLowerCase();
+    return (
+      normalized === "dữ liệu không hợp lệ." ||
+      normalized === "dữ liệu không hợp lệ" ||
+      normalized === "invalid data" ||
+      normalized === "invalid request" ||
+      normalized === "bad request"
+    );
+  };
+
+  const fullMessage =
+    apiMessage && !isGenericApiMessage(apiMessage)
+      ? apiMessage
+      : detailMessage || apiMessage;
 
   if (__DEV__ && error.response) {
     console.warn(

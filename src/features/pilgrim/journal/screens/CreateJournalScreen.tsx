@@ -5,7 +5,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoPlayer, VideoView } from "expo-video";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -182,14 +182,38 @@ export default function CreateJournalScreen() {
   const { confirm } = useConfirm();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { journalId, plannerItemId: paramPlannerItemId } = route.params || {};
+  const {
+    journalId,
+    plannerItemId: paramPlannerItemId,
+    plannerItemIds: paramPlannerItemIdsRaw,
+    planId: paramPlanId,
+    planName: paramPlanName,
+    siteName: paramSiteName,
+    from: fromScreen,
+  } = route.params || {};
+  const paramPlannerItemIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            ...(Array.isArray(paramPlannerItemIdsRaw)
+              ? paramPlannerItemIdsRaw
+              : []),
+            paramPlannerItemId,
+          ].filter((value): value is string =>
+            typeof value === "string" ? value.trim().length > 0 : false,
+          ),
+        ),
+      ),
+    [paramPlannerItemId, paramPlannerItemIdsRaw],
+  );
   const insets = useSafeAreaInsets();
 
   const handleBackNavigation = () => {
-    if (route.params?.from === "ActiveJourney" && route.params?.planId) {
+    if (fromScreen === "ActiveJourney" && paramPlanId) {
       navigation.navigate("Lich trinh", {
         screen: "ActiveJourneyScreen",
-        params: { planId: route.params.planId },
+        params: { planId: paramPlanId },
       });
     } else {
       navigation.goBack();
@@ -260,9 +284,8 @@ export default function CreateJournalScreen() {
   const [filteredCheckIns, setFilteredCheckIns] = useState<CheckInEntity[]>([]);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [checkInsLoaded, setCheckInsLoaded] = useState(false);
-  const [selectedPlannerItemIds, setSelectedPlannerItemIds] = useState<
-    string[]
-  >(paramPlannerItemId ? [paramPlannerItemId] : []);
+  const [selectedPlannerItemIds, setSelectedPlannerItemIds] =
+    useState<string[]>(paramPlannerItemIds);
   const [journalPrivacy, setJournalPrivacy] =
     useState<JournalVisibility>("private");
   const [location, setLocation] = useState("");
@@ -283,6 +306,8 @@ export default function CreateJournalScreen() {
     location?: string;
   } | null>(null);
   const [editSelectionInitialized, setEditSelectionInitialized] =
+    useState(false);
+  const [activeJourneyPrefillApplied, setActiveJourneyPrefillApplied] =
     useState(false);
   const [aiBottomSheetVisible, setAiBottomSheetVisible] = useState(false);
   const prayerSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -432,6 +457,60 @@ export default function CreateJournalScreen() {
     pendingEditSelection,
   ]);
 
+  useEffect(() => {
+    if (
+      journalId ||
+      activeJourneyPrefillApplied ||
+      fromScreen !== "ActiveJourney" ||
+      !checkInsLoaded
+    ) {
+      return;
+    }
+
+    const initialSelectedPlannerItemIds = paramPlannerItemIds;
+
+    if (!paramPlanId) {
+      if (paramSiteName && !location) {
+        setLocation(paramSiteName);
+      }
+      setActiveJourneyPrefillApplied(true);
+      return;
+    }
+
+    const plannerChoice =
+      completedPlanners.find((planner) => planner.id === paramPlanId) ||
+      ({
+        id: paramPlanId,
+        name: paramPlanName || t("journal.genericPlanName"),
+        user_id: "",
+        number_of_people: 0,
+        transportation: "",
+        status: "ongoing",
+        share_token: "",
+        qr_code_url: "",
+        created_at: "",
+        updated_at: "",
+      } as PlanEntity);
+
+    hydratePlannerSelection(plannerChoice, initialSelectedPlannerItemIds, {
+      autoSelectSingle: initialSelectedPlannerItemIds.length === 0,
+      fallbackLocation: paramSiteName,
+    }).finally(() => {
+      setActiveJourneyPrefillApplied(true);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    activeJourneyPrefillApplied,
+    checkInsLoaded,
+    completedPlanners,
+    fromScreen,
+    journalId,
+    paramPlanId,
+    paramPlanName,
+    paramPlannerItemIds,
+    paramSiteName,
+  ]);
+
   /** Fetch all planners with status === "completed". */
   const fetchCompletedPlanners = async () => {
     try {
@@ -468,13 +547,23 @@ export default function CreateJournalScreen() {
         setAllCheckIns(valid);
 
         // If we navigated from a specific planner item
-        if (paramPlannerItemId) {
-          const found = valid.find(
-            (c) => c.planner_item_id === paramPlannerItemId,
+        if (paramPlannerItemIds.length > 0) {
+          const matched = valid.filter((c) =>
+            paramPlannerItemIds.includes(c.planner_item_id),
           );
-          if (found && found.site) {
-            setLocation(found.site.name);
-            setSelectedPlannerItemIds([found.planner_item_id]);
+          const preservedIds = Array.from(
+            new Set([
+              ...paramPlannerItemIds,
+              ...matched.map((checkIn) => checkIn.planner_item_id),
+            ]),
+          );
+
+          setSelectedPlannerItemIds(preservedIds);
+
+          if (matched.length > 0) {
+            setLocation(buildLocationFromCheckIns(matched));
+          } else if (paramSiteName) {
+            setLocation(paramSiteName);
           }
         }
       }
@@ -506,6 +595,18 @@ export default function CreateJournalScreen() {
         plannerItems.map((item: any) => [item.id, item]),
       );
       const plannerItemIds = new Set(plannerItems.map((item: any) => item.id));
+      const selectedIdsInPlanner = Array.from(
+        new Set(
+          initialSelectedPlannerItemIds.filter((id) => plannerItemIds.has(id)),
+        ),
+      );
+
+      const buildLocationFromPlannerItems = (itemIds: string[]) =>
+        itemIds
+          .map((itemId) => plannerItemMap.get(itemId)?.site?.name || "")
+          .filter(Boolean)
+          .join(", ");
+
       const filtered = dedupeCheckInsByPlannerItem(
         allCheckIns
           .filter((c) => plannerItemIds.has(c.planner_item_id))
@@ -522,9 +623,13 @@ export default function CreateJournalScreen() {
 
       setFilteredCheckIns(filtered);
 
-      if (matchedCheckIns.length > 0) {
-        setSelectedPlannerItemIds(
-          matchedCheckIns.map((checkIn) => checkIn.planner_item_id),
+      if (selectedIdsInPlanner.length > 0) {
+        setSelectedPlannerItemIds(selectedIdsInPlanner);
+        setLocation(
+          buildLocationFromCheckIns(matchedCheckIns) ||
+            buildLocationFromPlannerItems(selectedIdsInPlanner) ||
+            options?.fallbackLocation ||
+            "",
         );
         setSelectedSiteId(matchedCheckIns[0]?.site?.id || null);
         setLocation(buildLocationFromCheckIns(matchedCheckIns));
@@ -816,8 +921,9 @@ export default function CreateJournalScreen() {
   };
 
   const openMediaPicker = (
-    types: ImagePicker.MediaTypeOptions | ImagePicker.MediaTypeOptions[] = ImagePicker
-      .MediaTypeOptions.All,
+    types:
+      | ImagePicker.MediaTypeOptions
+      | ImagePicker.MediaTypeOptions[] = ImagePicker.MediaTypeOptions.All,
   ) => {
     setModalMediaTypes(types);
     setMediaPickerVisible(true);
@@ -1186,7 +1292,7 @@ export default function CreateJournalScreen() {
     } finally {
       setInitialLoading(false);
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!title.trim() || !content.trim()) {
@@ -1680,7 +1786,9 @@ export default function CreateJournalScreen() {
             <View style={styles.mediaToolbar}>
               <TouchableOpacity
                 style={styles.mediaBtn}
-                onPress={() => openMediaPicker(ImagePicker.MediaTypeOptions.Images)}
+                onPress={() =>
+                  openMediaPicker(ImagePicker.MediaTypeOptions.Images)
+                }
                 activeOpacity={0.85}
               >
                 <MaterialIcons
@@ -1692,7 +1800,9 @@ export default function CreateJournalScreen() {
 
               <TouchableOpacity
                 style={styles.mediaBtn}
-                onPress={() => openMediaPicker(ImagePicker.MediaTypeOptions.Videos)}
+                onPress={() =>
+                  openMediaPicker(ImagePicker.MediaTypeOptions.Videos)
+                }
                 activeOpacity={0.85}
               >
                 <MaterialIcons
@@ -3083,8 +3193,12 @@ export default function CreateJournalScreen() {
         onClose={() => setMediaPickerVisible(false)}
         onMediaPicked={handleMediaPicked}
         mediaTypes={modalMediaTypes}
-        allowsMultipleSelection={modalMediaTypes === ImagePicker.MediaTypeOptions.Images}
-        selectionLimit={modalMediaTypes === ImagePicker.MediaTypeOptions.Images ? 10 : 1}
+        allowsMultipleSelection={
+          modalMediaTypes === ImagePicker.MediaTypeOptions.Images
+        }
+        selectionLimit={
+          modalMediaTypes === ImagePicker.MediaTypeOptions.Images ? 10 : 1
+        }
         title={
           modalMediaTypes === ImagePicker.MediaTypeOptions.Images
             ? t("journal.addPhotoTitle")

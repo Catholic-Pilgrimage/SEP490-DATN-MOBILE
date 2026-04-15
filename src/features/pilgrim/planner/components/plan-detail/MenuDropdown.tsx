@@ -15,6 +15,9 @@ interface MenuDropdownProps {
   isAvailableOffline: boolean;
   setShowMenuDropdown: (val: boolean) => void;
   handleOpenEditPlan: () => void;
+  handleReloadEta: () => void;
+  reloadingEta: boolean;
+  showEtaSyncAction?: boolean;
   handleSyncCalendar: () => void;
   handleSyncOfflineActions: () => void;
   handleClearOfflineActions: () => void;
@@ -37,6 +40,9 @@ export const MenuDropdown: React.FC<MenuDropdownProps> = ({
   isAvailableOffline,
   setShowMenuDropdown,
   handleOpenEditPlan,
+  handleReloadEta,
+  reloadingEta,
+  showEtaSyncAction = false,
   handleSyncCalendar,
   handleSyncOfflineActions,
   handleClearOfflineActions,
@@ -101,6 +107,42 @@ export const MenuDropdown: React.FC<MenuDropdownProps> = ({
               }}
             >
               {t("planner.editPlanMenu")}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {isPlanOwner && showEtaSyncAction && (
+          <TouchableOpacity
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              padding: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: "#F3F4F6",
+              opacity: isOffline || reloadingEta ? 0.5 : 1,
+            }}
+            onPress={handleReloadEta}
+            disabled={isOffline || reloadingEta}
+          >
+            <Ionicons
+              name="warning-outline"
+              size={20}
+              color={isOffline || reloadingEta ? COLORS.textTertiary : "#B45309"}
+              style={{ marginRight: 12 }}
+            />
+            <Text
+              style={{
+                fontSize: 16,
+                color: isOffline || reloadingEta ? COLORS.textTertiary : "#B45309",
+                fontWeight: "500",
+              }}
+            >
+              {reloadingEta
+                ? t("planner.syncingEta", {
+                    defaultValue: "Đang đồng bộ lịch trình",
+                  })
+                : t("planner.syncEtaMenu", {
+                    defaultValue: "Đồng bộ lịch trình",
+                  })}
             </Text>
           </TouchableOpacity>
         )}

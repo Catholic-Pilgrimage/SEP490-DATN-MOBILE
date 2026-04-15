@@ -7,4 +7,3 @@ export { default as NearbyPlacesModal } from "./NearbyPlacesModal";
 export { default as SiteEventsModal } from "./SiteEventsModal";
 export { default as AddSiteModal } from "./AddSiteModal";
 export { default as TimeInputModal } from "./TimeInputModal";
-export { default as EditItemModal } from "./EditItemModal";

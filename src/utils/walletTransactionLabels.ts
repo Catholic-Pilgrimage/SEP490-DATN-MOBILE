@@ -52,3 +52,47 @@ export function walletReferenceContextLabel(
   }
   return null;
 }
+
+/**
+ * Map planner transaction label from backend to i18n key
+ * Backend returns Vietnamese labels, we need to map them to i18n keys
+ */
+export function plannerTransactionLabel(
+  label: string | undefined,
+  t: TFunction,
+): string {
+  if (!label?.trim()) {
+    return t("planner.txLabels.unknown", { defaultValue: "Giao dịch" });
+  }
+
+  // Map Vietnamese labels from backend to i18n keys
+  const labelMap: Record<string, string> = {
+    "Đóng tiền cam kết": "deposit_locked",
+    "Hoàn cọc": "deposit_refunded",
+    "Bị trừ tiền phạt": "penalty_deducted",
+    "Owner nhận tiền phạt": "penalty_received",
+  };
+
+  const key = labelMap[label];
+  if (key) {
+    return t(`planner.txLabels.${key}`, { defaultValue: label });
+  }
+
+  // Return original label if no mapping found
+  return label;
+}
+
+/**
+ * Map planner transaction status to i18n
+ */
+export function plannerTransactionStatus(
+  status: string | undefined,
+  t: TFunction,
+): string {
+  if (!status?.trim()) {
+    return "";
+  }
+
+  const statusLower = status.toLowerCase();
+  return t(`planner.txStatus.${statusLower}`, { defaultValue: status });
+}

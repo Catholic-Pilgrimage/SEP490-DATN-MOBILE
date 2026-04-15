@@ -6,19 +6,19 @@
  * Flow: startPreview() → [loading/VietMap] → result with before/after + warnings
  */
 
-import { useCallback, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import pilgrimSiteApi from '../../../../services/api/pilgrim/siteApi';
-import vietmapService from '../../../../services/map/vietmapService';
-import type { PlanEntity, PlanItem } from '../../../../types/pilgrim/planner.types';
+import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
+import vietmapService from "../../../../services/map/vietmapService";
+import type { PlanEntity } from "../../../../types/pilgrim/planner.types";
+import { sortPlanDayItems } from "../utils/planDetailLocalPlan.utils";
 import {
-  parseOpeningHours,
-  getDateForLeg,
-  timeToMinutes,
-  formatDurationLocalized,
-} from '../utils/siteScheduleHelper';
-import { parseDurationToMinutes } from '../utils/time';
-import { sortPlanDayItems } from '../utils/planDetailLocalPlan.utils';
+    formatDurationLocalized,
+    getDateForLeg,
+    parseOpeningHours,
+    timeToMinutes,
+} from "../utils/siteScheduleHelper";
+import { parseDurationToMinutes } from "../utils/time";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,9 +68,9 @@ interface SwapPreviewState {
 const INITIAL_STATE: SwapPreviewState = {
   visible: false,
   loading: false,
-  dayKey: '',
-  itemIdA: '',
-  itemIdB: '',
+  dayKey: "",
+  itemIdA: "",
+  itemIdB: "",
   result: null,
   error: null,
 };
@@ -86,7 +86,7 @@ const safeRestMinutes = (restDuration: unknown): number => {
 
 /** Normalise time to HH:MM */
 const normaliseTime = (t: unknown): string => {
-  if (!t || typeof t !== 'string') return '08:00';
+  if (!t || typeof t !== "string") return "08:00";
   // Strip seconds: "05:15:00" → "05:15"
   return t.length >= 5 ? t.substring(0, 5) : t;
 };
@@ -118,9 +118,16 @@ export function useSwapPreview(plan: PlanEntity | null) {
         const sorted = sortPlanDayItems(raw);
         const idxA = sorted.findIndex((i) => i.id === itemIdA);
         const idxB = sorted.findIndex((i) => i.id === itemIdB);
-        if (idxA < 0 || idxB < 0) throw new Error(t('planner.swapItemNotFound', { defaultValue: 'Không tìm thấy địa điểm' }));
+        if (idxA < 0 || idxB < 0)
+          throw new Error(
+            t("planner.swapItemNotFound", {
+              defaultValue: "Không tìm thấy địa điểm",
+            }),
+          );
 
-        const anchorTime = normaliseTime(sorted[0]?.estimated_time);
+        const anchorTime = normaliseTime(
+          sorted[0]?.estimated_time || sorted[0]?.arrival_time,
+        );
         const legDate = getDateForLeg(plan.start_date, Number(dayKey));
 
         // Site detail cache
@@ -139,10 +146,10 @@ export function useSwapPreview(plan: PlanEntity | null) {
         // ── Build "before" list ──
         const beforeItems: SwapItemPreview[] = sorted.map((item) => ({
           id: item.id!,
-          siteName: item.site?.name || 'Địa điểm',
+          siteName: item.site?.name || "Địa điểm",
           siteImage: item.site?.cover_image || item.site?.image,
-          oldTime: normaliseTime(item.estimated_time),
-          newTime: normaliseTime(item.estimated_time),
+          oldTime: normaliseTime(item.estimated_time || item.arrival_time),
+          newTime: normaliseTime(item.estimated_time || item.arrival_time),
           restDurationMin: safeRestMinutes(item.rest_duration),
         }));
 
@@ -192,8 +199,12 @@ export function useSwapPreview(plan: PlanEntity | null) {
 
             // ── VietMap route ──
             let travelMin = 0;
-            const prevLat = Number(prevSite?.latitude || prev.site?.latitude || 0);
-            const prevLng = Number(prevSite?.longitude || prev.site?.longitude || 0);
+            const prevLat = Number(
+              prevSite?.latitude || prev.site?.latitude || 0,
+            );
+            const prevLng = Number(
+              prevSite?.longitude || prev.site?.longitude || 0,
+            );
             const curLat = Number(site?.latitude || item.site?.latitude || 0);
             const curLng = Number(site?.longitude || item.site?.longitude || 0);
 
@@ -202,19 +213,20 @@ export function useSwapPreview(plan: PlanEntity | null) {
                 const routeResult = await vietmapService.calculateRoute(
                   { latitude: prevLat, longitude: prevLng },
                   { latitude: curLat, longitude: curLng },
+                  plan?.transportation,
                 );
                 travelMin = routeResult.durationMinutes;
                 routes.push({
-                  fromName: prevSite?.name || prev.site?.name || '',
-                  toName: site?.name || item.site?.name || '',
+                  fromName: prevSite?.name || prev.site?.name || "",
+                  toName: site?.name || item.site?.name || "",
                   durationMin: routeResult.durationMinutes,
                   distanceKm: routeResult.distanceKm,
                 });
               } catch {
                 travelMin = 30; // fallback
                 routes.push({
-                  fromName: prev.site?.name || '',
-                  toName: item.site?.name || '',
+                  fromName: prev.site?.name || "",
+                  toName: item.site?.name || "",
                   durationMin: 30,
                   distanceKm: 0,
                 });
@@ -224,8 +236,8 @@ export function useSwapPreview(plan: PlanEntity | null) {
               // No coordinates at all — use a safe fallback
               travelMin = 30;
               routes.push({
-                fromName: prev.site?.name || '',
-                toName: item.site?.name || '',
+                fromName: prev.site?.name || "",
+                toName: item.site?.name || "",
                 durationMin: 30,
                 distanceKm: 0,
               });
@@ -244,7 +256,9 @@ export function useSwapPreview(plan: PlanEntity | null) {
 
             if (arrivalResult.daysAdded > 0) {
               warnings.push(
-                t('planner.swapCrossDayWarning', { name: site?.name || item.site?.name })
+                t("planner.swapCrossDayWarning", {
+                  name: site?.name || item.site?.name,
+                }),
               );
               isBlocked = true;
             }
@@ -257,7 +271,10 @@ export function useSwapPreview(plan: PlanEntity | null) {
           let isError = false;
 
           if (closeTime && timeToMinutes(newTime) > timeToMinutes(closeTime)) {
-            warning = t('planner.swapArriveAfterClosing', { time: newTime, close: closeTime });
+            warning = t("planner.swapArriveAfterClosing", {
+              time: newTime,
+              close: closeTime,
+            });
             warnings.push(`"${site?.name || item.site?.name}": ${warning}`);
             isBlocked = true;
             isError = true;
@@ -266,16 +283,19 @@ export function useSwapPreview(plan: PlanEntity | null) {
             timeToMinutes(newTime) < timeToMinutes(openTime)
           ) {
             const waitMin = timeToMinutes(openTime) - timeToMinutes(newTime);
-            warning = t('planner.swapArriveEarly', { wait: formatDurationLocalized(waitMin, t), open: openTime });
+            warning = t("planner.swapArriveEarly", {
+              wait: formatDurationLocalized(waitMin, t),
+              open: openTime,
+            });
           }
 
           orderedNewTimes.push({ id: item.id!, time: newTime });
 
           afterItems.push({
             id: item.id!,
-            siteName: site?.name || item.site?.name || 'Địa điểm',
+            siteName: site?.name || item.site?.name || "Địa điểm",
             siteImage: item.site?.cover_image || item.site?.image,
-            oldTime: normaliseTime(item.estimated_time),
+            oldTime: normaliseTime(item.estimated_time || item.arrival_time),
             newTime,
             restDurationMin: safeRestMinutes(item.rest_duration),
             openTime,
@@ -304,11 +324,15 @@ export function useSwapPreview(plan: PlanEntity | null) {
         setState((prev) => ({
           ...prev,
           loading: false,
-          error: error.message || t('planner.loadSiteError', { defaultValue: 'Lỗi tính toán lộ trình' }),
+          error:
+            error.message ||
+            t("planner.loadSiteError", {
+              defaultValue: "Lỗi tính toán lộ trình",
+            }),
         }));
       }
     },
-    [plan],
+    [plan, t],
   );
 
   const close = useCallback(() => {

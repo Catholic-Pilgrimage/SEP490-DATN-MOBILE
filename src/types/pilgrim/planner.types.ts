@@ -426,9 +426,13 @@ export interface CheckInEntity {
   user_id: string;
   site_id: string;
   checked_in_at: string;
+  /** Một số endpoint trả `checkin_date` thay cho `checked_in_at` */
+  checkin_date?: string;
   /** Trạng thái check-in: 'checked_in' | 'missed' | ... — lọc chỉ lấy 'checked_in' */
   status?: string;
   note?: string;
+  /** Ảnh check-in đơn (BE progress/history) */
+  photo_url?: string;
   photos?: string[];
   site?: {
     id: string;
@@ -544,6 +548,8 @@ export interface PlannerProgressMember {
     planner_item_id: string;
     status: string;
     checkin_date?: string;
+    skipped_at?: string;
+    skip_reason?: string;
   }>;
 }
 
