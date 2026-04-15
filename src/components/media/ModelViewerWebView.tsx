@@ -21,7 +21,13 @@ const MODEL_VIEWER_MODULE =
   "https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js";
 
 /** Origin hợp lệ cho document (HTML string) — tránh WebView trống / WebGL lỗi trên iOS. */
-const WEBVIEW_BASE_URL = "https://modelviewer.dev";
+const DEFAULT_BASE_URL = "https://modelviewer.dev";
+
+const getOrigin = (url: string) => {
+  if (!url) return DEFAULT_BASE_URL;
+  const match = url.match(/^(https?:\/\/[^/]+)/);
+  return match ? match[1] : DEFAULT_BASE_URL;
+};
 
 function buildModelViewerHtml(modelUrl: string): string {
   const safeSrc = JSON.stringify(modelUrl?.trim() || "");
@@ -38,7 +44,7 @@ function buildModelViewerHtml(modelUrl: string): string {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #12100c;
+      background: transparent;
     }
     model-viewer {
       width: 100%;
@@ -72,7 +78,12 @@ function buildModelViewerHtml(modelUrl: string): string {
         } catch (e) {}
       };
       mv.addEventListener("load", () => send({ type: "model-viewer-load" }));
-      mv.addEventListener("error", () => send({ type: "model-viewer-error" }));
+      mv.addEventListener("error", (event) => {
+        send({ 
+          type: "model-viewer-error", 
+          details: event.detail ? JSON.stringify(event.detail) : "Unknown error" 
+        });
+      });
     })();
   </script>
 </body>
@@ -123,6 +134,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
       try {
         const data = JSON.parse(event.nativeEvent.data) as {
           type?: string;
+          details?: string;
         };
         if (data.type === "model-viewer-load") {
           clearLoadTimeout();
@@ -131,6 +143,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
           onLoadEnd?.();
         }
         if (data.type === "model-viewer-error") {
+          console.warn("[ModelViewer] Error in WebView:", data.details);
           handleError();
         }
       } catch {
@@ -188,7 +201,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
       ) : (
         <WebView
           originWhitelist={["*"]}
-          source={{ html, baseUrl: WEBVIEW_BASE_URL }}
+          source={{ html, baseUrl: getOrigin(modelUrl) }}
           style={styles.webview}
           onLoadEnd={handleWebViewLoadEnd}
           onMessage={handleWebViewMessage}
@@ -219,7 +232,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: "#12100c",
+    backgroundColor: "transparent",
     overflow: "hidden",
     minHeight: 1,
     minWidth: 1,
@@ -238,7 +251,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(18,16,12,0.92)",
+    backgroundColor: "transparent",
     zIndex: 2,
     paddingHorizontal: 32,
   },
@@ -253,9 +266,9 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,215,0,0.05)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,215,0,0.1)",
   },
   skeletonShine: {
     ...StyleSheet.absoluteFillObject,
@@ -288,7 +301,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#12100c",
+    backgroundColor: "transparent",
   },
   fallbackText: {
     marginTop: 12,

@@ -1945,6 +1945,17 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     />
                   </View>
                 )}
+
+                {/* Journal Access Point – shown only when user has journal entries for this site */}
+                {(isAuthenticated && !isGuest) && (
+                  <SiteModelJournalOverlay
+                    siteId={siteId}
+                    siteName={site?.name}
+                    siteCoverImage={site?.coverImage}
+                    navigation={navigation}
+                    bottomInset={insets.bottom}
+                  />
+                )}
               </View>
             </SafeAreaView>
           </Modal>
