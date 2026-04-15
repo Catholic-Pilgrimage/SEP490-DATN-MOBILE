@@ -60,6 +60,7 @@ import {
 } from "../components";
 import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
 import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
+import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 
 // ============================================
 // GRADIENT THEME FOR EVENT CARDS (Pilgrim side)
@@ -1857,6 +1858,17 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       bottomInset={insets.bottom} 
                     />
                   </View>
+                )}
+
+                {/* Journal Access Point – shown only when user has journal entries for this site */}
+                {(isAuthenticated && !isGuest) && (
+                  <SiteModelJournalOverlay
+                    siteId={siteId}
+                    siteName={site?.name}
+                    siteCoverImage={site?.coverImage}
+                    navigation={navigation}
+                    bottomInset={insets.bottom}
+                  />
                 )}
               </View>
             </SafeAreaView>

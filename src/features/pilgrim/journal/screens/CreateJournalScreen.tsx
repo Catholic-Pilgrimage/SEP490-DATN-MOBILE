@@ -1633,10 +1633,10 @@ export default function CreateJournalScreen() {
                   {t("journal.mediaHeader")}
                 </Text>
                 <Text style={styles.mediaSectionMeta}>
-                  {displayImages.length + (hasCurrentVideo ? 1 : 0) > 0
-                    ? `${t("journal.mediaCount_photos", {
-                        count: displayImages.length,
-                      })}${hasCurrentVideo ? t("journal.mediaCount_video") : ""}`
+                  {displayImages.length > 0 || hasCurrentVideo
+                    ? `${displayImages.length}/10 ${t("journal.imagesLabel").toLowerCase()}${
+                        hasCurrentVideo ? `  •  1/1 ${t("journal.videoLabel").toLowerCase()}` : ""
+                      }`
                     : t("journal.mediaLimit")}
                 </Text>
               </View>

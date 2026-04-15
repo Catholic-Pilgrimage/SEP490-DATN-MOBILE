@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   useFocusEffect,
   useNavigation,
@@ -42,12 +42,17 @@ import {
   shareJournal,
 } from "../../../../services/api/pilgrim/journalApi";
 import { getPlanDetail } from "../../../../services/api/pilgrim/plannerApi";
-import { getSiteDetail } from "../../../../services/api/pilgrim/siteApi";
+import { getSiteDetail, getSiteMedia } from "../../../../services/api/pilgrim/siteApi";
 import { JournalEntry } from "../../../../types/pilgrim/journal.types";
+import { SiteMedia } from "../../../../types/pilgrim/site.types";
+import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
+import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
+import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 import {
   normalizeImageUrls,
   parsePostgresArray,
 } from "../../../../utils/postgresArrayParser";
+import { SiteType } from "../../../../types/common.types";
 
 const { width } = Dimensions.get("window");
 const CARD_W = width - SPACING.lg * 2;
@@ -85,10 +90,12 @@ export default function JournalDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { journalId } = route.params || {};
+  const [isJournalUiVisible, setIsJournalUiVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { confirm: showConfirm } = useConfirm();
+  const { confirm: showConfirm, ConfirmModal } = useConfirm();
   const { user } = useAuth();
+  const hintOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     const parent = navigation.getParent();
@@ -109,8 +116,12 @@ export default function JournalDetailScreen() {
   const [journal, setJournal] = useState<JournalEntry | null>(null);
   const [loading, setLoading] = useState(true);
   const [siteName, setSiteName] = useState<string | null>(null);
+  const [siteType, setSiteType] = useState<SiteType | null>(null);
   const [siteSubtitle, setSiteSubtitle] = useState<string | null>(null);
   const [resolvedCoverUri, setResolvedCoverUri] = useState<string | null>(null);
+  const [models3d, setModels3d] = useState<SiteMedia[]>([]);
+  const [is3dModalVisible, setIs3dModalVisible] = useState(false);
+  const [selectedModelIndex, setSelectedModelIndex] = useState(0);
   const mountAnim = React.useRef(new Animated.Value(0)).current;
 
   // Audio
@@ -218,13 +229,13 @@ export default function JournalDetailScreen() {
       if (journal.site?.name && !cancelled) {
         setSiteName(journal.site.name);
         setSiteSubtitle((journal.site as any).province || null);
-        return;
       }
       if (journal.site_id && !cancelled) {
         try {
           const res = await getSiteDetail(journal.site_id);
           if (!cancelled) {
             setSiteName(res?.data?.name || null);
+            setSiteType(res?.data?.type || null);
             setSiteSubtitle((res?.data as any)?.province || null);
             const siteImage = pickSiteImage(res?.data);
             if (siteImage) setResolvedCoverUri(siteImage);
@@ -239,6 +250,32 @@ export default function JournalDetailScreen() {
     };
   }, [journal]);
 
+  /* ─── Fetch 3D Media ─── */
+  useEffect(() => {
+    if (!journal?.site_id && !(journal?.site as any)?.id) {
+      setModels3d([]);
+      return;
+    }
+    const targetSiteId = journal?.site_id || (journal?.site as any)?.id;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await getSiteMedia(targetSiteId, { type: "model_3d" });
+        if (!cancelled && res.success && res.data) {
+          // SiteMediaResponse structure is data.data
+          setModels3d((res.data as any).data || []);
+        }
+      } catch (e) {
+        console.error("Error fetching 3D models for journal site:", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [journal?.site_id, journal?.site]);
+
   // subtle entrance animation for the whole card
   useEffect(() => {
     Animated.spring(mountAnim, {
@@ -248,6 +285,28 @@ export default function JournalDetailScreen() {
       friction: 8,
     }).start();
   }, [mountAnim]);
+
+  // Fade out hints after 5s
+  useEffect(() => {
+    if (is3dModalVisible) {
+      hintOpacity.setValue(1);
+      Animated.timing(hintOpacity, {
+        toValue: 0,
+        duration: 1000,
+        delay: 5000,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [is3dModalVisible]);
+
+  const getPrivacyInfo = (privacy: string = "private") => {
+    switch (privacy) {
+      case "public": return { label: "Công khai", icon: "public" as const };
+      case "friends": return { label: "Bạn bè", icon: "people" as const };
+      default: return { label: "Chỉ mình tôi", icon: "lock" as const };
+    }
+  };
+  const privacyInfo = getPrivacyInfo(journal?.privacy);
 
   /* ─── Actions ─── */
   const askDelete = () =>
@@ -487,6 +546,18 @@ export default function JournalDetailScreen() {
     .filter(Boolean)
     .join("  ·  ");
 
+  const getSacredTypeInfo = (type: SiteType | null) => {
+    switch (type) {
+      case 'church': return { label: 'NHÀ THỜ', icon: 'church' as const };
+      case 'shrine': return { label: 'ĐỀN THÁNH', icon: 'place' as const };
+      case 'monastery': return { label: 'TU VIỆN', icon: 'account-balance' as const };
+      case 'center': return { label: 'TRUNG TÂM', icon: 'business' as const };
+      default: return { label: 'ĐỊA ĐIỂM', icon: 'church' as const };
+    }
+  };
+
+  const sacredInfo = getSacredTypeInfo(siteType);
+
   return (
     <>
       <ImageBackground
@@ -612,6 +683,26 @@ export default function JournalDetailScreen() {
                       color="rgba(255,255,255,0.4)"
                     />
                   </LinearGradient>
+                )}
+
+                {/* 3D Model Trigger Overlay */}
+                {models3d.length > 0 && (
+                  <TouchableOpacity
+                    style={s.threeDTrigger}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedModelIndex(0);
+                      setIs3dModalVisible(true);
+                    }}
+                  >
+                    <LinearGradient
+                      colors={["rgba(212,175,55,0.95)", "rgba(184,134,11,0.95)"]}
+                      style={s.threeDGlow}
+                    >
+                      <MaterialIcons name="3d-rotation" size={24} color="#1A2845" />
+                      <Text style={s.threeDLabel}>{t('siteModels3d.title', { defaultValue: 'Xem 3D' })}</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 )}
 
                 <LinearGradient
@@ -946,6 +1037,118 @@ export default function JournalDetailScreen() {
           </SafeAreaView>
         </Animated.View>
       </Modal>
+
+      {/* 3D Model Viewer Modal */}
+      <Modal
+        visible={is3dModalVisible}
+        animationType="fade"
+        onRequestClose={() => setIs3dModalVisible(false)}
+        transparent={false}
+      >
+        <LinearGradient
+          colors={["#2c1f12", "#120d08"]}
+          style={s.modalFullContainer}
+        >
+          <StatusBar barStyle="light-content" />
+          
+          {/* Sacred Header Overlay */}
+          <View style={s.sacredHeader}>
+            <TouchableOpacity 
+              style={s.sacredCloseBtn} 
+              onPress={() => setIs3dModalVisible(false)}
+            >
+              <MaterialIcons name="close" size={24} color="rgba(255,255,255,0.6)" />
+            </TouchableOpacity>
+
+            <View style={s.sacredTitleWrap}>
+              <MaterialIcons name={sacredInfo.icon} size={20} color={COLORS.accent} style={{ marginBottom: 4 }} />
+              <Text style={s.sacredSubTitle}>{sacredInfo.label}</Text>
+              <Text style={s.sacredMainTitle}>{journal?.site?.name || siteName}</Text>
+              <View style={s.sacredTitleDivider}>
+                <View style={s.sacredDiamond} />
+              </View>
+            </View>
+
+            <View style={s.sacredHeaderRight}>
+              <TouchableOpacity 
+                style={[s.privacyBadge, isJournalUiVisible && { backgroundColor: COLORS.accent }]} 
+                onPress={() => setIsJournalUiVisible(!isJournalUiVisible)}
+              >
+                <MaterialCommunityIcons 
+                  name={isJournalUiVisible ? "book-open-variant" : "book-outline"} 
+                  size={16} 
+                  color={isJournalUiVisible ? "#1A2845" : "#1A2845"} 
+                />
+                <Text style={s.privacyBadgeText}>
+                  {isJournalUiVisible ? "Ẩn nhật ký" : "Mở nhật ký"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {models3d && models3d.length > 1 && (
+            <View style={s.modelPickerRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.modelPickerContent}>
+                {models3d.map((m, idx) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    onPress={() => setSelectedModelIndex(idx)}
+                    style={[
+                      s.modelChip,
+                      selectedModelIndex === idx && s.modelChipActive
+                    ]}
+                  >
+                    <Text style={[
+                      s.modelChipText,
+                      selectedModelIndex === idx && s.modelChipTextActive
+                    ]}>
+                      {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
+          <View style={[
+            s.modelViewerContainer, 
+            isJournalUiVisible && { marginBottom: 320 }
+          ]}>
+            {/* Spotlight & Pedestal effect behind/under model */}
+            <View style={s.modelStageContainer}>
+              <View style={s.modelSpotlight} />
+              <View style={s.modelPedestal} />
+            </View>
+
+            {models3d && models3d[selectedModelIndex] && (
+              <ModelViewerWebView 
+                modelUrl={models3d[selectedModelIndex].url} 
+                fullscreen 
+              />
+            )}
+
+            {/* Fading Interaction Hints */}
+            <Animated.View style={[s.interactionHint, { opacity: hintOpacity }]}>
+              <MaterialIcons name="touch-app" size={14} color="rgba(255,255,255,0.3)" />
+              <Text style={s.interactionHintText}>Kéo để xoay • Chạm để tương tác</Text>
+            </Animated.View>
+          </View>
+
+          {/* Back-link to current journal reflection - Header button now controls expansion directly */}
+          <SiteModelJournalOverlay
+            siteId={journal?.site_id || (journal?.site as any)?.id}
+            siteName={siteName || journal?.site?.name}
+            siteCoverImage={coverUri || undefined}
+            navigation={navigation}
+            bottomInset={insets.bottom}
+            currentMedia={models3d ? models3d[selectedModelIndex] : undefined}
+            isExpanded={isJournalUiVisible}
+            onToggleExpanded={setIsJournalUiVisible}
+          />
+        </LinearGradient>
+      </Modal>
+
+      <ConfirmModal />
     </>
   );
 }
@@ -1525,5 +1728,192 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: COLORS.textPrimary,
+  },
+
+  // 3D Model Styles
+  threeDTrigger: {
+    position: 'absolute',
+    bottom: SPACING.md,
+    right: SPACING.md,
+    ...SHADOWS.medium,
+  },
+  threeDGlow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  threeDLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1A2845',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  modalFullContainer: {
+    flex: 1,
+  },
+  sacredHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingTop: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  sacredCloseBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  sacredTitleWrap: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  sacredSubTitle: {
+    fontSize: 12,
+    color: COLORS.accent,
+    fontWeight: '600',
+    letterSpacing: 4,
+    marginBottom: 4,
+    opacity: 0.8,
+  },
+  sacredMainTitle: {
+    fontSize: 22,
+    color: '#fff',
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  sacredTitleDivider: {
+    marginTop: 12,
+    width: 80,
+    height: 1,
+    backgroundColor: 'rgba(236,182,19,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sacredDiamond: {
+    width: 6,
+    height: 6,
+    backgroundColor: COLORS.accent,
+    transform: [{ rotate: '45deg' }],
+  },
+  sacredHeaderRight: {
+    width: 80,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  privacyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  privacyBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#1A2845',
+  },
+  modelViewerContainer: {
+    flex: 1,
+    position: 'relative',
+    marginTop: 80,
+    marginBottom: 200, 
+  },
+  modelStageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modelSpotlight: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(236,182,19,0.03)', // softer
+    zIndex: 0,
+  },
+  modelPedestal: {
+    position: 'absolute',
+    bottom: '25%', // base of the model
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(236,182,19,0.02)', // softer
+    borderWidth: 1,
+    borderColor: 'rgba(236,182,19,0.08)', // softer
+    transform: [{ scaleY: 0.35 }], // Perspective effect
+    zIndex: 0,
+  },
+  interactionHint: {
+    position: 'absolute',
+    bottom: 240, // above narrative panel
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  interactionHintText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.3)', // softer
+    fontWeight: '500',
+  },
+  narrativePanelOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  modelPickerRow: {
+    marginTop: 150, // below header icons
+    paddingVertical: SPACING.sm,
+    zIndex: 101,
+  },
+  modelPickerContent: {
+    paddingHorizontal: SPACING.md,
+    gap: 8,
+  },
+  modelChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  modelChipActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  modelChipText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+  },
+  modelChipTextActive: {
+    color: '#1A2845',
   },
 });
