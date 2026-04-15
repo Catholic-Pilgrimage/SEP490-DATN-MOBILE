@@ -4,20 +4,20 @@
  * Supports all backend opening_hours formats (JSONB per-day, simple, or legacy string).
  */
 
-import type { SiteEvent } from '../../../../types/pilgrim';
+import type { SiteEvent } from "../../../../types/pilgrim";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** Parsed open/close time for a specific day */
 export interface DaySchedule {
-  open: string;  // "HH:MM"
+  open: string; // "HH:MM"
   close: string; // "HH:MM"
 }
 
 export interface SuggestedArrival {
-  time: string;  // "HH:MM"
+  time: string; // "HH:MM"
   reason: string;
-  priority: 'event' | 'mass' | 'opening' | 'default';
+  priority: "event" | "mass" | "opening" | "default";
 }
 
 /** Matched event for a specific day */
@@ -25,7 +25,7 @@ export interface DayEvent {
   id: string;
   name: string;
   startTime?: string; // "HH:MM"
-  endTime?: string;   // "HH:MM"
+  endTime?: string; // "HH:MM"
   description?: string;
 }
 
@@ -42,8 +42,16 @@ export interface SiteScheduleInfo {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
-const DEFAULT_START_TIME = '08:00';
+const DAY_NAMES = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+const DEFAULT_START_TIME = "08:00";
 const PRE_EVENT_BUFFER_MINUTES = 30;
 const POST_OPEN_BUFFER_MINUTES = 15;
 
@@ -51,7 +59,7 @@ const POST_OPEN_BUFFER_MINUTES = 15;
 
 /** Parse "HH:MM" to total minutes from midnight */
 export const timeToMinutes = (time: string): number => {
-  const [h, m] = time.split(':').map(Number);
+  const [h, m] = time.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);
 };
 
@@ -60,7 +68,7 @@ export const minutesToTime = (minutes: number): string => {
   const safeMinutes = ((minutes % 1440) + 1440) % 1440; // handle negative/overflow
   const h = Math.floor(safeMinutes / 60);
   const m = safeMinutes % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
 /** Subtract minutes from a "HH:MM" time string */
@@ -71,8 +79,75 @@ export const subtractMinutes = (time: string, mins: number): string =>
 export const addMinutes = (time: string, mins: number): string =>
   minutesToTime(timeToMinutes(time) + mins);
 
+interface TimeWindowContext {
+  selectedMin: number;
+  selectedComparableMin: number;
+  openMin?: number;
+  closeMin?: number;
+  closeComparableMin?: number;
+  isOvernight: boolean;
+}
+
+const buildTimeWindowContext = (
+  selectedTime: string,
+  openTime?: string,
+  closeTime?: string,
+): TimeWindowContext => {
+  const selectedMin = timeToMinutes(selectedTime);
+
+  if (!closeTime) {
+    return {
+      selectedMin,
+      selectedComparableMin: selectedMin,
+      isOvernight: false,
+    };
+  }
+
+  const closeMin = timeToMinutes(closeTime);
+
+  if (!openTime) {
+    return {
+      selectedMin,
+      selectedComparableMin: selectedMin,
+      closeMin,
+      closeComparableMin: closeMin,
+      isOvernight: false,
+    };
+  }
+
+  const openMin = timeToMinutes(openTime);
+  const isOvernight = closeMin < openMin;
+
+  if (!isOvernight) {
+    return {
+      selectedMin,
+      selectedComparableMin: selectedMin,
+      openMin,
+      closeMin,
+      closeComparableMin: closeMin,
+      isOvernight: false,
+    };
+  }
+
+  // Overnight example: open 18:00, close 02:00 (next day).
+  const selectedComparableMin =
+    selectedMin < openMin ? selectedMin + 1440 : selectedMin;
+
+  return {
+    selectedMin,
+    selectedComparableMin,
+    openMin,
+    closeMin,
+    closeComparableMin: closeMin + 1440,
+    isOvernight: true,
+  };
+};
+
 /** Format minutes to localized duration text */
-export const formatDurationLocalized = (min: number, t: (key: string, options?: any) => string): string => {
+export const formatDurationLocalized = (
+  min: number,
+  t: (key: string, options?: any) => string,
+): string => {
   if (min <= 0) return t("planner.term.durationMinutes", { m: 0 });
   const h = Math.floor(min / 60);
   const m = min % 60;
@@ -98,11 +173,11 @@ export const parseOpeningHours = (
   if (!openingHours) return null;
 
   // Format 3: Legacy string "HH:MM - HH:MM"
-  if (typeof openingHours === 'string') {
+  if (typeof openingHours === "string") {
     return parseTimeRange(openingHours);
   }
 
-  if (typeof openingHours !== 'object') return null;
+  if (typeof openingHours !== "object") return null;
   const obj = openingHours as Record<string, string>;
 
   // Format 2: Simple { open, close }
@@ -115,8 +190,8 @@ export const parseOpeningHours = (
     const dayName = DAY_NAMES[date.getDay()];
     const dayHours = obj[dayName];
     if (dayHours) {
-      if (typeof dayHours === 'string') {
-        if (dayHours.toLowerCase() === 'closed') return null;
+      if (typeof dayHours === "string") {
+        if (dayHours.toLowerCase() === "closed") return null;
         return parseTimeRange(dayHours);
       }
     }
@@ -124,7 +199,11 @@ export const parseOpeningHours = (
 
   // Fallback: Try all day keys and return the first one found
   for (const day of DAY_NAMES) {
-    if (obj[day] && typeof obj[day] === 'string' && obj[day].toLowerCase() !== 'closed') {
+    if (
+      obj[day] &&
+      typeof obj[day] === "string" &&
+      obj[day].toLowerCase() !== "closed"
+    ) {
       return parseTimeRange(obj[day]);
     }
   }
@@ -141,14 +220,17 @@ const parseTimeRange = (str: string): DaySchedule | null => {
 
 /** Ensure time is in "HH:MM" format (pad single digit hours) */
 const normalizeTime = (time: string): string => {
-  const [h, m] = time.split(':');
-  return `${h.padStart(2, '0')}:${(m || '00').padStart(2, '0')}`;
+  const [h, m] = time.split(":");
+  return `${h.padStart(2, "0")}:${(m || "00").padStart(2, "0")}`;
 };
 
 // ─── Date for Day ─────────────────────────────────────────────────────────────
 
 /** Get the Date object for a given planner day number (1-based) */
-export const getDateForLeg = (planStartDate: string | undefined, legNumber: number): Date | undefined => {
+export const getDateForLeg = (
+  planStartDate: string | undefined,
+  legNumber: number,
+): Date | undefined => {
   if (!planStartDate) return undefined;
   const d = new Date(planStartDate);
   if (isNaN(d.getTime())) return undefined;
@@ -175,8 +257,8 @@ export const getMassTimesForDate = (
   if (!schedules?.length || !date) return [];
   const dayOfWeek = date.getDay(); // 0=Sunday
   return schedules
-    .filter(s => s.days_of_week?.includes(dayOfWeek) && s.time)
-    .map(s => s.time!.substring(0, 5))
+    .filter((s) => s.days_of_week?.includes(dayOfWeek) && s.time)
+    .map((s) => s.time!.substring(0, 5))
     .sort();
 };
 
@@ -193,16 +275,16 @@ export const getEventsForDate = (
   if (!events?.length || !date) return [];
 
   // Normalise target date to YYYY-MM-DD for comparison
-  const targetDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const targetDateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
   return events
-    .filter(ev => {
+    .filter((ev) => {
       if (!ev.start_date) return false;
       const evStart = ev.start_date.substring(0, 10); // YYYY-MM-DD
       const evEnd = ev.end_date ? ev.end_date.substring(0, 10) : evStart;
       return targetDateStr >= evStart && targetDateStr <= evEnd;
     })
-    .map(ev => ({
+    .map((ev) => ({
       id: String(ev.id),
       name: ev.name,
       startTime: ev.start_time ? ev.start_time.substring(0, 5) : undefined,
@@ -231,39 +313,48 @@ export const suggestArrivalTime = (params: {
   fastestArrival?: string; // earliest possible given travel constraints
   t: (key: string, options?: any) => string;
 }): SuggestedArrival => {
-  const { eventStartTime, eventName, massTimesForDay, openTime, fastestArrival, t } = params;
+  const {
+    eventStartTime,
+    eventName,
+    massTimesForDay,
+    openTime,
+    fastestArrival,
+    t,
+  } = params;
   const minArrival = fastestArrival ? timeToMinutes(fastestArrival) : 0;
 
   // Priority 1: Event / Sự kiện
   if (eventStartTime) {
-    const suggestedMin = timeToMinutes(eventStartTime) - PRE_EVENT_BUFFER_MINUTES;
+    const suggestedMin =
+      timeToMinutes(eventStartTime) - PRE_EVENT_BUFFER_MINUTES;
     const finalMin = Math.max(suggestedMin, minArrival);
     return {
       time: minutesToTime(finalMin),
-      reason: t("planner.suggested.event", { 
-        name: eventName || t("planner.term.event"), 
-        time: eventStartTime, 
-        buffer: PRE_EVENT_BUFFER_MINUTES 
+      reason: t("planner.suggested.event", {
+        name: eventName || t("planner.term.event"),
+        time: eventStartTime,
+        buffer: PRE_EVENT_BUFFER_MINUTES,
       }),
-      priority: 'event',
+      priority: "event",
     };
   }
 
   // Priority 2: Giờ Lễ đầu tiên trong ngày (sau giờ có thể đến)
   if (massTimesForDay.length > 0) {
     const attendableMass = massTimesForDay.find(
-      t => timeToMinutes(t) - PRE_EVENT_BUFFER_MINUTES >= minArrival,
+      (t) => timeToMinutes(t) - PRE_EVENT_BUFFER_MINUTES >= minArrival,
     );
 
     if (attendableMass) {
-      const suggestedMin = timeToMinutes(attendableMass) - PRE_EVENT_BUFFER_MINUTES;
+      const suggestedMin =
+        timeToMinutes(attendableMass) - PRE_EVENT_BUFFER_MINUTES;
       return {
         time: minutesToTime(suggestedMin),
-        reason: t("planner.suggested.mass", { 
-          buffer: PRE_EVENT_BUFFER_MINUTES, 
-          time: attendableMass 
+        reason: t("planner.suggested.mass", {
+          buffer: PRE_EVENT_BUFFER_MINUTES,
+          time: attendableMass,
         }),
-        priority: 'mass',
+        priority: "mass",
       };
     }
   }
@@ -274,11 +365,11 @@ export const suggestArrivalTime = (params: {
     const finalMin = Math.max(suggestedMin, minArrival);
     return {
       time: minutesToTime(finalMin),
-      reason: t("planner.suggested.opening", { 
-        time: openTime, 
-        buffer: POST_OPEN_BUFFER_MINUTES 
+      reason: t("planner.suggested.opening", {
+        time: openTime,
+        buffer: POST_OPEN_BUFFER_MINUTES,
       }),
-      priority: 'opening',
+      priority: "opening",
     };
   }
 
@@ -287,22 +378,22 @@ export const suggestArrivalTime = (params: {
   return {
     time: minutesToTime(defaultMin),
     reason: t("planner.suggested.default"),
-    priority: 'default',
+    priority: "default",
   };
 };
 
 // ─── Insight Generator ────────────────────────────────────────────────────────
 
 export type InsightType =
-  | 'error'        // Physically impossible (not enough travel time)
-  | 'error_closed' // Site is closed at selected time
-  | 'event_late'   // Arrives after event/mass start
-  | 'event_ok'     // Arrives with buffer before event
-  | 'early'        // Arrives before opening
-  | 'late'         // Arrives after closing
-  | 'buffer'       // Good travel buffer
-  | 'first_stop'   // First stop of day (info only)
-  | 'ideal';       // Perfect timing
+  | "error" // Physically impossible (not enough travel time)
+  | "error_closed" // Site is closed at selected time
+  | "event_late" // Arrives after event/mass start
+  | "event_ok" // Arrives with buffer before event
+  | "early" // Arrives before opening
+  | "late" // Arrives after closing
+  | "buffer" // Good travel buffer
+  | "first_stop" // First stop of day (info only)
+  | "ideal"; // Perfect timing
 
 export interface ScheduleInsight {
   type: InsightType;
@@ -352,6 +443,7 @@ export const generateInsight = (params: {
   } = params;
 
   const selectedMin = timeToMinutes(estimatedTime);
+  const timeWindow = buildTimeWindowContext(estimatedTime, openTime, closeTime);
 
   // ── P1: Physical impossibility — not enough travel time ──
   // isBlocking = true → user cannot add with this time
@@ -360,16 +452,16 @@ export const generateInsight = (params: {
     if (selectedMin < fastestMin) {
       const shortage = fastestMin - selectedMin;
       return {
-        type: 'error',
+        type: "error",
         title: t("planner.insight.notEnoughTravelTime.title"),
         message: t("planner.insight.notEnoughTravelTime.message", {
           duration: formatDurationLocalized(travelMinutes || 0, t),
           fastest: fastestArrival,
-          shortage: formatDurationLocalized(shortage, t)
+          shortage: formatDurationLocalized(shortage, t),
         }),
-        color: '#DC2626',
-        bgColor: '#FEF2F2',
-        iconName: 'car-sport',
+        color: "#DC2626",
+        bgColor: "#FEF2F2",
+        iconName: "car-sport",
         isBlocking: true,
       };
     }
@@ -381,74 +473,100 @@ export const generateInsight = (params: {
     const diffMin = eventMin - selectedMin;
     if (diffMin < 0) {
       return {
-        type: 'event_late',
+        type: "event_late",
         title: t("planner.insight.eventLate.title", {
           name: eventName || t("planner.term.event"),
-          time: eventStartTime
+          time: eventStartTime,
         }),
         message: t("planner.insight.eventLate.message", {
           selected: estimatedTime,
-          diff: formatDurationLocalized(Math.abs(diffMin), t)
+          diff: formatDurationLocalized(Math.abs(diffMin), t),
         }),
-        color: '#BE123C',
-        bgColor: '#FFE4E6',
-        iconName: 'alert-circle',
+        color: "#BE123C",
+        bgColor: "#FFE4E6",
+        iconName: "alert-circle",
         isBlocking: false,
       };
     }
 
     const eventLabel = eventName || t("planner.term.event");
-    const typeLabel = eventLabel.toLowerCase().includes(t("planner.term.event").toLowerCase()) ? t("planner.term.event") : t("planner.term.mass");
+    const typeLabel = eventLabel
+      .toLowerCase()
+      .includes(t("planner.term.event").toLowerCase())
+      ? t("planner.term.event")
+      : t("planner.term.mass");
 
     return {
-      type: 'event_ok',
-      title: t("planner.insight.eventOk.title", { name: eventLabel, time: eventStartTime }),
-      message: diffMin >= PRE_EVENT_BUFFER_MINUTES
-        ? t("planner.insight.eventOk.message", { type: typeLabel, window: formatDurationLocalized(diffMin, t) })
-        : t("planner.insight.eventOk.messageShort", { type: typeLabel, window: formatDurationLocalized(diffMin, t) }),
-      color: diffMin >= PRE_EVENT_BUFFER_MINUTES ? '#1D4ED8' : '#D97706',
-      bgColor: diffMin >= PRE_EVENT_BUFFER_MINUTES ? 'rgba(29, 78, 216, 0.08)' : 'rgba(217, 119, 6, 0.08)',
-      iconName: 'calendar',
+      type: "event_ok",
+      title: t("planner.insight.eventOk.title", {
+        name: eventLabel,
+        time: eventStartTime,
+      }),
+      message:
+        diffMin >= PRE_EVENT_BUFFER_MINUTES
+          ? t("planner.insight.eventOk.message", {
+              type: typeLabel,
+              window: formatDurationLocalized(diffMin, t),
+            })
+          : t("planner.insight.eventOk.messageShort", {
+              type: typeLabel,
+              window: formatDurationLocalized(diffMin, t),
+            }),
+      color: diffMin >= PRE_EVENT_BUFFER_MINUTES ? "#1D4ED8" : "#D97706",
+      bgColor:
+        diffMin >= PRE_EVENT_BUFFER_MINUTES
+          ? "rgba(29, 78, 216, 0.08)"
+          : "rgba(217, 119, 6, 0.08)",
+      iconName: "calendar",
       isBlocking: false,
       visitingWindowMinutes: diffMin,
     };
   }
 
   // ── P3: Arriving after closing — isBlocking (skip when event exists) ──
-  if (!eventStartTime && closeTime && selectedMin > timeToMinutes(closeTime)) {
+  if (
+    !eventStartTime &&
+    timeWindow.closeComparableMin !== undefined &&
+    timeWindow.selectedComparableMin > timeWindow.closeComparableMin
+  ) {
+    const overMin =
+      timeWindow.selectedComparableMin - timeWindow.closeComparableMin;
     return {
-      type: 'error_closed',
+      type: "error_closed",
       title: t("planner.insight.siteClosed.title", { time: closeTime }),
       message: t("planner.insight.siteClosed.message", {
         selected: estimatedTime,
-        diff: formatDurationLocalized(selectedMin - timeToMinutes(closeTime), t)
+        diff: formatDurationLocalized(overMin, t),
       }),
-      color: '#BE123C',
-      bgColor: '#FFE4E6',
-      iconName: 'warning',
+      color: "#BE123C",
+      bgColor: "#FFE4E6",
+      iconName: "warning",
       isBlocking: true,
     };
   }
 
   // ── P3b: Mass schedule — warn if arriving after mass starts ──
   if (massTimesForDay.length > 0) {
-    const nextMass = massTimesForDay.find(t => timeToMinutes(t) > selectedMin);
+    const nextMass = massTimesForDay.find(
+      (t) => timeToMinutes(t) > selectedMin,
+    );
     const currentMass = massTimesForDay.find(
-      t => timeToMinutes(t) <= selectedMin && selectedMin - timeToMinutes(t) < 60,
+      (t) =>
+        timeToMinutes(t) <= selectedMin && selectedMin - timeToMinutes(t) < 60,
     );
 
     if (currentMass) {
       const late = selectedMin - timeToMinutes(currentMass);
       return {
-        type: 'event_late',
+        type: "event_late",
         title: t("planner.insight.massStarted.title", { time: currentMass }),
         message: t("planner.insight.massStarted.message", {
           late: formatDurationLocalized(late, t),
-          target: subtractMinutes(currentMass, PRE_EVENT_BUFFER_MINUTES)
+          target: subtractMinutes(currentMass, PRE_EVENT_BUFFER_MINUTES),
         }),
-        color: '#D97706',
-        bgColor: 'rgba(217, 119, 6, 0.08)',
-        iconName: 'time-outline',
+        color: "#D97706",
+        bgColor: "rgba(217, 119, 6, 0.08)",
+        iconName: "time-outline",
         isBlocking: false,
       };
     }
@@ -457,12 +575,18 @@ export const generateInsight = (params: {
       const buffer = timeToMinutes(nextMass) - selectedMin;
       if (buffer <= 120 && buffer > 0) {
         return {
-          type: 'event_ok',
-          title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: nextMass }),
-          message: t("planner.insight.eventOk.message", { type: t("planner.term.mass"), window: formatDurationLocalized(buffer, t) }),
-          color: '#1D4ED8',
-          bgColor: 'rgba(29, 78, 216, 0.08)',
-          iconName: 'calendar',
+          type: "event_ok",
+          title: t("planner.insight.eventOk.title", {
+            name: t("planner.term.mass"),
+            time: nextMass,
+          }),
+          message: t("planner.insight.eventOk.message", {
+            type: t("planner.term.mass"),
+            window: formatDurationLocalized(buffer, t),
+          }),
+          color: "#1D4ED8",
+          bgColor: "rgba(29, 78, 216, 0.08)",
+          iconName: "calendar",
           isBlocking: false,
           visitingWindowMinutes: buffer,
         };
@@ -471,40 +595,63 @@ export const generateInsight = (params: {
   }
 
   // ── P4: Arriving before opening (skip when event exists) ──
-  if (!eventStartTime && openTime && selectedMin < timeToMinutes(openTime)) {
-    const waitMin = timeToMinutes(openTime) - selectedMin;
+  const shouldWarnEarlyByOvernightGap =
+    !eventStartTime &&
+    timeWindow.isOvernight &&
+    timeWindow.openMin !== undefined &&
+    timeWindow.closeMin !== undefined &&
+    selectedMin > timeWindow.closeMin &&
+    selectedMin < timeWindow.openMin;
+
+  if (
+    !eventStartTime &&
+    openTime &&
+    (selectedMin < timeToMinutes(openTime) || shouldWarnEarlyByOvernightGap)
+  ) {
     return {
-      type: 'early',
-      title: t("planner.insight.arriveEarly.title", { time: openTime }),
-      message: t("planner.insight.arriveEarly.message", { wait: formatDurationLocalized(waitMin, t) }),
-      color: '#D97706',
-      bgColor: 'rgba(217, 119, 6, 0.08)',
-      iconName: 'time-outline',
-      isBlocking: false,
+      type: "early",
+      title: t("planner.insight.arriveOutsideOperatingHoursTitle", {
+        defaultValue: "Chưa trong giờ hoạt động (mở cửa lúc {{time}})",
+        time: openTime,
+      }),
+      message: t("planner.insight.arriveOutsideOperatingHoursMessage", {
+        defaultValue:
+          "Không thể thêm vào lịch trình vì thời gian dự kiến đến ({{arrival}}) nằm ngoài khung giờ hoạt động của địa điểm. Vui lòng chọn giờ từ {{open}} trở đi.",
+        arrival: estimatedTime,
+        open: openTime,
+      }),
+      color: "#DC2626",
+      bgColor: "#FEF2F2",
+      iconName: "alert-circle-outline",
+      isBlocking: true,
     };
   }
 
   // ── P5: Check if rest_duration goes past closing (skip when event exists) ──
-  if (!eventStartTime && closeTime && restDuration) {
-    const leaveMin = selectedMin + restDuration;
-    const closeMin = timeToMinutes(closeTime);
-    if (leaveMin > closeMin) {
-      const overMin = leaveMin - closeMin;
-      const visitWindow = closeMin - selectedMin;
+  if (
+    !eventStartTime &&
+    timeWindow.closeComparableMin !== undefined &&
+    restDuration
+  ) {
+    const leaveComparableMin = timeWindow.selectedComparableMin + restDuration;
+    if (leaveComparableMin > timeWindow.closeComparableMin) {
+      const overMin = leaveComparableMin - timeWindow.closeComparableMin;
+      const visitWindow =
+        timeWindow.closeComparableMin - timeWindow.selectedComparableMin;
       return {
-        type: 'late',
+        type: "late",
         title: t("planner.insight.stayPastClosing.title"),
         message: t("planner.insight.stayPastClosing.message", {
           selected: estimatedTime,
           duration: formatDurationLocalized(restDuration, t),
-          leave: minutesToTime(leaveMin),
+          leave: minutesToTime(leaveComparableMin),
           close: closeTime,
           over: formatDurationLocalized(overMin, t),
-          window: formatDurationLocalized(visitWindow, t)
+          window: formatDurationLocalized(visitWindow, t),
         }),
-        color: '#D97706',
-        bgColor: 'rgba(217, 119, 6, 0.08)',
-        iconName: 'time-outline',
+        color: "#D97706",
+        bgColor: "rgba(217, 119, 6, 0.08)",
+        iconName: "time-outline",
         isBlocking: false, // warning only, backend allows it
         visitingWindowMinutes: visitWindow,
       };
@@ -516,38 +663,53 @@ export const generateInsight = (params: {
     const bufferMin = selectedMin - timeToMinutes(fastestArrival);
     if (bufferMin > 0) {
       // Check if there's an upcoming mass to show countdown to
-      const upcomingMass = massTimesForDay.find(t => timeToMinutes(t) > selectedMin);
+      const upcomingMass = massTimesForDay.find(
+        (t) => timeToMinutes(t) > selectedMin,
+      );
       const massCountdown = upcomingMass
         ? timeToMinutes(upcomingMass) - selectedMin
         : undefined;
 
-      const visitWindow = closeTime
-        ? timeToMinutes(closeTime) - selectedMin
-        : undefined;
+      const visitWindow =
+        timeWindow.closeComparableMin !== undefined
+          ? timeWindow.closeComparableMin - timeWindow.selectedComparableMin
+          : undefined;
 
       // If there's mass coming up, prioritize showing that
       if (upcomingMass && massCountdown && massCountdown > 0) {
         return {
-          type: 'event_ok',
-          title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: upcomingMass }),
-          message: t("planner.insight.eventOk.message", { type: t("planner.term.mass"), window: formatDurationLocalized(massCountdown, t) }),
-          color: '#1D4ED8',
-          bgColor: 'rgba(29, 78, 216, 0.08)',
-          iconName: 'calendar',
+          type: "event_ok",
+          title: t("planner.insight.eventOk.title", {
+            name: t("planner.term.mass"),
+            time: upcomingMass,
+          }),
+          message: t("planner.insight.eventOk.message", {
+            type: t("planner.term.mass"),
+            window: formatDurationLocalized(massCountdown, t),
+          }),
+          color: "#1D4ED8",
+          bgColor: "rgba(29, 78, 216, 0.08)",
+          iconName: "calendar",
           isBlocking: false,
           visitingWindowMinutes: massCountdown,
         };
       }
 
       return {
-        type: 'buffer',
+        type: "buffer",
         title: t("planner.insight.goodBuffer.title"),
-        message: visitWindow && visitWindow > 0 
-          ? t("planner.insight.goodBuffer.message", { buffer: formatDurationLocalized(bufferMin, t), window: formatDurationLocalized(visitWindow, t) })
-          : t("planner.insight.goodBuffer.messageOnly", { buffer: formatDurationLocalized(bufferMin, t) }),
-        color: '#059669',
-        bgColor: 'rgba(5, 150, 105, 0.08)',
-        iconName: 'shield-checkmark-outline',
+        message:
+          visitWindow && visitWindow > 0
+            ? t("planner.insight.goodBuffer.message", {
+                buffer: formatDurationLocalized(bufferMin, t),
+                window: formatDurationLocalized(visitWindow, t),
+              })
+            : t("planner.insight.goodBuffer.messageOnly", {
+                buffer: formatDurationLocalized(bufferMin, t),
+              }),
+        color: "#059669",
+        bgColor: "rgba(5, 150, 105, 0.08)",
+        iconName: "shield-checkmark-outline",
         isBlocking: false,
         visitingWindowMinutes: visitWindow,
       };
@@ -558,7 +720,9 @@ export const generateInsight = (params: {
   // If there's a mass/event coming up, show it prominently like the event_ok style
   if (!hasTravelInfo) {
     // Check for upcoming mass on this day
-    const upcomingMass = massTimesForDay.find(t => timeToMinutes(t) > selectedMin);
+    const upcomingMass = massTimesForDay.find(
+      (t) => timeToMinutes(t) > selectedMin,
+    );
     const massCountdown = upcomingMass
       ? timeToMinutes(upcomingMass) - selectedMin
       : undefined;
@@ -566,19 +730,24 @@ export const generateInsight = (params: {
     // If there's an upcoming mass, show mass-focused insight
     if (upcomingMass && massCountdown && massCountdown > 0) {
       const scheduleParts: string[] = [];
-      if (openTime) scheduleParts.push(`${t("planner.openingHours")}: ${openTime}`);
-      if (closeTime) scheduleParts.push(`${t("planner.closingHours")}: ${closeTime}`);
+      if (openTime)
+        scheduleParts.push(`${t("planner.openingHours")}: ${openTime}`);
+      if (closeTime)
+        scheduleParts.push(`${t("planner.closingHours")}: ${closeTime}`);
 
       return {
-        type: 'first_stop',
-        title: t("planner.insight.eventOk.title", { name: t("planner.term.mass"), time: upcomingMass }),
-        message: t("planner.insight.firstStop.message", {
-          schedule: scheduleParts.length > 0 ? scheduleParts.join(' • ') : '',
-          window: formatDurationLocalized(massCountdown, t)
+        type: "first_stop",
+        title: t("planner.insight.eventOk.title", {
+          name: t("planner.term.mass"),
+          time: upcomingMass,
         }),
-        color: '#1D4ED8',
-        bgColor: 'rgba(29, 78, 216, 0.08)',
-        iconName: 'calendar',
+        message: t("planner.insight.firstStop.message", {
+          schedule: scheduleParts.length > 0 ? scheduleParts.join(" • ") : "",
+          window: formatDurationLocalized(massCountdown, t),
+        }),
+        color: "#1D4ED8",
+        bgColor: "rgba(29, 78, 216, 0.08)",
+        iconName: "calendar",
         isBlocking: false,
         visitingWindowMinutes: massCountdown,
       };
@@ -588,46 +757,50 @@ export const generateInsight = (params: {
     const parts: string[] = [];
     if (openTime) parts.push(`${t("planner.openingHours")}: ${openTime}`);
     if (closeTime) parts.push(`${t("planner.closingHours")}: ${closeTime}`);
-    if (massTimesForDay.length > 0) parts.push(`${t("planner.term.mass")}: ${massTimesForDay.join(', ')}`);
+    if (massTimesForDay.length > 0)
+      parts.push(`${t("planner.term.mass")}: ${massTimesForDay.join(", ")}`);
 
-    const visitWindow = closeTime
-      ? timeToMinutes(closeTime) - selectedMin
-      : undefined;
+    const visitWindow =
+      timeWindow.closeComparableMin !== undefined
+        ? timeWindow.closeComparableMin - timeWindow.selectedComparableMin
+        : undefined;
 
-    let msg = parts.length > 0
-      ? `${parts.join(' • ')}. `
-      : '';
+    let msg = parts.length > 0 ? `${parts.join(" • ")}. ` : "";
     msg += t("planner.insight.firstStop.messageNoMass");
     if (visitWindow && visitWindow > 0 && closeTime) {
       msg += `\n${t("planner.stayUntilClosing")}: ~${formatDurationLocalized(visitWindow, t)}.`;
     }
 
     return {
-      type: 'first_stop',
+      type: "first_stop",
       title: t("planner.insight.firstStop.title"),
       message: msg,
-      color: '#059669',
-      bgColor: 'rgba(5, 150, 105, 0.08)',
-      iconName: 'checkmark-circle-outline',
+      color: "#059669",
+      bgColor: "rgba(5, 150, 105, 0.08)",
+      iconName: "checkmark-circle-outline",
       isBlocking: false,
       visitingWindowMinutes: visitWindow,
     };
   }
 
   // ── Default: ideal ──
-  const visitWindow = closeTime
-    ? timeToMinutes(closeTime) - selectedMin
-    : undefined;
+  const visitWindow =
+    timeWindow.closeComparableMin !== undefined
+      ? timeWindow.closeComparableMin - timeWindow.selectedComparableMin
+      : undefined;
 
   return {
-    type: 'ideal',
+    type: "ideal",
     title: t("planner.insight.ideal.title"),
-    message: visitWindow && visitWindow > 0
-      ? t("planner.insight.ideal.message", { window: formatDurationLocalized(visitWindow, t) })
-      : t("planner.insight.ideal.messageNoWindow"),
-    color: '#059669',
-    bgColor: 'rgba(5, 150, 105, 0.08)',
-    iconName: 'checkmark-circle-outline',
+    message:
+      visitWindow && visitWindow > 0
+        ? t("planner.insight.ideal.message", {
+            window: formatDurationLocalized(visitWindow, t),
+          })
+        : t("planner.insight.ideal.messageNoWindow"),
+    color: "#059669",
+    bgColor: "rgba(5, 150, 105, 0.08)",
+    iconName: "checkmark-circle-outline",
     isBlocking: false,
     visitingWindowMinutes: visitWindow,
   };

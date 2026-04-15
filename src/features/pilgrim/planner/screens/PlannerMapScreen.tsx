@@ -293,7 +293,10 @@ export default function PlannerMapScreen({ route, navigation }: Props) {
     (async () => {
       setRouteLoading(true);
       try {
-        const r = await calculateMultiPointRoute(waypoints);
+        const r = await calculateMultiPointRoute(
+          waypoints,
+          plan?.transportation,
+        );
         if (!off) setRouteData(r);
       } catch {
         if (!off) setRouteData(null);
@@ -304,7 +307,7 @@ export default function PlannerMapScreen({ route, navigation }: Props) {
     return () => {
       off = true;
     };
-  }, [waypoints]);
+  }, [waypoints, plan?.transportation]);
 
   // ─── LIVE ROUTE: user location → next stop ───
   const nextPin = useMemo(
@@ -325,6 +328,7 @@ export default function PlannerMapScreen({ route, navigation }: Props) {
         const r = await calculateRouteWithGeometry(
           { latitude: userLoc.latitude, longitude: userLoc.longitude },
           { latitude: nextPin.latitude, longitude: nextPin.longitude },
+          plan?.transportation,
         );
         setLiveRoute(r);
       } catch {
@@ -344,7 +348,7 @@ export default function PlannerMapScreen({ route, navigation }: Props) {
     return () => {
       if (liveRouteTimer.current) clearInterval(liveRouteTimer.current);
     };
-  }, [userLoc?.latitude, userLoc?.longitude, nextPin?.id]);
+  }, [userLoc?.latitude, userLoc?.longitude, nextPin?.id, plan?.transportation]);
 
   // ─── Merged route segments for rendering ───
   const routeSegments = useMemo(() => {
