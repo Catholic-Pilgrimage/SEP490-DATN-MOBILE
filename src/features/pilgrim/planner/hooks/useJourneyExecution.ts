@@ -5,8 +5,8 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import locationService from "../../../../services/location/locationService";
 import networkService from "../../../../services/network/networkService";
 import {
-    MarkVisitedConfirmationResponse,
-    PlanItem,
+  MarkVisitedConfirmationResponse,
+  PlanItem,
 } from "../../../../types/pilgrim/planner.types";
 
 export const useJourneyExecution = (
@@ -81,16 +81,18 @@ export const useJourneyExecution = (
   );
 
   const skipItem = useCallback(
-    async (item: PlanItem) => {
+    async (item: PlanItem, skipReason?: string) => {
       if (!item.id) return;
       try {
         setSkippingItemId(item.id);
+        const normalizedReason =
+          skipReason?.trim() || "Người dùng bỏ qua trong hành trình";
         const response = await pilgrimPlannerApi.updatePlannerItemStatus(
           planId,
           item.id,
           {
             status: "skipped",
-            skip_reason: "Người dùng bỏ qua trong hành trình",
+            skip_reason: normalizedReason,
           },
         );
         if (!response.success) {
@@ -136,7 +138,10 @@ export const useJourneyExecution = (
         const handleSuccessVisited = async () => {
           if (isLastItem) {
             try {
-              const compRes = await pilgrimPlannerApi.updatePlannerStatus(planId, { status: "completed" });
+              const compRes = await pilgrimPlannerApi.updatePlannerStatus(
+                planId,
+                { status: "completed" },
+              );
               if (compRes.success) {
                 Toast.show({
                   type: "success",
@@ -168,7 +173,7 @@ export const useJourneyExecution = (
         ) {
           const missed =
             (payload as MarkVisitedConfirmationResponse).stats?.missed ?? 0;
-            
+
           const isConfirmed = await confirm({
             type: "warning",
             title: "Xác nhận chốt điểm",

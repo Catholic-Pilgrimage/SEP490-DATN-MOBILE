@@ -7,6 +7,7 @@ import {
   Image,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   RefreshControl,
@@ -17,7 +18,6 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Linking,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -28,6 +28,9 @@ import {
   VietmapView,
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
+import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
+import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
+import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
   BORDER_RADIUS,
@@ -58,9 +61,6 @@ import {
   QuickActionButton,
   SOSModal,
 } from "../components";
-import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
-import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
-import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 
 // ============================================
 // GRADIENT THEME FOR EVENT CARDS (Pilgrim side)
@@ -245,7 +245,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   };
 
   const handleBack = () => navigation.goBack();
-  const handleShare = () => {};
+
   const handleBookmark = () => {
     if (!isAuthenticated || isGuest) {
       setShowGuestLogin(true);
@@ -821,9 +821,6 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <Ionicons name="arrow-back" size={22} color="#fff" />
             </TouchableOpacity>
             <View style={styles.heroHeaderRight}>
-              <TouchableOpacity style={styles.heroButton} onPress={handleShare}>
-                <Ionicons name="share-outline" size={22} color="#fff" />
-              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.heroButton}
                 onPress={handleBookmark}
@@ -843,7 +840,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <View style={styles.typeBadge}>
                 <Ionicons name="business" size={12} color={COLORS.textPrimary} />
                 <Text style={styles.typeBadgeText}>
-                  {site.type === "church" ? t('siteDetail.typeChurch', { defaultValue: 'Nhà thờ' }) : site.type}
+                  {site.type === "church"
+                    ? t('explore.typeChurch', { defaultValue: 'Nhà thờ' })
+                    : site.type === "shrine"
+                      ? t('explore.typeShrine', { defaultValue: 'Đền thánh' })
+                      : site.type === "monastery"
+                        ? t('explore.typeMonastery', { defaultValue: 'Tu viện' })
+                        : site.type === "center"
+                          ? t('explore.typeCenter', { defaultValue: 'Trung tâm' })
+                          : t('explore.typeOther', { defaultValue: 'Khác' })}
                 </Text>
               </View>
 
@@ -1563,21 +1568,26 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       : `${(place.distance_meters / 1000).toFixed(1)} km`;
                   }
 
+                  // Determine type based on category
+                  let placeType: "restaurant" | "hotel" | "media" | "other";
+                  
+                  if (place.category === "food" ) {
+                    placeType = "restaurant";
+                  } else if (place.category === "lodging") {
+                    placeType = "hotel";
+                  } else if (place.category === "medical") {
+                    placeType = "media";
+                  } else {
+                    placeType = "other";
+                  }
+
                   return (
                     <NearbyPlaceCard
                       key={place.id || index}
                       name={place.name}
                       address={place.address}
                       distance={distanceStr}
-                      type={
-                        place.category === "food" || place.category === "restaurant"
-                          ? "restaurant"
-                          : place.category === "lodging" || place.category === "hotel"
-                            ? "hotel"
-                            : place.category === "medical" || place.category === "media"
-                              ? "media"
-                              : "other"
-                      }
+                      type={placeType}
                       onDirections={() => {
                         if (place.latitude && place.longitude && mapRef.current) {
                           mapRef.current.flyTo(

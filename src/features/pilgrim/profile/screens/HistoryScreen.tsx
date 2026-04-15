@@ -4,14 +4,14 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    ImageBackground,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  ImageBackground,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -20,8 +20,8 @@ import { useUserQuery } from "../../../../hooks/useUserQuery";
 import pilgrimJournalApi from "../../../../services/api/pilgrim/journalApi";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import {
-    CheckInEntity,
-    PlanEntity,
+  CheckInEntity,
+  PlanEntity,
 } from "../../../../types/pilgrim/planner.types";
 import { parsePostgresArray } from "../../../../utils/postgresArrayParser";
 
@@ -34,6 +34,8 @@ const PREMIUM_COLORS = {
   warmGray: "#F7F5F2",
   textMuted: "#6C8CA3",
 };
+
+const BG_IMAGE = require("../../../../../assets/images/profile-bg.jpg");
 
 export default function HistoryScreen() {
   const { t } = useI18n();
@@ -63,7 +65,24 @@ export default function HistoryScreen() {
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
         );
-        setCompletedPlans(completed);
+        
+        // Fetch details for each plan to get items with site images
+        const plansWithDetails = await Promise.all(
+          completed.map(async (plan) => {
+            try {
+              const detailRes = await pilgrimPlannerApi.getPlanDetail(plan.id);
+              if (detailRes.success && detailRes.data) {
+                return detailRes.data;
+              }
+              return plan;
+            } catch (e) {
+              console.log(`Failed to fetch detail for plan ${plan.id}:`, e);
+              return plan;
+            }
+          })
+        );
+        
+        setCompletedPlans(plansWithDetails);
       }
 
       // Fetch Check-ins
@@ -128,26 +147,35 @@ export default function HistoryScreen() {
       <View style={styles.statsCard}>
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{completedPlans.length}</Text>
-          <Text style={styles.statLabel}>Chuyến đi</Text>
+          <Text style={styles.statLabel}>
+            {t("historyScreen.stats.trips", { defaultValue: "Chuyến đi" })}
+          </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>
             {(user as any)?.visitedSites ?? checkIns.length}
           </Text>
-          <Text style={styles.statLabel}>Điểm đến</Text>
+          <Text style={styles.statLabel}>
+            {t("historyScreen.stats.destinations", {
+              defaultValue: "Điểm đến",
+            })}
+          </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{journalCount}</Text>
-          <Text style={styles.statLabel}>Nhật ký</Text>
+          <Text style={styles.statLabel}>
+            {t("historyScreen.stats.journals", { defaultValue: "Nhật ký" })}
+          </Text>
         </View>
       </View>
     );
   };
 
   const safeDateString = (dateStr: any) => {
-    if (!dateStr) return "Chưa rõ";
+    if (!dateStr)
+      return t("historyScreen.unknownDate", { defaultValue: "Chưa rõ" });
     let d = new Date(dateStr);
     if (isNaN(d.getTime())) {
       // If it's a DD/MM/YYYY format, new Date() will fail. We can just return the raw string.
@@ -162,16 +190,51 @@ export default function HistoryScreen() {
     if (isNaN(d.getTime())) {
       // Find time part if exists (e.g. "18/4/2026 14:30")
       const parts = String(dateStr).split(" ");
-      return parts.length > 1 ? ` • Lúc ${parts[1]}` : "";
+      return parts.length > 1
+        ? ` • ${t("historyScreen.at", { defaultValue: "Lúc" })} ${parts[1]}`
+        : "";
     }
-    return ` • Lúc ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
+    return ` • ${t("historyScreen.at", { defaultValue: "Lúc" })} ${d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}`;
   };
 
   const LOCAL_FALLBACK = require("../../../../../assets/images/profile-bg.jpg");
 
   const renderJourneyCard = ({ item }: { item: PlanEntity }) => {
+    // Try to get image from: 1) plan cover_image, 2) first site in items, 3) fallback
+    let imageSource = LOCAL_FALLBACK;
+    
     const coverImage = (item as any).cover_image || (item as any).image;
-    const imageSource = coverImage ? { uri: coverImage } : LOCAL_FALLBACK;
+    if (coverImage) {
+      imageSource = { uri: coverImage };
+    } else if (item.items && item.items.length > 0) {
+      // Try to get from items array
+      const firstItem = item.items[0];
+      const siteImage =
+        firstItem.site?.cover_image ||
+        firstItem.site?.image ||
+        (firstItem.site as any)?.image_url;
+      if (siteImage) {
+        imageSource = { uri: siteImage };
+      }
+    } else if (item.items_by_day) {
+      // Get first site image from items_by_day
+      const allDays = Object.keys(item.items_by_day);
+      for (const day of allDays) {
+        const items = item.items_by_day[day];
+        if (items && items.length > 0) {
+          const firstItem = items[0];
+          const siteImage =
+            firstItem.site?.cover_image ||
+            firstItem.site?.image ||
+            (firstItem.site as any)?.image_url;
+          if (siteImage) {
+            imageSource = { uri: siteImage };
+            break;
+          }
+        }
+      }
+    }
+
     const tripDate =
       item.start_date || item.created_at || (item as any).createdAt;
 
@@ -191,7 +254,11 @@ export default function HistoryScreen() {
             <View style={styles.journeyBadgeContainer}>
               <View style={styles.journeyStatusBadge}>
                 <Ionicons name="checkmark-circle" size={14} color="#FFF" />
-                <Text style={styles.journeyStatusText}>ĐÃ HOÀN THÀNH</Text>
+                <Text style={styles.journeyStatusText}>
+                  {t("historyScreen.completed", {
+                    defaultValue: "ĐÃ HOÀN THÀNH",
+                  })}
+                </Text>
               </View>
             </View>
 
@@ -211,7 +278,8 @@ export default function HistoryScreen() {
                   <View style={styles.journeyMetaItem}>
                     <Ionicons name="people-outline" size={14} color="#FFF" />
                     <Text style={styles.journeyMetaText}>
-                      {item.number_of_people} người
+                      {item.number_of_people}{" "}
+                      {t("historyScreen.people", { defaultValue: "người" })}
                     </Text>
                   </View>
                 </View>
@@ -283,7 +351,10 @@ export default function HistoryScreen() {
                 style={styles.checkInOverlay}
               >
                 <Text style={styles.checkInSiteName} numberOfLines={2}>
-                  {item.site?.name || "Địa điểm chưa rõ"}
+                  {item.site?.name ||
+                    t("historyScreen.unknownLocation", {
+                      defaultValue: "Địa điểm chưa rõ",
+                    })}
                 </Text>
               </LinearGradient>
             </ImageBackground>
@@ -294,7 +365,11 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ImageBackground
+      source={BG_IMAGE}
+      style={[styles.container, { paddingTop: insets.top }]}
+      resizeMode="cover"
+    >
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -307,7 +382,9 @@ export default function HistoryScreen() {
             color={PREMIUM_COLORS.charcoal}
           />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Hành trình Đức Tin</Text>
+        <Text style={styles.headerTitle}>
+          {t("historyScreen.title", { defaultValue: "Hành trình Đức Tin" })}
+        </Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -335,7 +412,9 @@ export default function HistoryScreen() {
                 activeTab === "journeys" && styles.activeTabText,
               ]}
             >
-              Kỷ niệm chuyến đi
+              {t("historyScreen.tabs.journeys", {
+                defaultValue: "Kỷ niệm chuyến đi",
+              })}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -357,7 +436,7 @@ export default function HistoryScreen() {
                 activeTab === "sites" && styles.activeTabText,
               ]}
             >
-              Dấu chân
+              {t("historyScreen.tabs.footprints", { defaultValue: "Dấu chân" })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -391,13 +470,23 @@ export default function HistoryScreen() {
               />
               <Text style={styles.emptyTitle}>
                 {activeTab === "journeys"
-                  ? "Chưa có chuyến đi hoàn thành"
-                  : "Chưa có dấu chân nào"}
+                  ? t("historyScreen.empty.journeys.title", {
+                      defaultValue: "Chưa có chuyến đi hoàn thành",
+                    })
+                  : t("historyScreen.empty.footprints.title", {
+                      defaultValue: "Chưa có dấu chân nào",
+                    })}
               </Text>
               <Text style={styles.emptyDescription}>
                 {activeTab === "journeys"
-                  ? "Khi bạn hoàn thành 1 chuyến đi, nó sẽ được lưu lại như một quyển sách kỷ niệm tại đây."
-                  : "Các địa điểm bạn đã viếng thăm (Check-in) sẽ được lưu lại tại đây."}
+                  ? t("historyScreen.empty.journeys.description", {
+                      defaultValue:
+                        "Khi bạn hoàn thành 1 chuyến đi, nó sẽ được lưu lại như một quyển sách kỷ niệm tại đây.",
+                    })
+                  : t("historyScreen.empty.footprints.description", {
+                      defaultValue:
+                        "Các địa điểm bạn đã viếng thăm (Check-in) sẽ được lưu lại tại đây.",
+                    })}
               </Text>
             </View>
           }
@@ -410,19 +499,19 @@ export default function HistoryScreen() {
           }
         />
       )}
-    </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: PREMIUM_COLORS.warmGray },
+  container: { flex: 1, backgroundColor: "transparent" },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "rgba(253, 248, 240, 0.95)",
   },
   backButton: {
     width: 40,
@@ -442,7 +531,7 @@ const styles = StyleSheet.create({
   listHeaderInner: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    backgroundColor: PREMIUM_COLORS.cream,
+    backgroundColor: "rgba(253, 248, 240, 0.95)",
   },
   listContent: { padding: 16, paddingBottom: 40 },
   statsCard: {
