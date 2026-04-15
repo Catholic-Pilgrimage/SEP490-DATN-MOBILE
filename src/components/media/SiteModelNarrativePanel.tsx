@@ -15,17 +15,19 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import { COLORS, SPACING, BORDER_RADIUS } from "../../constants/theme.constants";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme.constants";
 import { SiteMedia } from "../../types/pilgrim";
 
 export interface SiteModelNarrativePanelProps {
   media: SiteMedia;
   bottomInset: number;
+  inline?: boolean;
 }
 
 export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = ({
   media,
   bottomInset,
+  inline = false,
 }) => {
   const { t } = useTranslation();
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -101,8 +103,9 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     <View
       style={[
         styles.wrap,
+        inline && styles.wrapInline,
         expanded && styles.wrapExpanded,
-        { paddingBottom: bottomInset + SPACING.sm },
+        !inline && { paddingBottom: bottomInset + SPACING.sm },
       ]}
     >
       <View style={styles.header}>
@@ -138,8 +141,8 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
               <ActivityIndicator color={COLORS.accent} size="small" />
             ) : (
               <MaterialIcons
-                name={isPlaying ? "pause-circle" : "play-circle-filled"}
-                size={42}
+                name={isPlaying ? "pause" : "play-arrow"}
+                size={28}
                 color={COLORS.accent}
               />
             )}
@@ -158,16 +161,30 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: "rgba(26, 40, 69, 0.95)",
-    borderTopLeftRadius: BORDER_RADIUS.lg,
-    borderTopRightRadius: BORDER_RADIUS.lg,
-    paddingHorizontal: SPACING.md,
-    paddingTop: SPACING.sm,
+    position: 'absolute',
+    bottom: 170, // push it up above journal CTA, below interaction hint
+    left: SPACING.md,
+    right: SPACING.md,
+    backgroundColor: "rgba(26, 40, 69, 0.85)",
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255,255,255,0.15)",
+    flexDirection: 'column',
+    ...SHADOWS.medium,
+  },
+  wrapInline: {
+    position: 'relative',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    marginTop: 10,
+    marginBottom: 5,
+    backgroundColor: "rgba(26, 40, 69, 0.9)",
   },
   wrapExpanded: {
-    height: 250,
+    height: 200,
   },
   header: {
     flexDirection: "row",
@@ -177,38 +194,41 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: SPACING.sm,
   },
   headerText: {
     flex: 1,
-    marginLeft: SPACING.sm,
+    marginLeft: 10,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
     color: "#fff",
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: "rgba(255,255,255,0.6)",
-    marginTop: 2,
+    marginTop: 1,
   },
   playBtn: {
-    width: 44,
-    height: 44,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: SPACING.sm,
+    marginLeft: 8,
   },
   contentScroll: {
     flex: 1,
-    marginTop: SPACING.xs,
-    marginBottom: SPACING.sm,
+    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.1)",
+    paddingTop: 8,
   },
   scriptText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: "rgba(255,255,255,0.9)",
+    fontSize: 13,
+    lineHeight: 20,
+    color: "rgba(255,255,255,0.85)",
     textAlign: "justify",
   },
 });

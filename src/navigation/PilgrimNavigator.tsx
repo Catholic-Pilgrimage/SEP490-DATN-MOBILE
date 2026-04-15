@@ -299,6 +299,13 @@ export const PilgrimNavigator = () => {
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
         }}
       />
+      <MainStack.Screen
+        name="JournalDetail"
+        component={JournalDetailScreen}
+        options={{
+          animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        }}
+      />
     </MainStack.Navigator>
   );
 };
