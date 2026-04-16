@@ -1933,6 +1933,7 @@
   "createPost": {
     "createPost": "Create Post",
     "editPost": "Edit Post",
+    "titlePlaceholder": "Journal Title",
     "post": "Post",
     "placeholder": "What's on your mind?",
     "contentRequired": "Content Required",

@@ -25,6 +25,16 @@ export const getFeedPostLocationName = (
 ): string | undefined => {
   if (!post) return undefined;
 
+  // Prioritize shared_locations for multi-site journals
+  const sharedLocations =
+    post.shared_locations || post.sourceJournal?.shared_locations;
+  if (sharedLocations && sharedLocations.length > 0) {
+    return sharedLocations
+      .map((loc) => normalizeLocationName(loc.name))
+      .filter(Boolean)
+      .join(", ");
+  }
+
   return (
     normalizeLocationName(post.site?.name) ||
     normalizeLocationName(post.sourceJournal?.site?.name) ||

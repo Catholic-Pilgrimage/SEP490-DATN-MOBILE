@@ -333,7 +333,12 @@ const FeedItemHeader = ({
                   marginTop: 4,
                 }}
               >
-                <Text style={{ fontSize: 12, marginRight: 4 }}>📍</Text>
+                <MaterialIcons
+                  name="location-on"
+                  size={14}
+                  color={COLORS.danger}
+                  style={{ marginRight: 2 }}
+                />
                 <Text
                   style={{
                     color: COLORS.textSecondary,

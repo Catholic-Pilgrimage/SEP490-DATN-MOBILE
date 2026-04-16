@@ -1934,6 +1934,7 @@
   "createPost": {
     "createPost": "Tạo bài viết",
     "editPost": "Chỉnh sửa bài viết",
+    "titlePlaceholder": "Tiêu đề nhật ký",
     "post": "Đăng",
     "placeholder": "Bạn đang nghĩ gì?",
     "contentRequired": "Nội dung bắt buộc",
