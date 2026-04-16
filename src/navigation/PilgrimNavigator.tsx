@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import React from 'react';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,13 +18,20 @@ import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScre
 import PlannerMembersScreen from '../features/pilgrim/planner/screens/PlannerMembersScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
 import PlannerMapScreen from '../features/pilgrim/planner/screens/PlannerMapScreen';
+import NearbySiteAmenitiesScreen from '../features/pilgrim/planner/screens/NearbySiteAmenitiesScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
+import {
+  JournalStackParamList,
+  PilgrimMainStackParamList,
+  PilgrimTabParamList,
+  PlannerStackParamList,
+} from './pilgrimNavigation.types';
 
 
-const Tab = createBottomTabNavigator();
+const Tab = createBottomTabNavigator<PilgrimTabParamList>();
 const ExploreStack = createNativeStackNavigator();
-const PlannerStack = createNativeStackNavigator();
-const JournalStack = createNativeStackNavigator();
+const PlannerStack = createNativeStackNavigator<PlannerStackParamList>();
+const JournalStack = createNativeStackNavigator<JournalStackParamList>();
 const CommunityStack = createNativeStackNavigator();
 
 const PROFILE_COLORS = {
@@ -38,7 +46,7 @@ const PROFILE_COLORS = {
   dangerLight: '#FFF5F5',
 };
 
-const MainStack = createNativeStackNavigator();
+const MainStack = createNativeStackNavigator<PilgrimMainStackParamList>();
 
 const ExploreTab = () => {
   return (
@@ -97,6 +105,7 @@ const PlannerStackNavigator = () => (
     <PlannerStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
     <PlannerStack.Screen name="ActiveJourneyScreen" component={ActiveJourneyScreen} />
     <PlannerStack.Screen name="PlannerMapScreen" component={PlannerMapScreen} />
+    <PlannerStack.Screen name="NearbySiteAmenitiesScreen" component={NearbySiteAmenitiesScreen} />
     <PlannerStack.Screen
       name="CreatePlanScreen"
       component={CreatePlanScreen}
@@ -175,14 +184,18 @@ const BottomTabNavigator = () => {
         headerShown: false,
         tabBarActiveTintColor: COLORS.accent,
         tabBarInactiveTintColor: COLORS.textTertiary,
-        tabBarStyle: {
-          height: 60 + (insets.bottom || 10),
-          paddingBottom: insets.bottom || 10,
-          paddingTop: 8,
-          backgroundColor: COLORS.white,
-          borderTopWidth: 1,
-          borderTopColor: COLORS.border,
-        },
+        tabBarStyle:
+          route.name === 'Lich trinh' &&
+          getFocusedRouteNameFromRoute(route) === 'NearbySiteAmenitiesScreen'
+            ? { display: 'none' }
+            : {
+                height: 60 + (insets.bottom || 10),
+                paddingBottom: insets.bottom || 10,
+                paddingTop: 8,
+                backgroundColor: COLORS.white,
+                borderTopWidth: 1,
+                borderTopColor: COLORS.border,
+              },
         tabBarLabelStyle: {
           fontSize: TYPOGRAPHY.fontSize.xs,
           fontWeight: TYPOGRAPHY.fontWeight.medium,
@@ -235,8 +248,23 @@ const BottomTabNavigator = () => {
       })}
     >
       <Tab.Screen name="Hanh huong" component={ExploreTab} />
-      <Tab.Screen name="Nhat ky" component={JournalStackNavigator} />
-      <Tab.Screen name="Lich trinh" component={PlannerStackNavigator} />
+      <Tab.Screen
+        name="Nhat ky"
+        component={JournalStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate("Nhat ky", {
+              screen: "JournalMain",
+              params: undefined,
+            });
+          },
+        })}
+      />
+      <Tab.Screen
+        name="Lich trinh"
+        component={PlannerStackNavigator}
+        options={{ unmountOnBlur: true }}
+      />
       <Tab.Screen name="Cong dong" component={CommunityStackNavigator} />
       <Tab.Screen name="Ho so" component={ProfileStackNavigator} />
     </Tab.Navigator >

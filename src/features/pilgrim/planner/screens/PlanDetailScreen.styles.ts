@@ -305,6 +305,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     borderRadius: BORDER_RADIUS.lg,
     backgroundColor: COLORS.white,
+    position: "relative",
     ...SHADOWS.small,
   },
   /** Inner clip for swipe + solid fill; matches outer radius. */
@@ -809,10 +810,13 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   itemDetailHero: {
-    borderRadius: BORDER_RADIUS.lg,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     overflow: "hidden",
-    height: 220,
-    marginBottom: SPACING.md,
+    height: 236,
+    marginBottom: 0,
     position: "relative",
     justifyContent: "flex-end",
   },
@@ -823,14 +827,14 @@ const styles = StyleSheet.create({
   },
   itemDetailOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.25)",
+    backgroundColor: "rgba(0,0,0,0.18)",
   },
   itemDetailHeroGradient: {
     ...StyleSheet.absoluteFillObject,
   },
   itemDetailHeroContent: {
     padding: SPACING.md,
-    paddingBottom: SPACING.lg,
+    paddingBottom: SPACING.md,
   },
   itemDetailTypeBadge: {
     flexDirection: "row",
@@ -850,7 +854,7 @@ const styles = StyleSheet.create({
   },
   itemDetailSiteName: {
     color: "#fff",
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "800",
     letterSpacing: -0.3,
     marginBottom: SPACING.sm,
@@ -865,9 +869,9 @@ const styles = StyleSheet.create({
   },
   itemDetailHeroAddressText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: "rgba(255,255,255,0.95)",
-    lineHeight: 20,
+    lineHeight: 18,
     fontWeight: "500",
   },
   itemDetailContentWrap: {
@@ -875,18 +879,25 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.xl,
   },
   itemDetailScheduleCard: {
-    backgroundColor: COLORS.backgroundCard,
+    backgroundColor: "#FFFEFA",
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     marginBottom: SPACING.md,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#EFE6D7",
     ...SHADOWS.small,
+  },
+  itemDetailScheduleCardAttached: {
+    marginTop: 0,
+    marginBottom: SPACING.md,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderTopWidth: 0,
   },
   itemDetailScheduleCardTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: COLORS.primary,
+    color: "#3F3A2F",
     letterSpacing: 0.6,
     textTransform: "uppercase",
     marginBottom: SPACING.md,

@@ -24,6 +24,8 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type {
   PlannerMemberApiRow,
@@ -32,10 +34,7 @@ import type {
 import { useFriendship } from "../../profile/hooks/useFriendship";
 import MemberHistoryList from "../components/shared/MemberHistoryList";
 
-type Props = {
-  route: { params?: { planId?: string; planName?: string } };
-  navigation: any;
-};
+type Props = NativeStackScreenProps<PilgrimMainStackParamList, "PlannerMembersScreen">;
 
 export default function PlannerMembersScreen({ route, navigation }: Props) {
   const { t, i18n } = useTranslation();

@@ -42,6 +42,10 @@ import {
   SHADOWS,
   SPACING,
 } from "../../../../constants/theme.constants";
+import type {
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
+} from "../../../../navigation/pilgrimNavigation.types";
 import {
   calculateMultiPointRoute,
   calculateRouteWithGeometry,
@@ -96,15 +100,8 @@ const fmtTime = (t?: string) => {
 
 // ─── Types ───────────────────────────────────────────────────
 type Props = {
-  route: {
-    params: {
-      planId: string;
-      focusItemId?: string;
-      focusDay?: string;
-      itemsByDay?: Record<string, PlanItem[]>;
-    };
-  };
-  navigation: any;
+  route: PlannerRouteProp<"PlannerMapScreen">;
+  navigation: PlannerCompositeNavigationProp;
 };
 
 type CardData = {

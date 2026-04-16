@@ -6,6 +6,7 @@
  */
 
 import { CommonActions, createNavigationContainerRef } from '@react-navigation/native';
+import { runWithActionGuard } from '../utils/actionGuard';
 
 export const navigationRef = createNavigationContainerRef<any>();
 
@@ -13,13 +14,18 @@ export const navigationRef = createNavigationContainerRef<any>();
  * Navigate to a screen from anywhere in the app
  */
 export function navigate(name: string, params?: Record<string, any>) {
+    const guardKey = `global-nav:${name}`;
     if (navigationRef.isReady()) {
-        navigationRef.navigate(name, params);
+        runWithActionGuard(guardKey, () => {
+            navigationRef.navigate(name, params);
+        });
     } else {
         // If navigation isn't ready yet (cold start), wait and retry
         setTimeout(() => {
             if (navigationRef.isReady()) {
-                navigationRef.navigate(name, params);
+                runWithActionGuard(guardKey, () => {
+                    navigationRef.navigate(name, params);
+                });
             }
         }, 1000);
     }
@@ -29,12 +35,15 @@ export function navigate(name: string, params?: Record<string, any>) {
  * Reset navigation stack and navigate
  */
 export function resetAndNavigate(name: string, params?: Record<string, any>) {
+    const guardKey = `global-reset-nav:${name}`;
     if (navigationRef.isReady()) {
-        navigationRef.dispatch(
-            CommonActions.reset({
-                index: 0,
-                routes: [{ name, params }],
-            })
-        );
+        runWithActionGuard(guardKey, () => {
+            navigationRef.dispatch(
+                CommonActions.reset({
+                    index: 0,
+                    routes: [{ name, params }],
+                })
+            );
+        });
     }
 }
