@@ -89,7 +89,7 @@ const pickSiteImage = (site?: any): string | null => {
 export default function JournalDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { journalId } = route.params || {};
+  const { journalId, siteId: paramSiteId } = route.params || {};
   const [isJournalUiVisible, setIsJournalUiVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
@@ -250,13 +250,36 @@ export default function JournalDetailScreen() {
     };
   }, [journal]);
 
+  /* ─── Resolve location for siteId only ─── */
+  useEffect(() => {
+    if (journal || !paramSiteId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const res = await getSiteDetail(paramSiteId);
+        if (!cancelled && res.success && res.data) {
+          setSiteName(res.data.name);
+          setSiteType(res.data.type || null);
+          setSiteSubtitle((res.data as any).province || null);
+          setResolvedCoverUri(pickSiteImage(res.data));
+        }
+      } catch (e) {
+        console.error("Error fetching site detail for 3D:", e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [journal, paramSiteId]);
+
   /* ─── Fetch 3D Media ─── */
   useEffect(() => {
-    if (!journal?.site_id && !(journal?.site as any)?.id) {
+    const targetSiteId = journal?.site_id || (journal?.site as any)?.id || paramSiteId;
+    if (!targetSiteId) {
       setModels3d([]);
       return;
     }
-    const targetSiteId = journal?.site_id || (journal?.site as any)?.id;
     let cancelled = false;
 
     (async () => {
@@ -1134,16 +1157,17 @@ export default function JournalDetailScreen() {
             </Animated.View>
           </View>
 
-          {/* Back-link to current journal reflection - Header button now controls expansion directly */}
           <SiteModelJournalOverlay
-            siteId={journal?.site_id || (journal?.site as any)?.id}
-            siteName={siteName || journal?.site?.name}
+            journalId={journalId}
+            siteId={journal?.site_id || (journal?.site as any)?.id || paramSiteId}
+            siteName={siteName || journal?.site?.name || ""}
             siteCoverImage={coverUri || undefined}
             navigation={navigation}
             bottomInset={insets.bottom}
             currentMedia={models3d ? models3d[selectedModelIndex] : undefined}
             isExpanded={isJournalUiVisible}
             onToggleExpanded={setIsJournalUiVisible}
+            visible={isJournalUiVisible}
           />
         </LinearGradient>
       </Modal>

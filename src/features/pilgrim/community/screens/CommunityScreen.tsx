@@ -14,6 +14,7 @@ import {
     Platform,
     Pressable,
     RefreshControl,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -638,6 +639,9 @@ export default function CommunityScreen() {
   const [translatedPostsById, setTranslatedPostsById] = useState<
     Record<string, FeedTranslationResult>
   >({});
+  const [activeFilter, setActiveFilter] = useState<"all" | "journal" | "planner">(
+    "all",
+  );
   const [translatingPostId, setTranslatingPostId] = useState<string | null>(
     null,
   );
@@ -698,7 +702,7 @@ export default function CommunityScreen() {
 
   const posts = React.useMemo(() => {
     if (!data) return [];
-    return data.pages.flatMap((page: any) => {
+    const flattened = data.pages.flatMap((page: any) => {
       if (Array.isArray(page?.data?.items) && page.data.items.length > 0) {
         return page.data.items;
       }
@@ -719,7 +723,20 @@ export default function CommunityScreen() {
       }
       return [];
     });
-  }, [data]);
+
+    if (activeFilter === "all") return flattened;
+    if (activeFilter === "journal") {
+      return flattened.filter(
+        (post: FeedPost) => post.journal_id || post.sourceJournal,
+      );
+    }
+    if (activeFilter === "planner") {
+      return flattened.filter(
+        (post: FeedPost) => post.planner_id || post.journey || post.planner,
+      );
+    }
+    return flattened;
+  }, [data, activeFilter]);
 
   const clearTranslatedPost = React.useCallback((postId: string) => {
     setTranslatedPostsById((prev) => {
@@ -1305,6 +1322,55 @@ export default function CommunityScreen() {
             )}
           </View>
         </View>
+
+        {/* Filter Bar */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContainer}
+        >
+          {[
+            { id: "all", label: t("community.filters.all"), icon: "apps" },
+            {
+              id: "journal",
+              label: t("community.filters.journal"),
+              icon: "auto-stories",
+            },
+            {
+              id: "planner",
+              label: t("community.filters.planner"),
+              icon: "event-note",
+            },
+          ].map((filter) => {
+            const isActive = activeFilter === filter.id;
+            return (
+              <TouchableOpacity
+                key={filter.id}
+                onPress={() => setActiveFilter(filter.id as any)}
+                style={[
+                  styles.filterChip,
+                  isActive && styles.filterChipActive,
+                ]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons
+                  name={filter.icon as any}
+                  size={16}
+                  color={isActive ? COLORS.white : COLORS.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.filterText,
+                    isActive && styles.filterTextActive,
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
       </View>
 
       {requiresLogin ? (
@@ -1445,6 +1511,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
+  },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+    paddingRight: SPACING.xl, // Ensure space for the last item
+  },
+  filterChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(191, 167, 111, 0.12)",
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "rgba(191, 167, 111, 0.15)",
+  },
+  filterChipActive: {
+    backgroundColor: "#D4AF37",
+    borderColor: "#B38A2E",
+    ...SHADOWS.subtle,
+  },
+  filterText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: COLORS.textSecondary,
+  },
+  filterTextActive: {
+    color: COLORS.white,
   },
   headerContent: {
     paddingHorizontal: SPACING.lg,
