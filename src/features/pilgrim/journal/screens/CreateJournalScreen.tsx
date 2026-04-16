@@ -986,7 +986,7 @@ export default function CreateJournalScreen() {
         setRecordingDuration(0); // Optional: we could try to get duration using expo-av
 
         await confirm({
-          type: "info",
+          type: "success",
           iconName: "checkmark-circle-outline",
           title: t("common.success"),
           message: t("journal.audioSaveSuccess"),
@@ -1092,7 +1092,7 @@ export default function CreateJournalScreen() {
 
       if (uri) {
         await confirm({
-          type: "info",
+          type: "success",
           iconName: "checkmark-circle-outline",
           title: t("common.success"),
           message: t("journal.audioSaveSuccess"),
@@ -1206,6 +1206,12 @@ export default function CreateJournalScreen() {
       }
       setRecordingDuration(0);
       setIsPlaying(false);
+
+      Toast.show({
+        type: "success",
+        text1: t("common.success"),
+        text2: t("journal.deleteSuccess"),
+      });
     }
   };
 
