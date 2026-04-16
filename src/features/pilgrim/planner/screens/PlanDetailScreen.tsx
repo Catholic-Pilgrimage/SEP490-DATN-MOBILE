@@ -1,7 +1,7 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useFocusEffect } from "@react-navigation/native";
+import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, {
   useCallback,
@@ -48,6 +48,10 @@ import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
+import type {
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
+} from "../../../../navigation/pilgrimNavigation.types";
 import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import pilgrimSiteApi from "../../../../services/api/pilgrim/siteApi";
@@ -67,6 +71,7 @@ import {
   UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
+import { runWithActionGuard } from "../../../../utils/actionGuard";
 import { getInitialsFromFullName } from "../../../../utils/initials";
 import AddSiteModal from "../components/plan-detail/AddSiteModal";
 import EditPlanModal from "../components/plan-detail/EditPlanModal";
@@ -123,7 +128,12 @@ import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
 
-const PlanDetailScreen = ({ route, navigation }: any) => {
+type PlanDetailScreenProps = {
+  route: PlannerRouteProp<"PlanDetailScreen">;
+  navigation: PlannerCompositeNavigationProp;
+};
+
+const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const {
     planId,
     autoAddSiteId,
@@ -233,6 +243,29 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     longitude: number;
   } | null>(null);
   const [nearbyAmenityPins, setNearbyAmenityPins] = useState<MapPin[]>([]);
+  const [nearbyAmenityLookup, setNearbyAmenityLookup] = useState<
+    Record<string, SiteNearbyPlace>
+  >({});
+  const [removingNearbyAmenityKey, setRemovingNearbyAmenityKey] = useState<
+    string | null
+  >(null);
+  const [pendingNearbyRemovals, setPendingNearbyRemovals] = useState<
+    Record<string, { itemId: string; amenityId: string; amenityName: string }>
+  >({});
+  const pendingNearbyRemovalTimersRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
+  const pendingNearbyRemovalMetaRef = useRef<
+    Record<
+      string,
+      {
+        itemId: string;
+        amenityId: string;
+        previousIds: string[];
+        nextIds: string[];
+      }
+    >
+  >({});
 
   const pilgrimagePins: MapPin[] = useMemo(
     () => buildPlanMapPins(plan),
@@ -252,6 +285,35 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   );
 
   useEffect(() => {
+    return () => {
+      Object.values(pendingNearbyRemovalTimersRef.current).forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+      pendingNearbyRemovalTimersRef.current = {};
+      pendingNearbyRemovalMetaRef.current = {};
+    };
+  }, []);
+
+  const pendingNearbyRemovalsByItem = useMemo(() => {
+    const grouped: Record<
+      string,
+      { amenityId: string; amenityName: string }[]
+    > = {};
+
+    Object.values(pendingNearbyRemovals).forEach((entry) => {
+      if (!grouped[entry.itemId]) {
+        grouped[entry.itemId] = [];
+      }
+      grouped[entry.itemId].push({
+        amenityId: entry.amenityId,
+        amenityName: entry.amenityName,
+      });
+    });
+
+    return grouped;
+  }, [pendingNearbyRemovals]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const getNearbyMarkerType = (category?: string): MapPin["markerType"] => {
@@ -268,6 +330,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     const loadNearbyPins = async () => {
       if (!plan?.items_by_day || isOffline) {
         setNearbyAmenityPins([]);
+        setNearbyAmenityLookup({});
         return;
       }
 
@@ -285,6 +348,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
       if (!uniqueSites.size) {
         setNearbyAmenityPins([]);
+        setNearbyAmenityLookup({});
         return;
       }
 
@@ -304,6 +368,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
       const seen = new Set<string>();
       const pins: MapPin[] = [];
+      const amenityLookup: Record<string, SiteNearbyPlace> = {};
       responses.forEach((entry) => {
         if (entry.status !== "fulfilled") return;
         entry.value.places.forEach((place: SiteNearbyPlace) => {
@@ -311,6 +376,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           const lat = Number(place?.latitude);
           const lng = Number(place?.longitude);
           if (!placeId || Number.isNaN(lat) || Number.isNaN(lng)) return;
+
+          amenityLookup[placeId] = place;
+
           if (seen.has(placeId)) return;
           seen.add(placeId);
 
@@ -335,6 +403,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       });
 
       setNearbyAmenityPins(pins);
+      setNearbyAmenityLookup(amenityLookup);
     };
 
     void loadNearbyPins();
@@ -666,14 +735,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     checkOfflineAvailability();
   }, [planId]);
 
-  const checkOfflineAvailability = async () => {
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      void loadPlan({ silent: true });
+      void checkOfflineAvailability();
+    });
+
+    return unsubscribe;
+  }, [navigation, planId]);
+
+  async function checkOfflineAvailability() {
     const [available, tileTemplate] = await Promise.all([
       checkAvailability(planId),
       offlinePlannerService.getOfflineMapTileTemplate(planId),
     ]);
     setIsAvailableOffline(available);
     setOfflineTileUrlTemplate(tileTemplate || undefined);
-  };
+  }
 
   const showConnectionRequiredAlert = () => {
     Toast.show({
@@ -695,6 +773,10 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       showConnectionRequiredAlert,
     });
 
+  const runGuardedUiAction = useCallback((key: string, action: () => void) => {
+    runWithActionGuard(`plan-detail:${planId}:${key}`, action);
+  }, [planId]);
+
   const handleOpenChat = () => {
     if (isOffline) {
       showConnectionRequiredAlert();
@@ -702,21 +784,32 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
 
     void markChatAsRead();
-    navigation.navigate("PlanChatScreen", {
-      planId,
-      planName: plan?.name,
-      ownerId: plan?.user_id || plan?.owner?.id,
+    runGuardedUiAction("open-chat", () => {
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: "PlanChatScreen",
+          params: {
+            planId,
+            planName: plan?.name,
+            ownerId: plan?.user_id || plan?.owner?.id,
+          },
+        }),
+      );
     });
   };
 
   const handleOpenMembers = () => {
-    navigation.navigate(
-      "PlannerMembersScreen" as never,
-      {
-        planId,
-        planName: plan?.name,
-      } as never,
-    );
+    runGuardedUiAction("open-members", () => {
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: "PlannerMembersScreen",
+          params: {
+            planId,
+            planName: plan?.name,
+          },
+        }),
+      );
+    });
   };
 
   // Chat unread count polling is now handled by useChatUnreadCount hook
@@ -1046,7 +1139,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       !isNaN(ppNum) && Number.isFinite(ppNum) ? String(Math.round(ppNum)) : "0",
     );
     setEditLockAt(plan.edit_lock_at || null);
-    setShowEditPlanModal(true);
+    runGuardedUiAction("open-edit-plan-modal", () => {
+      setShowEditPlanModal(true);
+    });
   };
 
   const handleSavePlan = async () => {
@@ -1198,12 +1293,41 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
 
   const handleOpenSiteDetailFromAddModal = (siteId: string) => {
     if (!siteId) return;
-    navigation.navigate("SiteDetail" as never, { siteId } as never);
+    runGuardedUiAction(`site-detail:${siteId}`, () => {
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: "SiteDetail",
+          params: { siteId },
+        }),
+      );
+    });
+  };
+
+  const handleOpenNearbyAmenitiesFromAddModal = (site: SiteSummary) => {
+    if (!site?.id) return;
+    runGuardedUiAction(`nearby:${site.id}`, () => {
+      navigation.dispatch(
+        CommonActions.navigate({
+          name: "NearbySiteAmenitiesScreen",
+          params: {
+            planId,
+            siteId: site.id,
+            siteName: site.name,
+            siteAddress: site.address,
+            latitude: site.latitude,
+            longitude: site.longitude,
+            itemsByDay: plan?.items_by_day || {},
+          },
+        }),
+      );
+    });
   };
 
   const handleOpenEventSite = async (site: SiteSummary) => {
     setEventSite(site);
-    setShowEventListModal(true);
+    runGuardedUiAction(`open-site-events:${site.id}`, () => {
+      setShowEventListModal(true);
+    });
     setSiteEvents([]);
     try {
       setIsLoadingEvents(true);
@@ -1232,7 +1356,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       return;
     }
 
-    setShowShareModal(true);
+    runGuardedUiAction("open-share-modal", () => {
+      setShowShareModal(true);
+    });
   };
 
   const handleSharePlannerToCommunity = async () => {
@@ -1486,7 +1612,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       iconName: isLock
         ? "lock-closed-outline"
         : isStart
-          ? "rocket-outline"
+          ? "walk-outline"
           : "flag-outline",
       title,
       message: msg,
@@ -1719,7 +1845,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       setCalendarSyncError(response.error);
     }
 
-    setShowCalendarSyncModal(true);
+    runGuardedUiAction("open-calendar-sync-modal", () => {
+      setShowCalendarSyncModal(true);
+    });
   };
 
   const handleSyncOfflineActions = async () => {
@@ -1805,7 +1933,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
       return;
     }
 
-    setShowOfflineModal(true);
+    runGuardedUiAction("open-offline-modal", () => {
+      setShowOfflineModal(true);
+    });
     resetOfflineDownload();
 
     const result = await downloadPlanner(planId);
@@ -1858,11 +1988,13 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const handleOpenOfflineDownloads = () => {
     setShowMenuDropdown(false);
 
-    navigation.getParent()?.navigate(
-      "Ho so" as never,
-      {
-        screen: "OfflineDownloads",
-      } as never,
+    navigation.getParent()?.dispatch(
+      CommonActions.navigate({
+        name: "Ho so",
+        params: {
+          screen: "OfflineDownloads",
+        },
+      }),
     );
   };
 
@@ -1886,6 +2018,23 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
             "Hiện chưa có ngày phụ thuộc (từ ngày 2) để đồng bộ giờ dự kiến theo điểm liền kề.",
         }),
       });
+      return;
+    }
+
+    const shouldProceed = await confirm({
+      type: "warning",
+      title: t("planner.reloadEtaConfirmTitle", {
+        defaultValue: "Xác nhận đồng bộ giờ dự kiến",
+      }),
+      message: t("planner.reloadEtaConfirmMessage", {
+        defaultValue:
+          "Thao tác này sẽ tính lại giờ theo điểm trước đó và thời gian di chuyển. Một số điểm có thể tự chuyển sang ngày khác. Thay đổi sẽ áp dụng ngay cho lịch trình.",
+      }),
+      confirmText: t("planner.syncShort", { defaultValue: "Đồng bộ" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!shouldProceed) {
       return;
     }
 
@@ -2019,6 +2168,255 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     }
   };
 
+  const applyLocalNearbyAmenityIds = useCallback(
+    (itemId: string, amenityIds: string[]) => {
+      setPlan((currentPlan) => {
+        if (!currentPlan) return currentPlan;
+
+        const nextItemsByDay: Record<string, PlanItem[]> = {};
+        Object.entries(currentPlan.items_by_day || {}).forEach(
+          ([dayKey, dayItems]) => {
+            nextItemsByDay[dayKey] = (dayItems || []).map((dayItem) => {
+              if (String(dayItem.id || "") !== String(itemId || "")) {
+                return dayItem;
+              }
+
+              return {
+                ...dayItem,
+                nearby_amenity_ids: amenityIds,
+              };
+            });
+          },
+        );
+
+        return {
+          ...currentPlan,
+          items_by_day: nextItemsByDay,
+        };
+      });
+
+      setSelectedItem((prev) =>
+        prev && String(prev.id || "") === String(itemId)
+          ? { ...prev, nearby_amenity_ids: amenityIds }
+          : prev,
+      );
+    },
+    [],
+  );
+
+  const commitPendingNearbyRemoval = useCallback(
+    async (removeKey: string) => {
+      const pendingMeta = pendingNearbyRemovalMetaRef.current[removeKey];
+      if (!pendingMeta) {
+        return;
+      }
+
+      const { itemId, nextIds, previousIds } = pendingMeta;
+
+      setRemovingNearbyAmenityKey(removeKey);
+
+      try {
+        const isOnline = await networkService.checkConnection();
+
+        if (!isOnline) {
+          await networkService.addToOfflineQueue({
+            endpoint: `/api/planners/${planId}/items/${itemId}`,
+            method: "PUT",
+            data: {
+              planner_item_id: itemId,
+              nearby_amenity_ids: nextIds,
+            },
+          });
+
+          await offlinePlannerService.updatePlannerItem(planId, itemId, {
+            nearby_amenity_ids: nextIds,
+          });
+
+          Toast.show({
+            type: "success",
+            text1: t("common.success"),
+            text2: t("offline.changesSavedOffline"),
+          });
+          return;
+        }
+
+        const response = await pilgrimPlannerApi.updatePlanItem(planId, itemId, {
+          nearby_amenity_ids: nextIds,
+        });
+
+        if (!response?.success) {
+          throw new Error(
+            response?.message ||
+              t("planner.removeNearbyAmenityFailed", {
+                defaultValue: "Không thể xoá tiện ích lân cận",
+              }),
+          );
+        }
+
+        await offlinePlannerService.updatePlannerItem(planId, itemId, {
+          nearby_amenity_ids: nextIds,
+        });
+
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("planner.removeNearbyAmenitySuccess", {
+            defaultValue: "Đã xoá tiện ích khỏi lịch trình",
+          }),
+        });
+      } catch (error: any) {
+        applyLocalNearbyAmenityIds(itemId, previousIds);
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2:
+            error?.message ||
+            t("planner.removeNearbyAmenityFailed", {
+              defaultValue: "Không thể xoá tiện ích lân cận",
+            }),
+        });
+      } finally {
+        const activeTimer = pendingNearbyRemovalTimersRef.current[removeKey];
+        if (activeTimer) {
+          clearTimeout(activeTimer);
+          delete pendingNearbyRemovalTimersRef.current[removeKey];
+        }
+        delete pendingNearbyRemovalMetaRef.current[removeKey];
+        setPendingNearbyRemovals((prev) => {
+          if (!prev[removeKey]) return prev;
+          const next = { ...prev };
+          delete next[removeKey];
+          return next;
+        });
+        setRemovingNearbyAmenityKey((current) =>
+          current === removeKey ? null : current,
+        );
+      }
+    },
+    [applyLocalNearbyAmenityIds, planId, t],
+  );
+
+  const handleRemoveNearbyAmenity = async (
+    itemId: string,
+    amenityId: string,
+  ) => {
+    const allItems = Object.values(plan?.items_by_day || {}).flat();
+    const targetItem = allItems.find(
+      (it) => String(it.id || "") === String(itemId || ""),
+    );
+
+    if (!targetItem) {
+      return;
+    }
+
+    const existingIds = (targetItem.nearby_amenity_ids || []).map((id) =>
+      String(id),
+    );
+    const nextIds = existingIds.filter((id) => id !== String(amenityId));
+
+    if (nextIds.length === existingIds.length) {
+      return;
+    }
+
+    const removeKey = `${itemId}:${amenityId}`;
+    if (pendingNearbyRemovalMetaRef.current[removeKey]) {
+      return;
+    }
+
+    applyLocalNearbyAmenityIds(itemId, nextIds);
+
+    const amenityName =
+      nearbyAmenityLookup[String(amenityId)]?.name ||
+      t("planner.savedAmenityFallback", {
+        defaultValue: "Tiện ích đã lưu",
+      });
+
+    pendingNearbyRemovalMetaRef.current[removeKey] = {
+      itemId,
+      amenityId,
+      previousIds: existingIds,
+      nextIds,
+    };
+    setPendingNearbyRemovals((prev) => ({
+      ...prev,
+      [removeKey]: {
+        itemId,
+        amenityId,
+        amenityName,
+      },
+    }));
+
+    pendingNearbyRemovalTimersRef.current[removeKey] = setTimeout(() => {
+      void commitPendingNearbyRemoval(removeKey);
+    }, 3000);
+
+    Toast.show({
+      type: "info",
+      text1: t("planner.nearbyRemovedUndoWindowTitle", {
+        defaultValue: "Đã ẩn tiện ích (3 giây)",
+      }),
+      text2: t("planner.nearbyRemovedUndoWindowMessage", {
+        defaultValue: "Bạn có thể hoàn tác ngay trên thẻ tiện ích.",
+      }),
+    });
+  };
+
+  const handleUndoRemoveNearbyAmenity = useCallback(
+    (itemId: string, amenityId: string) => {
+      const removeKey = `${itemId}:${amenityId}`;
+      const pendingMeta = pendingNearbyRemovalMetaRef.current[removeKey];
+      if (!pendingMeta) {
+        return;
+      }
+
+      const timerId = pendingNearbyRemovalTimersRef.current[removeKey];
+      if (timerId) {
+        clearTimeout(timerId);
+        delete pendingNearbyRemovalTimersRef.current[removeKey];
+      }
+
+      applyLocalNearbyAmenityIds(itemId, pendingMeta.previousIds);
+
+      delete pendingNearbyRemovalMetaRef.current[removeKey];
+      setPendingNearbyRemovals((prev) => {
+        if (!prev[removeKey]) return prev;
+        const next = { ...prev };
+        delete next[removeKey];
+        return next;
+      });
+
+      Toast.show({
+        type: "success",
+        text1: t("common.success"),
+        text2: t("planner.undoNearbyAmenitySuccess", {
+          defaultValue: "Đã hoàn tác xoá tiện ích",
+        }),
+      });
+    },
+    [applyLocalNearbyAmenityIds, t],
+  );
+
+  async function handleReloadDayFromPreviousWithConfirm(dayNumber: number) {
+    const shouldProceed = await confirm({
+      type: "warning",
+      title: t("planner.reloadEtaConfirmTitle", {
+        defaultValue: "Xác nhận đồng bộ giờ dự kiến",
+      }),
+      message: t("planner.reloadEtaConfirmMessage", {
+        defaultValue:
+          "Thao tác này sẽ tính lại giờ theo điểm trước đó và thời gian di chuyển. Một số điểm có thể tự chuyển sang ngày khác. Thay đổi sẽ áp dụng ngay cho lịch trình.",
+      }),
+      confirmText: t("planner.syncShort", { defaultValue: "Đồng bộ" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!shouldProceed) {
+      return;
+    }
+
+    await handleReloadDayFromPrevious(dayNumber);
+  }
+
   const { applyLocalItemPatches, buildDayPatches } = usePlannerDayPatching(
     plan?.transportation,
   );
@@ -2040,7 +2438,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
   const openAddModal = (day: number) => {
     setSelectedDay(day);
     setAddFlowOriginDay(day);
-    setIsAddModalVisible(true);
+    runGuardedUiAction(`open-add-modal-day-${day}`, () => {
+      setIsAddModalVisible(true);
+    });
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
@@ -2063,7 +2463,9 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
     date.setHours(hours);
     date.setMinutes(minutes);
     setTempTime(date);
-    setShowTimePicker(true);
+    runGuardedUiAction("open-time-picker", () => {
+      setShowTimePicker(true);
+    });
   };
 
   const formatDuration = (minutes: number) => {
@@ -3329,13 +3731,21 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           <View style={styles.navActions}>
             <TouchableOpacity
               style={styles.navButton}
-              onPress={() => setShowFullMap(true)}
+              onPress={() =>
+                runGuardedUiAction("open-full-map", () => {
+                  setShowFullMap(true);
+                })
+              }
             >
               <Ionicons name="expand-outline" size={24} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.navButton}
-              onPress={() => setShowMenuDropdown(true)}
+              onPress={() =>
+                runGuardedUiAction("open-menu-dropdown", () => {
+                  setShowMenuDropdown(true);
+                })
+              }
             >
               <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
             </TouchableOpacity>
@@ -3616,8 +4026,16 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
           <InvitePreviewCard
             ownerName={ownerName}
             ownerEmail={ownerEmail}
-            depositAmount={depositAmount}
-            penaltyPercentage={penaltyPercentage}
+            depositAmount={
+              typeof depositAmount === "number"
+                ? depositAmount
+                : Number(depositAmount || 0) || undefined
+            }
+            penaltyPercentage={
+              typeof penaltyPercentage === "number"
+                ? penaltyPercentage
+                : Number(penaltyPercentage || 0) || undefined
+            }
             joinedCount={previewJoinedCount}
             estimatedJoinedCount={Math.max(
               (plan?.number_of_people || 1) - 1,
@@ -3805,7 +4223,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                   />
                 ) : (
                   <Ionicons
-                    name="rocket-outline"
+                    name="walk-outline"
                     size={20}
                     color="#fff"
                     style={{ marginRight: 8 }}
@@ -3906,7 +4324,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 setSelectedItem={setSelectedItem}
                 handleReorderIconPress={handleReorderIconPress}
                 handleDeleteItem={handleDeleteItem}
-                onReloadDayFromPrevious={handleReloadDayFromPrevious}
+                onReloadDayFromPrevious={handleReloadDayFromPreviousWithConfirm}
                 reloadingDayNumber={reloadingDayNumber}
                 showEtaSyncWarning={showEtaSyncWarning}
                 openAddModal={openAddModal}
@@ -3915,6 +4333,11 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
                 getPilgrimTagStr={getPilgrimTag}
                 formatTimeValueCalc={formatTimeValue}
                 calculateEndTimeCalc={calculateEndTime}
+                nearbyAmenityLookup={nearbyAmenityLookup}
+                onRemoveNearbyAmenity={handleRemoveNearbyAmenity}
+                removingNearbyAmenityKey={removingNearbyAmenityKey}
+                pendingNearbyRemovalsByItem={pendingNearbyRemovalsByItem}
+                onUndoRemoveNearbyAmenity={handleUndoRemoveNearbyAmenity}
                 styles={styles}
               />
             );
@@ -3981,6 +4404,7 @@ const PlanDetailScreen = ({ route, navigation }: any) => {
         sites={sites}
         favorites={favorites}
         onAddSite={isPlanOwner ? (siteId) => handleAddItem(siteId) : undefined}
+        onOpenNearbyAmenities={handleOpenNearbyAmenitiesFromAddModal}
         onOpenSiteDetail={handleOpenSiteDetailFromAddModal}
         addingItem={addingItem}
         alreadyAddedSiteIds={

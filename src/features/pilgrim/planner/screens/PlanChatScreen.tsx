@@ -19,6 +19,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
     BORDER_RADIUS,
     COLORS,
@@ -27,6 +28,7 @@ import {
     TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
 
@@ -40,7 +42,9 @@ const sortMessagesNewestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
-const PlanChatScreen = ({ route, navigation }: any) => {
+type Props = NativeStackScreenProps<PilgrimMainStackParamList, "PlanChatScreen">;
+
+const PlanChatScreen = ({ route, navigation }: Props) => {
   const { planId, planName, ownerId } = route.params;
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();

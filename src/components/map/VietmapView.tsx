@@ -65,8 +65,8 @@ export interface MapPin {
   title: string;
   subtitle?: string;
   icon?: string;
-  markerType?: "restaurant" | "hotel" | "media" | "site" | "pick" | "sos";
-  chipMarkerType?: "restaurant" | "hotel" | "media" | "site" | "pick" | "sos";
+  markerType?: "restaurant" | "hotel" | "medical" | "media" | "site" | "pick" | "sos";
+  chipMarkerType?: "restaurant" | "hotel" | "medical" | "media" | "site" | "pick" | "sos";
   chipPlainIcon?: boolean;
   chipUseDefaultPin?: boolean;
   chipIconColor?: string;
@@ -656,6 +656,9 @@ export const MapPinGlyph = ({
   }
   if (markerType === "hotel") {
     return <FontAwesome5 name="hotel" size={size - 2} color={color} />;
+  }
+  if (markerType === "medical") {
+    return <Ionicons name="medkit" size={size - 2} color={color} />;
   }
   if (markerType === "media") {
     return <MaterialIcons name="perm-media" size={size} color={color} />;

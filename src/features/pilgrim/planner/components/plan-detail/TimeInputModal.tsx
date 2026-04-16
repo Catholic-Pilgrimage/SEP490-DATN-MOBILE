@@ -365,7 +365,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   }, [crossDayWarning, insight]);
 
   const insightMessageColor = useMemo(() => {
-    if (!insight) return "#F9EAD7";
+    if (!insight) return "#6B4E2E";
 
     if (
       insight.type === "error" ||
@@ -380,15 +380,15 @@ export default function TimeInputModal(props: TimeInputModalProps) {
       return "#7C2D12";
     }
 
-    return "#F9EAD7";
+    return "#6B4E2E";
   }, [insight]);
 
   const insightAppearance = useMemo(() => {
     if (!insight) {
       return {
-        backgroundColor: "rgba(146, 94, 48, 0.24)",
-        borderColor: "#A06E3C",
-        titleColor: "#F7D9AC",
+        backgroundColor: "#FFF3DF",
+        borderColor: "#E2C79E",
+        titleColor: "#8A5A2B",
       };
     }
 
@@ -399,9 +399,9 @@ export default function TimeInputModal(props: TimeInputModalProps) {
       insight.type === "ideal"
     ) {
       return {
-        backgroundColor: "rgba(243, 192, 78, 0.12)",
-        borderColor: "#F4C27A",
-        titleColor: "#F7D9AC",
+        backgroundColor: "#FFF6E8",
+        borderColor: "#E5C892",
+        titleColor: "#8A5A2B",
       };
     }
 
@@ -622,7 +622,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                 }}
               >
                 <Text style={localStyles.travelCardTitle}>
-                  <Ionicons name="map-outline" size={14} color="#F4C27A" />{" "}
+                  <Ionicons name="map-outline" size={14} color="#A8793D" />{" "}
                   {t("planner.travelAndSchedule")}
                 </Text>
 
@@ -669,7 +669,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                           <Ionicons
                             name="arrow-forward-outline"
                             size={16}
-                            color="#4A2C11"
+                            color="#5B3E1F"
                           />
                           <Text style={localStyles.moveNextDayButtonText}>
                             {t("planner.moveToNextDayCta", {
@@ -704,15 +704,15 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                       <Ionicons
                         name="information-circle-outline"
                         size={16}
-                        color="#F4C27A"
+                        color="#A8793D"
                       />
-                      <Text style={[localStyles.insightTitle, { color: "#F7D9AC" }]}>
+                      <Text style={[localStyles.insightTitle, { color: "#8A5A2B" }]}>
                         {t("planner.arrivePrevDayTitle", {
                           defaultValue: "Có thể đến từ ngày hôm trước",
                         })}
                       </Text>
                     </View>
-                    <Text style={[localStyles.insightMessage, { color: "#F8E7D0" }]}>
+                    <Text style={[localStyles.insightMessage, { color: "#6B4E2E" }]}>
                       {t("planner.arrivePrevDayMessage", {
                         defaultValue:
                           "Bạn đã có thể đến địa điểm này từ ngày trước. Nếu vẫn thêm ở ngày hiện tại, hãy chọn giờ phù hợp với tiến trình trong ngày.",
@@ -839,7 +839,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                       <Ionicons
                         name="arrow-undo-outline"
                         size={16}
-                        color="#4A2C11"
+                        color="#5B3E1F"
                       />
                       <Text style={localStyles.movePrevDayButtonText}>
                         {t("planner.moveToPreviousDayCta", {
@@ -892,7 +892,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                 {showSuggestButton && suggestedTime && (
                   <View style={localStyles.suggestButton}>
                     <View style={localStyles.suggestButtonHeaderLeft}>
-                      <Ionicons name="sparkles" size={16} color="#F4C27A" />
+                      <Ionicons name="sparkles" size={16} color="#A8793D" />
                       <View style={{ flex: 1 }}>
                         <Text style={localStyles.suggestButtonText}>
                           {t("planner.suggestedTimeLabel", {
@@ -952,7 +952,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
               <Text
                 style={[
                   styles.confirmButtonText,
-                  { color: "rgba(255,255,255,0.7)" },
+                  { color: "#8A6F40" },
                 ]}
               >
                 {crossDaysAdded > 0
@@ -1128,17 +1128,17 @@ const localStyles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     justifyContent: "flex-end",
-    backgroundColor: "#0F172A",
+    backgroundColor: "#CBAA7D",
   },
   heroImage: {
     borderRadius: 16,
   },
   heroFallback: {
-    backgroundColor: "#1E293B",
+    backgroundColor: "#D8BE96",
   },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(2, 6, 23, 0.55)",
+    backgroundColor: "rgba(74, 44, 17, 0.38)",
   },
   heroContent: {
     paddingHorizontal: 14,
@@ -1164,9 +1164,9 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: "rgba(146, 64, 14, 0.5)",
+    backgroundColor: "rgba(139, 92, 48, 0.58)",
     borderWidth: 1,
-    borderColor: "rgba(251, 191, 36, 0.38)",
+    borderColor: "rgba(255, 234, 191, 0.7)",
   },
   heroChipText: {
     color: "#FEF3C7",
@@ -1194,10 +1194,10 @@ const localStyles = StyleSheet.create({
     marginBottom: 8,
   },
   timeSetupCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFFCF6",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#E9DFC9",
     padding: 12,
     marginBottom: 10,
   },
@@ -1216,19 +1216,19 @@ const localStyles = StyleSheet.create({
 
   // ── Travel Card ──
   travelCard: {
-    backgroundColor: "#3B2314",
+    backgroundColor: "#FFF7EB",
     borderRadius: 16,
     padding: 12,
     marginTop: 6,
     marginBottom: 4,
     borderWidth: 1,
-    borderColor: "#8B5E34",
+    borderColor: "#E2C9A4",
     gap: 6,
   },
   travelCardTitle: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#FDE7C7",
+    color: "#5E4325",
     marginBottom: 4,
   },
 
@@ -1258,14 +1258,14 @@ const localStyles = StyleSheet.create({
   },
   travelRowLabel: {
     fontSize: 13,
-    color: "#FFF2DE",
+    color: "#4E3620",
     fontWeight: "600",
     flex: 1,
   },
   travelRowTime: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#FFD699",
+    color: "#8A5A2B",
     marginLeft: 8,
   },
 
@@ -1273,13 +1273,13 @@ const localStyles = StyleSheet.create({
   travelLine: {
     marginLeft: 4,
     borderLeftWidth: 2,
-    borderLeftColor: "rgba(244, 194, 122, 0.45)",
+    borderLeftColor: "#D6B384",
     paddingLeft: 16,
     paddingVertical: 4,
   },
   travelLineText: {
     fontSize: 12,
-    color: "#F5DDB9",
+    color: "#6A4A2A",
     fontWeight: "500",
   },
   // Insight Box
@@ -1361,24 +1361,24 @@ const localStyles = StyleSheet.create({
     paddingHorizontal: 12,
     backgroundColor: COLORS.white,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: "#C8B08A",
     borderRadius: 8,
     gap: 8,
   },
   compactTimeText: {
     fontSize: 16,
     fontWeight: "700",
-    color: COLORS.primary,
+    color: "#3D2E1E",
   },
   stepperBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(29, 78, 216, 0.08)",
+    backgroundColor: "#F4EDE1",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(29, 78, 216, 0.2)",
+    borderColor: "#D7C3A2",
   },
   stickyFooter: {
     paddingHorizontal: 16,
@@ -1398,15 +1398,15 @@ const localStyles = StyleSheet.create({
   nextDayInlineHint: {
     fontSize: 12,
     lineHeight: 16,
-    color: "#F3DEC2",
+    color: "#6F5233",
     fontWeight: "600",
   },
   arrivePrevDayNotice: {
     marginTop: 10,
-    backgroundColor: "rgba(244, 194, 122, 0.14)",
+    backgroundColor: "#FFF3DD",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(244, 194, 122, 0.45)",
+    borderColor: "#E6CA9A",
     padding: 10,
   },
   movePrevDayButton: {
@@ -1417,7 +1417,7 @@ const localStyles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#F3C04E",
     borderWidth: 1,
-    borderColor: "#F8D896",
+    borderColor: "#E7BC6E",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -1430,11 +1430,11 @@ const localStyles = StyleSheet.create({
   movePrevDayButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#4A2C11",
+    color: "#5B3E1F",
   },
   crossDayActionHint: {
     fontSize: 12,
-    color: "#F2DEC1",
+    color: "#6E5133",
     lineHeight: 16,
   },
   moveBackDayButton: {
@@ -1457,7 +1457,7 @@ const localStyles = StyleSheet.create({
   crossDayActionWarningText: {
     fontSize: 12,
     lineHeight: 16,
-    color: "#FCD89A",
+    color: "#A04B22",
   },
   restLimitText: {
     marginTop: 8,
@@ -1478,7 +1478,7 @@ const localStyles = StyleSheet.create({
     gap: 6,
     backgroundColor: "#F3C04E",
     borderWidth: 1,
-    borderColor: "#F8D896",
+    borderColor: "#E7BC6E",
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 9,
@@ -1491,6 +1491,6 @@ const localStyles = StyleSheet.create({
   moveNextDayButtonText: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#4A2C11",
+    color: "#5B3E1F",
   },
 });

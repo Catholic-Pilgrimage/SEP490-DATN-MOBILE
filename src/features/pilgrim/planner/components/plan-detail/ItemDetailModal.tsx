@@ -78,6 +78,10 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
     return { primary: formatTimeValue(start) };
   }, [selectedItem, calculateEndTime, formatTimeValue]);
 
+  const hasTravelInfo = Boolean(travelLine);
+  const hasScheduleInfo = Boolean(scheduleTimeDisplay.primary);
+  const hasRestInfo = Boolean(selectedItem?.rest_duration);
+
   return (
     <Modal
       visible={visible}
@@ -163,27 +167,41 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                     </Text>
                   </View>
                 ) : null}
+
               </View>
             </View>
 
-            <View style={s.itemDetailScheduleCard}>
+            <View style={[s.itemDetailScheduleCard, s.itemDetailScheduleCardAttached]}>
               <Text style={s.itemDetailScheduleCardTitle}>
                 {t("planner.itemDetailScheduleSection")}
               </Text>
 
               {travelLine ? (
-                <View style={s.itemDetailTravelBanner}>
-                  <Ionicons name="navigate-outline" size={22} color="#B45309" />
-                  <Text style={s.itemDetailTravelBannerText}>
-                    {t("planner.itemDetailFromPreviousStop")}
-                    {": "}
-                    {travelLine}
-                  </Text>
+                <View
+                  style={[
+                    s.itemDetailInfoRow,
+                    !hasScheduleInfo && !hasRestInfo && s.itemDetailInfoRowLast,
+                  ]}
+                >
+                  <View style={s.itemDetailInfoIconContainer}>
+                    <Ionicons name="navigate-outline" size={20} color={COLORS.accent} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={s.itemDetailInfoLabel}>
+                      {t("planner.itemDetailFromPreviousStop")}
+                    </Text>
+                    <Text style={s.itemDetailInfoValue}>{travelLine}</Text>
+                  </View>
                 </View>
               ) : null}
 
               {scheduleTimeDisplay.primary ? (
-                <View style={[s.itemDetailInfoRow, !selectedItem.rest_duration && s.itemDetailInfoRowLast]}>
+                <View
+                  style={[
+                    s.itemDetailInfoRow,
+                    !hasRestInfo && s.itemDetailInfoRowLast,
+                  ]}
+                >
                   <View style={s.itemDetailInfoIconContainer}>
                     <Ionicons name="time-outline" size={20} color={COLORS.accent} />
                   </View>
@@ -212,7 +230,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                 </View>
               ) : null}
 
-              {!scheduleTimeDisplay.primary && !selectedItem.rest_duration ? (
+              {!hasTravelInfo && !hasScheduleInfo && !hasRestInfo ? (
                 <Text style={s.itemDetailRowText}>
                   {t("planner.itemDetailNoScheduleYet")}
                 </Text>

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
-import { COLORS } from "../../../../../constants/theme.constants";
+import { BORDER_RADIUS, COLORS } from "../../../../../constants/theme.constants";
 import { PlanItem } from "../../../../../types/pilgrim/planner.types";
 import { formatDurationLocalized } from "../../utils/siteScheduleHelper";
 
@@ -19,6 +19,13 @@ interface ItineraryDayCardProps {
   setSelectedItem: (item: PlanItem | null) => void;
   handleReorderIconPress: (dayKey: string, item: PlanItem) => void;
   handleDeleteItem: (itemId: string) => void;
+  onRemoveNearbyAmenity?: (itemId: string, amenityId: string) => void;
+  removingNearbyAmenityKey?: string | null;
+  pendingNearbyRemovalsByItem?: Record<
+    string,
+    Array<{ amenityId: string; amenityName: string }>
+  >;
+  onUndoRemoveNearbyAmenity?: (itemId: string, amenityId: string) => void;
   onReloadDayFromPrevious?: (dayNumber: number) => void;
   reloadingDayNumber?: number | null;
   showEtaSyncWarning?: boolean;
@@ -29,6 +36,15 @@ interface ItineraryDayCardProps {
     item: PlanItem,
     t?: (key: string, opts?: any) => string,
   ) => string;
+  nearbyAmenityLookup?: Record<
+    string,
+    {
+      id: string;
+      name: string;
+      category?: string;
+      distance_meters?: number;
+    }
+  >;
   styles: any; // We can lazily accept parents styles instead of copy-pasting 50 styles
   formatTimeValueCalc: (value: any) => string;
   calculateEndTimeCalc: (startTimeStr: any, durationStr: any) => string;
@@ -69,6 +85,10 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   setSelectedItem,
   handleReorderIconPress,
   handleDeleteItem,
+  onRemoveNearbyAmenity,
+  removingNearbyAmenityKey = null,
+  pendingNearbyRemovalsByItem = {},
+  onUndoRemoveNearbyAmenity,
   onReloadDayFromPrevious,
   reloadingDayNumber,
   showEtaSyncWarning,
@@ -76,6 +96,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   t,
   getDateForDayCalc,
   getPilgrimTagStr = getPilgrimTag,
+  nearbyAmenityLookup = {},
   styles,
   formatTimeValueCalc,
   calculateEndTimeCalc,
@@ -269,97 +290,227 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             const swapSelected =
               swapPick?.dayKey === dayKey && swapPick?.itemId === item.id;
             const hasTimeConflict = conflictedItemIds.has(item.id);
+            const rawNearbyAmenityIds =
+              (item.nearby_amenity_ids as string[] | string | undefined) ||
+              ((item as any).nearbyAmenityIds as string[] | string | undefined);
+            const rawNearbyAmenities =
+              ((item as any).nearby_amenities as any[] | undefined) ||
+              ((item as any).nearbyAmenities as any[] | undefined) ||
+              [];
+            const directAmenities = rawNearbyAmenities
+              .map((amenity) => {
+                const amenityId = String(
+                  amenity?.id || amenity?.place_id || amenity?.amenity_id || "",
+                ).trim();
+                if (!amenityId) return null;
+                return {
+                  id: amenityId,
+                  name: String(
+                    amenity?.name ||
+                      amenity?.place_name ||
+                      amenity?.title ||
+                      t("planner.savedAmenityFallback", {
+                        defaultValue: "Tiện ích đã lưu",
+                      }),
+                  ),
+                  category:
+                    typeof amenity?.category === "string"
+                      ? amenity.category
+                      : undefined,
+                  distance_meters:
+                    typeof amenity?.distance_meters === "number"
+                      ? amenity.distance_meters
+                      : undefined,
+                };
+              })
+              .filter(Boolean) as Array<{
+              id: string;
+              name: string;
+              category?: string;
+              distance_meters?: number;
+            }>;
+            const directAmenitiesById = directAmenities.reduce<
+              Record<string, (typeof directAmenities)[number]>
+            >((acc, amenity) => {
+              acc[amenity.id] = amenity;
+              return acc;
+            }, {});
+
+            const parseNearbyIds = (value: string[] | string | undefined) => {
+              if (Array.isArray(value)) {
+                return value
+                  .map((id) => String(id || "").trim())
+                  .filter(Boolean);
+              }
+
+              if (typeof value === "string") {
+                const trimmed = value.trim();
+                if (!trimmed) return [];
+
+                if (
+                  (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+                  (trimmed.startsWith("{") && trimmed.endsWith("}"))
+                ) {
+                  try {
+                    const normalizedJson = trimmed
+                      .replace(/^\{/, "[")
+                      .replace(/\}$/, "]");
+                    const parsed = JSON.parse(normalizedJson);
+                    if (Array.isArray(parsed)) {
+                      return parsed
+                        .map((id) => String(id || "").trim())
+                        .filter(Boolean);
+                    }
+                  } catch {
+                    // Fall through to separator-based parsing
+                  }
+                }
+
+                return trimmed
+                  .split(",")
+                  .map((id) =>
+                    id.replace(/[\[\]\{\}"]+/g, "").trim(),
+                  )
+                  .filter(Boolean);
+              }
+
+              return [];
+            };
+
+            const nearbyAmenityIds = parseNearbyIds(rawNearbyAmenityIds);
+            const nearbyAmenitiesFromIds = nearbyAmenityIds.map((amenityId) => {
+              const mapped =
+                directAmenitiesById[amenityId] || nearbyAmenityLookup[amenityId];
+              if (mapped) {
+                return mapped;
+              }
+              return {
+                id: amenityId,
+                name: t("planner.savedAmenityFallback", {
+                  defaultValue: "Tiện ích đã lưu",
+                }),
+                category: undefined,
+              };
+            });
+            const nearbyAmenities =
+              nearbyAmenitiesFromIds.length > 0
+                ? nearbyAmenitiesFromIds
+                : directAmenities;
+            const pendingUndos = pendingNearbyRemovalsByItem[item.id] || [];
+
+            const getAmenityMeta = (category?: string) => {
+              const normalized = String(category || "").toLowerCase();
+              if (normalized === "food") {
+                return { icon: "restaurant-outline" as const, color: "#F97316" };
+              }
+              if (normalized === "lodging") {
+                return { icon: "bed-outline" as const, color: "#2563EB" };
+              }
+              return { icon: "medkit-outline" as const, color: "#10B981" };
+            };
+
             const cardBody = (
-              <View style={styles.itemCardInner}>
-                <TouchableOpacity
+              <View
+                style={[
+                  styles.itemCardInner,
+                  { flexDirection: "column", alignItems: "stretch" },
+                ]}
+              >
+                <View
                   style={{
-                    flex: 1,
                     flexDirection: "row",
                     alignItems: "center",
                   }}
-                  activeOpacity={0.85}
-                  onPress={() => {
-                    setSwapPick(null);
-                    setSelectedItem(item);
-                  }}
                 >
-                  <Image
-                    source={{
-                      uri:
-                        item.site.cover_image ||
-                        item.site.image ||
-                        "https://via.placeholder.com/100",
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
                     }}
-                    style={styles.itemImage}
-                  />
-                  <View style={styles.itemContent}>
-                    <Text style={styles.itemName}>{item.site.name}</Text>
-                    <View style={styles.pilgrimTag}>
-                      <Text style={styles.pilgrimTagText}>
-                        {getPilgrimTagStr(item, t)}
-                      </Text>
-                    </View>
-                    {item.site.address && (
-                      <Text style={styles.itemAddress} numberOfLines={1}>
-                        {item.site.address}
-                      </Text>
-                    )}
-                    <View style={styles.itemFooter}>
-                      <View style={styles.itemTimeInfo}>
-                        <Ionicons
-                          name="time-outline"
-                          size={16}
-                          color={COLORS.accent}
-                        />
-                        <Text style={styles.itemTime}>
-                          {formatTimeValueCalc(
-                            item.estimated_time || item.arrival_time,
-                          )}
-                          {item.rest_duration
-                            ? ` - ${calculateEndTimeCalc(item.estimated_time || item.arrival_time, item.rest_duration)}`
-                            : ""}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setSwapPick(null);
+                      setSelectedItem(item);
+                    }}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          item.site.cover_image ||
+                          item.site.image ||
+                          "https://via.placeholder.com/100",
+                      }}
+                      style={styles.itemImage}
+                    />
+                    <View style={styles.itemContent}>
+                      <Text style={styles.itemName}>{item.site.name}</Text>
+                      <View style={styles.pilgrimTag}>
+                        <Text style={styles.pilgrimTagText}>
+                          {getPilgrimTagStr(item, t)}
                         </Text>
                       </View>
-                    </View>
+                      {item.site.address && (
+                        <Text style={styles.itemAddress} numberOfLines={1}>
+                          {item.site.address}
+                        </Text>
+                      )}
+                      <View style={styles.itemFooter}>
+                        <View style={styles.itemTimeInfo}>
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color={COLORS.accent}
+                          />
+                          <Text style={styles.itemTime}>
+                            {formatTimeValueCalc(
+                              item.estimated_time || item.arrival_time,
+                            )}
+                            {item.rest_duration
+                              ? ` - ${calculateEndTimeCalc(item.estimated_time || item.arrival_time, item.rest_duration)}`
+                              : ""}
+                          </Text>
+                        </View>
+                      </View>
 
-                    {hasTimeConflict && (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          backgroundColor: "#FEF2F2",
-                          paddingVertical: 4,
-                          paddingHorizontal: 8,
-                          borderRadius: 6,
-                          marginTop: 6,
-                        }}
-                      >
-                        <Ionicons
-                          name="warning"
-                          size={14}
-                          color="#DC2626"
-                          style={{ marginRight: 4 }}
-                        />
-                        <Text
+                      {hasTimeConflict && (
+                        <View
                           style={{
-                            fontSize: 12,
-                            color: "#DC2626",
-                            fontWeight: "500",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: "#FEF2F2",
+                            paddingVertical: 4,
+                            paddingHorizontal: 8,
+                            borderRadius: 6,
+                            marginTop: 6,
                           }}
                         >
-                          {t("planner.timeConflictWarning", {
-                            defaultValue: "Thời gian bị chồng chéo",
-                          })}
+                          <Ionicons
+                            name="warning"
+                            size={14}
+                            color="#DC2626"
+                            style={{ marginRight: 4 }}
+                          />
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#DC2626",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {t("planner.timeConflictWarning", {
+                              defaultValue: "Thời gian bị chồng chéo",
+                            })}
+                          </Text>
+                        </View>
+                      )}
+                      {item.note && item.note !== "Visited" && (
+                        <Text style={styles.itemNote} numberOfLines={1}>
+                          {item.note}
                         </Text>
-                      </View>
-                    )}
-                    {item.note && item.note !== "Visited" && (
-                      <Text style={styles.itemNote} numberOfLines={1}>
-                        {item.note}
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                 {isPlanOwner ? (
                   <TouchableOpacity
                     onPress={() => handleReorderIconPress(dayKey, item)}
@@ -397,6 +548,166 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                     />
                   </View>
                 )}
+
+                </View>
+
+                {(nearbyAmenities.length > 0 || pendingUndos.length > 0) && (
+                  <View
+                    style={{
+                      marginTop: 10,
+                      marginLeft: 0,
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: "#E5E7EB",
+                      backgroundColor: "#FAFBFC",
+                      paddingHorizontal: 10,
+                      paddingVertical: 8,
+                      rowGap: 6,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "700",
+                          color: COLORS.textSecondary,
+                        }}
+                      >
+                        {t("planner.nearbyAmenitiesTitle", {
+                          defaultValue: "Tiện ích lân cận",
+                        })}
+                      </Text>
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          fontWeight: "600",
+                          color: COLORS.textTertiary,
+                        }}
+                      >
+                        {nearbyAmenities.length}
+                      </Text>
+                    </View>
+
+                    {nearbyAmenities.map((amenity) => {
+                      const meta = getAmenityMeta(amenity.category);
+                      const removeKey = `${item.id}:${amenity.id}`;
+                      const isRemoving = removingNearbyAmenityKey === removeKey;
+                      return (
+                        <View
+                          key={`${item.id}_${amenity.id}`}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Ionicons name={meta.icon} size={13} color={meta.color} />
+                          <Text
+                            numberOfLines={1}
+                            style={{
+                              fontSize: 12,
+                              color: COLORS.textSecondary,
+                              fontWeight: "500",
+                              flex: 1,
+                            }}
+                          >
+                            {amenity.name}
+                          </Text>
+                          {isPlanOwner && onRemoveNearbyAmenity && (
+                            <TouchableOpacity
+                              onPress={() => onRemoveNearbyAmenity(item.id, amenity.id)}
+                              disabled={isRemoving}
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 9,
+                                alignItems: "center",
+                                justifyContent: "center",
+                                borderWidth: 1,
+                                borderColor: "#D1D5DB",
+                                backgroundColor: isRemoving ? "#F3F4F6" : "#FFFFFF",
+                              }}
+                            >
+                              <Ionicons
+                                name={isRemoving ? "time-outline" : "close"}
+                                size={11}
+                                color={isRemoving ? COLORS.textTertiary : "#6B7280"}
+                              />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      );
+                    })}
+
+                    {pendingUndos.map((pendingItem) => (
+                      <View
+                        key={`undo_${item.id}_${pendingItem.amenityId}`}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          paddingHorizontal: 8,
+                          paddingVertical: 6,
+                          borderRadius: 8,
+                          borderWidth: 1,
+                          borderStyle: "dashed",
+                          borderColor: "#F59E0B",
+                          backgroundColor: "#FFF7ED",
+                        }}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            color: "#92400E",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {t("planner.removedNearbyAmenityPending", {
+                            defaultValue: "Đã ẩn {{name}}",
+                            name: pendingItem.amenityName,
+                          })}
+                        </Text>
+                        {onUndoRemoveNearbyAmenity && (
+                          <TouchableOpacity
+                            onPress={() =>
+                              onUndoRemoveNearbyAmenity(
+                                item.id,
+                                pendingItem.amenityId,
+                              )
+                            }
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            style={{
+                              marginLeft: 8,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 999,
+                              backgroundColor: "#F59E0B",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: "#FFFFFF",
+                                fontSize: 11,
+                                fontWeight: "700",
+                              }}
+                            >
+                              {t("common.undo", { defaultValue: "Hoàn tác" })}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
             );
             const timelineRow = (
@@ -416,14 +727,24 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                   ]}
                 />
                 <View
-                  style={[
-                    styles.timelineCardShadowWrap,
-                    swapSelected && {
-                      borderWidth: 2,
-                      borderColor: COLORS.accent,
-                    },
-                  ]}
+                  style={styles.timelineCardShadowWrap}
                 >
+                  {swapSelected ? (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        borderWidth: 2,
+                        borderColor: COLORS.accent,
+                        borderRadius: BORDER_RADIUS.lg,
+                        zIndex: 5,
+                      }}
+                    />
+                  ) : null}
                   {isPlanOwner ? (
                     <Swipeable
                       overshootRight={false}

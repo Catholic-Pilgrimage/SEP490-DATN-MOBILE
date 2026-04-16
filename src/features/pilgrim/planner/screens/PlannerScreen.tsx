@@ -45,6 +45,13 @@ import InvitedPlanCard, {
 import PlanCard, { PlanUI } from "../components/shared/PlanCard";
 
 import { useTranslation } from "react-i18next";
+import type {
+  PilgrimMainStackParamList,
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
+  PlannerStackParamList,
+} from "../../../../navigation/pilgrimNavigation.types";
+import { runWithActionGuard } from "../../../../utils/actionGuard";
 import { emailsMatch } from "../utils/planShare.utils";
 
 // ─── Tab enum ────────────────────────────────────────────────
@@ -407,7 +414,12 @@ const InvitedEmptyState = ({ t }: { t: any }) => (
   </View>
 );
 
-export const PlannerScreen = ({ navigation, route }: any) => {
+type PlannerMainProps = {
+  navigation: PlannerCompositeNavigationProp;
+  route: PlannerRouteProp<"PlannerMain">;
+};
+
+export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { isGuest, exitGuestMode, logout, user } = useAuth();
@@ -511,7 +523,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
         const planner = res.data.planner;
         if (!planner) return;
 
-        navigation.navigate("PlanDetailScreen", {
+        guardedNavigatePlanner("invite-open-detail", "PlanDetailScreen", {
           planId: planner.id,
           inviteToken: token,
           inviteStatus: res.data.status,
@@ -529,7 +541,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
     };
 
     void processInviteToken();
-  }, [route?.params?.token, isGuest, user]);
+  }, [route?.params?.token, isGuest, user, guardedNavigatePlanner]);
 
   // ── My Plans state ──
   const [plans, setPlans] = useState<PlanUI[]>([]);
@@ -722,22 +734,48 @@ export const PlannerScreen = ({ navigation, route }: any) => {
     extrapolate: "clamp",
   });
 
+  const guardedNavigatePlanner = useCallback(
+    <T extends keyof PlannerStackParamList>(
+      key: string,
+      screen: T,
+      params: PlannerStackParamList[T],
+    ) => {
+      runWithActionGuard(`planner-nav:${key}`, () => {
+        navigation.navigate(screen as never, params as never);
+      });
+    },
+    [navigation],
+  );
+
+  const guardedNavigateMain = useCallback(
+    <T extends keyof PilgrimMainStackParamList>(
+      key: string,
+      screen: T,
+      params: PilgrimMainStackParamList[T],
+    ) => {
+      runWithActionGuard(`planner-nav:${key}`, () => {
+        navigation.navigate(screen as never, params as never);
+      });
+    },
+    [navigation],
+  );
+
   const navigateToPlanByStatus = useCallback(
     (planId: string, status?: string, extraParams?: Record<string, any>) => {
       const normalized = String(status || "").toLowerCase();
       if (normalized === "ongoing") {
-        navigation.navigate("ActiveJourneyScreen", {
+        guardedNavigatePlanner("active-journey", "ActiveJourneyScreen", {
           planId,
           ...(extraParams || {}),
         });
         return;
       }
-      navigation.navigate("PlanDetailScreen", {
+      guardedNavigatePlanner("plan-detail", "PlanDetailScreen", {
         planId,
         ...(extraParams || {}),
       });
     },
-    [navigation],
+    [guardedNavigatePlanner],
   );
 
   // ── Render plan lists ──────
@@ -755,7 +793,9 @@ export const PlannerScreen = ({ navigation, route }: any) => {
         <TouchableOpacity
           style={styles.emptyStateCard}
           activeOpacity={0.8}
-          onPress={() => navigation.navigate("CreatePlanScreen")}
+          onPress={() =>
+            guardedNavigatePlanner("empty-create", "CreatePlanScreen", undefined)
+          }
         >
           <View style={styles.emptyIllustration}>
             <Ionicons
@@ -821,7 +861,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
         plan={plan}
         onPress={() => {
           if (plan.inviteToken) {
-            navigation.navigate("PlanDetailScreen", {
+            guardedNavigatePlanner("invited-open-detail", "PlanDetailScreen", {
               planId: plan.id,
               planPrefill: buildPlanPrefill(plan),
               inviteToken: plan.inviteToken,
@@ -839,7 +879,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
         }}
         onJoin={() => {
           if (!plan.inviteToken) return;
-          navigation.navigate("PlanDetailScreen", {
+          guardedNavigatePlanner("invited-join", "PlanDetailScreen", {
             planId: plan.id,
             planPrefill: buildPlanPrefill(plan),
             inviteToken: plan.inviteToken,
@@ -853,7 +893,7 @@ export const PlannerScreen = ({ navigation, route }: any) => {
           });
         }}
         onChat={() => {
-          navigation.navigate("PlanChatScreen", {
+          guardedNavigateMain("invited-open-chat", "PlanChatScreen", {
             planId: plan.id,
             planName: plan.title,
           });
@@ -1007,7 +1047,9 @@ export const PlannerScreen = ({ navigation, route }: any) => {
         <TouchableOpacity
           style={styles.fab}
           activeOpacity={0.9}
-          onPress={() => navigation.navigate("CreatePlanScreen")}
+          onPress={() =>
+            guardedNavigatePlanner("fab-create", "CreatePlanScreen", undefined)
+          }
         >
           <Ionicons name="add" size={32} color={COLORS.textPrimary} />
         </TouchableOpacity>
