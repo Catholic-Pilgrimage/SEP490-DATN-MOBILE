@@ -27,8 +27,13 @@ import {
   SHADOWS,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import type {
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
+} from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
+import { runWithActionGuard } from "../../../../utils/actionGuard";
 import CheckinPhotoSheet from "../components/active-journey/CheckinPhotoSheet";
 import ItemActionSheet from "../components/active-journey/ItemActionSheet";
 import MarkVisitedModal from "../components/active-journey/MarkVisitedModal";
@@ -40,8 +45,8 @@ import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
 
 type Props = {
-  route: { params?: { planId?: string } };
-  navigation: any;
+  route: PlannerRouteProp<"ActiveJourneyScreen">;
+  navigation: PlannerCompositeNavigationProp;
 };
 
 const parseTimeToMinutes = (value?: string) => {
@@ -296,6 +301,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     [plan?.number_of_people],
   );
 
+  const runGuardedUiAction = useCallback(
+    (key: string, action: () => void) => {
+      runWithActionGuard(`active-journey:${planId}:${key}`, action);
+    },
+    [planId],
+  );
+
   const allStopsHandled = useMemo(() => {
     if (!plan?.items_by_day) return false;
     const items = Object.values(plan.items_by_day).flat();
@@ -509,9 +521,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={styles.topBtn}
             onPress={() =>
-              navigation.navigate("PlanChatScreen", {
-                planId: plan.id,
-                planName: plan.name,
+              runGuardedUiAction("open-chat", () => {
+                navigation.navigate("PlanChatScreen" as never, {
+                  planId: plan.id,
+                  planName: plan.name,
+                } as never);
               })
             }
           >
@@ -538,16 +552,18 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={styles.toolbarBtn}
             onPress={() =>
-              navigation.navigate("Nhat ky", {
-                screen: "CreateJournalScreen",
-                params: {
-                  planId: plan.id,
-                  planName: plan.name,
-                  plannerItemId: journalPrefillItem?.id,
-                  plannerItemIds: journalPrefillItemIds,
-                  siteName: journalPrefillItem?.site?.name,
-                  from: "ActiveJourney",
-                },
+              runGuardedUiAction("open-journal", () => {
+                navigation.navigate("Nhat ky" as never, {
+                  screen: "CreateJournalScreen",
+                  params: {
+                    planId: plan.id,
+                    planName: plan.name,
+                    plannerItemId: journalPrefillItem?.id,
+                    plannerItemIds: journalPrefillItemIds,
+                    siteName: journalPrefillItem?.site?.name,
+                    from: "ActiveJourney",
+                  },
+                } as never);
               })
             }
             activeOpacity={0.7}
@@ -563,9 +579,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={styles.toolbarBtn}
             onPress={() =>
-              navigation.navigate("PlannerMapScreen", {
-                planId: plan.id,
-                itemsByDay: plan.items_by_day,
+              runGuardedUiAction("open-map", () => {
+                navigation.navigate("PlannerMapScreen", {
+                  planId: plan.id,
+                  itemsByDay: plan.items_by_day,
+                });
               })
             }
             activeOpacity={0.7}
@@ -582,7 +600,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           <TouchableOpacity
             style={styles.toolbarBtn}
             onPress={() =>
-              navigation.navigate("PlannerMembersScreen", { planId: plan.id })
+              runGuardedUiAction("open-members", () => {
+                navigation.navigate("PlannerMembersScreen" as never, {
+                  planId: plan.id,
+                } as never);
+              })
             }
             activeOpacity={0.7}
           >
@@ -626,7 +648,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               <TouchableOpacity
                 style={styles.editItineraryBtn}
                 onPress={() =>
-                  navigation.navigate("PlanDetailScreen", { planId })
+                  runGuardedUiAction("open-plan-detail", () => {
+                    navigation.navigate("PlanDetailScreen", { planId });
+                  })
                 }
                 activeOpacity={0.7}
               >
@@ -656,11 +680,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               isOwner={isOwner}
               onItemAction={(item) => setActionSheetItem(item)}
               onViewRoute={(item) =>
-                navigation.navigate("PlannerMapScreen", {
-                  planId: plan.id,
-                  focusItemId: item.id,
-                  focusDay: selectedDay,
-                  itemsByDay: plan.items_by_day,
+                runGuardedUiAction(`view-route:${item.id}`, () => {
+                  navigation.navigate("PlannerMapScreen", {
+                    planId: plan.id,
+                    focusItemId: item.id,
+                    focusDay: selectedDay,
+                    itemsByDay: plan.items_by_day,
+                  });
                 })
               }
             />
@@ -756,11 +782,13 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         isSkipping={skippingItemId === actionSheetItem?.id}
         onViewRoute={() => {
           if (actionSheetItem) {
-            navigation.navigate("PlannerMapScreen", {
-              planId: plan.id,
-              focusItemId: actionSheetItem.id,
-              focusDay: selectedDay,
-              itemsByDay: plan.items_by_day,
+            runGuardedUiAction(`sheet-view-route:${actionSheetItem.id}`, () => {
+              navigation.navigate("PlannerMapScreen", {
+                planId: plan.id,
+                focusItemId: actionSheetItem.id,
+                focusDay: selectedDay,
+                itemsByDay: plan.items_by_day,
+              });
             });
           }
         }}
