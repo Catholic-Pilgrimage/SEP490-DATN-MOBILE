@@ -406,6 +406,14 @@ export default function CreatePostScreen() {
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
       });
+
+      Toast.show({
+        type: "success",
+        text1: t("common.success", { defaultValue: "Thành công" }),
+        text2: t("journal.audioSaveSuccess", {
+          defaultValue: "Đã lưu ghi âm.",
+        }),
+      });
     } catch {
       setRecording(null);
       setIsRecording(false);
@@ -503,7 +511,7 @@ export default function CreatePostScreen() {
     setRecordingDuration(0);
 
     Toast.show({
-      type: "info",
+      type: "success",
       text1: t("common.success", { defaultValue: "Thành công" }),
       text2: t("journal.deleteSuccess", { defaultValue: "Đã xóa ghi âm" }),
     });

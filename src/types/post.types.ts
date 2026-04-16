@@ -10,6 +10,12 @@ export interface PostAuthor {
     role?: string;
 }
 
+export interface SharedLocation {
+    site_id: string;
+    name: string;
+    province?: string;
+}
+
 export interface FeedPostSourceJournal {
     id: string;
     title?: string;
@@ -24,6 +30,7 @@ export interface FeedPostSourceJournal {
     resolved_site_id?: string | null;
     location_scope?: "single_site" | "multi_site";
     site?: FeedPostSite | null;
+    shared_locations?: SharedLocation[];
 }
 
 export interface FeedPostSite {
@@ -54,6 +61,7 @@ export interface FeedPost {
     is_active?: boolean;
     sourceJournal?: FeedPostSourceJournal | null;
     site?: FeedPostSite | null;
+    shared_locations?: SharedLocation[];
     planner?: any;
     journey?: {
         id: string;
@@ -92,6 +100,7 @@ export interface FeedPostComment {
 }
 
 export interface CreateFeedPostRequest {
+    title?: string;
     content: string;
     images?: any[]; // Array of file objects for React Native (typically with uri, type, name)
     video?: any;
@@ -99,6 +108,7 @@ export interface CreateFeedPostRequest {
 }
 
 export interface UpdateFeedPostRequest {
+    title?: string;
     content?: string;
     images?: any[];
     video?: any;
