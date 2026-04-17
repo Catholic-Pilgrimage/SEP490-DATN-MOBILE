@@ -2264,7 +2264,39 @@
     "recordNow": "Ghi âm ngay",
     "recordNowDesc": "Sử dụng microphone để thu âm trực tiếp",
     "uploadAudioFile": "Tải lên tệp âm thanh",
-    "uploadAudioFileDesc": "Chọn tệp âm thanh có sẵn từ thiết bị"
+    "uploadAudioFileDesc": "Chọn tệp âm thanh có sẵn từ thiết bị",
+    "overlay": {
+      "spiritualJournal": "NHẬT KÝ TÂM LINH",
+      "missingInfo": "Thiếu thông tin",
+      "titleContentRequired": "Tiêu đề và nội dung không được để trống",
+      "updateSuccess": "Đã cập nhật nhật ký",
+      "updateError": "Không thể cập nhật nhật ký",
+      "audioPickError": "Không thể chọn tệp âm thanh",
+      "micPermissionRequired": "Cần quyền Micro để ghi âm",
+      "recordStartError": "Không thể bắt đầu ghi âm",
+      "stopRecording": "Dừng ghi",
+      "titlePlaceholder": "Nhập tiêu đề...",
+      "contentPlaceholder": "Cảm nghĩ của bạn...",
+      "addAudio": "Thêm ghi âm"
+    },
+    "detail": {
+      "hideJournal": "Ẩn nhật ký",
+      "openJournal": "Mở nhật ký",
+      "showJournal": "Mở nhật ký",
+      "interactionHint": "Kéo để xoay • Chạm để tương tác",
+      "siteType": {
+        "church": "Nhà thờ",
+        "shrine": "Đền thánh",
+        "monastery": "Đan viện",
+        "center": "Trung tâm",
+        "default": "Địa danh"
+      }
+    },
+    "privacy": {
+      "public": "Công khai",
+      "friends": "Bạn bè",
+      "private": "Chỉ mình tôi"
+    }
   },
   "mediaPicker": {
     "title": "Chọn thao tác",
@@ -2581,5 +2613,14 @@
     "filter_pending": "Chờ duyệt",
     "filter_approved": "Sắp diễn ra",
     "filter_history": "Lịch sử"
+  },
+  "media": {
+    "modelViewer": {
+      "invalidUrl": "URL mô hình không hợp lệ (cần https)",
+      "loading": "Đang tải mô hình 3D…",
+      "error": "Không thể hiển thị mô hình",
+      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: một ngón kéo; phóng to: chụm hai ngón.",
+      "interactionHint": "Kéo để xoay • Chạm để tương tác"
+    }
   }
 }

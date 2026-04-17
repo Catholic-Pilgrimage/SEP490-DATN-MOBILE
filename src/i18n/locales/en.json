@@ -2264,7 +2264,39 @@
     "recordNow": "Record Now",
     "recordNowDesc": "Use microphone to record directly",
     "uploadAudioFile": "Upload Audio File",
-    "uploadAudioFileDesc": "Choose an existing audio file from your device"
+    "uploadAudioFileDesc": "Choose an existing audio file from your device",
+    "overlay": {
+      "spiritualJournal": "SPIRITUAL JOURNAL",
+      "missingInfo": "Missing Information",
+      "titleContentRequired": "Title and content cannot be empty",
+      "updateSuccess": "Journal updated successfully",
+      "updateError": "Could not update journal",
+      "audioPickError": "Could not pick audio file",
+      "micPermissionRequired": "Microphone permission required to record",
+      "recordStartError": "Could not start recording",
+      "stopRecording": "Stop recording",
+      "titlePlaceholder": "Enter title...",
+      "contentPlaceholder": "Your thoughts...",
+      "addAudio": "Add recording"
+    },
+    "detail": {
+      "hideJournal": "Hide journal",
+      "openJournal": "Open journal",
+      "showJournal": "Show journal",
+      "interactionHint": "Drag to rotate • Touch to interact",
+      "siteType": {
+        "church": "Church",
+        "shrine": "Shrine",
+        "monastery": "Monastery",
+        "center": "Center",
+        "default": "Site"
+      }
+    },
+    "privacy": {
+      "public": "Public",
+      "friends": "Friends",
+      "private": "Only me"
+    }
   },
   "mediaPicker": {
     "title": "Choose Action",
@@ -2581,5 +2613,14 @@
     "filter_pending": "Pending",
     "filter_approved": "Upcoming",
     "filter_history": "History"
+  },
+  "media": {
+    "modelViewer": {
+      "invalidUrl": "Invalid model URL (HTTPS required)",
+      "loading": "Loading 3D model...",
+      "error": "Could not display model",
+      "errorHint": "Check .glb/.gltf URL (HTTPS, CORS). Rotate: one-finger drag; Zoom: pinch two fingers.",
+      "interactionHint": "Drag to rotate • Touch to interact"
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1891,76 +1891,103 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             onRequestClose={() => setIs3dModalVisible(false)}
             transparent={false}
           >
-            <SafeAreaView style={styles.modalFullContainer}>
-              <StatusBar barStyle="light-content" />
-              
-              <View style={styles.modalHeader}>
-                <TouchableOpacity 
-                  style={styles.modalCloseButton} 
-                  onPress={() => setIs3dModalVisible(false)}
-                >
-                  <Ionicons name="close" size={28} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>
-                  {t('siteModels3d.title', { defaultValue: 'Mô hình 3D' })}
-                </Text>
-                <View style={{ width: 44 }} />
-              </View>
+              <View style={styles.premium3dContainer}>
+                <StatusBar barStyle="light-content" />
+                
+                {/* Background Glow Effect */}
+                <LinearGradient
+                  colors={['rgba(212, 175, 55, 0.15)', 'transparent']}
+                  style={styles.premiumBackgroundGlow}
+                />
 
-              {models3d && models3d.length > 1 && (
-                <View style={styles.modelPickerRow}>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
-                    {models3d.map((m, idx) => (
-                      <TouchableOpacity
-                        key={m.id}
-                        onPress={() => setSelectedModelIndex(idx)}
-                        style={[
-                          styles.modelChip,
-                          selectedModelIndex === idx && styles.modelChipActive
-                        ]}
-                      >
-                        <Text style={[
-                          styles.modelChipText,
-                          selectedModelIndex === idx && styles.modelChipTextActive
-                        ]}>
-                          {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
+                {/* Floating Controls */}
+                <View style={styles.premiumTopControls}>
+                  <TouchableOpacity 
+                    style={styles.premiumCloseBtn} 
+                    onPress={() => setIs3dModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close" size={24} color="#fff" />
+                  </TouchableOpacity>
 
-              <View style={styles.modelViewerContainer}>
-                {models3d && models3d[selectedModelIndex] && (
-                  <ModelViewerWebView 
-                    modelUrl={models3d[selectedModelIndex].url} 
-                    fullscreen 
-                  />
-                )}
+                  <View style={styles.premiumHeaderCenter}>
+                    <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
+                    <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
+                    <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
+                    <View style={styles.premiumDividerRow}>
+                      <View style={styles.premiumDividerLine} />
+                      <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
+                      <View style={styles.premiumDividerLine} />
+                    </View>
+                  </View>
 
-                {models3d && models3d[selectedModelIndex] && (
-                  <View style={styles.narrativePanelOverlay}>
-                    <SiteModelNarrativePanel 
-                      media={models3d[selectedModelIndex]} 
-                      bottomInset={insets.bottom} 
+                  <TouchableOpacity 
+                    style={styles.premiumBookmarkBtn}
+                    onPress={handleBookmark}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons 
+                      name={isFavorite ? "bookmark" : "bookmark-outline"} 
+                      size={26} 
+                      color="#D4AF37" 
                     />
+                  </TouchableOpacity>
+                </View>
+
+                {models3d && models3d.length > 1 && (
+                  <View style={styles.modelPickerRowPremium}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
+                      {models3d.map((m, idx) => (
+                        <TouchableOpacity
+                          key={m.id}
+                          onPress={() => setSelectedModelIndex(idx)}
+                          style={[
+                            styles.modelChipPremium,
+                            selectedModelIndex === idx && styles.modelChipActivePremium
+                          ]}
+                        >
+                          <Text style={[
+                            styles.modelChipTextPremium,
+                            selectedModelIndex === idx && styles.modelChipTextActivePremium
+                          ]}>
+                            {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
 
-                {/* Journal Access Point – shown only when user has journal entries for this site */}
-                {(isAuthenticated && !isGuest) && (
-                  <SiteModelJournalOverlay
-                    siteId={siteId}
-                    siteName={site?.name}
-                    siteCoverImage={site?.coverImage}
-                    navigation={navigation}
-                    bottomInset={insets.bottom}
-                    visible={is3dModalVisible}
-                  />
-                )}
+                <View style={styles.modelViewerContainerPremium}>
+                  {models3d && models3d[selectedModelIndex] && (
+                    <ModelViewerWebView 
+                      modelUrl={models3d[selectedModelIndex].url} 
+                      fullscreen 
+                    />
+                  )}
+
+                  {models3d && models3d[selectedModelIndex] && (
+                    <View style={styles.narrativePanelOverlay}>
+                      <SiteModelNarrativePanel 
+                        media={models3d[selectedModelIndex]} 
+                        bottomInset={insets.bottom} 
+                      />
+                    </View>
+                  )}
+
+                  {/* Journal Access Point */}
+                  {(isAuthenticated && !isGuest) && (
+                    <SiteModelJournalOverlay
+                      siteId={siteId}
+                      siteName={site?.name}
+                      siteCoverImage={site?.coverImage}
+                      navigation={navigation}
+                      bottomInset={insets.bottom}
+                      visible={is3dModalVisible}
+                    />
+                  )}
+                </View>
               </View>
-            </SafeAreaView>
           </Modal>
 
           <AddToPlanModal
@@ -2966,74 +2993,100 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // 3D Modal Styles
-  modalFullContainer: {
+  // 3D Modal Overhaul Styles
+  premium3dContainer: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#1c1408", // Dark bronze/brown
   },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    backgroundColor: "#000",
+  premiumBackgroundGlow: {
+    position: 'absolute',
+    top: '20%',
+    left: '10%',
+    right: '10%',
+    height: '60%',
+    borderRadius: 1000,
+    opacity: 0.6,
   },
-  modalCloseButton: {
+  premiumTopControls: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    zIndex: 100,
+  },
+  premiumCloseBtn: {
     width: 44,
     height: 44,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  modalTitle: {
+  premiumBookmarkBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  premiumHeaderCenter: {
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  premiumHeaderLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#D4AF37',
+    letterSpacing: 4,
+  },
+  premiumHeaderTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  premiumDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+  },
+  premiumDividerLine: {
+    height: 1,
+    width: 60,
+    backgroundColor: 'rgba(212, 175, 55, 0.4)',
+  },
+  modelViewerContainerPremium: {
     flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#fff",
+    position: 'relative',
+    marginTop: -20, // Shift up slightly to fit floating header
+    paddingBottom: 60,
   },
-  modelViewerContainer: {
-    flex: 1,
-    backgroundColor: "#12100c",
-    position: 'relative', // To allow absolute children
-    paddingBottom: 120, // Lift the center of the 3D viewport
-  },
-  narrativePanelOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  modelPickerRowPremium: {
+    paddingVertical: 12,
     zIndex: 10,
   },
-  modelPickerRow: {
-    paddingVertical: SPACING.sm,
-    backgroundColor: "#000",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.12)",
-  },
-  modelPickerContent: {
-    paddingHorizontal: SPACING.md,
-    gap: 8,
-  },
-  modelChip: {
+  modelChipPremium: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  modelChipActive: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
+  modelChipActivePremium: {
+    backgroundColor: "#D4AF37",
+    borderColor: "#D4AF37",
   },
-  modelChipText: {
+  modelChipTextPremium: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.85)",
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.6)",
   },
-  modelChipTextActive: {
-    color: COLORS.primaryDark,
+  modelChipTextActivePremium: {
+    color: "#1c1408",
   },
 });
 
