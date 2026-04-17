@@ -209,6 +209,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       const user = profileResponse.data;
+
+      // Mobile app only allows pilgrim and local_guide roles
+      if (user.role !== 'pilgrim' && user.role !== 'local_guide') {
+        // Clear stored tokens
+        await secureStorage.clearKeys([
+          AUTH_STORAGE_KEYS.ACCESS_TOKEN,
+          AUTH_STORAGE_KEYS.REFRESH_TOKEN,
+        ]);
+        throw new Error("Tài khoản của bạn không được phép đăng nhập trên ứng dụng di động. Vui lòng sử dụng trang web quản trị.");
+      }
+
       await secureStorage.setItem(AUTH_STORAGE_KEYS.USER, JSON.stringify(user));
 
       setIsGuest(false);
@@ -322,20 +333,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
 
     try {
+      // Unregister push token first (before API call)
       if (pushToken) {
         await unregisterPushToken(pushToken).catch(() => null);
         setPushToken(null);
       }
 
-      await authApi.logout().catch(() => null);
+      // Call logout API BEFORE clearing storage
+      // This ensures Accept-Language header is sent correctly from i18n
+      const response = await authApi.logout();
+
+      // Clear local auth data AFTER API call succeeds
       await clearLocalAuth();
 
       Toast.show({
         type: "success",
-        text1: "Success",
-        text2: "You have been logged out.",
+        text1: response.message || "Success",
+        text2: "",
       });
     } catch {
+      // Even if API fails, still clear local auth
       if (pushToken) {
         unregisterPushToken(pushToken).catch(() => null);
         setPushToken(null);
@@ -345,8 +362,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       Toast.show({
         type: "success",
-        text1: "Success",
-        text2: "You have been logged out.",
+        text1: "Logged out successfully",
+        text2: "",
       });
     }
   }, [pushToken]);

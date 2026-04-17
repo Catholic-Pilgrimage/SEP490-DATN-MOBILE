@@ -38,6 +38,15 @@ const mapSiteResponse = (site: any): SiteSummary => ({
   longitude: site.longitude || 0,
   patronSaint: site.patron_saint || site.patronSaint || undefined,
   openingHours: site.opening_hours || site.openingHours || undefined,
+  hasEvents:
+    site.has_events === true ||
+    site.has_events === "true" ||
+    site.hasEvents === true ||
+    site.hasEvents === "true" ||
+    Number(site.event_count || site.eventCount || site.events_count || 0) > 0,
+  eventCount: Number(
+    site.event_count || site.eventCount || site.events_count || 0,
+  ),
 });
 
 // ===== useSites =====

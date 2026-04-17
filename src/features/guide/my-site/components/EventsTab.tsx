@@ -130,6 +130,67 @@ const getStatusLabel = (
   );
 };
 
+const parseDateOnly = (dateStr: string): Date => {
+  const [year, month, day] = String(dateStr).split("-").map(Number);
+  if (!year || !month || !day) {
+    return new Date(dateStr);
+  }
+  return new Date(year, month - 1, day);
+};
+
+const buildDateRangeLabel = (
+  startDateStr?: string,
+  endDateStr?: string,
+) => {
+  const start = startDateStr ? parseDateOnly(startDateStr) : null;
+  const end = endDateStr ? parseDateOnly(endDateStr) : start;
+
+  if (!start || Number.isNaN(start.getTime())) {
+    return {
+      isRange: false,
+      startDayText: "--",
+      startMonthText: "",
+      endDayText: "",
+      endMonthText: "",
+    };
+  }
+
+  const safeEnd = end && !Number.isNaN(end.getTime()) ? end : start;
+  const locale = "vi-VN";
+  const startDay = String(start.getDate()).padStart(2, "0");
+  const endDay = String(safeEnd.getDate()).padStart(2, "0");
+  const startMonth = start
+    .toLocaleDateString(locale, { month: "short" })
+    .replace(".", "")
+    .trim();
+  const endMonth = safeEnd
+    .toLocaleDateString(locale, { month: "short" })
+    .replace(".", "")
+    .trim();
+  const sameDay =
+    start.getFullYear() === safeEnd.getFullYear() &&
+    start.getMonth() === safeEnd.getMonth() &&
+    start.getDate() === safeEnd.getDate();
+
+  if (sameDay) {
+    return {
+      isRange: false,
+      startDayText: startDay,
+      startMonthText: startMonth.charAt(0).toUpperCase() + startMonth.slice(1),
+      endDayText: "",
+      endMonthText: "",
+    };
+  }
+
+  return {
+    isRange: true,
+    startDayText: startDay,
+    startMonthText: startMonth.charAt(0).toUpperCase() + startMonth.slice(1),
+    endDayText: endDay,
+    endMonthText: endMonth.charAt(0).toUpperCase() + endMonth.slice(1),
+  };
+};
+
 // ============================================
 // EVENT CARD COMPONENT - Premium Design
 // Date column on left, content on right, 3-dot menu
@@ -146,18 +207,6 @@ const EventCard: React.FC<EventCardProps> = React.memo(
     const { t } = useTranslation();
     const { confirm, ConfirmModal } = useConfirm();
     const canEdit = event.status === "pending" || event.status === "rejected";
-
-    const formatDate = (dateStr: string) => {
-      const date = new Date(dateStr);
-      const localizedMonth = date.toLocaleDateString("vi-VN", {
-        month: "short",
-      });
-      return {
-        day: date.getDate().toString().padStart(2, "0"),
-        month: localizedMonth.charAt(0).toUpperCase() + localizedMonth.slice(1),
-        year: date.getFullYear().toString(),
-      };
-    };
 
     // Format time display with overnight detection
     const formatTime = (timeStr: string) => {
@@ -176,7 +225,7 @@ const EventCard: React.FC<EventCardProps> = React.memo(
       event.end_time &&
       toMin(event.end_time) < toMin(event.start_time);
 
-    const dateInfo = formatDate(event.start_date);
+    const dateInfo = buildDateRangeLabel(event.start_date, event.end_date);
 
     const displayDescription = event.description
       ? stripLegacyCategoryTag(event.description)
@@ -238,8 +287,24 @@ const EventCard: React.FC<EventCardProps> = React.memo(
           >
           {/* Date Column */}
           <View style={styles.dateColumn}>
-            <Text style={styles.dateDay}>{dateInfo.day}</Text>
-            <Text style={styles.dateMonth}>{dateInfo.month}</Text>
+            {!dateInfo.isRange ? (
+              <>
+                <Text style={styles.dateDay}>{dateInfo.startDayText}</Text>
+                <Text style={styles.dateMonth}>{dateInfo.startMonthText}</Text>
+              </>
+            ) : (
+              <View style={styles.dateRangeStack}>
+                <Text style={[styles.dateDay, styles.dateDayRangeStart]}>
+                  {dateInfo.startDayText}
+                </Text>
+                <Text style={styles.dateMonth}>{dateInfo.startMonthText}</Text>
+                <Text style={styles.dateRangeConnector}>↓</Text>
+                <Text style={[styles.dateDay, styles.dateDayRangeEnd]}>
+                  {dateInfo.endDayText}
+                </Text>
+                <Text style={styles.dateMonth}>{dateInfo.endMonthText}</Text>
+              </View>
+            )}
           </View>
 
           {/* Content Column */}

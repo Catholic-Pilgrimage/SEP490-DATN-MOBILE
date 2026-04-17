@@ -16,6 +16,7 @@ import {
     Dimensions,
     ImageBackground,
     Platform,
+  RefreshControl,
     StatusBar,
     StyleSheet,
     Text,
@@ -546,16 +547,20 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   // ── My Plans state ──
   const [plans, setPlans] = useState<PlanUI[]>([]);
   const [loading, setLoading] = useState(!isGuest);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   // ── Invited Plans state ──
   const [invitedPlans, setInvitedPlans] = useState<InvitedPlanUI[]>([]);
   const [invitedLoading, setInvitedLoading] = useState(!isGuest);
 
   // ── Fetch All Plans ──
-  const fetchAllPlans = useCallback(async () => {
+  const fetchAllPlans = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     try {
-      setLoading(true);
-      setInvitedLoading(true);
+      if (!silent) {
+        setLoading(true);
+        setInvitedLoading(true);
+      }
       const [planningRes, lockedRes, ongoingRes, invitesRes] =
         await Promise.all([
           pilgrimPlannerApi.getPlans({
@@ -624,15 +629,18 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
     } catch (error) {
       console.log("Failed to fetch plans:", error);
     } finally {
-      setLoading(false);
-      setInvitedLoading(false);
+      if (!silent) {
+        setLoading(false);
+        setInvitedLoading(false);
+      }
     }
   }, [user?.id]);
 
   // ── Load Invited Plan for Guest ──
-  const loadGuestInvitedPlan = useCallback(async () => {
+  const loadGuestInvitedPlan = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
     try {
-      setInvitedLoading(true);
+      if (!silent) setInvitedLoading(true);
       const token = await AsyncStorage.getItem("pending_invite_token");
       if (token) {
         const res = await pilgrimPlannerApi.getPlanByInviteToken(token);
@@ -673,9 +681,22 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       console.log("Failed to load guest invite plan:", error);
       setInvitedPlans([]);
     } finally {
-      setInvitedLoading(false);
+      if (!silent) setInvitedLoading(false);
     }
   }, []);
+
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      setPullRefreshing(true);
+      if (!isGuest) {
+        await fetchAllPlans({ silent: true });
+      } else {
+        await loadGuestInvitedPlan({ silent: true });
+      }
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [fetchAllPlans, isGuest, loadGuestInvitedPlan]);
 
   useFocusEffect(
     useCallback(() => {
@@ -947,6 +968,15 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
           { useNativeDriver: true },
         )}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={handlePullRefresh}
+            progressViewOffset={Math.max(insets.top, 0) + 8}
+            colors={[COLORS.accent]}
+            tintColor={COLORS.accent}
+          />
+        }
       >
         {/* Large Header Area */}
         <Animated.View

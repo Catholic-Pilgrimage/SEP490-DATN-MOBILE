@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -77,6 +78,7 @@ export default function NearbySiteAmenitiesScreen({ route, navigation }: Props) 
 
   const [loading, setLoading] = useState(true);
   const [loadingMap, setLoadingMap] = useState(!latitude || !longitude);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [places, setPlaces] = useState<SiteNearbyPlace[]>([]);
   const [filter, setFilter] = useState<NearbyFilter>("all");
   const [baseLat, setBaseLat] = useState<number | undefined>(latitude);
@@ -293,6 +295,52 @@ export default function NearbySiteAmenitiesScreen({ route, navigation }: Props) 
     }
   };
 
+  const handlePullRefresh = useCallback(async () => {
+    if (!siteId) return;
+    try {
+      setPullRefreshing(true);
+
+      const [nearbyResSettle, detailResSettle, planResSettle] = await Promise.allSettled([
+        pilgrimSiteApi.getSiteNearbyPlaces(siteId, { limit: 100 }),
+        baseLat && baseLng ? Promise.resolve(null) : pilgrimSiteApi.getSiteDetail(siteId),
+        planId ? pilgrimPlannerApi.getPlanDetail(planId) : Promise.resolve(null),
+      ]);
+
+      const nearbyRes = nearbyResSettle.status === "fulfilled" ? nearbyResSettle.value : null;
+      const detailRes = detailResSettle.status === "fulfilled" ? detailResSettle.value : null;
+      const planRes = planResSettle.status === "fulfilled" ? planResSettle.value : null;
+
+      let nextLat = baseLat;
+      let nextLng = baseLng;
+
+      if (nearbyRes?.success && nearbyRes?.data?.data) {
+        setPlaces(nearbyRes.data.data);
+      }
+
+      if (detailRes?.success && detailRes.data) {
+        nextLat = Number(detailRes.data.latitude || 0) || undefined;
+        nextLng = Number(detailRes.data.longitude || 0) || undefined;
+        setBaseLat(nextLat);
+        setBaseLng(nextLng);
+      }
+
+      if (planRes?.success && planRes.data?.items_by_day && siteId) {
+        const matched = findMatchingPlanItem(planRes.data.items_by_day);
+        setTargetPlanItem(matched || null);
+        setSavedNearbyIds(new Set(matched?.nearby_amenity_ids || []));
+      }
+
+      nearbyCache.set(siteId, {
+        at: Date.now(),
+        places: nearbyRes?.data?.data || places,
+        lat: nextLat,
+        lng: nextLng,
+      });
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [baseLat, baseLng, findMatchingPlanItem, planId, places, siteId]);
+
   const filteredPlaces = useMemo(() => {
     if (filter === "all") return places;
     return places.filter((p) => p.category === filter);
@@ -450,6 +498,15 @@ export default function NearbySiteAmenitiesScreen({ route, navigation }: Props) 
         data={filteredPlaces}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: Math.max(insets.bottom, 12) + 10 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={handlePullRefresh}
+            progressViewOffset={Math.max(insets.top, 0) + 8}
+            colors={[COLORS.accent]}
+            tintColor={COLORS.accent}
+          />
+        }
         ListEmptyComponent={
           loading ? null : (
             <View style={styles.emptyWrap}>

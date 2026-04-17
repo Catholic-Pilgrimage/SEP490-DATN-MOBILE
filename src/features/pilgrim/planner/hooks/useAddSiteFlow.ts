@@ -85,6 +85,10 @@ export interface AddSiteFlowActions {
     dayOverride?: number,
   ) => Promise<void>;
   setEstimatedTime: (time: string) => void;
+  applySuggestedTime: (
+    time: string,
+    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+  ) => void;
   setRestDuration: (duration: number) => void;
   setNote: (note: string) => void;
   closeTimeModal: () => void;
@@ -122,6 +126,13 @@ export function useAddSiteFlow(params: {
   const [state, setState] = useState<AddSiteFlowState>({ ...INITIAL_STATE });
   const flowIdRef = useRef(0); // Guard against stale async completions
 
+  const parseClockToMinutes = useCallback((value?: string): number | null => {
+    if (!value) return null;
+    const [h, m] = value.slice(0, 5).split(":").map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+  }, []);
+
   const sortDayItems = useCallback((items: PlanItem[]): PlanItem[] => {
     const toMinutes = (timeValue: string | undefined): number => {
       if (!timeValue) return Number.MAX_SAFE_INTEGER;
@@ -156,6 +167,22 @@ export function useAddSiteFlow(params: {
   // ── Derived: Recalculate insight whenever estimatedTime OR restDuration changes ──
   const insight = useMemo<ScheduleInsight | null>(() => {
     if (!state.travelData) return null;
+
+    const selectedEvent = state.selectedEventId
+      ? state.travelData.eventsForDay.find(
+          (eventItem) => String(eventItem.id) === String(state.selectedEventId),
+        )
+      : undefined;
+
+    const selectedMin = parseClockToMinutes(state.estimatedTime);
+    const eventEndMin = parseClockToMinutes(selectedEvent?.endTime);
+
+    const shouldUseEventInsight =
+      !!selectedEvent?.startTime &&
+      (eventEndMin === null ||
+        selectedMin === null ||
+        selectedMin <= eventEndMin);
+
     return generateInsight({
       estimatedTime: state.estimatedTime,
       hasTravelInfo: !!(
@@ -163,15 +190,26 @@ export function useAddSiteFlow(params: {
       ),
       fastestArrival: state.travelData.fastestArrival,
       travelMinutes: state.travelData.travelMinutes,
-      eventStartTime: state.travelData.eventStartTime,
-      eventName: state.travelData.eventName,
+      eventStartTime: shouldUseEventInsight
+        ? selectedEvent?.startTime || state.travelData.eventStartTime
+        : undefined,
+      eventName: shouldUseEventInsight
+        ? selectedEvent?.name || state.travelData.eventName
+        : undefined,
       openTime: state.travelData.openTime,
       closeTime: state.travelData.closeTime,
       massTimesForDay: state.travelData.massTimesForDay,
       restDuration: state.restDuration,
       t,
     });
-  }, [state.estimatedTime, state.restDuration, state.travelData, t]);
+  }, [
+    parseClockToMinutes,
+    state.estimatedTime,
+    state.restDuration,
+    state.selectedEventId,
+    state.travelData,
+    t,
+  ]);
 
   // ── Find the "previous item" to calculate travel from ──
   // For Day N first item: look up day N-1's last item (cross-day travel)
@@ -289,6 +327,13 @@ export function useAddSiteFlow(params: {
           if (ev) {
             evtName = ev.name;
             evtStart = ev.start_time || undefined;
+          }
+        } else if (eventsForDay.length > 0) {
+          const firstEventWithTime = eventsForDay.find((eventItem) => !!eventItem.startTime);
+          if (firstEventWithTime) {
+            resolvedEventId = String(firstEventWithTime.id);
+            evtName = firstEventWithTime.name;
+            evtStart = firstEventWithTime.startTime;
           }
         }
 
@@ -444,8 +489,16 @@ export function useAddSiteFlow(params: {
           t,
         });
 
-        // Default to the earliest feasible arrival from route constraints.
-        estimatedTime = travelData.fastestArrival || suggested.time;
+        // If fastest arrival collapses to 00:00 (arrivable from previous day),
+        // prefer schedule-based suggestion (event/mass/opening) for current day.
+        const fastestArrival = travelData.fastestArrival;
+        const fastestOffset = Number(travelData.fastestArrivalDayOffset || 0);
+        const shouldPreferSuggestedTime =
+          fastestArrival === "00:00" && fastestOffset <= 0;
+
+        estimatedTime = shouldPreferSuggestedTime
+          ? suggested.time
+          : fastestArrival || suggested.time;
 
         if (flowId !== flowIdRef.current) return;
 
@@ -490,7 +543,47 @@ export function useAddSiteFlow(params: {
 
   // ── Setters ──
   const setEstimatedTime = useCallback(
-    (time: string) => setState((prev) => ({ ...prev, estimatedTime: time })),
+    (time: string) =>
+      setState((prev) => {
+        if (!prev.travelData || !prev.selectedEventId) {
+          return { ...prev, estimatedTime: time };
+        }
+
+        const selectedEvent = prev.travelData.eventsForDay.find(
+          (eventItem) =>
+            String(eventItem.id) === String(prev.selectedEventId),
+        );
+
+        const selectedMin = parseClockToMinutes(time);
+        const eventEndMin = parseClockToMinutes(selectedEvent?.endTime);
+
+        const shouldClearSelectedEvent =
+          eventEndMin !== null &&
+          selectedMin !== null &&
+          selectedMin > eventEndMin;
+
+        return {
+          ...prev,
+          estimatedTime: time,
+          selectedEventId: shouldClearSelectedEvent ? null : prev.selectedEventId,
+        };
+      }),
+    [parseClockToMinutes],
+  );
+
+  const applySuggestedTime = useCallback(
+    (
+      time: string,
+      source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+    ) =>
+      setState((prev) => ({
+        ...prev,
+        estimatedTime: time,
+        selectedEventId:
+          source?.priority === "event"
+            ? source.eventId || prev.selectedEventId
+            : null,
+      })),
     [],
   );
 
@@ -520,6 +613,7 @@ export function useAddSiteFlow(params: {
     // Actions
     startFlow,
     setEstimatedTime,
+    applySuggestedTime,
     setRestDuration,
     setNote,
     closeTimeModal,

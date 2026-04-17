@@ -49,6 +49,7 @@ export interface PilgrimVerificationResponse {
     site_province: string;
     site_type: string;
     site_region: string;
+    site_cover_image?: string | null;
     certificate_url: string;
     introduction: string;
     status: string;
@@ -86,4 +87,33 @@ export interface TransitionResponse {
     existing_site_id: string;
     transition_reason: string;
     status: string;
+}
+
+export type ClaimType = 'transition' | 'unassigned';
+
+export interface ClaimableSite {
+    id: string;
+    code: string;
+    name: string;
+    address: string;
+    province: string;
+    region: string;
+    type: string;
+    cover_image: string | null;
+    current_manager: {
+        id: string;
+        full_name: string;
+        avatar_url: string | null;
+    } | null;
+    claim_type: ClaimType;
+}
+
+export interface ClaimableSitesResponse {
+    data: ClaimableSite[];
+    pagination: {
+        page: number;
+        limit: number;
+        totalItems: number;
+        totalPages: number;
+    };
 }

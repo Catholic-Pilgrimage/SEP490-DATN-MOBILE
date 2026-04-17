@@ -64,6 +64,7 @@ export const PILGRIM_ENDPOINTS = {
     LIST: `${API_BASE}/sites`,
     DETAIL: (id: string) => `${API_BASE}/sites/${id}`,
     SEARCH: `${API_BASE}/sites/search`,
+    AVAILABLE: `${API_BASE}/sites/available`,
     BY_REGION: (regionId: string) => `${API_BASE}/sites/region/${regionId}`,
     NEARBY: `${API_BASE}/sites/nearby`,
     FAVORITES: `${API_BASE}/sites/favorites`,
@@ -130,6 +131,8 @@ export const PILGRIM_ENDPOINTS = {
     /** Khớp offline sync: /api/planners/:planId/items/:itemId/checkin */
     CHECKIN_ITEM: (planId: string, itemId: string) =>
       `${API_BASE}/planners/${planId}/items/${itemId}/checkin`,
+    CLOSE_DAY: (id: string, dayNumber: number) =>
+      `${API_BASE}/planners/${id}/days/${dayNumber}/close`,
     PLANNER_STATUS: (id: string) => `${API_BASE}/planners/${id}/status`,
     /** PATCH — chốt / mở khóa lịch (trưởng đoàn, nhóm) */
     PLANNER_LOCK: (id: string) => `${API_BASE}/planners/${id}/lock`,

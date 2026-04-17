@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useScrollToTop } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
@@ -10,6 +10,7 @@ import {
     NativeScrollEvent,
     NativeSyntheticEvent,
     Platform,
+  RefreshControl,
     StatusBar,
     StyleSheet,
     Text,
@@ -58,6 +59,7 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
   const [showGuestLogin, setShowGuestLogin] = useState(false);
   const [showRegionFilter, setShowRegionFilter] = useState(false);
   const [filterHasEvents, setFilterHasEvents] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [draftRegionId, setDraftRegionId] = useState("all");
   const [draftHasEvents, setDraftHasEvents] = useState(false);
 
@@ -98,13 +100,35 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
   });
 
   // Fetch a larger pool of sites to determine the featured top 5 locally
-  const { sites: featuredCandidateSites } = useSites({
+  const { sites: featuredCandidateSites, refetch: refetchFeaturedSites } = useSites({
     filters: {
       page: 1,
       limit: 50,
     },
     autoFetch: true,
   });
+
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      setPullRefreshing(true);
+      await Promise.all([
+        fetchSites(buildSiteFilters(selectedRegionId, searchQuery, filterHasEvents)),
+        refetchFeaturedSites(),
+        isAuthenticated && !isGuest ? fetchNotifications(true) : Promise.resolve(),
+      ]);
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [
+    fetchNotifications,
+    fetchSites,
+    filterHasEvents,
+    isAuthenticated,
+    isGuest,
+    refetchFeaturedSites,
+    searchQuery,
+    selectedRegionId,
+  ]);
 
   // Dynamic Featured Sites: Top 5 by weighted score (Rating & Review Count)
   const featuredSites = useMemo(() => {
@@ -547,6 +571,15 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
           },
         )}
         scrollEventThrottle={16}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={handlePullRefresh}
+            progressViewOffset={Math.max(insets.top, 0) + 8}
+            colors={[COLORS.accent]}
+            tintColor={COLORS.accent}
+          />
+        }
       >
         {/* --- HERO TITLE & SEARCH TRIGGER (Visible initially) --- */}
         {!isSearching && (

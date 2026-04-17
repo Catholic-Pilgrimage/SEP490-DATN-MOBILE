@@ -182,6 +182,10 @@ export default function AddSiteModal({
 
   const featuredPrimary = useMemo(() => featuredSites.slice(0, 2), [featuredSites]);
   const featuredSecondary = useMemo(() => featuredSites.slice(2), [featuredSites]);
+  const eventSiteIdSet = useMemo(
+    () => new Set(eventSitesList.map((site) => String(site.id))),
+    [eventSitesList],
+  );
 
   const listData = useMemo(() => {
     if (activeTab === "events") return filteredEventSites;
@@ -210,6 +214,9 @@ export default function AddSiteModal({
       : activeTab === "favorites"
         ? isLoadingFavorites
         : isLoadingSites;
+
+  const hasCurrentTabData = activeCount > 0;
+  const showBlockingLoader = isCurrentTabLoading && !hasCurrentTabData;
 
   const regionOptions = useMemo(
     () => [
@@ -310,6 +317,10 @@ export default function AddSiteModal({
   };
 
   const renderSiteRow = (item: SiteSummary, featured = false) => {
+    const hasEvents =
+      item.hasEvents === true ||
+      Number(item.eventCount || 0) > 0 ||
+      eventSiteIdSet.has(String(item.id));
     const isAdded = alreadyAddedSiteIds.has(item.id);
     const isPending = pendingAddSiteId === item.id;
     const isActionLocked = addingItem || !!pendingAddSiteId;
@@ -329,9 +340,16 @@ export default function AddSiteModal({
         style={[
           sharedStyles.siteItem,
           localStyles.siteCard,
+          hasEvents && localStyles.siteCardWithEvent,
         ]}
       >
-        <View pointerEvents="none" style={localStyles.cardGlow} />
+        <View
+          pointerEvents="none"
+          style={[
+            localStyles.cardGlow,
+            hasEvents && localStyles.cardGlowWithEvent,
+          ]}
+        />
         <TouchableOpacity
           style={localStyles.siteMainPressable}
           activeOpacity={0.88}
@@ -374,6 +392,16 @@ export default function AddSiteModal({
               contentContainerStyle={localStyles.siteTagsRow}
               style={localStyles.siteTagsScroller}
             >
+              {hasEvents ? (
+                <View style={localStyles.eventBadge}>
+                  <Ionicons name="calendar" size={10} color="#7C2D12" />
+                  <Text style={localStyles.eventBadgeText}>
+                    {t("planner.hasEventsShort", {
+                      defaultValue: "Có sự kiện",
+                    })}
+                  </Text>
+                </View>
+              ) : null}
               <View style={localStyles.typeBadge}>
                 <Text style={localStyles.typeBadgeText}>
                   {getTypeLabel(item)}
@@ -406,21 +434,24 @@ export default function AddSiteModal({
         </TouchableOpacity>
 
         <View style={localStyles.siteActionsColumn}>
-          <TouchableOpacity
-            style={localStyles.nearbyActionButton}
-            onPress={() => {
-              if (isActionLocked) return;
-              onOpenNearbyAmenities?.(item);
-            }}
-            disabled={!onOpenNearbyAmenities || isActionLocked}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <Ionicons name="map-outline" size={18} color={COLORS.textSecondary} />
-          </TouchableOpacity>
+          {!featured ? (
+            <TouchableOpacity
+              style={localStyles.nearbyActionButton}
+              onPress={() => {
+                if (isActionLocked) return;
+                onOpenNearbyAmenities?.(item);
+              }}
+              disabled={!onOpenNearbyAmenities || isActionLocked}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Ionicons name="map-outline" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity
             style={[
               localStyles.addSiteButton,
+              hasEvents && localStyles.addSiteButtonWithEvent,
               isPending && localStyles.pendingSiteButton,
               isAdded && localStyles.addedSiteButton,
             ]}
@@ -636,14 +667,14 @@ export default function AddSiteModal({
           <Ionicons name="add-circle-outline" size={12} color={COLORS.textTertiary} />
           <Text style={localStyles.actionHintText}>
             {t("planner.addGestureHint", {
-              defaultValue: "Chạm thẻ để thêm, nhấn giữ để xem chi tiết, nút bản đồ để xem tiện ích",
+              defaultValue: "Chạm để thêm, nhấn giữ để xem chi tiết",
             })}
           </Text>
         </View>
 
 
 
-        {isCurrentTabLoading ? (
+        {showBlockingLoader ? (
           <ActivityIndicator
             size="large"
             color={COLORS.accent}
@@ -1087,6 +1118,12 @@ const localStyles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
   },
+  siteCardWithEvent: {
+    borderColor: "rgba(180, 83, 9, 0.34)",
+    backgroundColor: "#FFF9F3",
+    shadowOpacity: 0.14,
+    elevation: 6,
+  },
   cardGlow: {
     position: "absolute",
     top: -34,
@@ -1095,6 +1132,12 @@ const localStyles = StyleSheet.create({
     height: 90,
     borderRadius: 999,
     backgroundColor: "rgba(217,119,6,0.08)",
+  },
+  cardGlowWithEvent: {
+    backgroundColor: "rgba(217,119,6,0.18)",
+    top: -28,
+    width: 100,
+    height: 100,
   },
   siteItemTextColumn: {
     flex: 1,
@@ -1146,6 +1189,22 @@ const localStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(217,119,6,0.25)",
   },
+  eventBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(180, 83, 9, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(180, 83, 9, 0.28)",
+  },
+  eventBadgeText: {
+    fontSize: 10,
+    color: "#7C2D12",
+    fontWeight: "800",
+  },
   typeBadgeText: {
     fontSize: 10,
     color: "#B45309",
@@ -1194,6 +1253,10 @@ const localStyles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+  },
+  addSiteButtonWithEvent: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "rgba(180, 83, 9, 0.34)",
   },
   siteActionsColumn: {
     alignItems: "center",

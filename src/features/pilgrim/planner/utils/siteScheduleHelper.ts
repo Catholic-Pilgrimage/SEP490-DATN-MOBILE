@@ -318,25 +318,57 @@ export const suggestArrivalTime = (params: {
     eventName,
     massTimesForDay,
     openTime,
+    closeTime,
     fastestArrival,
     t,
   } = params;
   const minArrival = fastestArrival ? timeToMinutes(fastestArrival) : 0;
 
+  const normalizeByConstraints = (candidateMin: number): number | null => {
+    let normalized = Math.max(candidateMin, minArrival);
+
+    // Event day: ignore opening-hours window, only keep travel feasibility.
+    if (eventStartTime) {
+      return normalized;
+    }
+
+    if (!openTime || !closeTime) {
+      return normalized;
+    }
+
+    const openMin = timeToMinutes(openTime);
+    const closeMin = timeToMinutes(closeTime);
+
+    if (closeMin >= openMin) {
+      if (normalized < openMin) normalized = openMin;
+      if (normalized > closeMin) return null;
+      return normalized;
+    }
+
+    // Overnight opening window (e.g. 18:00 -> 02:00)
+    if (normalized >= openMin || normalized <= closeMin) {
+      return normalized;
+    }
+
+    return normalized < openMin ? openMin : null;
+  };
+
   // Priority 1: Event / Sự kiện
   if (eventStartTime) {
     const suggestedMin =
       timeToMinutes(eventStartTime) - PRE_EVENT_BUFFER_MINUTES;
-    const finalMin = Math.max(suggestedMin, minArrival);
-    return {
-      time: minutesToTime(finalMin),
-      reason: t("planner.suggested.event", {
-        name: eventName || t("planner.term.event"),
-        time: eventStartTime,
-        buffer: PRE_EVENT_BUFFER_MINUTES,
-      }),
-      priority: "event",
-    };
+    const finalMin = normalizeByConstraints(suggestedMin);
+    if (finalMin !== null) {
+      return {
+        time: minutesToTime(finalMin),
+        reason: t("planner.suggested.event", {
+          name: eventName || t("planner.term.event"),
+          time: eventStartTime,
+          buffer: PRE_EVENT_BUFFER_MINUTES,
+        }),
+        priority: "event",
+      };
+    }
   }
 
   // Priority 2: Giờ Lễ đầu tiên trong ngày (sau giờ có thể đến)
@@ -348,35 +380,41 @@ export const suggestArrivalTime = (params: {
     if (attendableMass) {
       const suggestedMin =
         timeToMinutes(attendableMass) - PRE_EVENT_BUFFER_MINUTES;
-      return {
-        time: minutesToTime(suggestedMin),
-        reason: t("planner.suggested.mass", {
-          buffer: PRE_EVENT_BUFFER_MINUTES,
-          time: attendableMass,
-        }),
-        priority: "mass",
-      };
+      const finalMin = normalizeByConstraints(suggestedMin);
+      if (finalMin !== null) {
+        return {
+          time: minutesToTime(finalMin),
+          reason: t("planner.suggested.mass", {
+            buffer: PRE_EVENT_BUFFER_MINUTES,
+            time: attendableMass,
+          }),
+          priority: "mass",
+        };
+      }
     }
   }
 
   // Priority 3: Opening hours
   if (openTime) {
     const suggestedMin = timeToMinutes(openTime) + POST_OPEN_BUFFER_MINUTES;
-    const finalMin = Math.max(suggestedMin, minArrival);
-    return {
-      time: minutesToTime(finalMin),
-      reason: t("planner.suggested.opening", {
-        time: openTime,
-        buffer: POST_OPEN_BUFFER_MINUTES,
-      }),
-      priority: "opening",
-    };
+    const finalMin = normalizeByConstraints(suggestedMin);
+    if (finalMin !== null) {
+      return {
+        time: minutesToTime(finalMin),
+        reason: t("planner.suggested.opening", {
+          time: openTime,
+          buffer: POST_OPEN_BUFFER_MINUTES,
+        }),
+        priority: "opening",
+      };
+    }
   }
 
   // Priority 4: Default
   const defaultMin = Math.max(timeToMinutes(DEFAULT_START_TIME), minArrival);
+  const normalizedDefaultMin = normalizeByConstraints(defaultMin) ?? defaultMin;
   return {
-    time: minutesToTime(defaultMin),
+    time: minutesToTime(normalizedDefaultMin),
     reason: t("planner.suggested.default"),
     priority: "default",
   };
@@ -467,7 +505,61 @@ export const generateInsight = (params: {
     }
   }
 
-  // ── P2: Event timing (takes priority over opening hours — backend skips opening hours when event exists) ──
+  // ── P2: Hard guard by opening hours (apply for all cases, including event-linked items) ──
+  if (
+    !eventStartTime &&
+    timeWindow.closeComparableMin !== undefined &&
+    timeWindow.selectedComparableMin > timeWindow.closeComparableMin
+  ) {
+    const overMin =
+      timeWindow.selectedComparableMin - timeWindow.closeComparableMin;
+    return {
+      type: "error_closed",
+      title: t("planner.insight.siteClosed.title", { time: closeTime }),
+      message: t("planner.insight.siteClosed.message", {
+        selected: estimatedTime,
+        diff: formatDurationLocalized(overMin, t),
+      }),
+      color: "#BE123C",
+      bgColor: "#FFE4E6",
+      iconName: "warning",
+      isBlocking: true,
+    };
+  }
+
+  const shouldWarnEarlyByOvernightGap =
+    !eventStartTime &&
+    timeWindow.isOvernight &&
+    timeWindow.openMin !== undefined &&
+    timeWindow.closeMin !== undefined &&
+    selectedMin > timeWindow.closeMin &&
+    selectedMin < timeWindow.openMin;
+
+  if (
+    !eventStartTime &&
+    openTime &&
+    (selectedMin < timeToMinutes(openTime) || shouldWarnEarlyByOvernightGap)
+  ) {
+    return {
+      type: "early",
+      title: t("planner.insight.arriveOutsideOperatingHoursTitle", {
+        defaultValue: "Chưa trong giờ hoạt động (mở cửa lúc {{time}})",
+        time: openTime,
+      }),
+      message: t("planner.insight.arriveOutsideOperatingHoursMessage", {
+        defaultValue:
+          "Không thể thêm vào lịch trình vì thời gian dự kiến đến ({{arrival}}) nằm ngoài khung giờ hoạt động của địa điểm. Vui lòng chọn giờ từ {{open}} trở đi.",
+        arrival: estimatedTime,
+        open: openTime,
+      }),
+      color: "#DC2626",
+      bgColor: "#FEF2F2",
+      iconName: "alert-circle-outline",
+      isBlocking: true,
+    };
+  }
+
+  // ── P3: Event timing insight ──
   if (eventStartTime) {
     const eventMin = timeToMinutes(eventStartTime);
     const diffMin = eventMin - selectedMin;
@@ -523,29 +615,7 @@ export const generateInsight = (params: {
     };
   }
 
-  // ── P3: Arriving after closing — isBlocking (skip when event exists) ──
-  if (
-    !eventStartTime &&
-    timeWindow.closeComparableMin !== undefined &&
-    timeWindow.selectedComparableMin > timeWindow.closeComparableMin
-  ) {
-    const overMin =
-      timeWindow.selectedComparableMin - timeWindow.closeComparableMin;
-    return {
-      type: "error_closed",
-      title: t("planner.insight.siteClosed.title", { time: closeTime }),
-      message: t("planner.insight.siteClosed.message", {
-        selected: estimatedTime,
-        diff: formatDurationLocalized(overMin, t),
-      }),
-      color: "#BE123C",
-      bgColor: "#FFE4E6",
-      iconName: "warning",
-      isBlocking: true,
-    };
-  }
-
-  // ── P3b: Mass schedule — warn if arriving after mass starts ──
+  // ── P4: Mass schedule — warn if arriving after mass starts ──
   if (massTimesForDay.length > 0) {
     const nextMass = massTimesForDay.find(
       (t) => timeToMinutes(t) > selectedMin,
@@ -594,40 +664,7 @@ export const generateInsight = (params: {
     }
   }
 
-  // ── P4: Arriving before opening (skip when event exists) ──
-  const shouldWarnEarlyByOvernightGap =
-    !eventStartTime &&
-    timeWindow.isOvernight &&
-    timeWindow.openMin !== undefined &&
-    timeWindow.closeMin !== undefined &&
-    selectedMin > timeWindow.closeMin &&
-    selectedMin < timeWindow.openMin;
-
-  if (
-    !eventStartTime &&
-    openTime &&
-    (selectedMin < timeToMinutes(openTime) || shouldWarnEarlyByOvernightGap)
-  ) {
-    return {
-      type: "early",
-      title: t("planner.insight.arriveOutsideOperatingHoursTitle", {
-        defaultValue: "Chưa trong giờ hoạt động (mở cửa lúc {{time}})",
-        time: openTime,
-      }),
-      message: t("planner.insight.arriveOutsideOperatingHoursMessage", {
-        defaultValue:
-          "Không thể thêm vào lịch trình vì thời gian dự kiến đến ({{arrival}}) nằm ngoài khung giờ hoạt động của địa điểm. Vui lòng chọn giờ từ {{open}} trở đi.",
-        arrival: estimatedTime,
-        open: openTime,
-      }),
-      color: "#DC2626",
-      bgColor: "#FEF2F2",
-      iconName: "alert-circle-outline",
-      isBlocking: true,
-    };
-  }
-
-  // ── P5: Check if rest_duration goes past closing (skip when event exists) ──
+  // ── P5: Check if rest_duration goes past closing ──
   if (
     !eventStartTime &&
     timeWindow.closeComparableMin !== undefined &&
