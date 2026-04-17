@@ -586,6 +586,8 @@ export interface VerificationRequestFormInput {
   existingSiteId: string;
   transitionReason: string;
   introduction: string;
+  /** Claim type of selected site (for transition form) */
+  selectedSiteClaimType?: "transition" | "unassigned" | null;
 }
 
 export interface VerificationRequestFormErrors {
@@ -699,13 +701,17 @@ export function validateVerificationRequestForm(
       errors.existingSiteId = "verification.errors.siteNotSelected";
     }
 
-    const reasonTrim = data.transitionReason.trim();
-    if (!reasonTrim) {
-      errors.transitionReason = "verification.errors.transitionReasonRequired";
-    } else if (reasonTrim.length < R.TRANSITION_REASON_MIN) {
-      errors.transitionReason = "verification.errors.transitionReasonTooShort";
-    } else if (reasonTrim.length > R.TRANSITION_REASON_MAX) {
-      errors.transitionReason = "verification.errors.transitionReasonTooLong";
+    // Only validate transition reason for "transition" claim type
+    // For "unassigned" sites, transition reason is not required
+    if (data.selectedSiteClaimType === "transition") {
+      const reasonTrim = data.transitionReason.trim();
+      if (!reasonTrim) {
+        errors.transitionReason = "verification.errors.transitionReasonRequired";
+      } else if (reasonTrim.length < R.TRANSITION_REASON_MIN) {
+        errors.transitionReason = "verification.errors.transitionReasonTooShort";
+      } else if (reasonTrim.length > R.TRANSITION_REASON_MAX) {
+        errors.transitionReason = "verification.errors.transitionReasonTooLong";
+      }
     }
   }
 

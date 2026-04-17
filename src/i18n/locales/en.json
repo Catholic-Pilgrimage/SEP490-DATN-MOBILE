@@ -1163,6 +1163,14 @@
     "sectionNewSite": "Pilgrimage Site Information",
     "sectionTransition": "Transition Information",
     "sectionExtra": "Additional Information",
+    "claimType": {
+      "unassigned": "No Manager",
+      "transition": "Replace Manager"
+    },
+    "currentManager": "Current Manager",
+    "filter": {
+      "all": "All"
+    },
     "fields": {
       "fullName": "Full Name",
       "fullNamePlaceholder": "Enter full name...",
@@ -1186,9 +1194,10 @@
       "selectSitePlaceholder": "Tap to select a pilgrimage site...",
       "transitionReason": "Transition reason",
       "transitionReasonPlaceholder": "Why do you need to replace the current manager?",
+      "unassignedClaimReason": "Request to manage site without Manager",
       "introduction": "Introduction / About the site",
       "introductionPlaceholder": "Brief description about yourself or the site...",
-      "certificate": "Certificate (Optional)"
+      "certificate": "Certificate"
     },
     "siteTypes": {
       "church": "Church",
@@ -1226,6 +1235,11 @@
         "description": "You have already submitted a site manager registration request. Please wait for a response from the administrator."
       }
     },
+    "statusValues": {
+      "approved": "APPROVED",
+      "rejected": "REJECTED",
+      "pending": "PENDING"
+    },
     "details": {
       "requestCode": "Request code:",
       "requestStatus": "Status:",
@@ -1251,6 +1265,7 @@
       "permissionDenied": "Permission denied",
       "cameraPermission": "Please grant camera access.",
       "libraryPermission": "Please grant photo library access.",
+      "certificateRequired": "Please upload a certificate.",
       "guestRequired": "Please fill in applicant Name and Email.",
       "newSiteRequired": "Please fill in site name and province.",
       "transitionRequired": "Please fill in site ID and transition reason.",

@@ -46,6 +46,7 @@ export const GUIDE_KEYS = {
 export const VERIFICATION_KEYS = {
     all: ['verification'] as const,
     myRequest: () => [...VERIFICATION_KEYS.all, 'myRequest'] as const,
+    claimableSites: () => [...VERIFICATION_KEYS.all, 'claimableSites'] as const,
 };
 
 export const FAVORITE_KEYS = {

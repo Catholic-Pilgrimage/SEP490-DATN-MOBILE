@@ -5,13 +5,14 @@
 
 import { ApiResponse } from "../../../types/api.types";
 import {
+    ClaimableSitesResponse,
     GuestTransitionRequestPayload,
     GuestVerificationRequestPayload,
     GuestVerificationResponse,
     PilgrimTransitionRequestPayload,
     PilgrimVerificationRequestPayload,
     PilgrimVerificationResponse,
-    TransitionResponse,
+    TransitionResponse
 } from "../../../types/pilgrim/verification.types";
 import apiClient from "../apiClient";
 import { PILGRIM_ENDPOINTS } from "../endpoints";
@@ -113,6 +114,31 @@ export const getMyVerificationRequest = async (): Promise<ApiResponse<PilgrimVer
 };
 
 /**
+ * Get Claimable Sites
+ * Lấy danh sách các địa điểm có thể xin nhận quản lý
+ * Bao gồm 2 loại:
+ * - transition: Site đang active, có Manager hiện tại → xin thay thế Manager
+ * - unassigned: Site do Admin tạo sẵn (is_active=false), chưa có Manager → xin nhận quản lý
+ *
+ * @param params - Query parameters (page, limit, search, region, type, claim_type)
+ * @returns List of claimable sites with pagination
+ */
+export const getClaimableSites = async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    region?: string;
+    type?: string;
+    claim_type?: string;
+}): Promise<ApiResponse<ClaimableSitesResponse>> => {
+    const response = await apiClient.get<ApiResponse<ClaimableSitesResponse>>(
+        `${PILGRIM_ENDPOINTS.SITES.AVAILABLE}`,
+        { params },
+    );
+    return response.data;
+};
+
+/**
  * Guest Transition Request
  * For guests (unauthenticated) who want to replace a manager of a site.
  *
@@ -194,6 +220,7 @@ const pilgrimVerificationApi = {
     requestGuestVerification,
     requestPilgrimVerification,
     getMyVerificationRequest,
+    getClaimableSites,
     requestGuestTransition,
     requestPilgrimTransition,
 };

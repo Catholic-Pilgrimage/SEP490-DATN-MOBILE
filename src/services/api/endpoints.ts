@@ -64,6 +64,7 @@ export const PILGRIM_ENDPOINTS = {
     LIST: `${API_BASE}/sites`,
     DETAIL: (id: string) => `${API_BASE}/sites/${id}`,
     SEARCH: `${API_BASE}/sites/search`,
+    AVAILABLE: `${API_BASE}/sites/available`,
     BY_REGION: (regionId: string) => `${API_BASE}/sites/region/${regionId}`,
     NEARBY: `${API_BASE}/sites/nearby`,
     FAVORITES: `${API_BASE}/sites/favorites`,
