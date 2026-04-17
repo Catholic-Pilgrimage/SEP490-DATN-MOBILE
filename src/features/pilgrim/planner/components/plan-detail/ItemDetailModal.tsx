@@ -26,6 +26,7 @@ interface ItemDetailModalProps {
   handleOpenEditItem: (item: PlanItem) => void;
   handleDeleteItem: (itemId: string) => void;
   isPlanOwner: boolean;
+  canDeleteItems?: boolean;
 }
 
 export default function ItemDetailModal(props: ItemDetailModalProps) {
@@ -42,6 +43,7 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
     handleOpenEditItem,
     handleDeleteItem,
     isPlanOwner,
+    canDeleteItems = false,
   } = props;
 
   const s = styles as Record<string, any>;
@@ -112,17 +114,19 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                   >
                     <Ionicons name="create-outline" size={24} color={COLORS.primary} />
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      onClose();
-                      handleDeleteItem(selectedItem.id);
-                    }}
-                    hitSlop={10}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("planner.removeFromItinerary")}
-                  >
-                    <Ionicons name="trash-outline" size={24} color="#EF4444" />
-                  </TouchableOpacity>
+                  {canDeleteItems ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        onClose();
+                        handleDeleteItem(selectedItem.id);
+                      }}
+                      hitSlop={10}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("planner.removeFromItinerary")}
+                    >
+                      <Ionicons name="trash-outline" size={24} color="#EF4444" />
+                    </TouchableOpacity>
+                  ) : null}
                 </>
               ) : (
                 <View style={{ width: 56 }} />

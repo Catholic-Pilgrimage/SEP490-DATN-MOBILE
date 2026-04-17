@@ -621,10 +621,10 @@ export const EventDetailScreen: React.FC = () => {
   const [description, setDescription] = useState(parsedInitial.description);
   const [category, setCategory] = useState(parsedInitial.category);
   const [startDate, setStartDate] = useState<Date | null>(
-    passedEvent?.start_date ? new Date(passedEvent.start_date) : null,
+    passedEvent?.start_date ? parseLocalDate(passedEvent.start_date) : null,
   );
   const [endDate, setEndDate] = useState<Date | null>(
-    passedEvent?.end_date ? new Date(passedEvent.end_date) : null,
+    passedEvent?.end_date ? parseLocalDate(passedEvent.end_date) : null,
   );
   const [startTime, setStartTime] = useState<Date | null>(
     passedEvent?.start_time ? parseTime(passedEvent.start_time) : null,
@@ -775,9 +775,11 @@ export const EventDetailScreen: React.FC = () => {
       setDescription(parsed.description);
       setCategory(parsed.category);
       setStartDate(
-        passedEvent.start_date ? new Date(passedEvent.start_date) : null,
+        passedEvent.start_date ? parseLocalDate(passedEvent.start_date) : null,
       );
-      setEndDate(passedEvent.end_date ? new Date(passedEvent.end_date) : null);
+      setEndDate(
+        passedEvent.end_date ? parseLocalDate(passedEvent.end_date) : null,
+      );
       setStartTime(
         passedEvent.start_time ? parseTime(passedEvent.start_time) : null,
       );

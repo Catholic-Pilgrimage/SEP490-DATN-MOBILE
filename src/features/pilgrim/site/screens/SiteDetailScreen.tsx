@@ -96,6 +96,60 @@ const getEventGradient = (description?: string): GradientTheme => {
   return DEFAULT_EVENT_GRADIENT;
 };
 
+const parseDateOnly = (dateStr?: string): Date | null => {
+  if (!dateStr) return null;
+  const [year, month, day] = String(dateStr).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const buildDateBadgeLabel = (
+  startDateStr?: string,
+  endDateStr?: string,
+  locale: string = "vi-VN",
+) => {
+  const start = parseDateOnly(startDateStr);
+  const end = parseDateOnly(endDateStr) || start;
+
+  if (!start || Number.isNaN(start.getTime())) {
+    return { dayText: "--", monthText: "" };
+  }
+
+  const safeEnd = end && !Number.isNaN(end.getTime()) ? end : start;
+  const startDay = String(start.getDate()).padStart(2, "0");
+  const endDay = String(safeEnd.getDate()).padStart(2, "0");
+  const startMonth = start
+    .toLocaleDateString(locale, { month: "short" })
+    .replace(".", "")
+    .trim();
+  const endMonth = safeEnd
+    .toLocaleDateString(locale, { month: "short" })
+    .replace(".", "")
+    .trim();
+
+  const sameDay =
+    start.getFullYear() === safeEnd.getFullYear() &&
+    start.getMonth() === safeEnd.getMonth() &&
+    start.getDate() === safeEnd.getDate();
+
+  if (sameDay) {
+    return {
+      dayText: startDay,
+      monthText: startMonth.toUpperCase(),
+    };
+  }
+
+  const monthText =
+    startMonth.toLowerCase() === endMonth.toLowerCase()
+      ? startMonth
+      : `${startMonth}-${endMonth}`;
+
+  return {
+    dayText: `${startDay}-${endDay}`,
+    monthText: monthText.toUpperCase(),
+  };
+};
+
 const HERO_HEIGHT = Dimensions.get("window").height * 0.45;
 const REVIEW_PREVIEW_LIMIT = 3;
 
@@ -201,7 +255,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     refetch: refetchEvents,
   } = useSiteEvents(siteId, {
     autoFetch: true,
-    params: { upcoming: "true", limit: 5 },
+    params: { limit: 1000 },
   });
 
   const {
@@ -1156,11 +1210,12 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 snapToInterval={280 + SPACING.md}
               >
                 {events.map((event) => {
-                  // Clean date parsing for display
-                  const eventDate = new Date(event.start_date);
-                  const day = eventDate.getDate();
                   const locale = t('siteDetail.monthLocale', { defaultValue: 'vi-VN' });
-                  const monthStr = eventDate.toLocaleDateString(locale, { month: 'short' }).toUpperCase();
+                  const dateBadge = buildDateBadgeLabel(
+                    event.start_date,
+                    event.end_date,
+                    locale,
+                  );
 
                   return (
                     <TouchableOpacity
@@ -1197,8 +1252,16 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
                       {/* Date Badge */}
                       <View style={styles.eventDateBadge}>
-                        <Text style={styles.eventDateDay}>{day}</Text>
-                        <Text style={styles.eventDateMonth}>{monthStr}</Text>
+                        <Text
+                          style={[
+                            styles.eventDateDay,
+                            dateBadge.dayText.includes("-") &&
+                              styles.eventDateDayRange,
+                          ]}
+                        >
+                          {dateBadge.dayText}
+                        </Text>
+                        <Text style={styles.eventDateMonth}>{dateBadge.monthText}</Text>
                       </View>
 
                       {/* Content */}
@@ -2835,6 +2898,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: COLORS.primary,
     lineHeight: 24,
+  },
+  eventDateDayRange: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    lineHeight: 20,
   },
   eventDateMonth: {
     fontSize: 10,

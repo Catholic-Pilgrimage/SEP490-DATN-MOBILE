@@ -20,6 +20,7 @@ import {
   CheckInEntity,
   CheckInItemRequest,
   CheckInItemResponse,
+  ClosePlannerDayResponse,
   CreatePlanRequest,
   GetInvitesResponse,
   GetMembersResponse,
@@ -245,6 +246,16 @@ export const updatePlannerLock = async (
   const response = await apiClient.patch<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.PLANNER_LOCK(planId),
     { is_locked: data.locked },
+  );
+  return response.data;
+};
+
+export const closePlannerDay = async (
+  planId: string,
+  dayNumber: number,
+): Promise<ApiResponse<ClosePlannerDayResponse>> => {
+  const response = await apiClient.post<ApiResponse<ClosePlannerDayResponse>>(
+    PILGRIM_ENDPOINTS.PLANNER.CLOSE_DAY(planId, dayNumber),
   );
   return response.data;
 };
@@ -620,6 +631,7 @@ const pilgrimPlannerApi = {
   updatePlan,
   updatePlannerStatus,
   updatePlannerLock,
+  closePlannerDay,
   sharePlannerToCommunity,
   clonePlanner,
   updatePlannerItemStatus,

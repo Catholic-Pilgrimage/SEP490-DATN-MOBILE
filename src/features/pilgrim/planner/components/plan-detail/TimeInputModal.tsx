@@ -40,6 +40,10 @@ interface TimeInputModalProps {
   crossDayWarning: string | null;
   crossDaysAdded?: number;
   estimatedTime: string;
+  onApplySuggestedTime?: (
+    time: string,
+    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+  ) => void;
   restDuration: number;
   setRestDuration: (v: number) => void;
   note: string;
@@ -100,6 +104,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     crossDayWarning,
     crossDaysAdded = 0,
     estimatedTime,
+    onApplySuggestedTime,
     restDuration,
     setRestDuration,
     note,
@@ -215,45 +220,39 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   const nextSuggestedDay =
     selectedDay + Math.max(crossDaysAdded, fastestArrivalDayOffset || 0, 1);
 
-  const suggestedArrivalMin = parseTimeToMinutes(suggestedTime?.time);
-  const sortedSiteEventTimes = useMemo(() => {
-    return eventsForDay
-      .map((eventItem) => eventItem.startTime)
-      .filter((time): time is string => !!time)
-      .sort((a, b) => {
-        const aMin = parseTimeToMinutes(a);
-        const bMin = parseTimeToMinutes(b);
-        if (aMin === null || bMin === null) return 0;
-        return aMin - bMin;
-      });
-  }, [eventsForDay]);
+  const applyWindowConstraints = useMemo(() => {
+    const hasEventOnSelectedDay =
+      !!eventStartTime || eventsForDay.some((eventItem) => !!eventItem.startTime);
 
-  const derivedMassTime = useMemo(() => {
-    const candidates = [
-      ...massTimesForDay,
-      ...sortedSiteEventTimes,
-      ...(eventStartTime ? [eventStartTime] : []),
-    ];
-    if (candidates.length === 0) return null;
+    return (candidateMin: number): number | null => {
+      let normalized = candidateMin;
+      const minArrival = parseTimeToMinutes(fastestArrival) ?? 0;
+      normalized = Math.max(normalized, minArrival);
 
-    const uniqueCandidates = Array.from(new Set(candidates));
-    const sortedCandidates = uniqueCandidates.sort((a, b) => {
-      const aMin = parseTimeToMinutes(a);
-      const bMin = parseTimeToMinutes(b);
-      if (aMin === null || bMin === null) return 0;
-      return aMin - bMin;
-    });
+      if (hasEventOnSelectedDay) {
+        return normalized;
+      }
 
-    if (suggestedArrivalMin !== null) {
-      const candidate = sortedCandidates.find((mass) => {
-        const massMin = parseTimeToMinutes(mass);
-        return massMin !== null && massMin >= suggestedArrivalMin;
-      });
-      if (candidate) return candidate;
-    }
+      const openMin = parseTimeToMinutes(openTime);
+      const closeMin = parseTimeToMinutes(closeTime);
+      if (openMin === null || closeMin === null) {
+        return normalized;
+      }
 
-    return sortedCandidates[0] || null;
-  }, [eventStartTime, massTimesForDay, sortedSiteEventTimes, suggestedArrivalMin]);
+      if (closeMin >= openMin) {
+        if (normalized < openMin) normalized = openMin;
+        if (normalized > closeMin) return null;
+        return normalized;
+      }
+
+      // Overnight window (e.g. 18:00 -> 02:00)
+      if (normalized >= openMin || normalized <= closeMin) {
+        return normalized;
+      }
+
+      return normalized < openMin ? openMin : null;
+    };
+  }, [closeTime, eventStartTime, eventsForDay, fastestArrival, openTime]);
 
   const showArriveFromPreviousDayNotice =
     !!isCrossDayTravel &&
@@ -265,56 +264,210 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   const minRestDuration = 60;
   const maxRestDuration = Math.max(minRestDuration, remainingInDayMinutes);
   const isRestOverflowDay = restDuration > remainingInDayMinutes;
-  // Show suggested time card only if suggestion differs from current
+  const smartSuggestions = useMemo(() => {
+    const options: {
+      key: string;
+      priority: "event" | "mass" | "opening";
+      time: string;
+      sourceText: string;
+      eventId?: string;
+      eventTitle?: string;
+      eventStartTime?: string;
+      eventEndTime?: string;
+      baseTime?: string;
+    }[] = [];
+
+    const eventCandidates: { id: string; name?: string; start: string; end?: string }[] = [
+      ...eventsForDay
+        .filter((eventItem) => !!eventItem.startTime)
+        .map((eventItem) => ({
+          id: String(eventItem.id || `${eventItem.name || "event"}-${eventItem.startTime}`),
+          name: eventItem.name,
+          start: eventItem.startTime!,
+          end: eventItem.endTime,
+        })),
+      ...(eventStartTime
+        ? [
+            {
+              id: `selected-${eventName || "event"}-${eventStartTime}`,
+              name: eventName,
+              start: eventStartTime,
+              end: undefined,
+            },
+          ]
+        : []),
+    ];
+
+    const uniqueEventCandidates = eventCandidates.filter(
+      (candidate, index, arr) =>
+        arr.findIndex(
+          (item) =>
+            item.id === candidate.id ||
+            (item.start === candidate.start && item.name === candidate.name),
+        ) === index,
+    );
+
+    const eventArrivals = uniqueEventCandidates
+      .map((candidate) => {
+        const eventMin = parseTimeToMinutes(candidate.start);
+        if (eventMin === null) return null;
+        const arrivalMin = applyWindowConstraints(eventMin - 30);
+        if (arrivalMin === null) return null;
+        return {
+          ...candidate,
+          arrivalMin,
+        };
+      })
+      .filter(
+        (
+          candidate,
+        ): candidate is {
+          id: string;
+          name?: string;
+          start: string;
+          end?: string;
+          arrivalMin: number;
+        } =>
+          candidate !== null,
+      )
+      .sort((a, b) => a.arrivalMin - b.arrivalMin);
+
+    eventArrivals.forEach((eventArrival, index) => {
+      const eventArrivalTime =
+        String(Math.floor(eventArrival.arrivalMin / 60)).padStart(2, "0") +
+        ":" +
+        String(eventArrival.arrivalMin % 60).padStart(2, "0");
+
+      if (options.some((option) => option.time === eventArrivalTime)) {
+        return;
+      }
+
+      options.push({
+        key: `event-${eventArrival.id}-${index}`,
+        priority: "event",
+        time: eventArrivalTime,
+        sourceText: t("planner.suggestionSourceEventDetailed", {
+          defaultValue: "Theo sự kiện {{name}} lúc {{time}} tại địa điểm.",
+          name: eventArrival.name || t("planner.event", { defaultValue: "Sự kiện" }),
+          time: eventArrival.start,
+        }),
+        eventId: eventArrival.id,
+        eventTitle: eventArrival.name || t("planner.event", { defaultValue: "Sự kiện" }),
+        eventStartTime: eventArrival.start,
+        eventEndTime: eventArrival.end,
+        baseTime: eventArrival.start,
+      });
+    });
+
+    const massCandidates = Array.from(new Set(massTimesForDay))
+      .map((massTime) => {
+        const massMin = parseTimeToMinutes(massTime);
+        if (massMin === null) return null;
+        const arrivalMin = applyWindowConstraints(massMin - 30);
+        if (arrivalMin === null) return null;
+        return { massTime, arrivalMin };
+      })
+      .filter((candidate): candidate is { massTime: string; arrivalMin: number } => !!candidate)
+      .sort((a, b) => a.arrivalMin - b.arrivalMin);
+
+    massCandidates.forEach((massCandidate, index) => {
+      const massTime =
+        String(Math.floor(massCandidate.arrivalMin / 60)).padStart(2, "0") +
+        ":" +
+        String(massCandidate.arrivalMin % 60).padStart(2, "0");
+
+      if (!options.some((option) => option.time === massTime)) {
+        options.push({
+          key: `mass-${massCandidate.massTime}-${index}`,
+          priority: "mass",
+          time: massTime,
+          sourceText: t("planner.suggestionSourceMassDetailed", {
+            defaultValue: "Theo giờ lễ thường ngày lúc {{time}} tại địa điểm.",
+            time: massCandidate.massTime,
+          }),
+          baseTime: massCandidate.massTime,
+        });
+      }
+    });
+
+    if (openTime) {
+      const openMin = parseTimeToMinutes(openTime);
+      if (openMin !== null) {
+        const openingCandidate = applyWindowConstraints(openMin + 15);
+        if (openingCandidate !== null) {
+          const openingTime =
+            String(Math.floor(openingCandidate / 60)).padStart(2, "0") +
+            ":" +
+            String(openingCandidate % 60).padStart(2, "0");
+
+          if (!options.some((option) => option.time === openingTime)) {
+            options.push({
+              key: `opening-${openTime}`,
+              priority: "opening",
+              time: openingTime,
+              sourceText: t("planner.suggestionSourceOpeningDetailed", {
+                defaultValue: "Theo giờ mở cửa của địa điểm từ {{time}}.",
+                time: openTime,
+              }),
+              baseTime: openTime,
+            });
+          }
+        }
+      }
+    }
+
+    return options;
+  }, [
+    applyWindowConstraints,
+    eventName,
+    eventStartTime,
+    eventsForDay,
+    massTimesForDay,
+    openTime,
+    t,
+  ]);
+
+  const applySuggestedTime = (
+    time: string,
+    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+  ) => {
+    onApplySuggestedTime?.(time, source);
+    Toast.show({
+      type: "success",
+      text1: t("planner.suggestedTimeAppliedTitle", {
+        defaultValue: "Đã áp dụng giờ gợi ý",
+      }),
+      text2: t("planner.suggestedTimeAppliedMessage", {
+        defaultValue: "Giờ dự kiến đã được đặt thành {{time}}.",
+        time,
+      }),
+      position: "top",
+      topOffset: 48,
+    });
+  };
+
   const showSuggestButton = useMemo(() => {
+    if (smartSuggestions.length > 0) return true;
     if (!suggestedTime) return false;
     return (
       suggestedTime.time !== estimatedTime &&
       suggestedTime.priority !== "default"
     );
-  }, [suggestedTime, estimatedTime]);
+  }, [estimatedTime, smartSuggestions.length, suggestedTime]);
 
-  const suggestionSourceText = useMemo(() => {
-    if (!suggestedTime) return "";
-
-    if (suggestedTime.priority === "event") {
-      return t("planner.suggestionSourceEventDetailed", {
-        defaultValue: "Theo sự kiện {{name}} lúc {{time}} tại địa điểm.",
-        name: eventName || t("planner.event", { defaultValue: "Sự kiện" }),
-        time: eventStartTime || suggestedTime.time,
-      });
-    }
-
-    if (suggestedTime.priority === "mass") {
-      return t("planner.suggestionSourceMassDetailed", {
-        defaultValue: "Theo giờ lễ thường ngày lúc {{time}} tại địa điểm.",
-        time: derivedMassTime || suggestedTime.time,
-      });
-    }
-
-    if (suggestedTime.priority === "opening") {
-      return t("planner.suggestionSourceOpeningDetailed", {
-        defaultValue: "Theo giờ mở cửa của địa điểm từ {{time}}.",
-        time: openTime || "—",
-      });
-    }
-
-    return t("planner.suggestionSourceDefaultDetailed", {
-      defaultValue: "Theo điều kiện lịch trình hiện tại.",
-    });
-  }, [
-    derivedMassTime,
-    eventName,
-    eventStartTime,
-    openTime,
-    suggestedTime,
-    t,
-  ]);
+  const groupedSuggestions = useMemo(() => {
+    return {
+      event: smartSuggestions.filter((item) => item.priority === "event"),
+      mass: smartSuggestions.filter((item) => item.priority === "mass"),
+      opening: smartSuggestions.filter((item) => item.priority === "opening"),
+    };
+  }, [smartSuggestions]);
 
   const suggestionDayLabel = useMemo(() => {
     if (selectedDayDateLabel && selectedDayDateLabel.trim()) {
       return selectedDayDateLabel;
     }
+
     return t("planner.dayNumberOnly", {
       defaultValue: "Ngày {{day}}",
       day: selectedDay,
@@ -357,12 +510,19 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   const shouldRenderInsight = useMemo(() => {
     if (!insight) return false;
 
+    const hasEventSuggestion = smartSuggestions.some(
+      (suggestion) => suggestion.priority === "event",
+    );
+    if (insight.type === "event_ok" && hasEventSuggestion) {
+      return false;
+    }
+
     const positiveInsightTypes = new Set(["ideal", "buffer", "first_stop", "event_ok"]);
     if (crossDayWarning && positiveInsightTypes.has(insight.type)) {
       return false;
     }
     return true;
-  }, [crossDayWarning, insight]);
+  }, [crossDayWarning, insight, smartSuggestions]);
 
   const insightMessageColor = useMemo(() => {
     if (!insight) return "#6B4E2E";
@@ -659,6 +819,33 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                       t={t}
                     />
 
+                    {showMoveToPreviousDayButton && (
+                      <View style={localStyles.crossDayActionRow}>
+                        <TouchableOpacity
+                          style={localStyles.movePrevDayButton}
+                          onPress={() => onMoveToPreviousDay?.(sourceDayNumber!)}
+                          activeOpacity={0.9}
+                        >
+                          <Ionicons
+                            name="arrow-undo-outline"
+                            size={16}
+                            color="#5B3E1F"
+                          />
+                          <Text style={localStyles.movePrevDayButtonText}>
+                            {t("planner.moveToPreviousDayCta", {
+                              defaultValue: "Chuyển sang ngày trước",
+                            })}
+                          </Text>
+                        </TouchableOpacity>
+                        <Text style={localStyles.crossDayActionHint}>
+                          {t("planner.keepCurrentDayHint", {
+                            defaultValue:
+                              "Nếu vẫn giữ ngày hiện tại, hãy kiểm tra lại giờ dự kiến đến trước khi thêm.",
+                          })}
+                        </Text>
+                      </View>
+                    )}
+
                     {canMoveToNextDay && (
                       <View style={localStyles.nextDayInlineWrap}>
                         <TouchableOpacity
@@ -829,33 +1016,6 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                   </View>
                 )}
 
-                {showMoveToPreviousDayButton && (
-                  <View style={localStyles.crossDayActionRow}>
-                    <TouchableOpacity
-                      style={localStyles.movePrevDayButton}
-                      onPress={() => onMoveToPreviousDay?.(sourceDayNumber!)}
-                      activeOpacity={0.9}
-                    >
-                      <Ionicons
-                        name="arrow-undo-outline"
-                        size={16}
-                        color="#5B3E1F"
-                      />
-                      <Text style={localStyles.movePrevDayButtonText}>
-                        {t("planner.moveToPreviousDayCta", {
-                          defaultValue: "Chuyển sang ngày trước",
-                        })}
-                      </Text>
-                    </TouchableOpacity>
-                    <Text style={localStyles.crossDayActionHint}>
-                      {t("planner.keepCurrentDayHint", {
-                        defaultValue:
-                          "Nếu vẫn giữ ngày hiện tại, hãy kiểm tra lại giờ dự kiến đến trước khi thêm.",
-                      })}
-                    </Text>
-                  </View>
-                )}
-
                 {canMoveBackToOriginalDay && (
                   <View style={localStyles.crossDayActionRow}>
                     <TouchableOpacity
@@ -889,39 +1049,205 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                 )}
 
                 {/* ── SUGGEST TIME CARD ── */}
-                {showSuggestButton && suggestedTime && (
-                  <View style={localStyles.suggestButton}>
-                    <View style={localStyles.suggestButtonHeaderLeft}>
-                      <Ionicons name="sparkles" size={16} color="#A8793D" />
-                      <View style={{ flex: 1 }}>
-                        <Text style={localStyles.suggestButtonText}>
-                          {t("planner.suggestedTimeLabel", {
-                            defaultValue: "Gợi ý giờ nên đến",
-                          })}
-                        </Text>
-                        <Text style={localStyles.suggestButtonReason}>
-                          {t("planner.suggestedArrivalOnlyDetailed", {
-                            defaultValue:
-                              "{{dayLabel}}: nên đến lúc {{time}}. {{source}}",
-                            dayLabel: suggestionDayLabel,
-                            time: suggestedTime.time,
-                            source: suggestionSourceText,
-                          })}
-                        </Text>
+                {showSuggestButton && (
+                  <>
+                    {groupedSuggestions.event.length > 0 && (
+                      <View style={localStyles.suggestButton}>
+                        <View style={localStyles.suggestButtonHeaderLeft}>
+                          <Ionicons name="calendar" size={16} color="#A8793D" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={localStyles.suggestButtonText}>
+                              {t("planner.suggestedEventTimeLabel", {
+                                defaultValue: "Gợi ý theo sự kiện",
+                              })}
+                            </Text>
+                            <Text style={localStyles.suggestButtonReason}>
+                              {t("planner.suggestedEventSectionHint", {
+                                defaultValue:
+                                  "{{dayLabel}}: Đang có các sự kiện, vui lòng chọn sự kiện phù hợp để áp dụng giờ đến.",
+                                dayLabel: suggestionDayLabel,
+                              })}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={localStyles.suggestButtonDetailBox}>
+                          {groupedSuggestions.event.map((suggestion) => (
+                            <View key={suggestion.key} style={localStyles.suggestOptionBlock}>
+                              <View style={localStyles.suggestItemHeader}>
+                                <Text style={localStyles.suggestEventNameOneLine} numberOfLines={1}>
+                                  {suggestion.eventTitle ||
+                                    t("planner.event", { defaultValue: "Sự kiện" })}
+                                </Text>
+                                <Text style={localStyles.suggestItemMetaText}>
+                                  {suggestion.eventStartTime
+                                    ? suggestion.eventEndTime
+                                      ? `${suggestion.eventStartTime} - ${suggestion.eventEndTime}`
+                                      : suggestion.eventStartTime
+                                    : suggestion.baseTime || "--:--"}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={localStyles.applySuggestionBtn}
+                                activeOpacity={0.85}
+                                onPress={() =>
+                                  applySuggestedTime(suggestion.time, {
+                                    priority: suggestion.priority,
+                                    eventId: suggestion.eventId,
+                                  })
+                                }
+                              >
+                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
+                                <Text style={localStyles.applySuggestionBtnText}>
+                                  {t("planner.applySuggestedTimeCta", {
+                                    defaultValue: "Áp dụng {{time}}",
+                                    time: suggestion.time,
+                                  })}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
                       </View>
-                    </View>
+                    )}
 
-                    <View style={localStyles.suggestButtonDetailBox}>
-                      <View style={localStyles.suggestOptionBlock}>
-                        <Text style={localStyles.suggestOptionText}>
-                          {t("planner.suggestedArrivalSummary", {
-                            defaultValue:
-                              "Giờ gợi ý đã được tính theo lịch địa điểm và điều kiện hành trình hiện tại.",
-                          })}
-                        </Text>
+                    {groupedSuggestions.mass.length > 0 && (
+                      <View style={localStyles.suggestButton}>
+                        <View style={localStyles.suggestButtonHeaderLeft}>
+                          <Ionicons name="book-outline" size={16} color="#A8793D" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={localStyles.suggestButtonText}>
+                              {t("planner.suggestedMassTimeLabel", {
+                                defaultValue: "Gợi ý theo giờ lễ thường",
+                              })}
+                            </Text>
+                            <Text style={localStyles.suggestButtonReason}>
+                              {t("planner.suggestedMassSectionHint", {
+                                defaultValue:
+                                  "{{dayLabel}}: áp dụng khung giờ lễ thường phù hợp với kế hoạch di chuyển.",
+                                dayLabel: suggestionDayLabel,
+                              })}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={localStyles.suggestButtonDetailBox}>
+                          <View style={localStyles.suggestOptionBlock}>
+                            <Text style={localStyles.suggestItemTitleOneLine} numberOfLines={1}>
+                              {t("planner.regularMassDaily", {
+                                defaultValue: "Giờ lễ thường ngày",
+                              })}
+                            </Text>
+                            <View style={localStyles.massApplyList}>
+                              {groupedSuggestions.mass.map((suggestion) => (
+                              <TouchableOpacity
+                                key={suggestion.key}
+                                style={localStyles.applySuggestionBtn}
+                                activeOpacity={0.85}
+                                onPress={() =>
+                                  applySuggestedTime(suggestion.time, {
+                                    priority: suggestion.priority,
+                                  })
+                                }
+                              >
+                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
+                                <Text style={localStyles.applySuggestionBtnText}>
+                                  {t("planner.applySuggestedTimeCta", {
+                                    defaultValue: "Áp dụng {{time}}",
+                                    time: suggestion.time,
+                                  })}
+                                </Text>
+                              </TouchableOpacity>
+                              ))}
+                            </View>
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                  </View>
+                    )}
+
+                    {groupedSuggestions.opening.length > 0 && (
+                      <View style={localStyles.suggestButton}>
+                        <View style={localStyles.suggestButtonHeaderLeft}>
+                          <Ionicons name="time-outline" size={16} color="#A8793D" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={localStyles.suggestButtonText}>
+                              {t("planner.suggestedOpeningTimeLabel", {
+                                defaultValue: "Gợi ý theo giờ mở cửa",
+                              })}
+                            </Text>
+                            <Text style={localStyles.suggestButtonReason}>
+                              {t("planner.suggestedOpeningSectionHint", {
+                                defaultValue:
+                                  "{{dayLabel}}: tham chiếu giờ mở cửa để chọn thời điểm đến hợp lý.",
+                                dayLabel: suggestionDayLabel,
+                              })}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={localStyles.suggestButtonDetailBox}>
+                          {groupedSuggestions.opening.map((suggestion) => (
+                            <View key={suggestion.key} style={localStyles.suggestOptionBlock}>
+                              <View style={localStyles.suggestItemHeader}>
+                                <Text style={localStyles.suggestItemTitleOneLine} numberOfLines={1}>
+                                  {t("planner.openingHours", { defaultValue: "Giờ mở cửa" })}
+                                </Text>
+                                <Text style={localStyles.suggestItemMetaText}>
+                                  {suggestion.baseTime || "--:--"}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={localStyles.applySuggestionBtn}
+                                activeOpacity={0.85}
+                                onPress={() =>
+                                  applySuggestedTime(suggestion.time, {
+                                    priority: suggestion.priority,
+                                  })
+                                }
+                              >
+                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
+                                <Text style={localStyles.applySuggestionBtnText}>
+                                  {t("planner.applySuggestedTimeCta", {
+                                    defaultValue: "Áp dụng {{time}}",
+                                    time: suggestion.time,
+                                  })}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    {smartSuggestions.length === 0 && suggestedTime ? (
+                      <View style={localStyles.suggestButton}>
+                        <View style={localStyles.suggestButtonHeaderLeft}>
+                          <Ionicons name="sparkles" size={16} color="#A8793D" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={localStyles.suggestButtonText}>
+                              {t("planner.suggestedTimeLabel", {
+                                defaultValue: "Gợi ý giờ nên đến",
+                              })}
+                            </Text>
+                          </View>
+                        </View>
+                        <TouchableOpacity
+                          style={localStyles.applySuggestionBtn}
+                          activeOpacity={0.85}
+                          onPress={() =>
+                            applySuggestedTime(suggestedTime.time, {
+                              priority: suggestedTime.priority,
+                            })
+                          }
+                        >
+                          <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
+                          <Text style={localStyles.applySuggestionBtnText}>
+                            {t("planner.applySuggestedTimeCta", {
+                              defaultValue: "Áp dụng {{time}}",
+                              time: suggestedTime.time,
+                            })}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </>
                 )}
               </View>
             )}
@@ -1331,9 +1657,47 @@ const localStyles = StyleSheet.create({
     color: "#6D3F19",
   },
   suggestButtonReason: {
+    marginTop: 2,
     fontSize: 12,
-    color: "#5B3416",
+    color: "#6F5233",
     lineHeight: 17,
+  },
+  eventHighlightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  eventHighlightPill: {
+    maxWidth: "78%",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#FDECC8",
+    borderWidth: 1,
+    borderColor: "#D9A868",
+  },
+  eventHighlightPillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#7C2D12",
+  },
+  eventTimePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "#FFF7EC",
+    borderWidth: 1,
+    borderColor: "#D9A868",
+  },
+  eventTimePillText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#7C2D12",
   },
   suggestButtonDetailBox: {
     marginTop: 12,
@@ -1347,10 +1711,52 @@ const localStyles = StyleSheet.create({
     padding: 10,
     gap: 4,
   },
-  suggestOptionText: {
+  suggestItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 4,
+  },
+  suggestEventNameOneLine: {
+    flex: 1,
     fontSize: 12,
-    lineHeight: 17,
-    color: "#5B3416",
+    fontWeight: "800",
+    color: "#7C2D12",
+  },
+  suggestItemTitleOneLine: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7C2D12",
+  },
+  suggestItemMetaText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#92400E",
+  },
+  massApplyList: {
+    marginTop: 6,
+    gap: 8,
+  },
+  applySuggestionBtn: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#FDECC8",
+    borderWidth: 1,
+    borderColor: "#D9A868",
+  },
+  applySuggestionBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#7C2D12",
   },
 
   // ── New Styles ──

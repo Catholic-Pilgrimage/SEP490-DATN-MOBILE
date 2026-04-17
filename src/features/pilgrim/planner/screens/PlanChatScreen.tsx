@@ -12,6 +12,7 @@ import {
   ImageBackground,
   Keyboard,
   Platform,
+  RefreshControl,
   Animated as RNAnimated,
   StyleSheet,
   Text,
@@ -37,6 +38,18 @@ import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
 const POLL_INTERVAL = 8000;
 const PAGE_SIZE = 30;
 
+type StructuredChatMessage = {
+  message_key?: string;
+  params?: Record<string, unknown>;
+  default_message?:
+    | string
+    | {
+        vi?: string;
+        en?: string;
+        [key: string]: string | undefined;
+      };
+};
+
 /** Mới → cũ (tin mới nhất ở đầu mảng), dùng cho inverted list. */
 const sortMessagesNewestFirst = (msgs: PlannerMessage[]): PlannerMessage[] =>
   [...msgs].sort(
@@ -60,6 +73,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -205,6 +219,16 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     setPage(nextPage);
     setLoadingMore(false);
   }, [hasMore, loadingMore, page, fetchMessages]);
+
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      setPullRefreshing(true);
+      setPage(1);
+      await fetchMessages(1, false);
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [fetchMessages]);
 
   // --- Send message (Optimistic UI) ---
   const handleSend = useCallback(async () => {
@@ -508,6 +532,98 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     return curDay !== olderDay;
   };
 
+  const resolveMessageContent = useCallback(
+    (rawContent: unknown): string => {
+      if (rawContent === null || rawContent === undefined) return "";
+      let parsed: StructuredChatMessage | null = null;
+
+      const toStructuredPayload = (input: unknown): StructuredChatMessage | null => {
+        if (!input) return null;
+
+        if (typeof input === "object") {
+          return input as StructuredChatMessage;
+        }
+
+        if (typeof input !== "string") {
+          return null;
+        }
+
+        const parseJsonSafely = (value: string): unknown => {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return null;
+          }
+        };
+
+        const trimmed = input.trim();
+        if (!trimmed) return null;
+
+        let firstParsed = parseJsonSafely(trimmed);
+
+        // Handle JSON-like payloads from BE where object keys are missing quotes.
+        if (!firstParsed && trimmed.startsWith("{") && trimmed.endsWith("}")) {
+          const normalized = trimmed.replace(
+            /([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*:)/g,
+            '$1"$2"$3',
+          );
+          firstParsed = parseJsonSafely(normalized);
+        }
+
+        // Handle double-encoded JSON payloads.
+        if (typeof firstParsed === "string") {
+          const nested = parseJsonSafely(firstParsed.trim());
+          if (nested && typeof nested === "object") {
+            return nested as StructuredChatMessage;
+          }
+        }
+
+        if (firstParsed && typeof firstParsed === "object") {
+          return firstParsed as StructuredChatMessage;
+        }
+
+        return null;
+      };
+
+      parsed = toStructuredPayload(rawContent);
+      if (!parsed) {
+        return typeof rawContent === "string" ? rawContent : String(rawContent);
+      }
+
+      try {
+        if (!parsed || typeof parsed !== "object") {
+          return typeof rawContent === "string" ? rawContent : String(rawContent);
+        }
+
+        const languageKey =
+          i18n.resolvedLanguage?.toLowerCase().startsWith("vi") ? "vi" : "en";
+
+        const fallbackMessage =
+          typeof parsed.default_message === "string"
+            ? parsed.default_message
+            : parsed.default_message?.[languageKey] ||
+              parsed.default_message?.vi ||
+              parsed.default_message?.en;
+
+        if (parsed.message_key) {
+          return t(parsed.message_key, {
+            ...(parsed.params || {}),
+            defaultValue: fallbackMessage || parsed.message_key,
+          });
+        }
+
+        if (fallbackMessage) {
+          return fallbackMessage;
+        }
+
+        return typeof rawContent === "string" ? rawContent : String(rawContent);
+      } catch {
+        return typeof rawContent === "string" ? rawContent : String(rawContent);
+      }
+    },
+    [i18n.resolvedLanguage, t],
+  );
+
   // --- Render message ---
   const renderMessage = ({
     item,
@@ -516,6 +632,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     item: PlannerMessage;
     index: number;
   }) => {
+    const resolvedContent = resolveMessageContent(item.content);
     const isSystemMsg = item.message_type === 'system' || (!item.user_id && !item.sender && !item.user);
 
     if (isSystemMsg) {
@@ -642,9 +759,9 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
                   resizeMode="cover"
                 />
               ) : null}
-              {item.content ? (
+              {resolvedContent ? (
                 <Text style={[styles.messageText, own && styles.messageTextOwn]}>
-                  {parseNotificationMessage(item.content, i18n.language)}
+                  {resolvedContent}
                 </Text>
               ) : null}
               {(!isNextSameUser || item.message_type === "image") && (
@@ -729,6 +846,15 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
                 style={{ marginVertical: SPACING.md }}
               />
             ) : null
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={pullRefreshing}
+              onRefresh={handlePullRefresh}
+              progressViewOffset={Math.max(insets.top, 0) + 8}
+              colors={[COLORS.accent]}
+              tintColor={COLORS.accent}
+            />
           }
         />
       )}

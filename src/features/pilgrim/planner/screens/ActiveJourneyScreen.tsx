@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -77,6 +78,24 @@ const compareItemsInDay = (a: PlanItem, b: PlanItem) => {
   return String(a.site?.name || "").localeCompare(String(b.site?.name || ""));
 };
 
+const normalizeItemStatus = (status: unknown): string =>
+  String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_")
+    .replace(/-/g, "_");
+
+const isHandledItemStatus = (status: unknown): boolean => {
+  const normalized = normalizeItemStatus(status);
+  return (
+    normalized === "visited" ||
+    normalized === "skipped" ||
+    normalized === "checked_in" ||
+    normalized === "completed" ||
+    normalized === "done"
+  );
+};
+
 export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -115,6 +134,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const [skipReasonModalVisible, setSkipReasonModalVisible] =
     React.useState(false);
   const [skipReason, setSkipReason] = React.useState("");
+  const [pullRefreshing, setPullRefreshing] = React.useState(false);
+  const [lastClosedDayNumber, setLastClosedDayNumber] = React.useState(0);
+  const [closingDayNumber, setClosingDayNumber] = React.useState<number | null>(
+    null,
+  );
   const [skipReasonItem, setSkipReasonItem] = React.useState<PlanItem | null>(
     null,
   );
@@ -156,11 +180,55 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     }
   }, [sortedDays, todayIdx, selectedDay]);
 
+  const getLastClosedDayFromPlan = useCallback(
+    (sourcePlan: any): number => {
+      if (!sourcePlan || typeof sourcePlan !== "object") return 0;
+
+      const rawClosedDays = sourcePlan.closed_days || sourcePlan.closedDays;
+      if (Array.isArray(rawClosedDays)) {
+        const fromArray = rawClosedDays
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isFinite(value) && value > 0)
+          .reduce((acc: number, value: number) => Math.max(acc, Math.floor(value)), 0);
+        if (fromArray > 0) return fromArray;
+      }
+
+      const directCandidates = [
+        sourcePlan.last_closed_day,
+        sourcePlan.last_closed_day_number,
+        sourcePlan.lastClosedDay,
+      ];
+
+      for (const candidate of directCandidates) {
+        const numeric = Number(candidate);
+        if (!Number.isFinite(numeric) || numeric <= 0) continue;
+        return Math.max(0, Math.floor(numeric));
+      }
+
+      return 0;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const fromPlan = getLastClosedDayFromPlan(plan);
+    setLastClosedDayNumber((current) => Math.max(current, fromPlan));
+  }, [getLastClosedDayFromPlan, plan]);
+
   useFocusEffect(
     useCallback(() => {
       refreshPlan();
     }, [refreshPlan]),
   );
+
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      setPullRefreshing(true);
+      await refreshPlan();
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [refreshPlan]);
 
   const allItemsFlat = useMemo(() => {
     if (!plan?.items_by_day) return [];
@@ -169,14 +237,43 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     );
   }, [plan?.items_by_day, sortedDays]);
 
+  const nextDayToClose = useMemo(() => lastClosedDayNumber + 1, [lastClosedDayNumber]);
+
+  const actionableDayKey = useMemo(() => {
+    if (!sortedDays.length) return "";
+    const exact = sortedDays.find((dayKey) => Number(dayKey) === nextDayToClose);
+    if (exact) return exact;
+    return sortedDays[sortedDays.length - 1] || "";
+  }, [nextDayToClose, sortedDays]);
+
+  const actionableDayItems = useMemo(
+    () => [...(plan?.items_by_day?.[actionableDayKey] || [])].sort(compareItemsInDay),
+    [actionableDayKey, plan?.items_by_day],
+  );
+
+  const isHandledStatus = useCallback(
+    (item: PlanItem) => {
+      const status = normalizeItemStatus(item.status);
+      return (
+        isHandledItemStatus(status) ||
+        (item.id ? checkedInIds.has(item.id) : false)
+      );
+    },
+    [checkedInIds],
+  );
+
+  const isActionableDayHandled = useMemo(() => {
+    if (!actionableDayItems.length) return false;
+    return actionableDayItems.every((item) => isHandledStatus(item));
+  }, [actionableDayItems, isHandledStatus]);
+
   const nextPendingItem = useMemo(
     () =>
-      allItemsFlat.find((item) => {
+      actionableDayItems.find((item) => {
         if (!item?.id) return false;
-        const status = String(item.status || "").toLowerCase();
-        return status !== "visited" && status !== "skipped";
+        return !isHandledStatus(item);
       }) || null,
-    [allItemsFlat],
+    [actionableDayItems, isHandledStatus],
   );
 
   const journalPrefillItem = useMemo(() => {
@@ -242,6 +339,170 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       [...(plan?.items_by_day?.[selectedDay] || [])].sort(compareItemsInDay),
     [plan?.items_by_day, selectedDay],
   );
+
+  const selectedDayNumber = Number(selectedDay);
+  const isSelectedDayHandled =
+    selectedDayItems.length > 0 &&
+    selectedDayItems.every((item) => isHandledStatus(item));
+
+  const closeTargetDayNumber = useMemo(() => {
+    if (Number.isFinite(selectedDayNumber) && selectedDayNumber > 0) {
+      return Math.floor(selectedDayNumber);
+    }
+    const fallback = Number(actionableDayKey || nextDayToClose);
+    if (!Number.isFinite(fallback) || fallback <= 0) return nextDayToClose;
+    return Math.floor(fallback);
+  }, [actionableDayKey, nextDayToClose, selectedDayNumber]);
+
+  const closeTargetDateLabel = useMemo(() => {
+    if (!plan?.start_date || closeTargetDayNumber <= 0) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: closeTargetDayNumber,
+      });
+    }
+
+    const baseDate = new Date(plan.start_date);
+    if (Number.isNaN(baseDate.getTime())) {
+      return t("planner.dayNumberOnly", {
+        defaultValue: "Ngày {{day}}",
+        day: closeTargetDayNumber,
+      });
+    }
+
+    baseDate.setDate(baseDate.getDate() + Math.max(0, closeTargetDayNumber - 1));
+    return baseDate.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }, [closeTargetDayNumber, plan?.start_date, t]);
+
+  const canShowCloseDayCta =
+    !!plan &&
+    !!user?.id &&
+    String(plan.user_id) === String(user.id) &&
+    String(plan.status || "").toLowerCase() === "ongoing" &&
+    Number.isFinite(selectedDayNumber) &&
+    selectedDayNumber > 0 &&
+    selectedDayNumber === nextDayToClose &&
+    isSelectedDayHandled;
+
+  const actionableDayNumber = useMemo(() => {
+    const raw = Number(actionableDayKey || nextDayToClose);
+    if (!Number.isFinite(raw) || raw <= 0) return nextDayToClose;
+    return Math.floor(raw);
+  }, [actionableDayKey, nextDayToClose]);
+
+  const isViewingNonCurrentDay =
+    Number.isFinite(selectedDayNumber) &&
+    selectedDayNumber > 0 &&
+    selectedDayNumber !== actionableDayNumber;
+
+  const isViewingPastClosedDay =
+    isViewingNonCurrentDay && selectedDayNumber < actionableDayNumber;
+
+  const returnCurrentDayLabel = isViewingPastClosedDay
+    ? t("planner.closedDayReturnCurrent", {
+        defaultValue: "Đã chốt: Quay lại ngày hiện tại",
+      })
+    : t("planner.returnCurrentDay", {
+        defaultValue: "Quay lại ngày hiện tại",
+      });
+
+  const handleCloseSelectedDay = useCallback(async () => {
+    if (!plan?.id) return;
+    const dayNumber = closeTargetDayNumber;
+    if (!Number.isFinite(dayNumber) || dayNumber <= 0) return;
+
+    const expectedDay = lastClosedDayNumber + 1;
+    if (dayNumber !== expectedDay) {
+      Toast.show({
+        type: "info",
+        text1: t("planner.closeDaySequenceTitle", {
+          defaultValue: "Không thể chốt ngày này",
+        }),
+        text2: t("planner.closeDaySequenceMessage", {
+          defaultValue: "Bạn cần chốt lần lượt. Hãy chốt ngày {{day}} trước.",
+          day: expectedDay,
+        }),
+      });
+      return;
+    }
+
+    const dayItems = plan.items_by_day?.[String(dayNumber)] || [];
+    const dayHandled = dayItems.length > 0 && dayItems.every((item) => isHandledStatus(item));
+    if (!dayHandled) {
+      Toast.show({
+        type: "info",
+        text1: t("planner.closeDayNotReadyTitle", {
+          defaultValue: "Chưa thể chốt ngày",
+        }),
+        text2: t("planner.closeDayNotReadyMessage", {
+          defaultValue: "Cần xử lý hết các điểm trong ngày trước khi chốt.",
+        }),
+      });
+      return;
+    }
+
+    try {
+      setClosingDayNumber(dayNumber);
+      const response = await pilgrimPlannerApi.closePlannerDay(plan.id, dayNumber);
+      if (!response.success) {
+        throw new Error(
+          response.message ||
+            t("planner.closeDayFailed", {
+              defaultValue: "Không thể chốt ngày. Vui lòng thử lại.",
+            }),
+        );
+      }
+
+      const closedDay = Number(response.data?.closed_day || dayNumber);
+      const nextDay = Number(response.data?.next_day_to_close || closedDay + 1);
+
+      setLastClosedDayNumber((current) => Math.max(current, closedDay));
+      await refreshPlan();
+      setSelectedDay(String(nextDay));
+
+      Toast.show({
+        type: "success",
+        text1: t("planner.dayClosedTitle", {
+          defaultValue: "Đã chốt ngày thành công",
+        }),
+        text2: t("planner.dayClosedMessage", {
+          defaultValue: "Ngày {{day}} đã khóa, chuyển sang ngày {{nextDay}}.",
+          day: closedDay,
+          nextDay,
+        }),
+      });
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: t("planner.closeDayFailed", {
+          defaultValue: "Không thể chốt ngày",
+        }),
+        text2:
+          error?.message ||
+          t("common.retry", { defaultValue: "Vui lòng thử lại" }),
+      });
+    } finally {
+      setClosingDayNumber(null);
+    }
+  }, [
+    closeTargetDayNumber,
+    isHandledStatus,
+    lastClosedDayNumber,
+    plan,
+    refreshPlan,
+    t,
+  ]);
+
+  useEffect(() => {
+    if (!actionableDayKey) return;
+    if (!selectedDay) {
+      setSelectedDay(actionableDayKey);
+    }
+  }, [actionableDayKey, selectedDay]);
 
   const isLastItem = useMemo(() => {
     if (allItemsFlat.length === 0 || !nextPendingItem) return false;
@@ -313,7 +574,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     const items = Object.values(plan.items_by_day).flat();
     if (!items.length) return false;
     return items.every((item) => {
-      return item.status === "visited" || item.status === "skipped";
+      return isHandledItemStatus(item.status);
     });
   }, [plan?.items_by_day]);
 
@@ -458,7 +719,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     isAlreadyCheckedIn;
   const nextSiteName =
     nextPendingItem?.site?.name ||
-    t("planner.active.nextStop", { defaultValue: "Điểm tiếp theo" });
+    t("planner.active.noNextStop", { defaultValue: "Chưa có điểm tiếp theo" });
 
   // Calculate floating CTA height for ScrollView padding (only check-in btn now)
   const FLOATING_CTA_HEIGHT = 90;
@@ -543,6 +804,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           paddingBottom: FLOATING_CTA_HEIGHT + insets.bottom + 24,
         }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={handlePullRefresh}
+            progressViewOffset={Math.max(insets.top, 0) + 8}
+            colors={[COLORS.accent]}
+            tintColor={COLORS.accent}
+          />
+        }
       >
         {/* BANNER */}
         <PlanHeader plan={plan} firstItem={nextPendingItem || firstItem} />
@@ -617,7 +887,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             </View>
             <Text style={styles.toolbarBtnText}>
               {isSoloPlan
-                ? t("planner.groupProgress", { defaultValue: "Tiến độ" })
+                ? t("planner.progress", {
+                    defaultValue: "Tiến độ",
+                  })
                 : t("planner.crewTitle", { defaultValue: "Thành viên" })}
             </Text>
           </TouchableOpacity>
@@ -707,7 +979,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* FLOATING BOTTOM CTA - Only Check-in button now */}
+      {/* FLOATING BOTTOM CTA - Check-in or Close Day (owner) */}
       <LinearGradient
         colors={["transparent", COLORS.background, COLORS.background]}
         locations={[0, 0.35, 1]}
@@ -716,38 +988,77 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           { paddingBottom: insets.bottom + 16 },
         ]}
       >
-        {/* PRIMARY CHECK-IN BUTTON */}
-        <TouchableOpacity
-          style={[
-            styles.stickyCheckinBtn,
-            isAlreadyCheckedIn && styles.stickyCheckinBtnDisabled,
-          ]}
-          disabled={isCheckInDisabled}
-          onPress={() => setPhotoSheetVisible(true)}
-          activeOpacity={0.82}
-        >
-          {checkingInItemId === nextPendingItem?.id ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Ionicons
-                name={isAlreadyCheckedIn ? "checkmark-done-circle" : "location"}
-                size={20}
-                color="#fff"
-              />
-              <Text style={styles.stickyCheckinText} numberOfLines={1}>
-                {isAlreadyCheckedIn
-                  ? t("planner.active.checkedInThisStop", {
-                      defaultValue: "Đã check-in điểm này ✓",
-                    })
-                  : t("planner.active.checkInAt", {
-                      defaultValue: "Check-in: {{site}}",
-                      site: nextSiteName,
-                    })}
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {isViewingNonCurrentDay ? (
+          <TouchableOpacity
+            style={[styles.stickyCheckinBtn, styles.stickyReturnCurrentDayBtn]}
+            onPress={() => setSelectedDay(String(actionableDayNumber))}
+            activeOpacity={0.82}
+          >
+            <Ionicons name="return-down-back-outline" size={20} color="#fff" />
+            <Text style={styles.stickyCheckinText} numberOfLines={1}>
+              {returnCurrentDayLabel}
+            </Text>
+          </TouchableOpacity>
+        ) : canShowCloseDayCta ? (
+          <TouchableOpacity
+            style={[
+              styles.stickyCheckinBtn,
+              styles.stickyCloseDayBtn,
+              closingDayNumber === closeTargetDayNumber &&
+                styles.stickyCheckinBtnDisabled,
+            ]}
+            disabled={closingDayNumber === closeTargetDayNumber}
+            onPress={() => void handleCloseSelectedDay()}
+            activeOpacity={0.82}
+          >
+            {closingDayNumber === closeTargetDayNumber ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="lock-closed-outline" size={20} color="#fff" />
+                <Text style={styles.stickyCheckinText} numberOfLines={1}>
+                  {t("planner.closeDayWithDate", {
+                    defaultValue: "Chốt ngày {{day}} ({{date}})",
+                    day: closeTargetDayNumber,
+                    date: closeTargetDateLabel,
+                  })}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[
+              styles.stickyCheckinBtn,
+              isAlreadyCheckedIn && styles.stickyCheckinBtnDisabled,
+            ]}
+            disabled={isCheckInDisabled}
+            onPress={() => setPhotoSheetVisible(true)}
+            activeOpacity={0.82}
+          >
+            {checkingInItemId === nextPendingItem?.id ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons
+                  name={isAlreadyCheckedIn ? "checkmark-done-circle" : "location"}
+                  size={20}
+                  color="#fff"
+                />
+                <Text style={styles.stickyCheckinText} numberOfLines={1}>
+                  {isAlreadyCheckedIn
+                    ? t("planner.active.checkedInThisStop", {
+                        defaultValue: "Đã check-in điểm này ✓",
+                      })
+                    : t("planner.active.checkInAt", {
+                        defaultValue: "Check-in: {{site}}",
+                        site: nextSiteName,
+                      })}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </LinearGradient>
 
       {/* Check-in Photo Picker Sheet */}
@@ -1040,6 +1351,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  stickyCloseDayBtn: {
+    backgroundColor: "#0F766E",
+    shadowColor: "#0F766E",
+  },
+  stickyReturnCurrentDayBtn: {
+    backgroundColor: "#374151",
+    shadowColor: "#374151",
   },
   stickyCheckinBtnDisabled: {
     backgroundColor: "#9CA3AF",

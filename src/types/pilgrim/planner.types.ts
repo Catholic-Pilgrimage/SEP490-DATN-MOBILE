@@ -483,6 +483,14 @@ export interface UpdatePlannerLockRequest {
   locked: boolean;
 }
 
+/** POST /api/planners/:id/days/:dayNumber/close */
+export interface ClosePlannerDayResponse {
+  planner_id: string;
+  closed_day: number;
+  next_day_to_close: number;
+  has_next_day: boolean;
+}
+
 /**
  * PATCH /planners/:id/items/:itemId/status — CheckinController.updateItemStatus
  * visited: có thể cần bước 2 với confirm_missed + skip_reason khi BE trả requires_confirmation

@@ -283,7 +283,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
         onPressOut={handlePressOut}
       >
         <Animated.View
-          style={[styles.card, { transform: [{ scale: scaleValue }] }]}
+          style={[
+            styles.card,
+            { transform: [{ scale: scaleValue }] },
+          ]}
         >
           {/* Torn edge top decoration */}
           <View style={styles.tornEdgeTop} />
@@ -341,13 +344,13 @@ export const PlanCard: React.FC<PlanCardProps> = ({
                   </Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Ionicons name="calendar" size={16} color="#4A7A95" />
+                  <Ionicons name="calendar" size={16} color="#7A5C30" />
                   <Text style={styles.infoText}>
-                    <Text style={{ fontWeight: "700", color: "#2C5F73" }}>
+                    <Text style={{ fontWeight: "800", color: "#4A3110" }}>
                       {durationDays}{" "}
                       {t("planner.daysUpper", { defaultValue: "NGÀY" })}{" "}
                     </Text>
-                    <Text style={{ color: "#6B8CA3" }}>({dateStr})</Text>
+                    <Text style={{ color: "#7A5C30", fontWeight: "600" }}>({dateStr})</Text>
                   </Text>
                 </View>
               </View>

@@ -16,6 +16,7 @@ import {
   AppState,
   Image,
   Platform,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -204,6 +205,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const insets = useSafeAreaInsets();
   const [plan, setPlan] = useState<PlanEntity | null>(initialPrefilledPlan);
   const [loading, setLoading] = useState(true);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
 
   const isPlanOwner = useMemo(
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
@@ -502,6 +504,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   // Time picker state (shared)
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempTime, setTempTime] = useState(new Date());
+  const [lastClosedDayNumber, setLastClosedDayNumber] = useState(0);
 
   const selectedDayDateLabel = useMemo(() => {
     if (!plan?.start_date) {
@@ -533,6 +536,94 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     return `${weekday}, ${dateText}`;
   }, [plan?.start_date, selectedDay, t]);
 
+  const getLastClosedDayFromPlan = useCallback(
+    (sourcePlan: PlanEntity | null | undefined): number => {
+      const p = sourcePlan as any;
+      if (!p || typeof p !== "object") return 0;
+
+      const rawClosedDays = p.closed_days || p.closedDays;
+      if (Array.isArray(rawClosedDays)) {
+        const maxClosed = rawClosedDays
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value > 0)
+          .reduce((acc, value) => Math.max(acc, Math.floor(value)), 0);
+        if (maxClosed > 0) return maxClosed;
+      }
+
+      const directCandidates = [
+        p.last_closed_day,
+        p.last_closed_day_number,
+        p.lastClosedDay,
+      ];
+
+      for (const candidate of directCandidates) {
+        const numeric = Number(candidate);
+        if (!Number.isFinite(numeric)) continue;
+        if (numeric <= 0) continue;
+
+        return Math.max(0, Math.floor(numeric));
+      }
+
+      const nextDayToClose = Number(p.next_day_to_close ?? p.nextDayToClose);
+      if (Number.isFinite(nextDayToClose) && nextDayToClose > 1) {
+        return Math.max(0, Math.floor(nextDayToClose - 1));
+      }
+
+      const legacyClosedDay = Number(p.closed_day);
+      if (Number.isFinite(legacyClosedDay) && legacyClosedDay > 0) {
+        return Math.max(0, Math.floor(legacyClosedDay));
+      }
+
+      return 0;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const fromPlan = getLastClosedDayFromPlan(plan);
+    setLastClosedDayNumber((current) => Math.max(current, fromPlan));
+  }, [getLastClosedDayFromPlan, plan]);
+
+  const inferClosedDayFromProgress = useMemo(() => {
+    if (String(plan?.status || "").toLowerCase() !== "ongoing") return 0;
+
+    const totalDays =
+      Number(plan?.number_of_days) ||
+      (plan?.items_by_day ? Object.keys(plan.items_by_day).length : 0);
+    if (!totalDays || totalDays <= 0) return 0;
+
+    const isHandled = (item: PlanItem) => {
+      const status = String(item.status || "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/-/g, "_");
+      return (
+        status === "visited" ||
+        status === "skipped" ||
+        status === "checked_in" ||
+        status === "completed" ||
+        status === "done"
+      );
+    };
+
+    let inferred = 0;
+    for (let day = 1; day <= totalDays; day += 1) {
+      const dayItems = sortPlanDayItems(plan?.items_by_day?.[String(day)] || []);
+      if (dayItems.length === 0) break;
+      const allHandled = dayItems.every(isHandled);
+      if (!allHandled) break;
+      inferred = day;
+    }
+
+    return inferred;
+  }, [plan?.items_by_day, plan?.number_of_days, plan?.status]);
+
+  const effectiveLastClosedDayNumber = useMemo(
+    () => Math.max(lastClosedDayNumber, inferClosedDayFromProgress),
+    [inferClosedDayFromProgress, lastClosedDayNumber],
+  );
+
   // ── Add Site Flow (hook) ──
   const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
 
@@ -552,6 +643,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setShowEditItemModal,
     editingItem,
     editEstimatedTime,
+    setEditEstimatedTime,
     editRestDuration,
     setEditRestDuration,
     editNote,
@@ -893,11 +985,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     if (isAddModalVisible) {
       if (activeTab === "all") {
         fetchSites({ limit: 20 });
+        if (!hasLoadedEventSites) {
+          void loadEventSites();
+        }
       } else {
         fetchFavorites();
       }
     }
-  }, [isAddModalVisible, activeTab]);
+  }, [isAddModalVisible, activeTab, hasLoadedEventSites]);
 
   const fetchFavorites = async () => {
     try {
@@ -2436,6 +2531,24 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   });
 
   const openAddModal = (day: number) => {
+    if (
+      String(plan?.status || "").toLowerCase() === "ongoing" &&
+      day <= effectiveLastClosedDayNumber
+    ) {
+      Toast.show({
+        type: "error",
+        text1: t("planner.addItemFailedTitle", {
+          defaultValue: "Không thể thêm địa điểm",
+        }),
+        text2: t("planner.dayAlreadyClosedCannotAdd", {
+          defaultValue:
+            "Ngày {{day}} đã được chốt nên không thể thêm địa điểm mới.",
+          day,
+        }),
+      });
+      return;
+    }
+
     setSelectedDay(day);
     setAddFlowOriginDay(day);
     runGuardedUiAction(`open-add-modal-day-${day}`, () => {
@@ -3683,6 +3796,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const isCompletedPlan = planStatusStr === "completed";
   const isOngoingPlan = planStatusStr === "ongoing";
   const isSoloPlan = Number(plan?.number_of_people || 1) <= 1;
+  const canDeleteItems =
+    isPlanOwner &&
+    !plan?.is_locked &&
+    (planStatusStr === "planning" || planStatusStr === "draft");
 
   return (
     <View style={styles.container}>
@@ -3904,6 +4021,22 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={pullRefreshing}
+            onRefresh={async () => {
+              setPullRefreshing(true);
+              try {
+                await loadPlan({ silent: true });
+              } finally {
+                setPullRefreshing(false);
+              }
+            }}
+            progressViewOffset={Math.max(insets.top, 0) + 8}
+            colors={[COLORS.accent]}
+            tintColor={COLORS.accent}
+          />
+        }
       >
         <View style={styles.quickActionsRow}>
           {/* Chat nhóm — chỉ hiện cho nhóm và không bị dropout */}
@@ -3949,7 +4082,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 />
                 <Text style={styles.quickActionText}>
                   {isSoloPlan
-                    ? t("planner.groupProgress", {
+                    ? t("planner.progress", {
                         defaultValue: "Tiến độ",
                       })
                     : t("planner.crewTitle", {
@@ -4265,7 +4398,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             {t("planner.pilgrimRoute", { defaultValue: "Lộ trình hành hương" })}
           </Text>
 
-          {isPlanOwner &&
+          {canDeleteItems &&
             ["planning", "draft"].includes(
               String(plan?.status || "").toLowerCase(),
             ) &&
@@ -4306,7 +4439,12 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           sortedDays.map((dayKey) => {
             const items = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
             const dayNumber = Number(dayKey);
+            const canShowDaySyncAction =
+              isPlanOwner &&
+              planStatusStr === "planning" &&
+              !plan?.is_locked;
             const showEtaSyncWarning =
+              canShowDaySyncAction &&
               etaSyncFromDay !== null &&
               Number.isFinite(dayNumber) &&
               dayNumber === etaSyncFromDay &&
@@ -4319,14 +4457,20 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 startDate={plan.start_date}
                 planStatus={planStatusStr}
                 isPlanOwner={isPlanOwner}
+                canDeleteItems={canDeleteItems}
                 swapPick={swapPick}
                 setSwapPick={setSwapPick}
                 setSelectedItem={setSelectedItem}
                 handleReorderIconPress={handleReorderIconPress}
                 handleDeleteItem={handleDeleteItem}
-                onReloadDayFromPrevious={handleReloadDayFromPreviousWithConfirm}
+                onReloadDayFromPrevious={
+                  canShowDaySyncAction
+                    ? handleReloadDayFromPreviousWithConfirm
+                    : undefined
+                }
                 reloadingDayNumber={reloadingDayNumber}
                 showEtaSyncWarning={showEtaSyncWarning}
+                lastClosedDayNumber={effectiveLastClosedDayNumber}
                 openAddModal={openAddModal}
                 t={t}
                 getDateForDayCalc={getDateForDay}
@@ -4461,6 +4605,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         crossDayWarning={addSiteFlow.crossDayWarning}
         crossDaysAdded={addSiteFlow.crossDaysAdded}
         estimatedTime={addSiteFlow.estimatedTime}
+        onApplySuggestedTime={addSiteFlow.applySuggestedTime}
         restDuration={addSiteFlow.restDuration}
         setRestDuration={addSiteFlow.setRestDuration}
         note={addSiteFlow.note}
@@ -4496,6 +4641,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         crossDayWarning={editScheduleContext.crossDayWarning}
         crossDaysAdded={editScheduleContext.crossDaysAdded}
         estimatedTime={editEstimatedTime}
+        onApplySuggestedTime={setEditEstimatedTime}
         restDuration={editRestDuration}
         setRestDuration={setEditRestDuration}
         note={editNote}
@@ -4556,6 +4702,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         handleOpenEditItem={handleOpenEditItem}
         handleDeleteItem={handleDeleteItem}
         isPlanOwner={isPlanOwner}
+        canDeleteItems={canDeleteItems}
       />
 
       {/* Edit Time Picker */}
