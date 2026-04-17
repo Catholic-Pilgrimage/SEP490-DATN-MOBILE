@@ -2265,11 +2265,6 @@ export default function PostDetailScreen() {
             );
             return;
           }
-
-          if (response.data?.name) {
-            setResolvedSiteName(response.data.name);
-            return;
-          }
         } catch {
           // Fall through to site lookup.
         }

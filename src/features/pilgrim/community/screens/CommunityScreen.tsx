@@ -1370,11 +1370,10 @@ export default function CommunityScreen() {
       item,
       plannerItemSiteNamesById,
     );
-    const plannerId = getFeedPostPlannerId(item);
+
     const fallbackLocationName =
       (siteId ? siteNamesById[siteId] : undefined) ||
       plannerLocationName ||
-      (plannerId ? plannerNamesById[plannerId] : undefined) ||
       (item.journal_id ? journalLocationNamesById[item.journal_id] : undefined);
 
     return (
