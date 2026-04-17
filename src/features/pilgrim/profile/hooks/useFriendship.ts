@@ -1,6 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Toast from "react-native-toast-message";
+import { FRIENDSHIP_KEYS } from "../../../../constants/queryKeys";
 import { pilgrimFriendshipApi } from "../../../../services/api/pilgrim";
 import {
   FriendshipListItem,
@@ -9,6 +11,7 @@ import {
 
 export const useFriendship = () => {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [friends, setFriends] = useState<FriendshipListItem[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendshipListItem[]>(
@@ -82,6 +85,10 @@ export const useFriendship = () => {
           // Refresh lists
           await fetchPendingRequests();
           if (action === "accept") await fetchFriends();
+
+          // Global sync with React Query
+          queryClient.invalidateQueries({ queryKey: FRIENDSHIP_KEYS.all });
+
           return true;
         }
 
@@ -100,7 +107,7 @@ export const useFriendship = () => {
         return false;
       }
     },
-    [fetchFriends, fetchPendingRequests, t],
+    [fetchFriends, fetchPendingRequests, queryClient, t],
   );
 
   const removeFriend = useCallback(
@@ -114,6 +121,10 @@ export const useFriendship = () => {
             text2: res.message || t("friends.removeSuccessMsg", { name }),
           });
           await fetchFriends();
+
+          // Global sync with React Query
+          queryClient.invalidateQueries({ queryKey: FRIENDSHIP_KEYS.all });
+
           return true;
         }
 
@@ -132,7 +143,7 @@ export const useFriendship = () => {
         return false;
       }
     },
-    [fetchFriends, t],
+    [fetchFriends, queryClient, t],
   );
 
   const sendRequest = useCallback(
@@ -163,7 +174,7 @@ export const useFriendship = () => {
         return false;
       }
     },
-    [t],
+    [queryClient, t],
   );
 
   const searchUserByEmail = useCallback(
