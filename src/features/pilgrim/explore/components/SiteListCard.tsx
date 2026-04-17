@@ -106,13 +106,17 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
               {reviewCount > 50 ? (
                   <>
                     <Ionicons name="sparkles" size={12} color="#EAB308" />
-                    <Text style={styles.statTextHighlight}>Nổi bật</Text>
+                    <Text style={styles.statTextHighlight}>{t('explore.featured', { defaultValue: 'Nổi bật' })}</Text>
                   </>
               ) : (
                   <>
                     <Ionicons name="star" size={12} color="#EAB308" />
                     <Text style={styles.statText}>
-                      {reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount} lượt đánh giá
+                      {t('explore.reviewsCount', { 
+                        count: reviewCount,
+                        displayCount: reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount,
+                        defaultValue: `${reviewCount > 1000 ? `${(reviewCount / 1000).toFixed(1)}k` : reviewCount} lượt đánh giá` 
+                      })}
                     </Text>
                   </>
               )}
@@ -120,7 +124,7 @@ export const SiteListCard: React.FC<SiteListCardProps> = ({
           ) : (
              <View style={styles.statItem}>
                <Ionicons name="leaf-outline" size={14} color={COLORS.primary} />
-               <Text style={styles.statText}>Khám phá ngay</Text>
+               <Text style={styles.statText}>{t('explore.exploreNow', { defaultValue: 'Khám phá ngay' })}</Text>
              </View>
           )}
 

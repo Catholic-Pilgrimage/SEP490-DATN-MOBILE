@@ -25,6 +25,12 @@ interface PostActionSheetProps {
   onTranslate?: () => void;
   /** Callback to send friend request to the post author */
   onAddFriend?: () => void;
+  /** Callback to remove friend */
+  onRemoveFriend?: () => void;
+  /** Callback to respond to friend request (accept) */
+  onRespondFriendRequest?: () => void;
+  /** Current friendship status with the post author */
+  friendshipStatus?: "pending_received" | "accepted" | "none" | null | undefined;
 }
 
 const PostActionSheet: React.FC<PostActionSheetProps> = ({
@@ -40,6 +46,9 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
   onReport,
   onTranslate,
   onAddFriend,
+  onRemoveFriend,
+  onRespondFriendRequest,
+  friendshipStatus,
 }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -139,16 +148,51 @@ const PostActionSheet: React.FC<PostActionSheetProps> = ({
               {onAddFriend && (
                 <TouchableOpacity
                   style={styles.action}
-                  onPress={onAddFriend}
+                  onPress={
+                    friendshipStatus === "accepted"
+                      ? onRemoveFriend
+                      : friendshipStatus === "pending_received"
+                        ? onRespondFriendRequest
+                        : onAddFriend
+                  }
                   disabled={busy}
                 >
                   <MaterialIcons
-                    name="person-add-alt"
+                    name={
+                      friendshipStatus === "accepted"
+                        ? "people"
+                        : friendshipStatus === "pending_received"
+                          ? "person-add"
+                          : "person-add-alt"
+                    }
                     size={20}
-                    color={busy ? COLORS.textTertiary : COLORS.info}
+                    color={
+                      busy
+                        ? COLORS.textTertiary
+                        : friendshipStatus === "accepted"
+                          ? COLORS.primary
+                          : COLORS.info
+                    }
                   />
-                  <Text style={styles.actionText}>
-                    {t("postDetail.addFriend", { defaultValue: "Add friend" })}
+                  <Text
+                    style={[
+                      styles.actionText,
+                      friendshipStatus === "accepted" && {
+                        color: COLORS.primary,
+                      },
+                    ]}
+                  >
+                    {friendshipStatus === "accepted"
+                      ? t("friends.alreadyFriends", {
+                          defaultValue: "Bạn bè",
+                        })
+                      : friendshipStatus === "pending_received"
+                        ? t("friends.acceptRequest", {
+                            defaultValue: "Chấp nhận lời mời",
+                          })
+                        : t("postDetail.addFriend", {
+                            defaultValue: "Kết bạn",
+                          })}
                   </Text>
                 </TouchableOpacity>
               )}

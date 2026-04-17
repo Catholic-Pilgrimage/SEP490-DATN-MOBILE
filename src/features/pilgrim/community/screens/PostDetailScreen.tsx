@@ -35,7 +35,7 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import { useSendFriendRequest } from "../../../../hooks/useFriendship";
+import { useRemoveFriend, useRespondFriendRequest, useSendFriendRequest, useUserFriendshipStatus } from "../../../../hooks/useFriendship";
 import {
   useAddComment,
   useDeleteComment,
@@ -1871,6 +1871,87 @@ const CommentItem = ({
     </View>
   );
 };
+const PostDetailPostActionSheet = ({
+  activePostAction,
+  user,
+  deletePostMutation,
+  sendFriendRequestMutation,
+  removeFriendMutation,
+  respondFriendRequestMutation,
+  translatingPostId,
+  translatedPostsById,
+  onClose,
+  onEdit,
+  onDelete,
+  onReport,
+  onTranslate,
+  onAddFriend,
+  onRemoveFriend,
+  onRespondFriendRequest,
+  isCurrentUserGuide,
+  displayTitle,
+  displayContent,
+}: {
+  activePostAction: any;
+  user: any;
+  deletePostMutation: any;
+  sendFriendRequestMutation: any;
+  removeFriendMutation: any;
+  respondFriendRequestMutation: any;
+  translatingPostId: string | null;
+  translatedPostsById: any;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+  onTranslate: () => void;
+  onAddFriend: (() => void) | undefined;
+  onRemoveFriend: (() => void) | undefined;
+  onRespondFriendRequest: (() => void) | undefined;
+  isCurrentUserGuide: boolean;
+  displayTitle: string;
+  displayContent: string;
+}) => {
+  const resolvedFriendshipStatus = useUserFriendshipStatus(
+    activePostAction?.user_id || activePostAction?.author?.id,
+  );
+
+  return (
+    <PostActionSheet
+      visible={Boolean(activePostAction)}
+      postContent={displayTitle || displayContent}
+      canTranslate={Boolean(activePostAction?.content?.trim())}
+      isOwner={Boolean(
+        user?.id &&
+          activePostAction?.user_id &&
+          user.id === activePostAction.user_id,
+      )}
+      isTranslated={Boolean(
+        activePostAction &&
+          translatedPostsById[activePostAction.id]?.translated_text,
+      )}
+      busy={
+        deletePostMutation.isPending ||
+        sendFriendRequestMutation.isPending ||
+        removeFriendMutation.isPending ||
+        respondFriendRequestMutation.isPending ||
+        translatingPostId === activePostAction?.id
+      }
+      onClose={onClose}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onReport={onReport}
+      onTranslate={onTranslate}
+      onAddFriend={isCurrentUserGuide ? undefined : onAddFriend}
+      onRemoveFriend={isCurrentUserGuide ? undefined : onRemoveFriend}
+      onRespondFriendRequest={
+        isCurrentUserGuide ? undefined : onRespondFriendRequest
+      }
+      friendshipStatus={resolvedFriendshipStatus}
+    />
+  );
+};
+
 export default function PostDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -1878,6 +1959,7 @@ export default function PostDetailScreen() {
   const autoFocusComment = route.params?.autoFocusComment;
   const { t, i18n: i18nInstance } = useTranslation();
   const { user } = useAuth();
+  const { confirm } = useConfirm();
   const [commentText, setCommentText] = useState("");
   const [replyingTo, setReplyingTo] = useState<{
     id: string;
@@ -1920,7 +2002,6 @@ export default function PostDetailScreen() {
   );
 
   const isCurrentUserGuide = user?.role === "local_guide";
-  const { confirm: showConfirm } = useConfirm();
 
   useEffect(() => {
     if (autoFocusComment) {
@@ -1955,6 +2036,8 @@ export default function PostDetailScreen() {
   const translatePostMutation = useTranslatePost();
   const translateCommentMutation = useTranslateComment(postId);
   const sendFriendRequestMutation = useSendFriendRequest();
+  const removeFriendMutation = useRemoveFriend();
+  const respondFriendRequestMutation = useRespondFriendRequest();
 
   useEffect(() => {
     setTranslatedPostsById({});
@@ -2067,6 +2150,61 @@ export default function PostDetailScreen() {
     });
   }, [activePostAction, sendFriendRequestMutation, t]);
 
+  const handleRemoveFriend = React.useCallback(async () => {
+    if (!activePostAction) return;
+
+    const targetUser = activePostAction.author;
+    const targetUserId = activePostAction.user_id || activePostAction.author?.id;
+    if (!targetUserId) return;
+
+    setActivePostAction(null);
+
+    const confirmed = await confirm({
+      title: t("friends.removeTitle", { defaultValue: "Hủy kết bạn?" }),
+      message: t("friends.removeConfirmMsg", {
+        defaultValue: "Bạn có chắc chắn muốn hủy kết bạn với {{name}} không?",
+        name: targetUser.full_name,
+      }),
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+      type: "danger",
+    });
+
+    if (confirmed) {
+      removeFriendMutation.mutate(targetUserId, {
+        onSuccess: () => {
+          Toast.show({
+            type: "success",
+            text1: t("common.success", { defaultValue: "Thành công" }),
+            text2: t("friends.removeSuccessMsg", {
+              defaultValue: "Đã hủy kết bạn với {{name}}",
+              name: targetUser.full_name,
+            }),
+          });
+        },
+        onError: (error: any) => {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Lỗi" }),
+            text2: error?.message || t("friends.removeError"),
+          });
+        },
+      });
+    }
+  }, [activePostAction, confirm, removeFriendMutation, t]);
+
+  const handleRespondFriendRequest = React.useCallback(() => {
+    if (!activePostAction) return;
+    Toast.show({
+      type: "info",
+      text1: t("friends.tabRequests", { defaultValue: "Lời mời kết bạn" }),
+      text2: t("friends.pleaseAcceptInProfile", {
+        defaultValue: "Vui lòng vào trang cá nhân > Bạn bè để chấp nhận lời mời.",
+      }),
+    });
+    setActivePostAction(null);
+  }, [activePostAction, t]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -2125,11 +2263,6 @@ export default function PostDetailScreen() {
                 new Set(matched.map((item: any) => item.site.name)),
               ).join(", "),
             );
-            return;
-          }
-
-          if (response.data?.name) {
-            setResolvedSiteName(response.data.name);
             return;
           }
         } catch {
@@ -2313,7 +2446,7 @@ export default function PostDetailScreen() {
     const targetComment = activeCommentAction;
     setActiveCommentAction(null);
 
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
       title: t("postDetail.deleteCommentTitle", {
         defaultValue: "Delete comment",
       }),
@@ -2357,7 +2490,7 @@ export default function PostDetailScreen() {
   }, [
     activeCommentAction,
     clearTranslatedComment,
-    showConfirm,
+    confirm,
     deleteCommentMutation,
     editingComment?.id,
     t,
@@ -2456,7 +2589,7 @@ export default function PostDetailScreen() {
     const targetPost = activePostAction;
     setActivePostAction(null);
 
-    const confirmed = await showConfirm({
+    const confirmed = await confirm({
       title: t("postDetail.deletePost", {
         defaultValue: "Delete post",
       }),
@@ -2496,7 +2629,7 @@ export default function PostDetailScreen() {
   }, [
     activePostAction,
     clearTranslatedPost,
-    showConfirm,
+    confirm,
     deletePostMutation,
     navigation,
     t,
@@ -3032,33 +3165,28 @@ export default function PostDetailScreen() {
         </Animated.View>
       </KeyboardAvoidingView>
 
-      <PostActionSheet
-        visible={Boolean(activePostAction)}
-        postContent={
-          getDisplayedPostTitle(activePostAction) ||
-          getDisplayedPostContent(activePostAction)
-        }
-        canTranslate={Boolean(activePostAction?.content?.trim())}
-        isOwner={Boolean(
-          user?.id &&
-          activePostAction?.user_id &&
-          user.id === activePostAction.user_id,
-        )}
-        isTranslated={Boolean(
-          activePostAction &&
-          translatedPostsById[activePostAction.id]?.translated_text,
-        )}
-        busy={
-          deletePostMutation.isPending ||
-          sendFriendRequestMutation.isPending ||
-          translatingPostId === activePostAction?.id
-        }
+      <PostDetailPostActionSheet
+        activePostAction={activePostAction}
+        user={user}
+        deletePostMutation={deletePostMutation}
+        sendFriendRequestMutation={sendFriendRequestMutation}
+        removeFriendMutation={removeFriendMutation}
+        respondFriendRequestMutation={respondFriendRequestMutation}
+        translatingPostId={translatingPostId}
+        translatedPostsById={translatedPostsById}
         onClose={() => setActivePostAction(null)}
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
         onTranslate={handleTogglePostTranslation}
         onAddFriend={isCurrentUserGuide ? undefined : handleAddFriend}
+        onRemoveFriend={isCurrentUserGuide ? undefined : handleRemoveFriend}
+        onRespondFriendRequest={
+          isCurrentUserGuide ? undefined : handleRespondFriendRequest
+        }
+        isCurrentUserGuide={isCurrentUserGuide}
+        displayTitle={getDisplayedPostTitle(activePostAction)}
+        displayContent={getDisplayedPostContent(activePostAction)}
       />
 
       <ReportPostModal
