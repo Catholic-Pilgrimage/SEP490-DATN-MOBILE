@@ -46,7 +46,6 @@ import { getSiteDetail, getSiteMedia } from "../../../../services/api/pilgrim/si
 import { JournalEntry } from "../../../../types/pilgrim/journal.types";
 import { SiteMedia } from "../../../../types/pilgrim/site.types";
 import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
-import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
 import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 import {
   normalizeImageUrls,
@@ -297,7 +296,7 @@ export default function JournalDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [journal?.site_id, journal?.site]);
+  }, [journal?.site_id, journal?.site, paramSiteId]);
 
   // subtle entrance animation for the whole card
   useEffect(() => {
@@ -320,16 +319,7 @@ export default function JournalDetailScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, [is3dModalVisible]);
-
-  const getPrivacyInfo = (privacy: string = "private") => {
-    switch (privacy) {
-      case "public": return { label: "Công khai", icon: "public" as const };
-      case "friends": return { label: "Bạn bè", icon: "people" as const };
-      default: return { label: "Chỉ mình tôi", icon: "lock" as const };
-    }
-  };
-  const privacyInfo = getPrivacyInfo(journal?.privacy);
+  }, [is3dModalVisible, hintOpacity]);
 
   /* ─── Actions ─── */
   const askDelete = () =>
@@ -571,11 +561,11 @@ export default function JournalDetailScreen() {
 
   const getSacredTypeInfo = (type: SiteType | null) => {
     switch (type) {
-      case 'church': return { label: 'NHÀ THỜ', icon: 'church' as const };
-      case 'shrine': return { label: 'ĐỀN THÁNH', icon: 'place' as const };
-      case 'monastery': return { label: 'TU VIỆN', icon: 'account-balance' as const };
-      case 'center': return { label: 'TRUNG TÂM', icon: 'business' as const };
-      default: return { label: 'ĐỊA ĐIỂM', icon: 'church' as const };
+      case 'church': return { label: t('journal.detail.siteType.church'), icon: 'church' as const };
+      case 'shrine': return { label: t('journal.detail.siteType.shrine'), icon: 'place' as const };
+      case 'monastery': return { label: t('journal.detail.siteType.monastery'), icon: 'account-balance' as const };
+      case 'center': return { label: t('journal.detail.siteType.center'), icon: 'business' as const };
+      default: return { label: t('journal.detail.siteType.default'), icon: 'church' as const };
     }
   };
 
@@ -1103,7 +1093,7 @@ export default function JournalDetailScreen() {
                   color={isJournalUiVisible ? "#1A2845" : "#1A2845"} 
                 />
                 <Text style={s.privacyBadgeText}>
-                  {isJournalUiVisible ? "Ẩn nhật ký" : "Mở nhật ký"}
+                  {isJournalUiVisible ? t("journal.detail.hideJournal") : t("journal.detail.showJournal")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1125,7 +1115,7 @@ export default function JournalDetailScreen() {
                       s.modelChipText,
                       selectedModelIndex === idx && s.modelChipTextActive
                     ]}>
-                      {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                      {m.code || t('media.modelViewer.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1153,7 +1143,7 @@ export default function JournalDetailScreen() {
             {/* Fading Interaction Hints */}
             <Animated.View style={[s.interactionHint, { opacity: hintOpacity }]}>
               <MaterialIcons name="touch-app" size={14} color="rgba(255,255,255,0.3)" />
-              <Text style={s.interactionHintText}>Kéo để xoay • Chạm để tương tác</Text>
+              <Text style={s.interactionHintText}>{t("media.modelViewer.interactionHint")}</Text>
             </Animated.View>
           </View>
 

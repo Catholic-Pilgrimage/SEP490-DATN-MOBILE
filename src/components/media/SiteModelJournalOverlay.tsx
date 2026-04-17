@@ -9,7 +9,6 @@
  */
 
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { Audio, Video, ResizeMode } from "expo-av";
 import React, { useEffect, useRef, useState } from "react";
@@ -22,23 +21,28 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
-  PanResponder,
   ActivityIndicator,
   Modal,
   TextInput,
   Platform,
   Keyboard,
-  KeyboardAvoidingView,
 } from "react-native";
-import { COLORS, SHADOWS, SPACING, BORDER_RADIUS } from "../../constants/theme.constants";
+import { useTranslation } from "react-i18next";
+import { COLORS, SHADOWS } from "../../constants/theme.constants";
 import { getJournalDetail, getMyJournals, updateJournal } from "../../services/api/pilgrim/journalApi";
 import { JournalEntry, UpdateJournalRequest } from "../../types/pilgrim/journal.types";
 import { SiteMedia } from "../../types/pilgrim";
 import Toast from "react-native-toast-message";
+
 import { MediaPickerModal } from "../common/MediaPickerModal";
 import { AudioPickerModal } from "../common/AudioPickerModal";
 
-const { height: SCREEN_H, width: SCREEN_W } = Dimensions.get("window");
+const { height: SCREEN_H } = Dimensions.get("window");
+
+const DARK_GOLD = "#8B6914";
+const GOLD = "#D4AF37";
+const PARCHMENT = "#F5EDD6";
+const PARCHMENT_BORDER = "#D4B896";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,23 +57,11 @@ const isToday = (dateStr?: string) => {
   );
 };
 
-const fmtDateVI = (dateStr?: string) => {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return `${d.getDate()}/${d.getMonth() + 1}`;
-};
-
 const formatDuration = (millis: number) => {
   const totalSeconds = millis / 1000;
   const seconds = Math.floor(totalSeconds % 60);
   const minutes = Math.floor(totalSeconds / 60);
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
-
-const privacyLabel = (privacy?: string) => {
-  if (privacy === "public") return "Cộng đồng";
-  if (privacy === "friends") return "Bạn bè";
-  return "Chỉ mình tôi";
 };
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -97,14 +89,12 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   siteId,
   journalId,
   siteName,
-  siteCoverImage,
-  navigation,
   bottomInset = 0,
   currentMedia,
   isExpanded = false,
   onToggleExpanded,
-  visible,
 }) => {
+  const { t } = useTranslation();
   const [journal, setJournal] = useState<JournalEntry | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -121,7 +111,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   const [journalPosition, setJournalPosition] = useState(0);
 
   // Narration script visible
-  const [showScript, setShowScript] = useState(false);
+  const [showScript] = useState(false);
 
   // Media preview state
   type MediaItem = { type: 'image' | 'video', uri: string };
@@ -150,33 +140,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   const keyboardShift = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
-  const entryAlpha = useRef(new Animated.Value(0)).current; 
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-
-  // Draggable state
-  const pan = useRef(new Animated.ValueXY()).current;
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gesture) => {
-        // Only start dragging if moves more than 5px to avoid conflict with clicks
-        return Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5;
-      },
-      onPanResponderGrant: () => {
-        pan.setOffset({
-          x: (pan.x as any)._value,
-          y: (pan.y as any)._value,
-        });
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], { 
-        useNativeDriver: false 
-      }),
-      onPanResponderRelease: () => {
-        pan.flattenOffset();
-      },
-    })
-  ).current;
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -188,21 +152,18 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
 
   // Stop all audio if site changes
   useEffect(() => {
-    stopAllAudio();
+    const stopAll = async () => {
+      if (narrationSoundRef.current) {
+        await narrationSoundRef.current.stopAsync();
+        setIsPlayingNarration(false);
+      }
+      if (journalSoundRef.current) {
+        await journalSoundRef.current.stopAsync();
+        setIsPlayingJournal(false);
+      }
+    };
+    void stopAll();
   }, [siteId]);
-
-  const stopAllAudio = async () => {
-    if (narrationSoundRef.current) {
-      await narrationSoundRef.current.stopAsync();
-      setIsPlayingNarration(false);
-    }
-    if (journalSoundRef.current) {
-      await journalSoundRef.current.stopAsync();
-      setIsPlayingJournal(false);
-    }
-  };
-
-  const narrationAudioUrl = currentMedia?.audio_url;
 
   useEffect(() => {
     if (!journal) return;
@@ -239,7 +200,11 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
   const handleSaveUpdate = async () => {
     if (!journal) return;
     if (!editTitle.trim() || !editContent.trim()) {
-      Toast.show({ type: "error", text1: "Thiếu thông tin", text2: "Tiêu đề và nội dung không được để trống" });
+      Toast.show({ 
+        type: "error", 
+        text1: t("journal.overlay.missingInfo"), 
+        text2: t("journal.overlay.titleContentRequired") 
+      });
       return;
     }
 
@@ -260,13 +225,13 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
       if (res.success && res.data) {
         setJournal(res.data);
         setIsEditing(false);
-        Toast.show({ type: "success", text1: "Thành công", text2: "Đã cập nhật nhật ký" });
+        Toast.show({ type: "success", text1: t("common.success"), text2: t("journal.overlay.updateSuccess") });
       }
     } catch (error) {
       console.error("Update journal error:", error);
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể cập nhật nhật ký" });
+      Toast.show({ type: "error", text1: t("common.error"), text2: t("journal.overlay.updateError") });
     } finally {
-      setIsSaving(false);
+      setIsSaving(true);
     }
   };
 
@@ -293,20 +258,19 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     if (!audioUrl) return;
 
     try {
-      // Stop journal audio first
       if (isPlayingJournal) {
         await journalSoundRef.current?.pauseAsync();
         setIsPlayingJournal(false);
       }
 
-      const current = narrationSoundRef.current;
-      if (current && isPlayingNarration) {
-        await current.pauseAsync();
+      const currentSo = narrationSoundRef.current;
+      if (currentSo && isPlayingNarration) {
+        await currentSo.pauseAsync();
         setIsPlayingNarration(false);
         return;
       }
-      if (current && !isPlayingNarration) {
-        await current.playAsync();
+      if (currentSo && !isPlayingNarration) {
+        await currentSo.playAsync();
         setIsPlayingNarration(true);
         return;
       }
@@ -343,20 +307,19 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     if (!audioUrl) return;
 
     try {
-      // Stop narration audio first
       if (isPlayingNarration) {
         await narrationSoundRef.current?.pauseAsync();
         setIsPlayingNarration(false);
       }
 
-      const current = journalSoundRef.current;
-      if (current && isPlayingJournal) {
-        await current.pauseAsync();
+      const currentSo = journalSoundRef.current;
+      if (currentSo && isPlayingJournal) {
+        await currentSo.pauseAsync();
         setIsPlayingJournal(false);
         return;
       }
-      if (current && !isPlayingJournal) {
-        await current.playAsync();
+      if (currentSo && !isPlayingJournal) {
+        await currentSo.playAsync();
         setIsPlayingJournal(true);
         return;
       }
@@ -412,7 +375,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     );
     pulse.start();
     glow.start();
-}, [journal]);
+  }, [journal, pulseAnim, glowAnim]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -420,7 +383,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
       (e) => {
         setIsKeyboardVisible(true);
         Animated.timing(keyboardShift, {
-          toValue: -e.endCoordinates.height + (Platform.OS === "android" ? 0 : 0),
+          toValue: -e.endCoordinates.height,
           duration: 250,
           useNativeDriver: true,
         }).start();
@@ -465,7 +428,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
       }
     } catch (error) {
       console.error("Error picking audio:", error);
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể chọn tệp âm thanh" });
+      Toast.show({ type: "error", text1: t("common.error"), text2: t("journal.overlay.audioPickError") });
     }
   };
 
@@ -479,7 +442,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     try {
       const { status } = await Audio.requestPermissionsAsync();
       if (status !== 'granted') {
-        Toast.show({ type: "error", text1: "Quyền truy cập", text2: "Cần quyền Micro để ghi âm" });
+        Toast.show({ type: "error", text1: t("common.permission"), text2: t("journal.overlay.micPermissionRequired") });
         return;
       }
 
@@ -501,7 +464,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
 
     } catch (err) {
       console.error('Failed to start recording', err);
-      Toast.show({ type: "error", text1: "Lỗi", text2: "Không thể bắt đầu ghi âm" });
+      Toast.show({ type: "error", text1: t("common.error"), text2: t("journal.overlay.recordStartError") });
     }
   };
 
@@ -531,7 +494,6 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     }
   };
 
-  // Panel slide
   useEffect(() => {
     Animated.timing(panelAnim, {
       toValue: isExpanded ? 1 : 0,
@@ -540,7 +502,6 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
     }).start();
   }, [isExpanded, panelAnim]);
 
-  // Fetch journal
   useEffect(() => {
     if (!siteId) return;
     let cancelled = false;
@@ -558,11 +519,19 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
         
         const res = await getMyJournals({ siteId, limit: 20, page: 1 });
         const entries: JournalEntry[] = res?.data?.journals ?? [];
-        if (cancelled || entries.length === 0) { setIsLoading(false); return; }
+        if (cancelled || entries.length === 0) { 
+          if (!cancelled) {
+            setJournal(null);
+            setIsLoading(false); 
+          }
+          return; 
+        }
         const todayEntry = entries.find((e) => isToday(e.created_at));
         const chosen = todayEntry ?? entries[0];
         if (!cancelled) setJournal(chosen);
-      } catch { /* silent */ } finally {
+      } catch { 
+        if (!cancelled) setJournal(null);
+      } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
@@ -573,14 +542,8 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
 
   const panelTranslateY = panelAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [SCREEN_H, -10], // Phù hợp với chế độ card nổi
+    outputRange: [SCREEN_H, -10],
   });
-
-  const displayDate = fmtDateVI(journal.created_at);
-  const galleryItems: MediaItem[] = [
-    ...(journal.image_url || []).map(uri => ({ type: 'image' as const, uri })),
-    ...(journal.video_url ? [{ type: 'video' as const, uri: journal.video_url }] : []),
-  ];
 
   const hasNarrationAudio = !!currentMedia?.audio_url;
 
@@ -604,7 +567,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
             <View style={styles.panelHeaderLeft}>
               <MaterialCommunityIcons name="book-open-page-variant" size={18} color="#8B6914" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.panelHeaderTitle}>NHẬT KÝ TÂM LINH</Text>
+                <Text style={styles.panelHeaderTitle}>{t("journal.overlay.spiritualJournal")}</Text>
                 <Text style={styles.panelSiteName} numberOfLines={1}>{siteName}</Text>
               </View>
             </View>
@@ -655,7 +618,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
                       <Text style={styles.recordingTimer}>{Math.floor(recordingDuration / 60)}:{(recordingDuration % 60).toString().padStart(2, '0')}</Text>
                       <TouchableOpacity style={styles.stopRecordingBtn} onPress={stopRecording}>
                         <MaterialIcons name="stop" size={20} color="#FFF" />
-                        <Text style={styles.stopRecordingText}>Dừng ghi</Text>
+                        <Text style={styles.stopRecordingText}>{t("journal.overlay.stopRecording")}</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -663,7 +626,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
                     style={styles.editTitleInput}
                     value={editTitle}
                     onChangeText={setEditTitle}
-                    placeholder="Nhập tiêu đề..."
+                    placeholder={t("journal.overlay.titlePlaceholder")}
                     placeholderTextColor="rgba(26,40,69,0.4)"
                   />
                   <TextInput
@@ -671,7 +634,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
                     value={editContent}
                     onChangeText={setEditContent}
                     multiline
-                    placeholder="Cảm nghĩ của bạn..."
+                    placeholder={t("journal.overlay.contentPlaceholder")}
                     placeholderTextColor="rgba(26,40,69,0.4)"
                   />
                 </View>
@@ -741,7 +704,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
                   onPress={() => setAudioPickerVisible(true)}
                 >
                   <MaterialIcons name="mic" size={16} color={DARK_GOLD} />
-                  <Text style={styles.addAudioText}>Thêm ghi âm</Text>
+                  <Text style={styles.addAudioText}>{t("journal.overlay.addAudio")}</Text>
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -826,7 +789,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
               onPress={handleCancelEdit}
               disabled={isSaving}
             >
-              <Text style={styles.cancelBtnText}>Hủy</Text>
+              <Text style={styles.cancelBtnText}>{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, styles.saveBtn]}
@@ -838,7 +801,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
               ) : (
                 <>
                   <MaterialIcons name="done" size={16} color="#fff" />
-                  <Text style={styles.saveBtnText}>Lưu thay đổi</Text>
+                  <Text style={styles.saveBtnText}>{t("common.save")}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -850,7 +813,7 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
             onPress={handleStartEdit}
           >
             <MaterialCommunityIcons name="pencil" size={16} color="#1A2845" />
-            <Text style={styles.readMoreText}>Chỉnh sửa bài viết</Text>
+            <Text style={styles.readMoreText}>{t("common.edit")}</Text>
           </TouchableOpacity>
         )}
         </Animated.View>
@@ -927,11 +890,6 @@ export const SiteModelJournalOverlay: React.FC<Props> = ({
 };
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
-
-const GOLD = "#D4AF37";
-const DARK_GOLD = "#8B6914";
-const PARCHMENT = "#F5EDD6";
-const PARCHMENT_BORDER = "#D4B896";
 
 const styles = StyleSheet.create({
   root: {
@@ -1322,6 +1280,7 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 12,
     fontWeight: "bold",
+    lineHeight: 14,
   },
 });
 
