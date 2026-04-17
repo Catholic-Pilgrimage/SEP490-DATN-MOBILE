@@ -156,7 +156,11 @@
       "hasEventsSub": "Show places that currently have festivals/events",
       "reset": "Reset",
       "apply": "Apply"
-    }
+    },
+    "exploreNow": "Explore now",
+    "reviewsCount": "{{displayCount}} reviews",
+    "reviewsCount_one": "{{displayCount}} review",
+    "featured": "Featured"
   },
   "allSites": {
     "title": "All Destinations",

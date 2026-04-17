@@ -31,7 +31,7 @@ import {
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import { useSendFriendRequest } from "../../../../hooks/useFriendship";
+import { useRemoveFriend, useRespondFriendRequest, useSendFriendRequest, useUserFriendshipStatus } from "../../../../hooks/useFriendship";
 import {
     useDeletePost,
     useLikePost,
@@ -623,6 +623,83 @@ const FeedItemComponent = ({
   );
 };
 
+const CommunityPostActionSheet = ({
+  activePostAction,
+  user,
+  deletePostMutation,
+  sendFriendRequestMutation,
+  removeFriendMutation,
+  respondFriendRequestMutation,
+  translatingPostId,
+  translatedPostsById,
+  onClose,
+  onEdit,
+  onDelete,
+  onReport,
+  onTranslate,
+  onAddFriend,
+  onRemoveFriend,
+  onRespondFriendRequest,
+  displayTitle,
+  displayContent,
+}: {
+  activePostAction: any;
+  user: any;
+  deletePostMutation: any;
+  sendFriendRequestMutation: any;
+  removeFriendMutation: any;
+  respondFriendRequestMutation: any;
+  translatingPostId: string | null;
+  translatedPostsById: any;
+  onClose: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+  onTranslate: () => void;
+  onAddFriend: (() => void) | undefined;
+  onRemoveFriend: (() => void) | undefined;
+  onRespondFriendRequest: (() => void) | undefined;
+  displayTitle: string;
+  displayContent: string;
+}) => {
+  const resolvedFriendshipStatus = useUserFriendshipStatus(
+    activePostAction?.user_id || activePostAction?.author?.id,
+  );
+
+  return (
+    <PostActionSheet
+      visible={Boolean(activePostAction)}
+      postContent={displayTitle || displayContent}
+      canTranslate={Boolean(activePostAction?.content?.trim())}
+      isOwner={Boolean(
+        user?.id &&
+          activePostAction?.user_id &&
+          user.id === activePostAction.user_id,
+      )}
+      isTranslated={Boolean(
+        activePostAction &&
+          translatedPostsById[activePostAction.id]?.translated_text,
+      )}
+      busy={
+        deletePostMutation.isPending ||
+        sendFriendRequestMutation.isPending ||
+        removeFriendMutation.isPending ||
+        respondFriendRequestMutation.isPending ||
+        translatingPostId === activePostAction?.id
+      }
+      onClose={onClose}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      onReport={onReport}
+      onTranslate={onTranslate}
+      onAddFriend={onAddFriend}
+      onRemoveFriend={onRemoveFriend}
+      onRespondFriendRequest={onRespondFriendRequest}
+      friendshipStatus={resolvedFriendshipStatus}
+    />
+  );
+};
+
 export default function CommunityScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
@@ -682,6 +759,8 @@ export default function CommunityScreen() {
   const deletePostMutation = useDeletePost();
   const translatePostMutation = useTranslatePost();
   const sendFriendRequestMutation = useSendFriendRequest();
+  const removeFriendMutation = useRemoveFriend();
+  const respondFriendRequestMutation = useRespondFriendRequest();
 
   useEffect(() => {
     setTranslatedPostsById({});
@@ -1224,17 +1303,77 @@ export default function CommunityScreen() {
     });
   }, [activePostAction, sendFriendRequestMutation, t]);
 
+  const handleRemoveFriend = React.useCallback(async () => {
+    if (!activePostAction) return;
+
+    const targetUser = activePostAction.author;
+    const targetUserId = activePostAction.user_id || activePostAction.author?.id;
+    if (!targetUserId) return;
+
+    setActivePostAction(null);
+
+    const confirmed = await confirm({
+      title: t("friends.removeTitle", { defaultValue: "Hủy kết bạn?" }),
+      message: t("friends.removeConfirmMsg", {
+        defaultValue: "Bạn có chắc chắn muốn hủy kết bạn với {{name}} không?",
+        name: targetUser.full_name,
+      }),
+      confirmText: t("common.delete", { defaultValue: "Xóa" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+      type: "danger",
+    });
+
+    if (confirmed) {
+      removeFriendMutation.mutate(targetUserId, {
+        onSuccess: () => {
+          Toast.show({
+            type: "success",
+            text1: t("common.success", { defaultValue: "Thành công" }),
+            text2: t("friends.removeSuccessMsg", {
+              defaultValue: "Đã hủy kết bạn với {{name}}",
+              name: targetUser.full_name,
+            }),
+          });
+        },
+        onError: (error: any) => {
+          Toast.show({
+            type: "error",
+            text1: t("common.error", { defaultValue: "Lỗi" }),
+            text2: error?.message || t("friends.removeError"),
+          });
+        },
+      });
+    }
+  }, [activePostAction, confirm, removeFriendMutation, t]);
+
+  const handleRespondFriendRequest = React.useCallback(() => {
+    if (!activePostAction) return;
+
+    // To respond, we actually need the friendship_id, but our status resolver
+    // doesn't return it yet. However, we can use search/find.
+    // simpler: the friend request received list usually has the ID.
+    // For now, let's keep it simple and just Toast or navigate to FriendList.
+    // Better: Inform user to go to Friend List to accept.
+    Toast.show({
+      type: "info",
+      text1: t("friends.tabRequests", { defaultValue: "Lời mời kết bạn" }),
+      text2: t("friends.pleaseAcceptInProfile", {
+        defaultValue: "Vui lòng vào trang cá nhân > Bạn bè để chấp nhận lời mời.",
+      }),
+    });
+    setActivePostAction(null);
+  }, [activePostAction, t]);
+
   const renderItem = ({ item }: { item: FeedPost }) => {
     const siteId = getFeedPostSiteId(item);
     const plannerLocationName = getFeedPostPlannerLocationName(
       item,
       plannerItemSiteNamesById,
     );
-    const plannerId = getFeedPostPlannerId(item);
+
     const fallbackLocationName =
       (siteId ? siteNamesById[siteId] : undefined) ||
       plannerLocationName ||
-      (plannerId ? plannerNamesById[plannerId] : undefined) ||
       (item.journal_id ? journalLocationNamesById[item.journal_id] : undefined);
 
     return (
@@ -1457,33 +1596,27 @@ export default function CommunityScreen() {
       )}
 
       {/* Post action sheet: owner sees Edit+Delete, others see Report only */}
-      <PostActionSheet
-        visible={Boolean(activePostAction)}
-        postContent={
-          getDisplayedPostTitle(activePostAction) ||
-          getDisplayedPostContent(activePostAction)
-        }
-        canTranslate={Boolean(activePostAction?.content?.trim())}
-        isOwner={Boolean(
-          user?.id &&
-          activePostAction?.user_id &&
-          user.id === activePostAction.user_id,
-        )}
-        isTranslated={Boolean(
-          activePostAction &&
-          translatedPostsById[activePostAction.id]?.translated_text,
-        )}
-        busy={
-          deletePostMutation.isPending ||
-          sendFriendRequestMutation.isPending ||
-          translatingPostId === activePostAction?.id
-        }
+      <CommunityPostActionSheet
+        activePostAction={activePostAction}
+        user={user}
+        deletePostMutation={deletePostMutation}
+        sendFriendRequestMutation={sendFriendRequestMutation}
+        removeFriendMutation={removeFriendMutation}
+        respondFriendRequestMutation={respondFriendRequestMutation}
+        translatingPostId={translatingPostId}
+        translatedPostsById={translatedPostsById}
         onClose={() => setActivePostAction(null)}
         onEdit={handleEditPost}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
         onTranslate={handleTogglePostTranslation}
         onAddFriend={isGuideViewer ? undefined : handleAddFriend}
+        onRemoveFriend={isGuideViewer ? undefined : handleRemoveFriend}
+        onRespondFriendRequest={
+          isGuideViewer ? undefined : handleRespondFriendRequest
+        }
+        displayTitle={getDisplayedPostTitle(activePostAction)}
+        displayContent={getDisplayedPostContent(activePostAction)}
       />
 
       <ReportPostModal

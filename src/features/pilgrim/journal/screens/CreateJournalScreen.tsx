@@ -1,5 +1,5 @@
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { Audio } from "expo-av";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  BackHandler,
   Dimensions,
   Image,
   ImageBackground,
@@ -191,6 +192,8 @@ export default function CreateJournalScreen() {
     siteName: paramSiteName,
     from: fromScreen,
   } = route.params || {};
+  const fromActiveJourneyFlow =
+    fromScreen === "ActiveJourney" && !!paramPlanId;
   const paramPlannerItemIds = useMemo(
     () =>
       Array.from(
@@ -209,16 +212,48 @@ export default function CreateJournalScreen() {
   );
   const insets = useSafeAreaInsets();
 
+  const resetJournalTabToMain = () => {
+    navigation.navigate("Nhat ky", {
+      screen: "JournalMain",
+      params: undefined,
+    });
+  };
+
   const handleBackNavigation = () => {
-    if (fromScreen === "ActiveJourney" && paramPlanId) {
+    if (fromActiveJourneyFlow) {
+      resetJournalTabToMain();
       navigation.navigate("Lich trinh", {
         screen: "ActiveJourneyScreen",
         params: { planId: paramPlanId },
       });
-    } else {
-      navigation.goBack();
+      return;
     }
+
+    navigation.goBack();
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!fromActiveJourneyFlow) {
+        return undefined;
+      }
+
+      const onHardwareBack = () => {
+        handleBackNavigation();
+        return true;
+      };
+
+      const backSub = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onHardwareBack,
+      );
+
+      return () => {
+        backSub.remove();
+        resetJournalTabToMain();
+      };
+    }, [fromActiveJourneyFlow]),
+  );
 
   // State
   const [title, setTitle] = useState("");
@@ -1393,20 +1428,24 @@ export default function CreateJournalScreen() {
           return;
         }
 
-        Toast.show({
-          type: "success",
-          text1: t("common.success"),
-          text2: t("journal.saveSuccessUpdate", {
-            shareMsg: "",
-            imagesMsg:
-              imageUris.length > 0
-                ? t("journal.imagesMsg", { count: imageUris.length })
-                : "",
-            audioMsg:
-              recordingUri || existingAudioUrl ? t("journal.audioMsg") : "",
-          }),
-          position: "top",
-        });
+        if (!fromActiveJourneyFlow) {
+          Toast.show({
+            type: "success",
+            text1: t("common.success"),
+            text2: t("journal.saveSuccessUpdate", {
+              shareMsg: "",
+              imagesMsg:
+                imageUris.length > 0
+                  ? t("journal.imagesMsg", { count: imageUris.length })
+                  : "",
+              audioMsg:
+                recordingUri || existingAudioUrl
+                  ? t("journal.audioMsg")
+                  : "",
+            }),
+            position: "top",
+          });
+        }
       } else {
         // CREATE - at least one planner_item_id is required
         if (plannerItemIds.length === 0) {
@@ -1433,21 +1472,23 @@ export default function CreateJournalScreen() {
           audio: recordingUri,
         });
 
-        Toast.show({
-          type: "success",
-          text1: t("journal.saveJournal", {
-            defaultValue: "Lưu nhật ký",
-          }),
-          text2: t("journal.saveSuccessCreate", {
-            shareMsg: "",
-            imagesMsg:
-              imageUris.length > 0
-                ? t("journal.imagesMsgCreate", { count: imageUris.length })
-                : "",
-            audioMsg: recordingUri ? t("journal.audioMsgCreate") : "",
-          }),
-          position: "top",
-        });
+        if (!fromActiveJourneyFlow) {
+          Toast.show({
+            type: "success",
+            text1: t("journal.saveJournal", {
+              defaultValue: "Lưu nhật ký",
+            }),
+            text2: t("journal.saveSuccessCreate", {
+              shareMsg: "",
+              imagesMsg:
+                imageUris.length > 0
+                  ? t("journal.imagesMsgCreate", { count: imageUris.length })
+                  : "",
+              audioMsg: recordingUri ? t("journal.audioMsgCreate") : "",
+            }),
+            position: "top",
+          });
+        }
       }
       handleBackNavigation();
     } catch (error: any) {

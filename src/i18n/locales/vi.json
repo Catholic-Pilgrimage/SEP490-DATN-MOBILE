@@ -157,7 +157,10 @@
       "hasEventsSub": "Hiện các địa điểm đang có lễ hội/sự kiện",
       "reset": "Đặt lại",
       "apply": "Áp dụng"
-    }
+    },
+    "exploreNow": "Khám phá ngay",
+    "reviewsCount": "{{displayCount}} lượt đánh giá",
+    "featured": "Nổi bật"
   },
   "allSites": {
     "title": "Tất cả điểm đến",
