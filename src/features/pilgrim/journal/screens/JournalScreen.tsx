@@ -15,6 +15,7 @@ import {
   Image,
   ImageBackground,
   Platform,
+  RefreshControl,
   StatusBar,
   StyleSheet,
   Text,
@@ -157,6 +158,7 @@ export const JournalScreen = () => {
   const { t } = useTranslation();
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(!isGuest);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [siteNamesById, setSiteNamesById] = useState<Record<string, string>>(
@@ -197,10 +199,14 @@ export const JournalScreen = () => {
     }).start();
   };
 
-  const fetchJournals = async (deleted?: boolean) => {
+  const fetchJournals = async (
+    deleted?: boolean,
+    options?: { silent?: boolean },
+  ) => {
     const isDeleted = deleted ?? showDeleted;
+    const silent = options?.silent === true;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await getMyJournals({
         is_active: isDeleted ? "false" : "true",
       } as any);
@@ -211,9 +217,18 @@ export const JournalScreen = () => {
     } catch (error) {
       console.error(error);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      setPullRefreshing(true);
+      await fetchJournals(undefined, { silent: true });
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [showDeleted]);
 
   const handleRestore = async (id: string) => {
     try {
@@ -667,6 +682,15 @@ export const JournalScreen = () => {
                 {t("journal.emptyList")}
               </Text>
             </View>
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={pullRefreshing}
+              onRefresh={handlePullRefresh}
+              progressViewOffset={Math.max(insets.top, 0) + 8}
+              colors={[COLORS.accent]}
+              tintColor={COLORS.accent}
+            />
           }
         />
       )}

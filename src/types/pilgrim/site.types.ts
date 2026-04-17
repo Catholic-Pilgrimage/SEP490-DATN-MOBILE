@@ -54,6 +54,9 @@ export interface SiteSummary {
   /** Bổn mạng — dùng lọc/ghi chú khi thêm điểm vào kế hoạch nhóm. */
   patronSaint?: string;
   openingHours?: { open?: string; close?: string };
+  /** Metadata hỗ trợ làm nổi bật địa điểm có sự kiện trong modal chọn địa điểm */
+  hasEvents?: boolean;
+  eventCount?: number;
 }
 
 export interface NearbySite extends SiteSummary {

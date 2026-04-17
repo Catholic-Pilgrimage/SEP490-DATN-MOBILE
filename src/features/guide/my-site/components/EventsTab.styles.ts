@@ -74,11 +74,11 @@ export const styles = StyleSheet.create({
     // Note: iOS shadow moved to swipeableContainer to avoid clipping
   },
   dateColumn: {
-    width: 56,
+    width: 68,
     backgroundColor: PREMIUM_COLORS.gold,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: GUIDE_SPACING.lg,
+    paddingVertical: GUIDE_SPACING.md,
     borderTopLeftRadius: GUIDE_BORDER_RADIUS.lg,
     borderBottomLeftRadius: GUIDE_BORDER_RADIUS.lg,
   },
@@ -88,12 +88,36 @@ export const styles = StyleSheet.create({
     color: "#FFF",
     letterSpacing: -0.5,
   },
+  dateDayRange: {
+    fontSize: 16,
+    letterSpacing: -0.2,
+  },
+  dateRangeStack: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 0,
+  },
+  dateDayRangeStart: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  dateDayRangeEnd: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  dateRangeConnector: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(255, 255, 255, 0.95)",
+    lineHeight: 14,
+    marginVertical: 1,
+  },
   dateMonth: {
     fontSize: 11,
     fontWeight: "600",
     color: "rgba(255, 255, 255, 0.9)",
     letterSpacing: 0.5,
-    marginTop: 2,
+    marginTop: 1,
   },
   contentColumn: {
     flex: 1,

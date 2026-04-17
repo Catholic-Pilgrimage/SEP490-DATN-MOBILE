@@ -342,7 +342,11 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
         <ScrollView
           contentContainerStyle={styles.content}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              progressViewOffset={Math.max(insets.top, 0) + 8}
+            />
           }
         >
           {members.length === 0 ? (

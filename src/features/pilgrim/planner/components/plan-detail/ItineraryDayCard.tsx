@@ -12,6 +12,7 @@ interface ItineraryDayCardProps {
   startDate?: string;
   planStatus: string;
   isPlanOwner: boolean;
+  canDeleteItems?: boolean;
   swapPick: { dayKey: string; itemId: string } | null;
   setSwapPick: React.Dispatch<
     React.SetStateAction<{ dayKey: string; itemId: string } | null>
@@ -29,6 +30,7 @@ interface ItineraryDayCardProps {
   onReloadDayFromPrevious?: (dayNumber: number) => void;
   reloadingDayNumber?: number | null;
   showEtaSyncWarning?: boolean;
+  lastClosedDayNumber?: number;
   openAddModal: (day: number) => void;
   t: (key: string, opts?: any) => string;
   getDateForDayCalc: (startDate: string, day: number) => string;
@@ -80,6 +82,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   startDate,
   planStatus,
   isPlanOwner,
+  canDeleteItems = false,
   swapPick,
   setSwapPick,
   setSelectedItem,
@@ -92,6 +95,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   onReloadDayFromPrevious,
   reloadingDayNumber,
   showEtaSyncWarning,
+  lastClosedDayNumber = 0,
   openAddModal,
   t,
   getDateForDayCalc,
@@ -160,11 +164,27 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
     return conflictIds;
   }, [items, formatTimeValueCalc, calculateEndTimeCalc]);
 
+  const dayNumber = Number(dayKey);
+  const normalizedLastClosedDay = Math.max(0, Number(lastClosedDayNumber) || 0);
+  const isDayClosed = Number.isFinite(dayNumber) && dayNumber <= normalizedLastClosedDay;
+  const allItemsCompleted =
+    items.length > 0 &&
+    items.every((item) => {
+      const itemStatus = String(item.status || "").toLowerCase();
+      return itemStatus === "visited" || itemStatus === "skipped";
+    });
+  const canAddStopToDay =
+    isPlanOwner &&
+    (planStatus === "planning" || (planStatus === "ongoing" && !isDayClosed));
+  const canSwipeDeleteItem =
+    isPlanOwner &&
+    !!canDeleteItems &&
+    (planStatus === "planning" || planStatus === "draft");
+
   return (
     <View style={styles.dayContainer}>
       {/** Sync warning is shown only for days flagged as timeline-dependent after add/delete changes. */}
       {(() => {
-        const dayNumber = Number(dayKey);
         const canReload =
           isPlanOwner &&
           !!showEtaSyncWarning &&
@@ -196,31 +216,49 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             defaultValue: "Ngày {{day}} • {{date}}",
           })}
         </Text>
-        {canReload && (
-          <TouchableOpacity
-            onPress={() => onReloadDayFromPrevious(dayNumber)}
-            disabled={reloadingDayNumber === dayNumber}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              paddingHorizontal: 8,
-              paddingVertical: 6,
-              borderRadius: 10,
-              borderWidth: 1,
-              borderColor: "#FDE68A",
-              backgroundColor: "#FFFBEB",
-              opacity: reloadingDayNumber === dayNumber ? 0.6 : 1,
-            }}
-          >
-            <Ionicons name="warning-outline" size={14} color="#B45309" />
-            <Text style={{ fontSize: 12, fontWeight: "700", color: "#B45309" }}>
-              {reloadingDayNumber === dayNumber
-                ? t("planner.syncingEtaShort", { defaultValue: "Đang đồng bộ" })
-                : t("planner.syncShort", { defaultValue: "Đồng bộ" })}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {isDayClosed && (
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 999,
+                backgroundColor: "#ECFDF5",
+                borderWidth: 1,
+                borderColor: "#A7F3D0",
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: "700", color: "#047857" }}>
+                {t("planner.dayClosedBadge", { defaultValue: "Đã chốt" })}
+              </Text>
+            </View>
+          )}
+          {canReload && (
+            <TouchableOpacity
+              onPress={() => onReloadDayFromPrevious(dayNumber)}
+              disabled={reloadingDayNumber === dayNumber}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 6,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#FDE68A",
+                backgroundColor: "#FFFBEB",
+                opacity: reloadingDayNumber === dayNumber ? 0.6 : 1,
+              }}
+            >
+              <Ionicons name="warning-outline" size={14} color="#B45309" />
+              <Text style={{ fontSize: 12, fontWeight: "700", color: "#B45309" }}>
+                {reloadingDayNumber === dayNumber
+                  ? t("planner.syncingEtaShort", { defaultValue: "Đang đồng bộ" })
+                  : t("planner.syncShort", { defaultValue: "Đồng bộ" })}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
         );
       })()}
@@ -239,7 +277,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
           ]}
         />
         <View style={styles.timelineItems}>
-          {items.length === 0 && isPlanOwner && (
+          {items.length === 0 && canAddStopToDay && (
             <TouchableOpacity
               style={{
                 borderWidth: 1.5,
@@ -745,7 +783,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                       }}
                     />
                   ) : null}
-                  {isPlanOwner ? (
+                  {canSwipeDeleteItem ? (
                     <Swipeable
                       overshootRight={false}
                       containerStyle={styles.timelineSwipeInner}
@@ -805,7 +843,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
             );
           })}
           {isPlanOwner &&
-            (planStatus === "planning" || planStatus === "ongoing") && (
+            canAddStopToDay && (
               <TouchableOpacity
                 style={styles.addSmallButton}
                 onPress={() => openAddModal(Number(dayKey))}
