@@ -233,7 +233,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     isLoadingSchedules ||
     isLoadingEvents ||
     isLoadingPlaces ||
-    isLoadingReviews;
+    isLoadingReviews ||
+    isLoadingModels;
 
   const handleRefresh = () => {
     refetchDetail();
@@ -1955,6 +1956,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     siteCoverImage={site?.coverImage}
                     navigation={navigation}
                     bottomInset={insets.bottom}
+                    visible={is3dModalVisible}
                   />
                 )}
               </View>
@@ -2994,6 +2996,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#12100c",
     position: 'relative', // To allow absolute children
+    paddingBottom: 120, // Lift the center of the 3D viewport
   },
   narrativePanelOverlay: {
     position: 'absolute',
