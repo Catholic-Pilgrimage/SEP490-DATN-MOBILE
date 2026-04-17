@@ -119,3 +119,25 @@ export function useVerification() {
         isRequestingPilgrimTrans: requestPilgrimTransitionMutation.isPending,
     };
 }
+
+// Separate hook for claimable sites
+export function useClaimableSites(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    region?: string;
+    type?: string;
+    claim_type?: string;
+}) {
+    const { isAuthenticated } = useAuth();
+    
+    return useQuery({
+        queryKey: [...VERIFICATION_KEYS.claimableSites(), params],
+        queryFn: async () => {
+            const response = await verificationApi.getClaimableSites(params);
+            return response.data;
+        },
+        enabled: isAuthenticated,
+        staleTime: 1000 * 60 * 2, // 2 minutes
+    });
+}

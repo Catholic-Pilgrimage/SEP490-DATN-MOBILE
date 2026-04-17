@@ -1167,6 +1167,14 @@
     "sectionNewSite": "Thông tin Điểm Hành Hương",
     "sectionTransition": "Thông tin Thay thế",
     "sectionExtra": "Thông tin thêm",
+    "claimType": {
+      "unassigned": "Chưa có Quản lý",
+      "transition": "Thay thế Quản lý"
+    },
+    "currentManager": "Quản lý hiện tại",
+    "filter": {
+      "all": "Tất cả"
+    },
     "fields": {
       "fullName": "Họ và Tên",
       "fullNamePlaceholder": "Nhập họ và tên...",
@@ -1190,9 +1198,10 @@
       "selectSitePlaceholder": "Chạm để chọn điểm hành hương...",
       "transitionReason": "Lý do thay thế",
       "transitionReasonPlaceholder": "Tại sao bạn cần thay thế Quản lý hiện tại?",
+      "unassignedClaimReason": "Xin nhận quản lý địa điểm chưa có Quản lý",
       "introduction": "Giới thiệu bản thân / Điểm đến",
       "introductionPlaceholder": "Mô tả ngắn về bạn hoặc điểm hành hương...",
-      "certificate": "Giấy chứng nhận (Tùy chọn)"
+      "certificate": "Giấy chứng nhận"
     },
     "siteTypes": {
       "church": "Nhà thờ",
@@ -1230,6 +1239,11 @@
         "description": "Bạn đã gửi một yêu cầu đăng ký quản lý điểm trước đó. Vui lòng chờ phản hồi từ quản trị viên."
       }
     },
+    "statusValues": {
+      "approved": "ĐÃ DUYỆT",
+      "rejected": "ĐÃ TỪ CHỐI",
+      "pending": "CHỜ DUYỆT"
+    },
     "details": {
       "requestCode": "Mã yêu cầu:",
       "requestStatus": "Trạng thái:",
@@ -1255,6 +1269,7 @@
       "permissionDenied": "Từ chối quyền",
       "cameraPermission": "Vui lòng cấp quyền máy ảnh.",
       "libraryPermission": "Vui lòng cấp quyền truy cập thư viện ảnh.",
+      "certificateRequired": "Vui lòng tải lên giấy chứng nhận.",
       "guestRequired": "Vui lòng điền đủ Tên và Email người nộp đơn.",
       "newSiteRequired": "Vui lòng điền Tên điểm hành hương và Tỉnh/Thành.",
       "transitionRequired": "Vui lòng điền Mã điểm hành hương và Lý do thay thế.",

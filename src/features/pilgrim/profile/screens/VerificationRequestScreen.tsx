@@ -1,37 +1,37 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { useAuth } from "../../../../contexts/AuthContext";
-import useI18n from "../../../../hooks/useI18n";
-import { useSites } from "../../../../hooks/useSites";
-import { useVerification } from "../../../../hooks/useVerification";
 import {
   MapPin,
   VietmapView,
   VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { VIETMAP_CONFIG } from "../../../../config/map.config";
+import { useAuth } from "../../../../contexts/AuthContext";
+import { useConfirm } from "../../../../hooks/useConfirm";
+import useI18n from "../../../../hooks/useI18n";
+import { useClaimableSites, useVerification } from "../../../../hooks/useVerification";
 import { ReactNativeFile } from "../../../../types/pilgrim/verification.types";
 import {
   getFirstVerificationErrorI18nKey,
@@ -90,9 +90,11 @@ const VerificationRequestScreen = () => {
   const insets = useSafeAreaInsets();
   const { isGuest } = useAuth();
   const { t } = useI18n();
+  const { confirm } = useConfirm();
   const {
     myRequest,
     isMyRequestLoading,
+    refetchMyRequest,
     requestGuestVerification,
     isRequestingGuestVer,
     requestPilgrimVerification,
@@ -119,17 +121,78 @@ const VerificationRequestScreen = () => {
   const [introduction, setIntroduction] = useState("");
   const [existingSiteId, setExistingSiteId] = useState("");
   const [selectedSiteName, setSelectedSiteName] = useState("");
+  const [selectedSiteClaimType, setSelectedSiteClaimType] = useState<"transition" | "unassigned" | null>(null);
   const [transitionReason, setTransitionReason] = useState("");
   const [certificate, setCertificate] = useState<ReactNativeFile | null>(null);
 
   // Site selection Modal state
   const [isSiteModalVisible, setIsSiteModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [claimTypeFilter, setClaimTypeFilter] = useState<"all" | "transition" | "unassigned">("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [allSites, setAllSites] = useState<any[]>([]);
+  
+  // Use claimable sites hook separately
   const {
-    sites,
-    fetchSites,
+    data: claimableSitesData,
     isLoading: isSitesLoading,
-  } = useSites({ autoFetch: true });
+    refetch: refetchClaimableSites,
+    isFetching,
+  } = useClaimableSites({ 
+    search: searchQuery,
+    page: currentPage,
+    limit: 20,
+    ...(claimTypeFilter !== "all" && { claim_type: claimTypeFilter })
+  });
+
+  // Reset when filter or search changes
+  useEffect(() => {
+    console.log('Filter/search changed, resetting to page 1');
+    setCurrentPage(1);
+    setAllSites([]);
+  }, [claimTypeFilter, searchQuery]);
+
+  // Refetch data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      if (!isGuest) {
+        refetchMyRequest();
+      }
+    }, [isGuest, refetchMyRequest])
+  );
+
+  // Accumulate sites when data changes
+  useEffect(() => {
+    console.log('Data effect triggered:', {
+      hasData: !!claimableSitesData?.data,
+      dataLength: claimableSitesData?.data?.length,
+      currentPage,
+      allSitesLength: allSites.length,
+      pagination: claimableSitesData?.pagination
+    });
+    
+    if (claimableSitesData?.data) {
+      if (currentPage === 1) {
+        // For page 1, replace all sites
+        console.log('Setting allSites to page 1 data:', claimableSitesData.data.length);
+        setAllSites(claimableSitesData.data);
+      } else {
+        // For subsequent pages, append to existing sites
+        console.log('Appending page', currentPage, 'data:', claimableSitesData.data.length);
+        setAllSites(prev => [...prev, ...claimableSitesData.data]);
+      }
+    }
+  }, [claimableSitesData?.data, currentPage]);
+
+  const handleLoadMore = () => {
+    if (
+      !isFetching && 
+      claimableSitesData?.pagination && 
+      currentPage < claimableSitesData.pagination.totalPages
+    ) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
 
   // Dropdown state — memoized so option arrays are stable across keystrokes
   const SITE_TYPE_OPTIONS: { label: string; value: string }[] = useMemo(
@@ -340,7 +403,6 @@ const VerificationRequestScreen = () => {
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
-    fetchSites({ query: text });
   };
 
   const handleMediaPicked = (result: ImagePicker.ImagePickerResult) => {
@@ -373,10 +435,12 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert(
-        t("verification.errors.title"),
-        t("verification.errors.cannotPickDocument"),
-      );
+      await confirm({
+        title: t("verification.errors.title"),
+        message: t("verification.errors.cannotPickDocument"),
+        confirmText: "OK",
+        showCancel: false,
+      });
     }
   };
 
@@ -385,10 +449,12 @@ const VerificationRequestScreen = () => {
       const permission =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
-          t("verification.errors.permissionDenied"),
-          t("verification.errors.libraryPermission"),
-        );
+        await confirm({
+          title: t("verification.errors.permissionDenied"),
+          message: t("verification.errors.libraryPermission"),
+          confirmText: "OK",
+          showCancel: false,
+        });
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -404,10 +470,12 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert(
-        t("verification.errors.title"),
-        t("verification.errors.cannotPickImage"),
-      );
+      await confirm({
+        title: t("verification.errors.title"),
+        message: t("verification.errors.cannotPickImage"),
+        confirmText: "OK",
+        showCancel: false,
+      });
     }
   };
 
@@ -415,10 +483,12 @@ const VerificationRequestScreen = () => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
-          t("verification.errors.permissionDenied"),
-          t("verification.errors.cameraPermission"),
-        );
+        await confirm({
+          title: t("verification.errors.permissionDenied"),
+          message: t("verification.errors.cameraPermission"),
+          confirmText: "OK",
+          showCancel: false,
+        });
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -434,14 +504,16 @@ const VerificationRequestScreen = () => {
         });
       }
     } catch {
-      Alert.alert(
-        t("verification.errors.title"),
-        t("verification.errors.cannotOpenCamera"),
-      );
+      await confirm({
+        title: t("verification.errors.title"),
+        message: t("verification.errors.cannotOpenCamera"),
+        confirmText: "OK",
+        showCancel: false,
+      });
     }
   };
 
-  const validateForm = () => {
+  const validateForm = async () => {
     const errors = validateVerificationRequestForm({
       formType,
       isGuest,
@@ -457,17 +529,36 @@ const VerificationRequestScreen = () => {
       existingSiteId,
       transitionReason,
       introduction,
+      selectedSiteClaimType,
     });
     const firstKey = getFirstVerificationErrorI18nKey(errors);
     if (firstKey) {
-      Alert.alert(t("verification.errors.title"), t(firstKey));
+      await confirm({
+        title: t("verification.errors.title"),
+        message: t(firstKey),
+        confirmText: "OK",
+        showCancel: false,
+      });
       return false;
     }
+    
+    // Check certificate is required
+    if (!certificate) {
+      await confirm({
+        title: t("verification.errors.title"),
+        message: t("verification.errors.certificateRequired"),
+        confirmText: "OK",
+        showCancel: false,
+      });
+      return false;
+    }
+    
     return true;
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    const isValid = await validateForm();
+    if (!isValid) return;
 
     try {
       if (formType === "new") {
@@ -502,20 +593,21 @@ const VerificationRequestScreen = () => {
           });
         }
       } else {
+        // Transition form
         if (isGuest) {
           await requestGuestTransition({
             applicant_email: applicantEmail,
             applicant_name: applicantName,
             applicant_phone: applicantPhone,
             existing_site_id: existingSiteId,
-            transition_reason: transitionReason,
+            transition_reason: transitionReason, // Will be validated by backend
             introduction,
             certificate: certificate || undefined,
           });
         } else {
           await requestPilgrimTransition({
             existing_site_id: existingSiteId,
-            transition_reason: transitionReason,
+            transition_reason: transitionReason, // Will be validated by backend
             introduction,
             certificate: certificate || undefined,
           });
@@ -804,12 +896,13 @@ const VerificationRequestScreen = () => {
                 <Ionicons name="chevron-down" size={20} color="#6C8CA3" />
               </TouchableOpacity>
             </View>
-            {renderInput(
+            {/* Only show transition reason field for transition type */}
+            {selectedSiteClaimType === "transition" && renderInput(
               t("verification.fields.transitionReason"),
               transitionReason,
               setTransitionReason,
               t("verification.fields.transitionReasonPlaceholder"),
-              true,
+              true, // Required for transition type
               "default",
               true,
             )}
@@ -834,25 +927,34 @@ const VerificationRequestScreen = () => {
 
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>
-            {t("verification.fields.certificate")}
+            {t("verification.fields.certificate")}{" "}
+            <Text style={{ color: "#DC4C4C" }}>*</Text>
           </Text>
           {certificate ? (
-            <View style={styles.certPreview}>
-              <Ionicons
-                name={
-                  certificate.type?.startsWith("image")
-                    ? "image-outline"
-                    : "document-outline"
-                }
-                size={22}
-                color="#D4AF37"
-              />
-              <Text style={styles.certPreviewName} numberOfLines={1}>
-                {certificate.name}
-              </Text>
-              <TouchableOpacity onPress={() => setCertificate(null)}>
-                <Ionicons name="close-circle" size={20} color="#8B3A3A" />
-              </TouchableOpacity>
+            <View style={styles.certPreviewContainer}>
+              {certificate.type?.startsWith("image") ? (
+                <Image
+                  source={{ uri: certificate.uri }}
+                  style={styles.certPreviewImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.certPreviewDocIcon}>
+                  <Ionicons name="document-outline" size={40} color="#D4AF37" />
+                </View>
+              )}
+              <View style={styles.certPreviewInfo}>
+                <Text style={styles.certPreviewName} numberOfLines={2}>
+                  {certificate.name}
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => setCertificate(null)}
+                  style={styles.certRemoveBtn}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#DC4C4C" />
+                  <Text style={styles.certRemoveText}>Xóa</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <View style={styles.certPickerRow}>
@@ -1078,13 +1180,65 @@ const VerificationRequestScreen = () => {
               />
             </View>
 
-            {isSitesLoading ? (
+            {/* Filter chips */}
+            <View style={styles.filterChipsContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  claimTypeFilter === "all" && styles.filterChipActive,
+                ]}
+                onPress={() => setClaimTypeFilter("all")}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    claimTypeFilter === "all" && styles.filterChipTextActive,
+                  ]}
+                >
+                  {t("verification.filter.all")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  claimTypeFilter === "unassigned" && styles.filterChipActive,
+                ]}
+                onPress={() => setClaimTypeFilter("unassigned")}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    claimTypeFilter === "unassigned" && styles.filterChipTextActive,
+                  ]}
+                >
+                  {t("verification.claimType.unassigned")}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.filterChip,
+                  claimTypeFilter === "transition" && styles.filterChipActive,
+                ]}
+                onPress={() => setClaimTypeFilter("transition")}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    claimTypeFilter === "transition" && styles.filterChipTextActive,
+                  ]}
+                >
+                  {t("verification.claimType.transition")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {(isSitesLoading || isFetching) && currentPage === 1 ? (
               <View style={styles.modalLoading}>
                 <ActivityIndicator size="large" color="#D4AF37" />
               </View>
             ) : (
               <FlatList
-                data={sites}
+                data={allSites}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                   <TouchableOpacity
@@ -1092,13 +1246,55 @@ const VerificationRequestScreen = () => {
                     onPress={() => {
                       setExistingSiteId(item.id);
                       setSelectedSiteName(item.name);
+                      setSelectedSiteClaimType(item.claim_type);
                       setIsSiteModalVisible(false);
                     }}
                   >
-                    <Text style={styles.siteItemName}>{item.name}</Text>
-                    <Text style={styles.siteItemAddress} numberOfLines={1}>
-                      {item.address}
-                    </Text>
+                    <View style={styles.siteItemContent}>
+                      {item.cover_image && (
+                        <Image
+                          source={{ uri: item.cover_image }}
+                          style={styles.siteItemImage}
+                          resizeMode="cover"
+                        />
+                      )}
+                      <View style={styles.siteItemInfo}>
+                        <View style={styles.siteItemHeader}>
+                          <Text style={styles.siteItemName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.claimTypeBadge,
+                              item.claim_type === "unassigned"
+                                ? styles.claimTypeBadgeUnassigned
+                                : styles.claimTypeBadgeTransition,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.claimTypeBadgeText,
+                                item.claim_type === "unassigned"
+                                  ? styles.claimTypeBadgeTextUnassigned
+                                  : styles.claimTypeBadgeTextTransition,
+                              ]}
+                            >
+                              {item.claim_type === "unassigned"
+                                ? t("verification.claimType.unassigned")
+                                : t("verification.claimType.transition")}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.siteItemAddress} numberOfLines={2}>
+                          {item.address}
+                        </Text>
+                        {item.current_manager && (
+                          <Text style={styles.siteItemManager} numberOfLines={1}>
+                            {t("verification.currentManager")}: {item.current_manager.full_name}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 )}
                 ListEmptyComponent={
@@ -1108,6 +1304,16 @@ const VerificationRequestScreen = () => {
                     </Text>
                   </View>
                 }
+                ListFooterComponent={
+                  isFetching && currentPage > 1 ? (
+                    <View style={styles.loadMoreContainer}>
+                      <ActivityIndicator size="small" color="#D4AF37" />
+                      <Text style={styles.loadMoreText}>Đang tải thêm...</Text>
+                    </View>
+                  ) : null
+                }
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.5}
                 contentContainerStyle={{ paddingBottom: 20 }}
               />
             )}
@@ -1216,18 +1422,35 @@ const VerificationRequestScreen = () => {
                         },
                       ]}
                     >
-                      {myRequest.status.toUpperCase()}
+                      {myRequest.status.toLowerCase() === "approved"
+                        ? t("verification.statusValues.approved")
+                        : myRequest.status.toLowerCase() === "rejected"
+                          ? t("verification.statusValues.rejected")
+                          : t("verification.statusValues.pending")}
                     </Text>
                   </View>
                 </View>
                 {myRequest.site_name && (
-                  <View style={styles.detailRow}>
+                  <View style={styles.siteDetailSection}>
                     <Text style={styles.detailLabel}>
                       {t("verification.details.registeredSite")}
                     </Text>
-                    <Text style={styles.detailValue} numberOfLines={1}>
-                      {myRequest.site_name}
-                    </Text>
+                    <View style={styles.siteDetailContent}>
+                      {myRequest.site_cover_image ? (
+                        <Image
+                          source={{ uri: myRequest.site_cover_image }}
+                          style={styles.siteDetailImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={[styles.siteDetailImage, styles.siteDetailImagePlaceholder]}>
+                          <Ionicons name="image-outline" size={24} color="#A0ABC0" />
+                        </View>
+                      )}
+                      <Text style={styles.siteDetailName}>
+                        {myRequest.site_name}
+                      </Text>
+                    </View>
                   </View>
                 )}
                 {myRequest.rejection_reason && (
@@ -1351,6 +1574,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  siteDetailSection: {
+    gap: 8,
+  },
+  siteDetailContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    padding: 10,
+    borderRadius: 8,
+  },
+  siteDetailImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    backgroundColor: "#E5E0D8",
+  },
+  siteDetailImagePlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  siteDetailName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1A1A1A",
+    lineHeight: 20,
   },
   detailLabel: {
     color: "#6C8CA3",
@@ -1732,10 +1983,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1A1A1A",
   },
+  filterChipsContainer: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212, 175, 55, 0.4)",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+  },
+  filterChipActive: {
+    backgroundColor: "#D4AF37",
+    borderColor: "#D4AF37",
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#8B7355",
+  },
+  filterChipTextActive: {
+    color: "#FFFFFF",
+  },
   modalLoading: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+  },
+  loadMoreContainer: {
+    paddingVertical: 16,
+    alignItems: "center",
+    gap: 8,
+  },
+  loadMoreText: {
+    fontSize: 13,
+    color: "#6C8CA3",
   },
   siteItem: {
     paddingVertical: 12,
@@ -1743,15 +2028,65 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(212, 175, 55, 0.18)",
   },
+  siteItemContent: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  siteItemImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#E5E0D8",
+  },
+  siteItemInfo: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  siteItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 6,
+    gap: 8,
+  },
   siteItemName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#1A1A1A",
-    marginBottom: 4,
+    flex: 1,
+    lineHeight: 20,
+  },
+  claimTypeBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  claimTypeBadgeUnassigned: {
+    backgroundColor: "#E6F4EA",
+  },
+  claimTypeBadgeTransition: {
+    backgroundColor: "#FFF4E5",
+  },
+  claimTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  claimTypeBadgeTextUnassigned: {
+    color: "#1E8E3E",
+  },
+  claimTypeBadgeTextTransition: {
+    color: "#E37400",
   },
   siteItemAddress: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6C8CA3",
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  siteItemManager: {
+    fontSize: 12,
+    color: "#8B7355",
+    fontStyle: "italic",
   },
   emptyContainer: {
     padding: 20,
@@ -1833,6 +2168,53 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
+  certPreviewContainer: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#D4AF37",
+    borderRadius: 12,
+    backgroundColor: "#FFFBF0",
+    alignItems: "center",
+  },
+  certPreviewImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#E5E0D8",
+  },
+  certPreviewDocIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: "#FDF8F0",
+    borderWidth: 1,
+    borderColor: "#D4AF37",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  certPreviewInfo: {
+    flex: 1,
+    gap: 8,
+  },
+  certPreviewName: {
+    fontSize: 14,
+    color: "#3D3D3D",
+    fontWeight: "500",
+  },
+  certRemoveBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+  },
+  certRemoveText: {
+    color: "#DC4C4C",
+    fontSize: 13,
+    fontWeight: "500",
+  },
   certPreview: {
     flexDirection: "row",
     alignItems: "center",
@@ -1842,11 +2224,6 @@ const styles = StyleSheet.create({
     borderColor: "#D4AF37",
     borderRadius: 12,
     backgroundColor: "#FFFBF0",
-  },
-  certPreviewName: {
-    flex: 1,
-    fontSize: 14,
-    color: "#3D3D3D",
   },
 });
 

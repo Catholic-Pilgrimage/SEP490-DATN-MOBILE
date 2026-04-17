@@ -1955,6 +1955,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     siteCoverImage={site?.coverImage}
                     navigation={navigation}
                     bottomInset={insets.bottom}
+                    visible={is3dModalVisible}
                   />
                 )}
               </View>

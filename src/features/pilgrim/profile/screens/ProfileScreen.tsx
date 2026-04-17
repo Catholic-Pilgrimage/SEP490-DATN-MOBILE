@@ -150,7 +150,7 @@ const ProfileScreen = () => {
   } = useQuery({
     queryKey: ["pilgrim", "dashboard", "overview"],
     queryFn: () => pilgrimDashboardApi.getOverview(),
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && contextUser?.role === 'pilgrim',
     staleTime: 60 * 1000,
   });
   // Prefer query data over context data for display
