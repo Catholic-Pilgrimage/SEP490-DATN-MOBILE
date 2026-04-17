@@ -1,11 +1,14 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import type { TFunction } from "i18next";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Animated,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,9 +16,9 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   useWindowDimensions,
-  View,
+  View
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
@@ -185,9 +188,30 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
   );
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const slideAnim = React.useRef(new Animated.Value(0)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
+  }, []);
 
   React.useEffect(() => {
     if (visible) {
@@ -291,20 +315,26 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent>
-      <View style={styles.modalRoot}>
-        <TouchableWithoutFeedback onPress={animateClose}>
+      <TouchableWithoutFeedback onPress={animateClose}>
+        <View style={styles.modalRoot}>
           <Animated.View
             style={[styles.overlay, { opacity: overlayOpacity }]}
           />
-        </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
 
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={[styles.keyboardAvoidingContainer, { bottom: keyboardHeight }]}
+      >
         <Animated.View
           style={[
             styles.sheet,
             {
-              maxHeight: screenHeight * 0.85,
-              minHeight: screenHeight * 0.6,
-              paddingBottom: insets.bottom,
+              maxHeight: keyboardHeight > 0 
+                ? Math.min(screenHeight * 0.85, screenHeight - keyboardHeight - 40)
+                : screenHeight * 0.85,
+              minHeight: Math.min(screenHeight * 0.6, screenHeight - keyboardHeight - 40),
               transform: [{ translateY: slideAnim }],
             },
           ]}
@@ -341,127 +371,132 @@ const ReportPostModal: React.FC<ReportPostModalProps> = ({
 
           <View style={styles.divider} />
 
-          {step === "reason" ? (
-            <>
-              <View style={styles.subtitleContainer}>
-                <MaterialIcons name="flag" size={20} color={COLORS.danger} />
-                <Text style={styles.subtitle}>
-                  {t("report.selectReason", {
-                    defaultValue: "Please choose a reason for this report",
-                  })}
-                </Text>
-              </View>
-
-              <ScrollView
-                style={styles.reasonList}
-                showsVerticalScrollIndicator={false}
-              >
-                {reportReasons.map((reason) => {
-                  const palette = getReasonPalette(reason.value);
-
-                  return (
-                    <TouchableOpacity
-                      key={reason.value}
-                      style={styles.reasonItem}
-                      onPress={() => handleSelectReason(reason.value)}
-                      activeOpacity={0.6}
-                    >
-                      <View
-                        style={[
-                          styles.reasonIconContainer,
-                          {
-                            backgroundColor: palette.background,
-                            borderColor: palette.border,
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={reason.icon as any}
-                          size={22}
-                          color={palette.icon}
-                        />
-                      </View>
-                      <View style={styles.reasonTextContainer}>
-                        <Text style={styles.reasonLabel}>{reason.label}</Text>
-                        <Text style={styles.reasonDescription}>
-                          {reason.description}
-                        </Text>
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={20}
-                        color={COLORS.textTertiary}
-                      />
-                    </TouchableOpacity>
-                  );
-                })}
-                <View style={{ height: Math.max(insets.bottom, SPACING.lg) }} />
-              </ScrollView>
-            </>
-          ) : (
-            <>
-              <View style={styles.selectedReasonContainer}>
-                <View style={styles.selectedReasonBadge}>
-                  <MaterialIcons name="flag" size={16} color={COLORS.danger} />
-                  <Text style={styles.selectedReasonText}>
-                    {selectedReasonLabel}
+            {step === "reason" ? (
+              <>
+                <View style={styles.subtitleContainer}>
+                  <MaterialIcons name="flag" size={20} color={COLORS.danger} />
+                  <Text style={styles.subtitle}>
+                    {t("report.selectReason", {
+                      defaultValue: "Please choose a reason for this report",
+                    })}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.detailContainer}>
-                <Text style={styles.detailLabel}>
-                  {t("report.descriptionLabel", {
-                    defaultValue: "Additional details (optional)",
-                  })}
-                </Text>
-                <TextInput
-                  style={styles.detailInput}
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={t("report.descriptionPlaceholder", {
-                    defaultValue:
-                      "Add more information to help us understand the issue...",
-                  })}
-                  placeholderTextColor={COLORS.textTertiary}
-                  multiline
-                  maxLength={500}
-                  textAlignVertical="top"
-                />
-                <Text style={styles.charCount}>{description.length}/500</Text>
-              </View>
-
-              <View
-                style={[
-                  styles.submitContainer,
-                  { paddingBottom: Math.max(insets.bottom, SPACING.lg) },
-                ]}
-              >
-                <TouchableOpacity
-                  style={[
-                    styles.submitButton,
-                    submitting && styles.submitButtonDisabled,
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={submitting}
-                  activeOpacity={0.8}
+                <ScrollView
+                  style={styles.reasonList}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
                 >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <MaterialIcons name="send" size={18} color="#fff" />
-                      <Text style={styles.submitButtonText}>
-                        {t("report.submit", { defaultValue: "Send report" })}
+                  {reportReasons.map((reason) => {
+                    const palette = getReasonPalette(reason.value);
+
+                    return (
+                      <TouchableOpacity
+                        key={reason.value}
+                        style={styles.reasonItem}
+                        onPress={() => handleSelectReason(reason.value)}
+                        activeOpacity={0.6}
+                      >
+                        <View
+                          style={[
+                            styles.reasonIconContainer,
+                            {
+                              backgroundColor: palette.background,
+                              borderColor: palette.border,
+                            },
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={reason.icon as any}
+                            size={22}
+                            color={palette.icon}
+                          />
+                        </View>
+                        <View style={styles.reasonTextContainer}>
+                          <Text style={styles.reasonLabel}>{reason.label}</Text>
+                          <Text style={styles.reasonDescription}>
+                            {reason.description}
+                          </Text>
+                        </View>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={20}
+                          color={COLORS.textTertiary}
+                        />
+                      </TouchableOpacity>
+                    );
+                  })}
+                  <View style={{ height: SPACING.lg }} />
+                </ScrollView>
+              </>
+            ) : (
+              <>
+                <ScrollView
+                  style={{ flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  contentContainerStyle={{ paddingBottom: SPACING.md }}
+                >
+                  <View style={styles.selectedReasonContainer}>
+                    <View style={styles.selectedReasonBadge}>
+                      <MaterialIcons name="flag" size={16} color={COLORS.danger} />
+                      <Text style={styles.selectedReasonText}>
+                        {selectedReasonLabel}
                       </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+                    </View>
+                  </View>
+
+                  <View style={styles.detailContainer}>
+                    <Text style={styles.detailLabel}>
+                      {t("report.descriptionLabel", {
+                        defaultValue: "Additional details (optional)",
+                      })}
+                    </Text>
+                    <TextInput
+                      style={styles.detailInput}
+                      value={description}
+                      onChangeText={setDescription}
+                      placeholder={t("report.descriptionPlaceholder", {
+                        defaultValue:
+                          "Add more information to help us understand the issue...",
+                      })}
+                      placeholderTextColor={COLORS.textTertiary}
+                      multiline
+                      maxLength={500}
+                      textAlignVertical="top"
+                    />
+                    <Text style={styles.charCount}>{description.length}/500</Text>
+                  </View>
+                </ScrollView>
+
+                <SafeAreaView edges={["bottom"]} style={styles.submitSafeArea}>
+                  <View style={[styles.submitContainer, { marginBottom: keyboardHeight > 0 ? 8 : 0 }]}>
+                    <TouchableOpacity
+                      style={[
+                        styles.submitButton,
+                        submitting && styles.submitButtonDisabled,
+                      ]}
+                      onPress={handleSubmit}
+                      disabled={submitting}
+                      activeOpacity={0.8}
+                    >
+                      {submitting ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <MaterialIcons name="send" size={18} color="#fff" />
+                          <Text style={styles.submitButtonText}>
+                            {t("report.submit", { defaultValue: "Send report" })}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </SafeAreaView>
+              </>
+            )}
         </Animated.View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -472,6 +507,12 @@ const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
     justifyContent: "flex-end",
+  },
+  keyboardAvoidingContainer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -626,9 +667,14 @@ const styles = StyleSheet.create({
     textAlign: "right",
     marginTop: 4,
   },
+  submitSafeArea: {
+    backgroundColor: COLORS.white,
+  },
   submitContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
+    backgroundColor: COLORS.white,
   },
   submitButton: {
     flexDirection: "row",
