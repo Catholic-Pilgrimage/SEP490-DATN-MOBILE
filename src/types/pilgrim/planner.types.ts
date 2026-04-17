@@ -330,14 +330,14 @@ export interface MessageSender {
 
 export interface PlannerMessage {
   id: string;
-  message_type: "text" | "image";
+  message_type: "text" | "image" | "system";
   content: string;
-  image_url: string;
-  sender: MessageSender;
+  image_url: string | null;
+  sender: MessageSender | null;
   created_at: string;
-  planner_id: string;
-  user_id: string;
-  user: MessageSender;
+  planner_id?: string;
+  user_id?: string;
+  user?: MessageSender;
 }
 
 export interface GetPlanMessagesResponse {

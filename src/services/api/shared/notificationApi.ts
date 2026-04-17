@@ -15,9 +15,9 @@
  */
 
 import {
-  ApiResponse,
-  Pagination,
-  PaginationParams,
+    ApiResponse,
+    Pagination,
+    PaginationParams,
 } from "../../../types/api.types";
 import apiClient from "../apiClient";
 import { SHARED_ENDPOINTS } from "../endpoints";
@@ -570,6 +570,55 @@ export const getNotificationColor = (type: string): string => {
 };
 
 /**
+ * Parse notification message
+ * Backend may return message as string or as structured object with translations
+ */
+export const parseNotificationMessage = (
+  message: string | any,
+  preferredLanguage: string = "vi",
+): string => {
+  // If message is already a string, return it
+  if (typeof message === "string") {
+    // Check if it's a JSON string
+    try {
+      const parsed = JSON.parse(message);
+      if (typeof parsed === "object" && parsed !== null) {
+        message = parsed;
+      } else {
+        return message;
+      }
+    } catch {
+      return message;
+    }
+  }
+
+  // If message is an object with default_message translations
+  if (
+    message &&
+    typeof message === "object" &&
+    message.default_message &&
+    typeof message.default_message === "object"
+  ) {
+    // Try to get message in preferred language
+    const translatedMessage =
+      message.default_message[preferredLanguage] ||
+      message.default_message.vi ||
+      message.default_message.en;
+
+    if (translatedMessage) {
+      return translatedMessage;
+    }
+  }
+
+  // Fallback: try to stringify if it's an object
+  if (message && typeof message === "object") {
+    return JSON.stringify(message);
+  }
+
+  return String(message || "");
+};
+
+/**
  * Map DTO to Model
  */
 export const mapNotificationDtoToModel = (
@@ -579,7 +628,7 @@ export const mapNotificationDtoToModel = (
     id: dto.id,
     type: dto.type,
     title: dto.title,
-    message: dto.message, // Map 'message' from DTO to 'message' in Model (was 'body' in old model, but updated to match)
+    message: parseNotificationMessage(dto.message), // Parse message to handle structured format
     data: dto.data,
     isRead: dto.is_read,
     createdAt: dto.created_at,
@@ -611,6 +660,7 @@ const notificationApi = {
   getNotificationIcon,
   getNotificationColor,
   mapNotificationDtoToModel,
+  parseNotificationMessage,
 };
 
 export default notificationApi;

@@ -1,36 +1,38 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    Alert,
-    Clipboard,
-    FlatList,
-    Image,
-    Keyboard,
-    Platform,
+  ActivityIndicator,
+  Clipboard,
+  FlatList,
+  Image,
+  ImageBackground,
+  Keyboard,
+  Platform,
   RefreshControl,
-    Animated as RNAnimated,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Animated as RNAnimated,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
+import { useConfirm } from "../../../../hooks/useConfirm";
 import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import { parseNotificationMessage } from "../../../../services/api/shared/notificationApi";
 import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
 
 const POLL_INTERVAL = 8000;
@@ -62,6 +64,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { confirm } = useConfirm();
 
   const [messages, setMessages] = useState<PlannerMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -241,14 +244,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       image_url: "",
       sender: {
         id: user?.id ? String(user.id) : "",
-        full_name: user?.full_name || "",
-        avatar_url: user?.avatar_url || "",
+        full_name: user?.fullName || "",
+        avatar_url: user?.avatar || "",
       },
       user_id: user?.id ? String(user.id) : "",
       user: {
         id: user?.id ? String(user.id) : "",
-        full_name: user?.full_name || "",
-        avatar_url: user?.avatar_url || "",
+        full_name: user?.fullName || "",
+        avatar_url: user?.avatar || "",
       },
       created_at: new Date().toISOString(),
       planner_id: planId,
@@ -271,13 +274,15 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       } else {
         // Revert on failure
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-        Alert.alert(
-          t("common.error", { defaultValue: "Lỗi" }),
-          res.message ||
+        await confirm({
+          iconName: "alert-circle-outline",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: res.message ||
             t("chat.sendFailed", {
               defaultValue: "Không thể gửi tin nhắn. Vui lòng thử lại.",
             }),
-        );
+          showCancel: false,
+        });
         setText(content);
       }
     } catch (error: any) {
@@ -288,7 +293,12 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
         t("chat.sendFailed", {
           defaultValue: "Không thể gửi tin nhắn. Vui lòng thử lại.",
         });
-      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), message);
+      await confirm({
+        iconName: "alert-circle-outline",
+        title: t("common.error", { defaultValue: "Lỗi" }),
+        message,
+        showCancel: false,
+      });
       setText(content);
     }
   }, [text, sending, planId, t, user]);
@@ -303,14 +313,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       image_url: uri,
       sender: {
         id: user?.id ? String(user.id) : "",
-        full_name: user?.full_name || "",
-        avatar_url: user?.avatar_url || "",
+        full_name: user?.fullName || "",
+        avatar_url: user?.avatar || "",
       },
       user_id: user?.id ? String(user.id) : "",
       user: {
         id: user?.id ? String(user.id) : "",
-        full_name: user?.full_name || "",
-        avatar_url: user?.avatar_url || "",
+        full_name: user?.fullName || "",
+        avatar_url: user?.avatar || "",
       },
       created_at: new Date().toISOString(),
       planner_id: planId,
@@ -330,17 +340,21 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
         );
       } else {
         setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-        Alert.alert(
-          t("common.error", { defaultValue: "Lỗi" }),
-          res.message || "Không thể gửi ảnh lúc này."
-        );
+        await confirm({
+          iconName: "alert-circle-outline",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: res.message || "Không thể gửi ảnh lúc này.",
+          showCancel: false,
+        });
       }
     } catch (error: any) {
       setMessages((prev) => prev.filter((msg) => msg.id !== tempId));
-      Alert.alert(
-        t("common.error", { defaultValue: "Lỗi" }),
-        error?.message || "Không thể gửi ảnh lúc này."
-      );
+      await confirm({
+        iconName: "alert-circle-outline",
+        title: t("common.error", { defaultValue: "Lỗi" }),
+        message: error?.message || "Không thể gửi ảnh lúc này.",
+        showCancel: false,
+      });
     }
   };
 
@@ -350,10 +364,12 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       if (sending) return;
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          t("common.error", { defaultValue: "Lỗi" }),
-          "Cần cấp quyền truy cập máy ảnh để chụp hình."
-        );
+        await confirm({
+          iconName: "camera-outline",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: "Cần cấp quyền truy cập máy ảnh để chụp hình.",
+          showCancel: false,
+        });
         return;
       }
 
@@ -366,9 +382,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       if (result.canceled || !result.assets[0]) return;
       await uploadAndSendImage(result.assets[0].uri);
     } catch (error: any) {
-      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), "Không thể mở máy ảnh.");
+      await confirm({
+        iconName: "alert-circle-outline",
+        title: t("common.error", { defaultValue: "Lỗi" }),
+        message: "Không thể mở máy ảnh.",
+        showCancel: false,
+      });
     }
-  }, [sending, planId, t, user]);
+  }, [sending, planId, t, user, confirm]);
 
   // --- Pick Image (Library) ---
   const handlePickImage = useCallback(async () => {
@@ -377,12 +398,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          t("common.error", { defaultValue: "Lỗi" }),
-          t("chat.permissionDenied", {
+        await confirm({
+          iconName: "image-outline",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: t("chat.permissionDenied", {
             defaultValue: "Cần cấp quyền truy cập thư viện ảnh để gửi hình.",
-          })
-        );
+          }),
+          showCancel: false,
+        });
         return;
       }
 
@@ -395,98 +418,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       if (result.canceled || !result.assets[0]) return;
       await uploadAndSendImage(result.assets[0].uri);
     } catch (error: any) {
-      Alert.alert(t("common.error", { defaultValue: "Lỗi" }), "Không thể mở thư viện ảnh.");
-    }
-  }, [sending, planId, t, user]);
-
-  // --- Actions Menu ---
-  const showMessageMenu = useCallback(
-    (item: PlannerMessage) => {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const own = isOwn(item);
-      const isPlanOwner = user?.id === ownerId;
-      const canDelete = own || isPlanOwner;
-
-      const options: Array<{
-        text: string;
-        onPress: () => void;
-        style?: "default" | "destructive" | "cancel";
-      }> = [
-        {
-          text: t("chat.copyMessage", { defaultValue: "Sao chép tin nhắn" }),
-          onPress: () => {
-            if (item.content) {
-              Clipboard.setString(item.content);
-            }
-          },
-        },
-      ];
-
-      if (canDelete) {
-        options.push({
-          text: t("chat.deleteMessage", { defaultValue: "Xóa tin nhắn" }),
-          style: "destructive",
-          onPress: () => handleDelete(item.id),
-        });
-      }
-
-      options.push({
-        text: t("common.close", { defaultValue: "Đóng" }),
-        onPress: () => {},
+      await confirm({
+        iconName: "alert-circle-outline",
+        title: t("common.error", { defaultValue: "Lỗi" }),
+        message: "Không thể mở thư viện ảnh.",
+        showCancel: false,
       });
-
-      Alert.alert(
-        t("chat.messageOptions", { defaultValue: "Tùy chọn tin nhắn" }),
-        undefined,
-        options.map((opt) => ({
-          text: opt.text,
-          onPress: opt.onPress,
-          style: (opt.style || "default") as any,
-        })),
-      );
-    },
-    [ownerId, user?.id, t],
-  );
-
-  const handleDelete = useCallback(
-    (messageId: string) => {
-      Alert.alert(
-        t("chat.deleteTitle", { defaultValue: "Xóa tin nhắn" }),
-        t("chat.deleteConfirm", {
-          defaultValue: "Bạn có chắc muốn xóa tin nhắn này?",
-        }),
-        [
-          {
-            text: t("common.cancel", { defaultValue: "Hủy" }),
-            style: "cancel",
-          },
-          {
-            text: t("common.delete", { defaultValue: "Xóa" }),
-            style: "destructive",
-            onPress: async () => {
-              try {
-                const res = await pilgrimPlannerApi.deletePlanMessage(
-                  planId,
-                  messageId,
-                );
-                if (res.success !== false) {
-                  setMessages((prev) => prev.filter((m) => m.id !== messageId));
-                }
-              } catch {
-                Alert.alert(
-                  t("common.error", { defaultValue: "Lỗi" }),
-                  t("chat.deleteFailed", {
-                    defaultValue: "Không thể xóa tin nhắn.",
-                  }),
-                );
-              }
-            },
-          },
-        ],
-      );
-    },
-    [planId, t],
-  );
+    }
+  }, [sending, planId, t, user, confirm]);
 
   // --- Helpers ---
   const isOwn = (msg: PlannerMessage) => {
@@ -498,6 +437,61 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       String(msg.user?.id) === uid
     );
   };
+
+  const handleDelete = useCallback(
+    async (messageId: string) => {
+      try {
+        const res = await pilgrimPlannerApi.deletePlanMessage(
+          planId,
+          messageId,
+        );
+        if (res.success !== false) {
+          setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        }
+      } catch {
+        await confirm({
+          iconName: "alert-circle-outline",
+          title: t("common.error", { defaultValue: "Lỗi" }),
+          message: t("chat.deleteFailed", {
+            defaultValue: "Không thể xóa tin nhắn.",
+          }),
+          showCancel: false,
+        });
+      }
+    },
+    [planId, t, confirm],
+  );
+
+  // --- Actions Menu ---
+  const showMessageMenu = useCallback(
+    async (item: PlannerMessage) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const own = isOwn(item);
+      const isPlanOwner = user?.id === ownerId;
+      const canDelete = own || isPlanOwner;
+
+      // Copy to clipboard first
+      if (item.content) {
+        Clipboard.setString(item.content);
+      }
+
+      // Show delete confirmation if user can delete
+      if (canDelete) {
+        const confirmed = await confirm({
+          iconName: "trash-outline",
+          title: t("chat.messageOptions", { defaultValue: "Tùy chọn tin nhắn" }),
+          message: t("chat.deleteConfirm", { defaultValue: "Bạn có muốn xóa tin nhắn này?" }),
+          confirmText: t("chat.deleteMessage", { defaultValue: "Xóa tin nhắn" }),
+          cancelText: t("common.close", { defaultValue: "Đóng" }),
+        });
+
+        if (confirmed) {
+          await handleDelete(item.id);
+        }
+      }
+    },
+    [ownerId, user?.id, t, confirm, handleDelete, isOwn],
+  );
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
@@ -642,9 +636,25 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     const isSystemMsg = item.message_type === 'system' || (!item.user_id && !item.sender && !item.user);
 
     if (isSystemMsg) {
+      // Parse system message content (may be JSON object with translations)
+      const parsedContent = parseNotificationMessage(item.content, i18n.language);
+      
+      // Determine message type based on emoji/content for styling
+      const getSystemMessageStyle = (content: string) => {
+        if (content.includes('🚨') || content.toLowerCase().includes('sos') || content.toLowerCase().includes('khẩn cấp')) {
+          return { backgroundColor: 'rgba(244, 67, 54, 0.3)', borderColor: 'rgba(244, 67, 54, 0.5)' }; // Red for SOS - more visible
+        }
+        if (content.includes('✅') || content.toLowerCase().includes('đã được hủy') || content.toLowerCase().includes('cancelled')) {
+          return { backgroundColor: 'rgba(76, 175, 80, 0.3)', borderColor: 'rgba(76, 175, 80, 0.5)' }; // Green for success - more visible
+        }
+        return { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: 'rgba(0, 0, 0, 0.15)' }; // White with higher opacity
+      };
+
+      const messageStyle = getSystemMessageStyle(parsedContent);
+
       return (
-        <View style={styles.systemMessageContainer}>
-          <Text style={styles.systemMessageText}>{resolvedContent}</Text>
+        <View style={[styles.systemMessageContainer, messageStyle]}>
+          <Text style={styles.systemMessageText}>{parsedContent}</Text>
         </View>
       );
     }
@@ -768,7 +778,13 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
 
   // --- Render ---
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require("../../../../../assets/images/bg2.jpg")}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      {/* Overlay to reduce background intensity */}
+      <View style={styles.backgroundOverlay} />
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}>
         <TouchableOpacity
@@ -858,7 +874,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
              style={styles.cameraButton}
              onPress={handleTakeImage}
           >
-            <Ionicons name="camera" size={26} color={COLORS.textTertiary} />
+            <Ionicons name="camera" size={26} color="#FF6B6B" />
           </TouchableOpacity>
 
           {/* Gallery Button */}
@@ -866,7 +882,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
              style={styles.cameraButton}
              onPress={handlePickImage}
           >
-            <Ionicons name="image" size={26} color={COLORS.textTertiary} />
+            <Ionicons name="image" size={26} color="#4ECDC4" />
           </TouchableOpacity>
 
           <TextInput
@@ -892,7 +908,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
             <Ionicons name="send" size={18} color="#fff" />
           </TouchableOpacity>
         </RNAnimated.View>
-    </View>
+    </ImageBackground>
   );
 };
 
@@ -901,7 +917,10 @@ export default PlanChatScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
 
   // Header
@@ -1012,6 +1031,11 @@ const styles = StyleSheet.create({
   bubbleOther: {
     backgroundColor: COLORS.white,
     ...SHADOWS.subtle,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   senderName: {
     fontSize: TYPOGRAPHY.fontSize.xs,
@@ -1084,14 +1108,19 @@ const styles = StyleSheet.create({
   systemMessageContainer: {
     alignItems: "center",
     marginVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
+    marginHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   systemMessageText: {
     fontSize: TYPOGRAPHY.fontSize.xs,
-    color: COLORS.textSecondary,
+    color: COLORS.textPrimary,
     textAlign: "center",
     fontStyle: "italic",
     lineHeight: 18,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
   },
 
   // Input
