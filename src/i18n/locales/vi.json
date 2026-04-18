@@ -12,8 +12,10 @@
     "back": "Quay lại",
     "next": "Tiếp theo",
     "done": "Hoàn tất",
+    "apply": "Áp dụng",
     "yes": "Có",
     "no": "Không",
+    "today": "Hôm nay",
     "ok": "Đồng ý",
     "retry": "Thử lại",
     "share": "Chia sẻ",
@@ -38,6 +40,8 @@
     "categoryAccommodation": "Lưu trú",
     "categoryMedical": "Y tế",
     "categoryLocation": "Địa điểm",
+    "minutes": "phút",
+    "hours": "giờ",
     "days": {
       "mon": "Thứ 2",
       "tue": "Thứ 3",
@@ -119,6 +123,22 @@
     "status": {
       "open": "MỞ CỬA",
       "closed": "ĐÓNG CỬA"
+    },
+    "statusLine": {
+      "open": "Đang mở",
+      "closed": "Đóng cửa",
+      "loading": "Đang tải...",
+      "hoursUnavailable": "Chưa cập nhật giờ",
+      "today": "hôm nay",
+      "tomorrow": "ngày mai",
+      "reopenAtFull": "Mở lại {{time}} {{dayLabel}}, {{date}}"
+    },
+    "siteStatus": {
+      "unknown": "Không xác định",
+      "closingSoon": "Đóng cửa sau {{time}}",
+      "openingSoon": "Mở cửa sau {{time}}",
+      "onDuty": "Đang trực",
+      "remaining": "Còn {{time}}"
     },
     "patron": "Bổn mạng",
     "notAssignedSite": "Chưa được gán site",
@@ -219,6 +239,7 @@
       "daysAgo": "{{count}} ngày trước"
     }
   },
+
   "time": {
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -1615,6 +1636,7 @@
     "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
   },
   "siteModels3d": {
+    "locationLabel": "ĐỊA ĐIỂM",
     "title": "Mô hình 3D",
     "loading": "Đang tải mô hình…",
     "empty": "Chưa có mô hình 3D đã duyệt",
@@ -1646,7 +1668,7 @@
     "narrativeSubmitTts": "Gửi tạo giọng (TTS)",
     "narrativePickAudio": "Tải file âm thanh (.mp3 / .wav)",
     "narrativeVoice": "Giọng",
-    "narrativeVoiceDefault": "Giọng mặc định (theo vùng site)",
+    "narrativeVoiceDefault": "Chưa chọn giọng nói",
     "narrativeVoiceModalTitle": "Chọn giọng đọc",
     "narrativeDelete": "Xóa thuyết minh",
     "narrativeDeleteTitle": "Xóa thuyết minh?",
@@ -1656,6 +1678,7 @@
     "narrativeSuccessAudio": "Đã tải âm thanh — chờ duyệt",
     "narrativeSuccessDelete": "Đã xóa thuyết minh",
     "narrativeErrorShort": "Nội dung quá ngắn (tối thiểu 3 ký tự)",
+    "narrativeErrorNoVoice": "Vui lòng chọn giọng nói đọc thuyết minh.",
     "narrativeErrorGeneric": "Không thực hiện được. Thử lại sau.",
     "narrativePickAudioError": "Không chọn được file.",
     "narrativePlayError": "Không phát được âm thanh.",
@@ -1709,6 +1732,7 @@
   },
   "eventsTab": {
     "listTitle": "Danh sách sự kiện",
+    "createFirst": "Tạo sự kiện đầu tiên",
     "filter": "Lọc",
     "filterTitle": "Lọc sự kiện",
     "filterSectionStatus": "Trạng thái duyệt",
@@ -2279,7 +2303,39 @@
     "recordNow": "Ghi âm ngay",
     "recordNowDesc": "Sử dụng microphone để thu âm trực tiếp",
     "uploadAudioFile": "Tải lên tệp âm thanh",
-    "uploadAudioFileDesc": "Chọn tệp âm thanh có sẵn từ thiết bị"
+    "uploadAudioFileDesc": "Chọn tệp âm thanh có sẵn từ thiết bị",
+    "overlay": {
+      "spiritualJournal": "NHẬT KÝ TÂM LINH",
+      "missingInfo": "Thiếu thông tin",
+      "titleContentRequired": "Tiêu đề và nội dung không được để trống",
+      "updateSuccess": "Đã cập nhật nhật ký",
+      "updateError": "Không thể cập nhật nhật ký",
+      "audioPickError": "Không thể chọn tệp âm thanh",
+      "micPermissionRequired": "Cần quyền Micro để ghi âm",
+      "recordStartError": "Không thể bắt đầu ghi âm",
+      "stopRecording": "Dừng ghi",
+      "titlePlaceholder": "Nhập tiêu đề...",
+      "contentPlaceholder": "Cảm nghĩ của bạn...",
+      "addAudio": "Thêm ghi âm"
+    },
+    "detail": {
+      "hideJournal": "Ẩn nhật ký",
+      "openJournal": "Mở nhật ký",
+      "showJournal": "Mở nhật ký",
+      "interactionHint": "Kéo để xoay • Chạm để tương tác",
+      "siteType": {
+        "church": "Nhà thờ",
+        "shrine": "Đền thánh",
+        "monastery": "Đan viện",
+        "center": "Trung tâm",
+        "default": "Địa danh"
+      }
+    },
+    "privacy": {
+      "public": "Công khai",
+      "friends": "Bạn bè",
+      "private": "Chỉ mình tôi"
+    }
   },
   "mediaPicker": {
     "title": "Chọn thao tác",
@@ -2677,5 +2733,15 @@
       "invalidPeople": "Số người không hợp lệ",
       "invalidPeopleHint": "Số người phải lớn hơn 0"
     }
+  },
+  "media": {
+    "modelViewer": {
+      "loading": "Đang tải mô hình 3D...",
+      "error": "Không thể hiển thị mô hình",
+      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: kéo; phóng to: chụm hai ngón.",
+      "invalidUrl": "URL mô hình không hợp lệ",
+      "interactionHint": "Xoay để xem • Chạm để tương tác"
+    },
+    "gallery": "Bộ sưu tập"
   }
 }

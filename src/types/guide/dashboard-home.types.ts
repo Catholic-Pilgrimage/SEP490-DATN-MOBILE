@@ -348,14 +348,12 @@ export interface DashboardHomeDataWithBadges extends DashboardHomeData {
 export interface SiteStatusInfo {
   /** Site đang mở hay đóng */
   isOpen: boolean;
-  /** Text trạng thái tiếng Anh */
+  /** Text trạng thái đã được dịch */
   statusText: string;
-  /** Text trạng thái tiếng Việt */
-  statusTextVi: string;
-  /** Thời gian thay đổi trạng thái tiếp theo */
-  nextChange: string | null;
-  /** CSS class để style badge */
+  /** Badge variant để style */
   badgeVariant: "success" | "error";
+  /** Text thông tin thay đổi trạng thái tiếp theo (đã dịch) */
+  nextChangeText: string;
 }
 
 /**
@@ -363,11 +361,11 @@ export interface SiteStatusInfo {
  */
 export interface ActiveShiftDisplay {
   /** Có đang trong ca không */
-  isOnDuty: boolean;
-  /** Badge text hiển thị */
+  shouldShow: boolean;
+  /** Badge text hiển thị (đã dịch) */
   badgeText: string;
-  /** Thời gian còn lại trong ca */
-  remainingTime?: string;
   /** Thời gian ca: "08:00 - 16:00" */
-  shiftTimeRange: string;
+  timeRange: string;
+  /** Text thời gian còn lại (đã dịch) */
+  remainingText: string;
 }

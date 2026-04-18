@@ -12,8 +12,10 @@
     "back": "Back",
     "next": "Next",
     "done": "Done",
+    "apply": "Apply",
     "yes": "Yes",
     "no": "No",
+    "today": "Today",
     "ok": "OK",
     "retry": "Retry",
     "share": "Share",
@@ -38,6 +40,8 @@
     "categoryAccommodation": "Accommodation",
     "categoryMedical": "Medical",
     "categoryLocation": "Location",
+    "minutes": "minutes",
+    "hours": "hours",
     "days": {
       "mon": "Mon",
       "tue": "Tue",
@@ -118,6 +122,22 @@
     "status": {
       "open": "OPEN",
       "closed": "CLOSED"
+    },
+    "statusLine": {
+      "open": "Open",
+      "closed": "Closed",
+      "loading": "Loading...",
+      "hoursUnavailable": "Hours not updated",
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "reopenAtFull": "Reopen at {{time}} {{dayLabel}}, {{date}}"
+    },
+    "siteStatus": {
+      "unknown": "Unknown",
+      "closingSoon": "Closing in {{time}}",
+      "openingSoon": "Opening in {{time}}",
+      "onDuty": "On Duty",
+      "remaining": "Remaining {{time}}"
     },
     "patron": "Patron",
     "notAssignedSite": "Not assigned to a site",
@@ -1615,6 +1635,7 @@
     "dateFormatWithYear": "{{dayName}}, {{month}}/{{day}}/{{year}}"
   },
   "siteModels3d": {
+    "locationLabel": "Site",
     "title": "3D models",
     "loading": "Loading models…",
     "empty": "No approved 3D models yet",
@@ -1646,7 +1667,7 @@
     "narrativeSubmitTts": "Submit TTS",
     "narrativePickAudio": "Upload audio file (.mp3 / .wav)",
     "narrativeVoice": "Voice",
-    "narrativeVoiceDefault": "Default (site region)",
+    "narrativeVoiceDefault": "No voice selected",
     "narrativeVoiceModalTitle": "Choose voice",
     "narrativeDelete": "Remove narration",
     "narrativeDeleteTitle": "Remove narration?",
@@ -1656,6 +1677,7 @@
     "narrativeSuccessAudio": "Audio uploaded — pending review",
     "narrativeSuccessDelete": "Narration removed",
     "narrativeErrorShort": "Text too short (minimum 3 characters)",
+    "narrativeErrorNoVoice": "Please select a voice for the narration.",
     "narrativeErrorGeneric": "Something went wrong. Try again.",
     "narrativePickAudioError": "Could not pick a file.",
     "narrativePlayError": "Could not play audio.",
@@ -1709,6 +1731,7 @@
   },
   "eventsTab": {
     "listTitle": "Events list",
+    "createFirst": "Create your first event",
     "filter": "Filter",
     "filterTitle": "Filter events",
     "filterSectionStatus": "Approval status",
@@ -2279,7 +2302,39 @@
     "recordNow": "Record Now",
     "recordNowDesc": "Use microphone to record directly",
     "uploadAudioFile": "Upload Audio File",
-    "uploadAudioFileDesc": "Choose an existing audio file from your device"
+    "uploadAudioFileDesc": "Choose an existing audio file from your device",
+    "overlay": {
+      "spiritualJournal": "SPIRITUAL JOURNAL",
+      "missingInfo": "Missing Information",
+      "titleContentRequired": "Title and content cannot be empty",
+      "updateSuccess": "Journal updated successfully",
+      "updateError": "Could not update journal",
+      "audioPickError": "Could not pick audio file",
+      "micPermissionRequired": "Microphone permission required to record",
+      "recordStartError": "Could not start recording",
+      "stopRecording": "Stop recording",
+      "titlePlaceholder": "Enter title...",
+      "contentPlaceholder": "Your thoughts...",
+      "addAudio": "Add recording"
+    },
+    "detail": {
+      "hideJournal": "Hide journal",
+      "openJournal": "Open journal",
+      "showJournal": "Show journal",
+      "interactionHint": "Drag to rotate • Touch to interact",
+      "siteType": {
+        "church": "Church",
+        "shrine": "Shrine",
+        "monastery": "Monastery",
+        "center": "Center",
+        "default": "Site"
+      }
+    },
+    "privacy": {
+      "public": "Public",
+      "friends": "Friends",
+      "private": "Only me"
+    }
   },
   "mediaPicker": {
     "title": "Choose Action",
@@ -2677,5 +2732,15 @@
       "invalidPeople": "Invalid number of people",
       "invalidPeopleHint": "Number of people must be greater than 0"
     }
+  },
+  "media": {
+    "modelViewer": {
+      "loading": "Loading 3D model...",
+      "error": "Unable to display model",
+      "errorHint": "Check .glb/.gltf URL (HTTPS, CORS). Rotate: one-finger drag; Zoom: pinch two fingers.",
+      "invalidUrl": "Invalid model URL",
+      "interactionHint": "Drag to rotate • Touch to interact"
+    },
+    "gallery": "Gallery"
   }
 }

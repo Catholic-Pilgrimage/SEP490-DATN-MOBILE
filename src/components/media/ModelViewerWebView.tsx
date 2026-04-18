@@ -15,6 +15,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { WebView } from "react-native-webview";
+import { useTranslation } from "react-i18next";
 import { COLORS } from "../../constants/theme.constants";
 
 const MODEL_VIEWER_MODULE =
@@ -29,10 +30,10 @@ const getOrigin = (url: string) => {
   return match ? match[1] : DEFAULT_BASE_URL;
 };
 
-function buildModelViewerHtml(modelUrl: string): string {
+function buildModelViewerHtml(modelUrl: string, lang: string = "vi"): string {
   const safeSrc = JSON.stringify(modelUrl?.trim() || "");
   return `<!DOCTYPE html>
-<html lang="vi">
+<html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
@@ -106,11 +107,13 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
   onLoadEnd,
   fullscreen = false,
 }) => {
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentLang = i18n.language || "vi";
 
-  const html = useMemo(() => buildModelViewerHtml(modelUrl), [modelUrl]);
+  const html = useMemo(() => buildModelViewerHtml(modelUrl, currentLang), [modelUrl, currentLang]);
 
   const clearLoadTimeout = useCallback(() => {
     if (loadTimeoutRef.current) {
@@ -169,7 +172,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
     return (
       <View style={[styles.fallback, style]}>
         <MaterialIcons name="error-outline" size={40} color={COLORS.textTertiary} />
-        <Text style={styles.fallbackText}>URL mô hình không hợp lệ (cần https)</Text>
+        <Text style={styles.fallbackText}>{t("media.modelViewer.invalidUrl")}</Text>
       </View>
     );
   }
@@ -187,15 +190,15 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
             <View style={[styles.skeletonBar, { width: "48%" }]} />
           </View>
           <ActivityIndicator size="large" color={COLORS.accent} style={styles.loadingSpinner} />
-          <Text style={styles.loadingText}>Đang tải mô hình 3D…</Text>
+          <Text style={styles.loadingText}>{t("media.modelViewer.loading")}</Text>
         </View>
       )}
       {error ? (
         <View style={styles.fallback}>
           <MaterialIcons name="view-in-ar" size={48} color={COLORS.textTertiary} />
-          <Text style={styles.fallbackText}>Không thể hiển thị mô hình</Text>
+          <Text style={styles.fallbackText}>{t("media.modelViewer.error")}</Text>
           <Text style={styles.fallbackHint}>
-            Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: một ngón kéo; phóng to: chụm hai ngón.
+            {t("media.modelViewer.errorHint")}
           </Text>
         </View>
       ) : (

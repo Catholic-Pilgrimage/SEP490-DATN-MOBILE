@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme.constants";
+import { COLORS, SPACING, SHADOWS } from "../../constants/theme.constants";
 import { SiteMedia } from "../../types/pilgrim";
 
 export interface SiteModelNarrativePanelProps {
@@ -162,7 +162,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    bottom: 170, // push it up above journal CTA, below interaction hint
+    bottom: 40, // push it up above journal CTA, below interaction hint
     left: SPACING.md,
     right: SPACING.md,
     backgroundColor: "rgba(26, 40, 69, 0.85)",
