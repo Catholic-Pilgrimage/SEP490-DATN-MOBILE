@@ -1975,7 +1975,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
                   <View style={styles.premiumHeaderCenter}>
                     <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
-                    <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
+                    <Text style={styles.premiumHeaderLabel}>{t('siteModels3d.locationLabel', { defaultValue: 'ĐỊA ĐIỂM' })}</Text>
                     <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
                     <View style={styles.premiumDividerRow}>
                       <View style={styles.premiumDividerLine} />
@@ -1983,18 +1983,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       <View style={styles.premiumDividerLine} />
                     </View>
                   </View>
-
-                  <TouchableOpacity 
-                    style={styles.premiumBookmarkBtn}
-                    onPress={handleBookmark}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons 
-                      name={isFavorite ? "bookmark" : "bookmark-outline"} 
-                      size={26} 
-                      color="#D4AF37" 
-                    />
-                  </TouchableOpacity>
+                  {/* Bookmark button removed at user request */}
                 </View>
 
                 {models3d && models3d.length > 1 && (
@@ -3075,31 +3064,31 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   premiumTopControls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingTop: Platform.OS === 'ios' ? 20 : 40,
     zIndex: 100,
+    minHeight: 100,
   },
   premiumCloseBtn: {
+    position: 'absolute',
+    left: 16,
+    top: Platform.OS === 'ios' ? 20 : 40,
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  premiumBookmarkBtn: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    zIndex: 110,
   },
   premiumHeaderCenter: {
+    width: '100%',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
+    paddingHorizontal: 64,
+    marginTop: 0,
   },
   premiumHeaderLabel: {
     fontSize: 12,
@@ -3108,11 +3097,12 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   premiumHeaderTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     color: '#fff',
     letterSpacing: 0.5,
     textAlign: 'center',
+    marginTop: 2,
   },
   premiumDividerRow: {
     flexDirection: 'row',
@@ -3128,8 +3118,7 @@ const styles = StyleSheet.create({
   modelViewerContainerPremium: {
     flex: 1,
     position: 'relative',
-    marginTop: -20, // Shift up slightly to fit floating header
-    paddingBottom: 60,
+    paddingBottom: 40,
   },
   modelPickerRowPremium: {
     paddingVertical: 12,
@@ -3154,6 +3143,17 @@ const styles = StyleSheet.create({
   },
   modelChipTextActivePremium: {
     color: "#1c1408",
+  },
+  modelPickerContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  narrativePanelOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
 });
 

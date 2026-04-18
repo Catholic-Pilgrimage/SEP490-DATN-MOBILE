@@ -1615,6 +1615,7 @@
     "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
   },
   "siteModels3d": {
+    "locationLabel": "ĐỊA ĐIỂM",
     "title": "Mô hình 3D",
     "loading": "Đang tải mô hình…",
     "empty": "Chưa có mô hình 3D đã duyệt",

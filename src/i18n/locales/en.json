@@ -1615,6 +1615,7 @@
     "dateFormatWithYear": "{{dayName}}, {{month}}/{{day}}/{{year}}"
   },
   "siteModels3d": {
+    "locationLabel": "Site",
     "title": "3D models",
     "loading": "Loading models…",
     "empty": "No approved 3D models yet",
