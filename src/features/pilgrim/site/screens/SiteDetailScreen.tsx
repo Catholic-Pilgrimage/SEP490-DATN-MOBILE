@@ -72,19 +72,19 @@ interface GradientTheme {
 }
 
 const CATEGORY_GRADIENTS: Record<string, GradientTheme> = {
-  "Lễ Trọng / Tuần Thánh":  { colors: ["#4A1942", "#B8860B"], icon: "church" },
-  "Thánh Lễ Bí tích":       { colors: ["#4A1942", "#B8860B"], icon: "church" },
-  "Rước kiệu / Cung nghinh":{ colors: ["#4A1942", "#B8860B"], icon: "church" },
-  "Chầu lượt / Tuần chầu":  { colors: ["#4A1942", "#B8860B"], icon: "church" },
-  "Lễ Bổn mạng":            { colors: ["#5D4037", "#E67E22"], icon: "groups" },
-  "Hội chợ / Lễ hội":       { colors: ["#5D4037", "#E67E22"], icon: "groups" },
-  "Văn nghệ / Thánh ca":    { colors: ["#5D4037", "#E67E22"], icon: "groups" },
-  "Đại hội / Hội thao":     { colors: ["#5D4037", "#E67E22"], icon: "groups" },
-  "Tĩnh tâm":               { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
-  "Sa mạc / Cắm trại":      { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
-  "Khóa học / Giáo lý":     { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
-  "Hành hương":              { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
-  "Bác ái / Từ thiện":       { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
+  "Lễ Trọng / Tuần Thánh": { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Thánh Lễ Bí tích": { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Rước kiệu / Cung nghinh": { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Chầu lượt / Tuần chầu": { colors: ["#4A1942", "#B8860B"], icon: "church" },
+  "Lễ Bổn mạng": { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Hội chợ / Lễ hội": { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Văn nghệ / Thánh ca": { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Đại hội / Hội thao": { colors: ["#5D4037", "#E67E22"], icon: "groups" },
+  "Tĩnh tâm": { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Sa mạc / Cắm trại": { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Khóa học / Giáo lý": { colors: ["#1A535C", "#4ECDC4"], icon: "auto-stories" },
+  "Hành hương": { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
+  "Bác ái / Từ thiện": { colors: ["#6B2737", "#E88D97"], icon: "volunteer-activism" },
 };
 
 const DEFAULT_EVENT_GRADIENT: GradientTheme = { colors: ["#3D2000", "#C7A94E"], icon: "event" };
@@ -180,8 +180,8 @@ const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2:
   const dL = (lon2 - lon1) * Math.PI / 180;
 
   const a = Math.sin(dQ / 2) * Math.sin(dQ / 2) +
-            Math.cos(Q1) * Math.cos(Q2) *
-            Math.sin(dL / 2) * Math.sin(dL / 2);
+    Math.cos(Q1) * Math.cos(Q2) *
+    Math.sin(dL / 2) * Math.sin(dL / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return R * c;
@@ -194,8 +194,8 @@ const normalizeReviewErrorMessage = (error: unknown, t: any) => {
   );
 
   if (/check in at this site before you can leave a review/i.test(message)) {
-    return t("siteDetail.reviewCheckInRequired", { 
-      defaultValue: "Bạn cần check-in tại địa điểm này trước khi để lại đánh giá." 
+    return t("siteDetail.reviewCheckInRequired", {
+      defaultValue: "Bạn cần check-in tại địa điểm này trước khi để lại đánh giá."
     });
   }
 
@@ -413,8 +413,8 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     heroImages.length > 0
       ? heroImages
       : [
-          "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
-        ];
+        "https://images.unsplash.com/photo-1548625361-e88c60eb83fe?q=80&w=1000&auto=format&fit=crop",
+      ];
 
   useEffect(() => {
     const showEvent =
@@ -527,7 +527,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
         "success",
         t("common.success", { defaultValue: "Thành công" }),
         response.message ||
-          (myReview ? t("siteDetail.reviewUpdated", { defaultValue: "Đã cập nhật đánh giá của bạn." }) : t("siteDetail.reviewCreated", { defaultValue: "Đã gửi đánh giá của bạn." })),
+        (myReview ? t("siteDetail.reviewUpdated", { defaultValue: "Đã cập nhật đánh giá của bạn." }) : t("siteDetail.reviewCreated", { defaultValue: "Đã gửi đánh giá của bạn." })),
         false,
       );
 
@@ -776,9 +776,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       {review.reply.replier?.fullName
                         ? formatReviewDate(review.reply.createdAt)
                         : (review.reply.replier?.fullName || "Local Guide") +
-                          (review.reply.createdAt
-                            ? ` • ${formatReviewDate(review.reply.createdAt)}`
-                            : "")}
+                        (review.reply.createdAt
+                          ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                          : "")}
                     </Text>
                   </View>
                 ) : null}
@@ -983,13 +983,13 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
               <QuickActionButton icon="call" label={t('siteDetail.call', { defaultValue: 'Gọi điện' })} onPress={handleCallClick} />
             )}
             {models3d && models3d.length > 0 && (
-              <QuickActionButton 
-                icon="cube-outline" 
-                label={t('siteModels3d.title', { defaultValue: 'Mô hình 3D' })} 
+              <QuickActionButton
+                icon="cube-outline"
+                label={t('siteModels3d.title', { defaultValue: 'Mô hình 3D' })}
                 onPress={() => {
                   setSelectedModelIndex(0);
                   setIs3dModalVisible(true);
-                }} 
+                }}
               />
             )}
             <QuickActionButton
@@ -1113,7 +1113,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
 
             {formattedSchedules.sunday ||
-            formattedSchedules.others.length > 0 ? (
+              formattedSchedules.others.length > 0 ? (
               <View style={styles.premiumScheduleWrapper}>
                 {/* Sunday Special Card */}
                 {formattedSchedules.sunday && (
@@ -1257,7 +1257,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                           style={[
                             styles.eventDateDay,
                             dateBadge.dayText.includes("-") &&
-                              styles.eventDateDayRange,
+                            styles.eventDateDayRange,
                           ]}
                         >
                           {dateBadge.dayText}
@@ -1296,212 +1296,212 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           </View>
 
           {false && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <View style={styles.reviewHeaderBlock}>
-                <Text style={styles.sectionTitle}>{t("siteDetail.reviews", { defaultValue: "Đánh giá" })}</Text>
-                <Text style={styles.reviewSectionSubtitle}>
-                  {t("siteDetail.reviewsSubtitle", { defaultValue: "Cảm nhận thực tế từ khách hành hương" })}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={[
-                  styles.writeReviewButton,
-                  myReview && styles.writeReviewButtonSecondary,
-                ]}
-                onPress={() => openReviewModal(myReview)}
-                activeOpacity={0.85}
-              >
-                <Ionicons
-                  name={myReview ? "create-outline" : "chatbubble-ellipses-outline"}
-                  size={16}
-                  color={myReview ? COLORS.primary : "#fff"}
-                />
-                <Text
-                  style={[
-                    styles.writeReviewText,
-                    myReview
-                      ? styles.writeReviewTextSecondary
-                      : styles.writeReviewTextPrimary,
-                  ]}
-                >
-                  {myReview ? t("siteDetail.editReview", { defaultValue: "Chỉnh sửa" }) : t("siteDetail.writeReview", { defaultValue: "Viết đánh giá" })}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.reviewSummaryCard}>
-              <View style={styles.reviewSummaryMain}>
-                <Text style={styles.reviewAverageText}>
-                  {averageRating ? averageRating.toFixed(1) : "0.0"}
-                </Text>
-                {renderStars(Math.round(averageRating), 18)}
-                <Text style={styles.reviewCountText}>
-                  {t("siteDetail.reviewCount", { count: totalReviews, defaultValue: "{{count}} đánh giá" })}
-                </Text>
-              </View>
-
-              <View style={styles.reviewDistribution}>
-                {[5, 4, 3, 2, 1].map((star) => {
-                  const count =
-                    reviewSummary?.ratingDistribution?.[String(star)] || 0;
-                  const ratio = totalReviews > 0 ? count / totalReviews : 0;
-
-                  return (
-                    <View key={star} style={styles.reviewDistributionRow}>
-                      <Text style={styles.reviewDistributionLabel}>{star}</Text>
-                      <Ionicons name="star" size={12} color={COLORS.accent} />
-                      <View style={styles.reviewDistributionTrack}>
-                        <View
-                          style={[
-                            styles.reviewDistributionFill,
-                            {
-                              width: `${Math.max(
-                                ratio * 100,
-                                count > 0 ? 6 : 0,
-                              )}%`,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.reviewDistributionCount}>{count}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            {isLoadingReviews ? (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>{t("siteDetail.loadingReviews", { defaultValue: "Đang tải đánh giá..." })}</Text>
-              </View>
-            ) : displayedReviews.length > 0 ? (
-              <View style={styles.reviewList}>
-                {displayedReviews.map((review) => {
-                  const isOwnReview = review.userId === user?.id;
-
-                  return (
-                    <View key={review.id} style={styles.reviewCard}>
-                      <View style={styles.reviewCardHeader}>
-                        <View style={styles.reviewUserRow}>
-                          {review.userAvatar ? (
-                            <Image
-                              source={{ uri: review.userAvatar }}
-                              style={styles.reviewAvatar}
-                            />
-                          ) : (
-                            <View style={styles.reviewAvatarFallback}>
-                              <Text style={styles.reviewAvatarFallbackText}>
-                                {getInitials(review.userName)}
-                              </Text>
-                            </View>
-                          )}
-
-                          <View style={styles.reviewUserMeta}>
-                            <View style={styles.reviewNameRow}>
-                              <Text style={styles.reviewUserName}>
-                                {review.userName}
-                              </Text>
-                              {isOwnReview ? (
-                                <View style={styles.myReviewChip}>
-                                  <Text style={styles.myReviewChipText}>
-                                    {t("siteDetail.yourReviewBadge", { defaultValue: "Của bạn" })}
-                                  </Text>
-                                </View>
-                              ) : null}
-                              {review.verifiedVisit ? (
-                                <View style={styles.verifiedVisitChip}>
-                                  <Text style={styles.verifiedVisitChipText}>
-                                    {t("siteDetail.verifiedVisit", { defaultValue: "Đã ghé thăm" })}
-                                  </Text>
-                                </View>
-                              ) : null}
-                            </View>
-                            {renderStars(review.rating, 15)}
-                            <Text style={styles.reviewDateText}>
-                              {formatReviewDate(review.createdAt)}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {isOwnReview ? (
-                          <TouchableOpacity
-                            style={styles.editOwnReviewButton}
-                            onPress={() => openReviewModal(review)}
-                            activeOpacity={0.8}
-                          >
-                            <Ionicons
-                              name="create-outline"
-                              size={16}
-                              color={COLORS.primary}
-                            />
-                          </TouchableOpacity>
-                        ) : null}
-                      </View>
-
-                      <Text style={styles.reviewContentText}>{review.content}</Text>
-
-                      {review.reply?.content ? (
-                        <View style={styles.reviewReplyCard}>
-                          <View style={styles.reviewReplyHeader}>
-                            <Ionicons
-                              name="chatbubble-ellipses-outline"
-                              size={14}
-                              color={COLORS.primary}
-                            />
-                            <View style={styles.reviewReplyTitleGroup}>
-                              <Text style={styles.reviewReplyTitle}>
-                                {review.reply.replier?.fullName
-                                  ? t("siteDetail.replyFrom", { name: review.reply.replier.fullName, defaultValue: "Phản hồi từ {{name}}" })
-                                  : t("siteDetail.replyFromGuide", { defaultValue: "Phản hồi từ hướng dẫn viên" })}
-                              </Text>
-                              <View style={styles.reviewReplyBadge}>
-                                <Text style={styles.reviewReplyBadgeText}>
-                                  {t("siteDetail.localGuideBadge", { defaultValue: "Hướng dẫn viên địa phương" })}
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-                          <Text style={styles.reviewReplyContent}>
-                            {review.reply.content}
-                          </Text>
-                          <Text style={styles.reviewReplyMeta}>
-                            {review.reply.replier?.fullName
-                              ? formatReviewDate(review.reply.createdAt)
-                              : (review.reply.replier?.fullName || "Local Guide") +
-                                (review.reply.createdAt
-                                  ? ` • ${formatReviewDate(review.reply.createdAt)}`
-                                  : "")}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  );
-                })}
-
-                {totalReviews > displayedReviews.length ? (
-                  <Text style={styles.moreReviewsText}>
-                    {t("siteDetail.moreReviews", { count: totalReviews - displayedReviews.length, defaultValue: "+{{count}} đánh giá khác sẽ hiển thị ở bước tiếp theo" })}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.reviewHeaderBlock}>
+                  <Text style={styles.sectionTitle}>{t("siteDetail.reviews", { defaultValue: "Đánh giá" })}</Text>
+                  <Text style={styles.reviewSectionSubtitle}>
+                    {t("siteDetail.reviewsSubtitle", { defaultValue: "Cảm nhận thực tế từ khách hành hương" })}
                   </Text>
-                ) : null}
-              </View>
-            ) : (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>
-                  {t("siteDetail.noReviews", { defaultValue: "Chưa có đánh giá nào cho địa điểm này." })}
-                </Text>
+                </View>
                 <TouchableOpacity
-                  style={styles.emptyReviewCta}
-                  onPress={() => openReviewModal()}
+                  style={[
+                    styles.writeReviewButton,
+                    myReview && styles.writeReviewButtonSecondary,
+                  ]}
+                  onPress={() => openReviewModal(myReview)}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.emptyReviewCtaText}>
-                    {t("siteDetail.writeFirstReview", { defaultValue: "Viết đánh giá đầu tiên" })}
+                  <Ionicons
+                    name={myReview ? "create-outline" : "chatbubble-ellipses-outline"}
+                    size={16}
+                    color={myReview ? COLORS.primary : "#fff"}
+                  />
+                  <Text
+                    style={[
+                      styles.writeReviewText,
+                      myReview
+                        ? styles.writeReviewTextSecondary
+                        : styles.writeReviewTextPrimary,
+                    ]}
+                  >
+                    {myReview ? t("siteDetail.editReview", { defaultValue: "Chỉnh sửa" }) : t("siteDetail.writeReview", { defaultValue: "Viết đánh giá" })}
                   </Text>
                 </TouchableOpacity>
               </View>
-            )}
-          </View>
+
+              <View style={styles.reviewSummaryCard}>
+                <View style={styles.reviewSummaryMain}>
+                  <Text style={styles.reviewAverageText}>
+                    {averageRating ? averageRating.toFixed(1) : "0.0"}
+                  </Text>
+                  {renderStars(Math.round(averageRating), 18)}
+                  <Text style={styles.reviewCountText}>
+                    {t("siteDetail.reviewCount", { count: totalReviews, defaultValue: "{{count}} đánh giá" })}
+                  </Text>
+                </View>
+
+                <View style={styles.reviewDistribution}>
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count =
+                      reviewSummary?.ratingDistribution?.[String(star)] || 0;
+                    const ratio = totalReviews > 0 ? count / totalReviews : 0;
+
+                    return (
+                      <View key={star} style={styles.reviewDistributionRow}>
+                        <Text style={styles.reviewDistributionLabel}>{star}</Text>
+                        <Ionicons name="star" size={12} color={COLORS.accent} />
+                        <View style={styles.reviewDistributionTrack}>
+                          <View
+                            style={[
+                              styles.reviewDistributionFill,
+                              {
+                                width: `${Math.max(
+                                  ratio * 100,
+                                  count > 0 ? 6 : 0,
+                                )}%`,
+                              },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.reviewDistributionCount}>{count}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {isLoadingReviews ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>{t("siteDetail.loadingReviews", { defaultValue: "Đang tải đánh giá..." })}</Text>
+                </View>
+              ) : displayedReviews.length > 0 ? (
+                <View style={styles.reviewList}>
+                  {displayedReviews.map((review) => {
+                    const isOwnReview = review.userId === user?.id;
+
+                    return (
+                      <View key={review.id} style={styles.reviewCard}>
+                        <View style={styles.reviewCardHeader}>
+                          <View style={styles.reviewUserRow}>
+                            {review.userAvatar ? (
+                              <Image
+                                source={{ uri: review.userAvatar }}
+                                style={styles.reviewAvatar}
+                              />
+                            ) : (
+                              <View style={styles.reviewAvatarFallback}>
+                                <Text style={styles.reviewAvatarFallbackText}>
+                                  {getInitials(review.userName)}
+                                </Text>
+                              </View>
+                            )}
+
+                            <View style={styles.reviewUserMeta}>
+                              <View style={styles.reviewNameRow}>
+                                <Text style={styles.reviewUserName}>
+                                  {review.userName}
+                                </Text>
+                                {isOwnReview ? (
+                                  <View style={styles.myReviewChip}>
+                                    <Text style={styles.myReviewChipText}>
+                                      {t("siteDetail.yourReviewBadge", { defaultValue: "Của bạn" })}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                                {review.verifiedVisit ? (
+                                  <View style={styles.verifiedVisitChip}>
+                                    <Text style={styles.verifiedVisitChipText}>
+                                      {t("siteDetail.verifiedVisit", { defaultValue: "Đã ghé thăm" })}
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                              {renderStars(review.rating, 15)}
+                              <Text style={styles.reviewDateText}>
+                                {formatReviewDate(review.createdAt)}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {isOwnReview ? (
+                            <TouchableOpacity
+                              style={styles.editOwnReviewButton}
+                              onPress={() => openReviewModal(review)}
+                              activeOpacity={0.8}
+                            >
+                              <Ionicons
+                                name="create-outline"
+                                size={16}
+                                color={COLORS.primary}
+                              />
+                            </TouchableOpacity>
+                          ) : null}
+                        </View>
+
+                        <Text style={styles.reviewContentText}>{review.content}</Text>
+
+                        {review.reply?.content ? (
+                          <View style={styles.reviewReplyCard}>
+                            <View style={styles.reviewReplyHeader}>
+                              <Ionicons
+                                name="chatbubble-ellipses-outline"
+                                size={14}
+                                color={COLORS.primary}
+                              />
+                              <View style={styles.reviewReplyTitleGroup}>
+                                <Text style={styles.reviewReplyTitle}>
+                                  {review.reply.replier?.fullName
+                                    ? t("siteDetail.replyFrom", { name: review.reply.replier.fullName, defaultValue: "Phản hồi từ {{name}}" })
+                                    : t("siteDetail.replyFromGuide", { defaultValue: "Phản hồi từ hướng dẫn viên" })}
+                                </Text>
+                                <View style={styles.reviewReplyBadge}>
+                                  <Text style={styles.reviewReplyBadgeText}>
+                                    {t("siteDetail.localGuideBadge", { defaultValue: "Hướng dẫn viên địa phương" })}
+                                  </Text>
+                                </View>
+                              </View>
+                            </View>
+                            <Text style={styles.reviewReplyContent}>
+                              {review.reply.content}
+                            </Text>
+                            <Text style={styles.reviewReplyMeta}>
+                              {review.reply.replier?.fullName
+                                ? formatReviewDate(review.reply.createdAt)
+                                : (review.reply.replier?.fullName || "Local Guide") +
+                                (review.reply.createdAt
+                                  ? ` • ${formatReviewDate(review.reply.createdAt)}`
+                                  : "")}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    );
+                  })}
+
+                  {totalReviews > displayedReviews.length ? (
+                    <Text style={styles.moreReviewsText}>
+                      {t("siteDetail.moreReviews", { count: totalReviews - displayedReviews.length, defaultValue: "+{{count}} đánh giá khác sẽ hiển thị ở bước tiếp theo" })}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyText}>
+                    {t("siteDetail.noReviews", { defaultValue: "Chưa có đánh giá nào cho địa điểm này." })}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyReviewCta}
+                    onPress={() => openReviewModal()}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.emptyReviewCtaText}>
+                      {t("siteDetail.writeFirstReview", { defaultValue: "Viết đánh giá đầu tiên" })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           )}
 
           {/* Around the Sanctuary */}
@@ -1627,15 +1627,15 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       distanceStr = `${(distMeters / 1000).toFixed(1)} km`;
                     }
                   } else if (place.distance_meters) {
-                    distanceStr = place.distance_meters < 1000 
-                      ? `${Math.round(place.distance_meters)} m` 
+                    distanceStr = place.distance_meters < 1000
+                      ? `${Math.round(place.distance_meters)} m`
                       : `${(place.distance_meters / 1000).toFixed(1)} km`;
                   }
 
                   // Determine type based on category
                   let placeType: "restaurant" | "hotel" | "media" | "other";
-                  
-                  if (place.category === "food" ) {
+
+                  if (place.category === "food") {
                     placeType = "restaurant";
                   } else if (place.category === "lodging") {
                     placeType = "hotel";
@@ -1748,38 +1748,38 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                     markerType: "restaurant" | "hotel" | "media";
                   }
                 > =
-                  {
-                    food: {
-                      color: "#F97316",
-                      emoji: "🍜",
-                      markerType: "restaurant",
-                    },
-                    restaurant: {
-                      color: "#F97316",
-                      emoji: "🍜",
-                      markerType: "restaurant",
-                    },
-                    lodging: {
-                      color: "#2563EB",
-                      emoji: "🏨",
-                      markerType: "hotel",
-                    },
-                    hotel: {
-                      color: "#2563EB",
-                      emoji: "🏨",
-                      markerType: "hotel",
-                    },
-                    medical: {
-                      color: "#10B981",
-                      emoji: "🏥",
-                      markerType: "media",
-                    },
-                    media: {
-                      color: "#10B981",
-                      emoji: "🏥",
-                      markerType: "media",
-                    },
-                  };
+                {
+                  food: {
+                    color: "#F97316",
+                    emoji: "🍜",
+                    markerType: "restaurant",
+                  },
+                  restaurant: {
+                    color: "#F97316",
+                    emoji: "🍜",
+                    markerType: "restaurant",
+                  },
+                  lodging: {
+                    color: "#2563EB",
+                    emoji: "🏨",
+                    markerType: "hotel",
+                  },
+                  hotel: {
+                    color: "#2563EB",
+                    emoji: "🏨",
+                    markerType: "hotel",
+                  },
+                  medical: {
+                    color: "#10B981",
+                    emoji: "🏥",
+                    markerType: "media",
+                  },
+                  media: {
+                    color: "#10B981",
+                    emoji: "🏥",
+                    markerType: "media",
+                  },
+                };
                 const cfg = catCfg[place.category] || catCfg.food;
                 return {
                   id: place.id,
@@ -1825,117 +1825,117 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             ]}
           >
             <SafeAreaView edges={["bottom"]} style={styles.reviewModalSafeArea}>
-            <View style={styles.reviewModalSheet}>
-              <KeyboardAwareScrollView
-                enableOnAndroid
-                extraScrollHeight={24}
-                keyboardShouldPersistTaps="handled"
-                bounces={false}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.reviewModalScrollContent}
-              >
-              <View style={styles.reviewModalHandle} />
-              <View style={styles.reviewModalHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.reviewModalTitle}>
-                    {myReview ? t("siteDetail.editReviewModalTitle", { defaultValue: "Chỉnh sửa đánh giá" }) : t("siteDetail.reviewModalTitle", { defaultValue: "Viết đánh giá" })}
-                  </Text>
-                  <Text style={styles.reviewModalSubtitle}>{site.name}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.reviewModalCloseButton}
-                  onPress={closeReviewModal}
+              <View style={styles.reviewModalSheet}>
+                <KeyboardAwareScrollView
+                  enableOnAndroid
+                  extraScrollHeight={24}
+                  keyboardShouldPersistTaps="handled"
+                  bounces={false}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.reviewModalScrollContent}
                 >
-                  <Ionicons name="close" size={20} color={COLORS.textSecondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.reviewInputLabel}>{t("siteDetail.yourRating", { defaultValue: "Đánh giá của bạn" })}</Text>
-              <View style={styles.reviewInputStarsRow}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setReviewRating(star)}
-                    style={styles.reviewStarButton}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={star <= reviewRating ? "star" : "star-outline"}
-                      size={30}
-                      color={COLORS.accent}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.reviewInputLabel}>{t("siteDetail.reviewContent", { defaultValue: "Nội dung đánh giá" })}</Text>
-              <TextInput
-                value={reviewText}
-                onChangeText={setReviewText}
-                placeholder={t("siteDetail.reviewPlaceholder", { 
-                  defaultValue: "Chia sẻ cảm nhận của bạn về địa điểm này..." 
-                })}
-                placeholderTextColor={COLORS.textTertiary}
-                style={styles.reviewInput}
-                multiline
-                textAlignVertical="top"
-                maxLength={1000}
-              />
-              <Text style={styles.reviewInputCounter}>{reviewText.length}/1000</Text>
-
-              <View style={styles.reviewModalActions}>
-                {myReview ? (
-                  <TouchableOpacity
-                    style={styles.reviewDeleteButton}
-                    onPress={() => void handleDeleteReview()}
-                    disabled={isDeletingReview || isSavingReview}
-                    activeOpacity={0.85}
-                  >
-                    {isDeletingReview ? (
-                      <ActivityIndicator size="small" color={COLORS.danger} />
-                    ) : (
-                      <>
-                        <Ionicons
-                          name="trash-outline"
-                          size={16}
-                          color={COLORS.danger}
-                        />
-                        <Text style={styles.reviewDeleteButtonText}>{t("siteDetail.deleteReview", { defaultValue: "Xóa" })}</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                ) : null}
-
-                <TouchableOpacity
-                  style={styles.reviewSubmitButton}
-                  onPress={() => void handleSubmitReview()}
-                  disabled={isSavingReview || isDeletingReview}
-                  activeOpacity={0.85}
-                >
-                  {isSavingReview ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name="paper-plane-outline"
-                        size={16}
-                        color="#fff"
-                      />
-                      <Text style={styles.reviewSubmitButtonText}>
-                        {myReview ? t("siteDetail.updateReview", { defaultValue: "Cập nhật đánh giá" }) : t("siteDetail.submitReview", { defaultValue: "Gửi đánh giá" })}
+                  <View style={styles.reviewModalHandle} />
+                  <View style={styles.reviewModalHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reviewModalTitle}>
+                        {myReview ? t("siteDetail.editReviewModalTitle", { defaultValue: "Chỉnh sửa đánh giá" }) : t("siteDetail.reviewModalTitle", { defaultValue: "Viết đánh giá" })}
                       </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                      <Text style={styles.reviewModalSubtitle}>{site.name}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.reviewModalCloseButton}
+                      onPress={closeReviewModal}
+                    >
+                      <Ionicons name="close" size={20} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.reviewInputLabel}>{t("siteDetail.yourRating", { defaultValue: "Đánh giá của bạn" })}</Text>
+                  <View style={styles.reviewInputStarsRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setReviewRating(star)}
+                        style={styles.reviewStarButton}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name={star <= reviewRating ? "star" : "star-outline"}
+                          size={30}
+                          color={COLORS.accent}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.reviewInputLabel}>{t("siteDetail.reviewContent", { defaultValue: "Nội dung đánh giá" })}</Text>
+                  <TextInput
+                    value={reviewText}
+                    onChangeText={setReviewText}
+                    placeholder={t("siteDetail.reviewPlaceholder", {
+                      defaultValue: "Chia sẻ cảm nhận của bạn về địa điểm này..."
+                    })}
+                    placeholderTextColor={COLORS.textTertiary}
+                    style={styles.reviewInput}
+                    multiline
+                    textAlignVertical="top"
+                    maxLength={1000}
+                  />
+                  <Text style={styles.reviewInputCounter}>{reviewText.length}/1000</Text>
+
+                  <View style={styles.reviewModalActions}>
+                    {myReview ? (
+                      <TouchableOpacity
+                        style={styles.reviewDeleteButton}
+                        onPress={() => void handleDeleteReview()}
+                        disabled={isDeletingReview || isSavingReview}
+                        activeOpacity={0.85}
+                      >
+                        {isDeletingReview ? (
+                          <ActivityIndicator size="small" color={COLORS.danger} />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="trash-outline"
+                              size={16}
+                              color={COLORS.danger}
+                            />
+                            <Text style={styles.reviewDeleteButtonText}>{t("siteDetail.deleteReview", { defaultValue: "Xóa" })}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    ) : null}
+
+                    <TouchableOpacity
+                      style={styles.reviewSubmitButton}
+                      onPress={() => void handleSubmitReview()}
+                      disabled={isSavingReview || isDeletingReview}
+                      activeOpacity={0.85}
+                    >
+                      {isSavingReview ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons
+                            name="paper-plane-outline"
+                            size={16}
+                            color="#fff"
+                          />
+                          <Text style={styles.reviewSubmitButtonText}>
+                            {myReview ? t("siteDetail.updateReview", { defaultValue: "Cập nhật đánh giá" }) : t("siteDetail.submitReview", { defaultValue: "Gửi đánh giá" })}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </KeyboardAwareScrollView>
               </View>
-              </KeyboardAwareScrollView>
-            </View>
             </SafeAreaView>
           </KeyboardAvoidingView>
-          
+
           {/* Internal Toast for Modal visibility on some Android versions */}
           <View style={{ position: 'absolute', top: insets.top, left: 0, right: 0 }}>
-             <Toast />
+            <Toast />
           </View>
         </View>
       </Modal>
@@ -1954,103 +1954,103 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             onRequestClose={() => setIs3dModalVisible(false)}
             transparent={false}
           >
-              <View style={styles.premium3dContainer}>
-                <StatusBar barStyle="light-content" />
-                
-                {/* Background Glow Effect */}
-                <LinearGradient
-                  colors={['rgba(212, 175, 55, 0.15)', 'transparent']}
-                  style={styles.premiumBackgroundGlow}
-                />
+            <View style={styles.premium3dContainer}>
+              <StatusBar barStyle="light-content" />
 
-                {/* Floating Controls */}
-                <View style={styles.premiumTopControls}>
-                  <TouchableOpacity 
-                    style={styles.premiumCloseBtn} 
-                    onPress={() => setIs3dModalVisible(false)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={24} color="#fff" />
-                  </TouchableOpacity>
+              {/* Background Glow Effect */}
+              <LinearGradient
+                colors={['rgba(212, 175, 55, 0.15)', 'transparent']}
+                style={styles.premiumBackgroundGlow}
+              />
 
-                  <View style={styles.premiumHeaderCenter}>
-                    <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
-                    <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
-                    <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
-                    <View style={styles.premiumDividerRow}>
-                      <View style={styles.premiumDividerLine} />
-                      <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
-                      <View style={styles.premiumDividerLine} />
-                    </View>
+              {/* Floating Controls */}
+              <View style={styles.premiumTopControls}>
+                <TouchableOpacity
+                  style={styles.premiumCloseBtn}
+                  onPress={() => setIs3dModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={24} color="#fff" />
+                </TouchableOpacity>
+
+                <View style={styles.premiumHeaderCenter}>
+                  <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
+                  <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
+                  <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
+                  <View style={styles.premiumDividerRow}>
+                    <View style={styles.premiumDividerLine} />
+                    <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
+                    <View style={styles.premiumDividerLine} />
                   </View>
-
-                  <TouchableOpacity 
-                    style={styles.premiumBookmarkBtn}
-                    onPress={handleBookmark}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons 
-                      name={isFavorite ? "bookmark" : "bookmark-outline"} 
-                      size={26} 
-                      color="#D4AF37" 
-                    />
-                  </TouchableOpacity>
                 </View>
 
-                {models3d && models3d.length > 1 && (
-                  <View style={styles.modelPickerRowPremium}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
-                      {models3d.map((m, idx) => (
-                        <TouchableOpacity
-                          key={m.id}
-                          onPress={() => setSelectedModelIndex(idx)}
-                          style={[
-                            styles.modelChipPremium,
-                            selectedModelIndex === idx && styles.modelChipActivePremium
-                          ]}
-                        >
-                          <Text style={[
-                            styles.modelChipTextPremium,
-                            selectedModelIndex === idx && styles.modelChipTextActivePremium
-                          ]}>
-                            {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                <TouchableOpacity
+                  style={styles.premiumBookmarkBtn}
+                  onPress={handleBookmark}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons
+                    name={isFavorite ? "bookmark" : "bookmark-outline"}
+                    size={26}
+                    color="#D4AF37"
+                  />
+                </TouchableOpacity>
+              </View>
+
+              {models3d && models3d.length > 1 && (
+                <View style={styles.modelPickerRowPremium}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
+                    {models3d.map((m, idx) => (
+                      <TouchableOpacity
+                        key={m.id}
+                        onPress={() => setSelectedModelIndex(idx)}
+                        style={[
+                          styles.modelChipPremium,
+                          selectedModelIndex === idx && styles.modelChipActivePremium
+                        ]}
+                      >
+                        <Text style={[
+                          styles.modelChipTextPremium,
+                          selectedModelIndex === idx && styles.modelChipTextActivePremium
+                        ]}>
+                          {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <View style={styles.modelViewerContainerPremium}>
+                {models3d && models3d[selectedModelIndex] && (
+                  <ModelViewerWebView
+                    modelUrl={models3d[selectedModelIndex].url}
+                    fullscreen
+                  />
+                )}
+
+                {models3d && models3d[selectedModelIndex] && (
+                  <View style={styles.narrativePanelOverlay}>
+                    <SiteModelNarrativePanel
+                      media={models3d[selectedModelIndex]}
+                      bottomInset={insets.bottom}
+                    />
                   </View>
                 )}
 
-                <View style={styles.modelViewerContainerPremium}>
-                  {models3d && models3d[selectedModelIndex] && (
-                    <ModelViewerWebView 
-                      modelUrl={models3d[selectedModelIndex].url} 
-                      fullscreen 
-                    />
-                  )}
-
-                  {models3d && models3d[selectedModelIndex] && (
-                    <View style={styles.narrativePanelOverlay}>
-                      <SiteModelNarrativePanel 
-                        media={models3d[selectedModelIndex]} 
-                        bottomInset={insets.bottom} 
-                      />
-                    </View>
-                  )}
-
-                  {/* Journal Access Point */}
-                  {(isAuthenticated && !isGuest) && (
-                    <SiteModelJournalOverlay
-                      siteId={siteId}
-                      siteName={site?.name}
-                      siteCoverImage={site?.coverImage}
-                      navigation={navigation}
-                      bottomInset={insets.bottom}
-                      visible={is3dModalVisible}
-                    />
-                  )}
-                </View>
+                {/* Journal Access Point */}
+                {(isAuthenticated && !isGuest) && (
+                  <SiteModelJournalOverlay
+                    siteId={siteId}
+                    siteName={site?.name}
+                    siteCoverImage={site?.coverImage}
+                    navigation={navigation}
+                    bottomInset={insets.bottom}
+                    visible={is3dModalVisible}
+                  />
+                )}
               </View>
+            </View>
           </Modal>
 
           <AddToPlanModal

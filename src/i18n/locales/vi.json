@@ -12,6 +12,7 @@
     "back": "Quay lại",
     "next": "Tiếp theo",
     "done": "Hoàn tất",
+    "apply": "Áp dụng",
     "yes": "Có",
     "no": "Không",
     "ok": "Đồng ý",
@@ -38,6 +39,8 @@
     "categoryAccommodation": "Lưu trú",
     "categoryMedical": "Y tế",
     "categoryLocation": "Địa điểm",
+    "minutes": "phút",
+    "hours": "giờ",
     "days": {
       "mon": "Thứ 2",
       "tue": "Thứ 3",
@@ -119,6 +122,22 @@
     "status": {
       "open": "MỞ CỬA",
       "closed": "ĐÓNG CỬA"
+    },
+    "statusLine": {
+      "open": "Đang mở",
+      "closed": "Đóng cửa",
+      "loading": "Đang tải...",
+      "hoursUnavailable": "Chưa cập nhật giờ",
+      "today": "hôm nay",
+      "tomorrow": "ngày mai",
+      "reopenAtFull": "Mở lại {{time}} {{dayLabel}}, {{date}}"
+    },
+    "siteStatus": {
+      "unknown": "Không xác định",
+      "closingSoon": "Đóng cửa sau {{time}}",
+      "openingSoon": "Mở cửa sau {{time}}",
+      "onDuty": "Đang trực",
+      "remaining": "Còn {{time}}"
     },
     "patron": "Bổn mạng",
     "notAssignedSite": "Chưa được gán site",
@@ -219,6 +238,7 @@
       "daysAgo": "{{count}} ngày trước"
     }
   },
+
   "time": {
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -1615,6 +1635,7 @@
     "dateFormatWithYear": "{{dayName}}, {{day}} tháng {{month}}, {{year}}"
   },
   "siteModels3d": {
+    "locationLabel": "ĐỊA ĐIỂM",
     "title": "Mô hình 3D",
     "loading": "Đang tải mô hình…",
     "empty": "Chưa có mô hình 3D đã duyệt",
@@ -1646,7 +1667,7 @@
     "narrativeSubmitTts": "Gửi tạo giọng (TTS)",
     "narrativePickAudio": "Tải file âm thanh (.mp3 / .wav)",
     "narrativeVoice": "Giọng",
-    "narrativeVoiceDefault": "Giọng mặc định (theo vùng site)",
+    "narrativeVoiceDefault": "Chưa chọn giọng nói",
     "narrativeVoiceModalTitle": "Chọn giọng đọc",
     "narrativeDelete": "Xóa thuyết minh",
     "narrativeDeleteTitle": "Xóa thuyết minh?",
@@ -1656,6 +1677,7 @@
     "narrativeSuccessAudio": "Đã tải âm thanh — chờ duyệt",
     "narrativeSuccessDelete": "Đã xóa thuyết minh",
     "narrativeErrorShort": "Nội dung quá ngắn (tối thiểu 3 ký tự)",
+    "narrativeErrorNoVoice": "Vui lòng chọn giọng nói đọc thuyết minh.",
     "narrativeErrorGeneric": "Không thực hiện được. Thử lại sau.",
     "narrativePickAudioError": "Không chọn được file.",
     "narrativePlayError": "Không phát được âm thanh.",
@@ -1709,6 +1731,7 @@
   },
   "eventsTab": {
     "listTitle": "Danh sách sự kiện",
+    "createFirst": "Tạo sự kiện đầu tiên",
     "filter": "Lọc",
     "filterTitle": "Lọc sự kiện",
     "filterSectionStatus": "Trạng thái duyệt",
@@ -2631,11 +2654,12 @@
   },
   "media": {
     "modelViewer": {
-      "invalidUrl": "URL mô hình không hợp lệ (cần https)",
-      "loading": "Đang tải mô hình 3D…",
+      "loading": "Đang tải mô hình 3D...",
       "error": "Không thể hiển thị mô hình",
-      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: một ngón kéo; phóng to: chụm hai ngón.",
-      "interactionHint": "Kéo để xoay • Chạm để tương tác"
-    }
+      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: kéo; phóng to: chụm hai ngón.",
+      "invalidUrl": "URL mô hình không hợp lệ",
+      "interactionHint": "Xoay để xem • Chạm để tương tác"
+    },
+    "gallery": "Bộ sưu tập"
   }
 }

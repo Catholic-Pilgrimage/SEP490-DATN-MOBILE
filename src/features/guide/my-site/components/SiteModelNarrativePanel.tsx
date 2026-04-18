@@ -266,6 +266,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     mutationFn: async () => {
       const text = ttsText.trim();
       if (text.length < 3) throw new Error("SHORT");
+      if (!selectedVoiceId) throw new Error("NO_VOICE");
       return updateModelNarrative(media.id, {
         source: "tts",
         narrationText: text,
@@ -283,6 +284,8 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
     onError: (err: Error) => {
       if (err.message === "SHORT") {
         showApiToast(false, t("siteModels3d.narrativeErrorShort"));
+      } else if (err.message === "NO_VOICE") {
+        showApiToast(false, t("siteModels3d.narrativeErrorNoVoice"));
       } else {
         showApiToast(false, t("siteModels3d.narrativeErrorGeneric"));
       }

@@ -21,6 +21,8 @@ import {
     SOSInfo,
     SOSRequest,
     TodayOverviewItem,
+    SiteStatusInfo,
+    ActiveShiftDisplay,
 } from '../../../../types/guide';
 import {
     compareDatesDesc,
@@ -506,23 +508,19 @@ export const getTotalPendingCount = (badges: PendingBadges): number => {
  * Get site status display info
  * Dựa trên đề xuất: CLOSED badge động theo opening_hours + current time
  */
-export const getSiteStatusDisplay = (openingHours: {
-  open: string;
-  close: string;
-} | null): {
-  isOpen: boolean;
-  statusText: string;
-  statusTextVi: string;
-  badgeVariant: 'success' | 'error';
-  nextChangeText: string;
-} => {
+export const getSiteStatusDisplay = (
+  openingHours: {
+    open: string;
+    close: string;
+  } | null,
+  t?: (key: string, options?: any) => string
+): SiteStatusInfo => {
   if (!openingHours) {
     return {
       isOpen: false,
-      statusText: 'Closed',
-      statusTextVi: 'Đóng cửa',
+      statusText: t ? t('dashboard.statusLine.closed') : 'Closed',
       badgeVariant: 'error',
-      nextChangeText: '',
+      nextChangeText: t ? t('dashboard.statusLine.hoursUnavailable') : 'Hours not updated',
     };
   }
 
@@ -533,8 +531,7 @@ export const getSiteStatusDisplay = (openingHours: {
   if (openMinutes === null || closeMinutes === null) {
     return {
       isOpen: false,
-      statusText: 'Unknown',
-      statusTextVi: 'Không xác định',
+      statusText: t ? t('dashboard.siteStatus.unknown') : 'Unknown',
       badgeVariant: 'error',
       nextChangeText: '',
     };
@@ -548,17 +545,20 @@ export const getSiteStatusDisplay = (openingHours: {
     const hoursUntilClose = Math.floor(minutesUntilClose / 60);
     const minsRemaining = minutesUntilClose % 60;
 
-    let nextChangeText = '';
-    if (hoursUntilClose > 0) {
-      nextChangeText = `Đóng cửa sau ${hoursUntilClose}h ${minsRemaining}m`;
-    } else {
-      nextChangeText = `Đóng cửa sau ${minsRemaining} phút`;
+    let timeText = hoursUntilClose > 0 ? `${hoursUntilClose}h ${minsRemaining}m` : `${minsRemaining} phút`;
+    if (t) {
+      // In English "phút" should be "minutes"
+      const minsText = t('common.minutes', { defaultValue: 'phút' });
+      timeText = hoursUntilClose > 0 ? `${hoursUntilClose}h ${minsRemaining}m` : `${minsRemaining} ${minsText}`;
     }
+
+    const nextChangeText = t 
+      ? t('dashboard.siteStatus.closingSoon', { time: timeText }) 
+      : `Closed in ${timeText}`;
 
     return {
       isOpen: true,
-      statusText: 'Open',
-      statusTextVi: 'Đang mở',
+      statusText: t ? t('dashboard.statusLine.open') : 'Open',
       badgeVariant: 'success',
       nextChangeText,
     };
@@ -575,17 +575,19 @@ export const getSiteStatusDisplay = (openingHours: {
     const hoursUntilOpen = Math.floor(minutesUntilOpen / 60);
     const minsRemaining = minutesUntilOpen % 60;
 
-    let nextChangeText = '';
-    if (hoursUntilOpen > 0) {
-      nextChangeText = `Mở cửa sau ${hoursUntilOpen}h ${minsRemaining}m`;
-    } else {
-      nextChangeText = `Mở cửa sau ${minsRemaining} phút`;
+    let timeText = hoursUntilOpen > 0 ? `${hoursUntilOpen}h ${minsRemaining}m` : `${minsRemaining} phút`;
+    if (t) {
+      const minsText = t('common.minutes', { defaultValue: 'phút' });
+      timeText = hoursUntilOpen > 0 ? `${hoursUntilOpen}h ${minsRemaining}m` : `${minsRemaining} ${minsText}`;
     }
+
+    const nextChangeText = t 
+      ? t('dashboard.siteStatus.openingSoon', { time: timeText }) 
+      : `Opens in ${timeText}`;
 
     return {
       isOpen: false,
-      statusText: 'Closed',
-      statusTextVi: 'Đóng cửa',
+      statusText: t ? t('dashboard.statusLine.closed') : 'Closed',
       badgeVariant: 'error',
       nextChangeText,
     };
@@ -597,19 +599,13 @@ export const getSiteStatusDisplay = (openingHours: {
  * Dựa trên đề xuất: Active Shift chỉ hiển thị khi đang ON DUTY
  */
 export const getActiveShiftDisplay = (
-  shiftInfo: ActiveShiftInfo
-): {
-  shouldShow: boolean;
-  badgeText: string;
-  badgeTextVi: string;
-  timeRange: string;
-  remainingText: string;
-} => {
+  shiftInfo: ActiveShiftInfo,
+  t?: (key: string, options?: any) => string
+): ActiveShiftDisplay => {
   if (!shiftInfo.isOnDuty || !shiftInfo.shift) {
     return {
       shouldShow: false,
       badgeText: '',
-      badgeTextVi: '',
       timeRange: '',
       remainingText: '',
     };
@@ -619,11 +615,10 @@ export const getActiveShiftDisplay = (
 
   return {
     shouldShow: true,
-    badgeText: 'On Duty',
-    badgeTextVi: 'Đang trực',
+    badgeText: t ? t('dashboard.siteStatus.onDuty') : 'On Duty',
     timeRange,
     remainingText: shiftInfo.remainingTime
-      ? `Còn ${shiftInfo.remainingTime}`
+      ? (t ? t('dashboard.siteStatus.remaining', { time: shiftInfo.remainingTime }) : `Remaining ${shiftInfo.remainingTime}`)
       : '',
   };
 };
