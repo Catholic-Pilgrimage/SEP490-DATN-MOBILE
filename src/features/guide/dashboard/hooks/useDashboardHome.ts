@@ -272,14 +272,14 @@ export const useDashboardHome = (): UseDashboardHomeResult => {
 
   // Site status display
   const siteStatusDisplay = useMemo(
-    () => getSiteStatusDisplay(processedSiteInfo?.openingHours ?? null),
-    [processedSiteInfo?.openingHours]
+    () => getSiteStatusDisplay(processedSiteInfo?.openingHours ?? null, t),
+    [processedSiteInfo?.openingHours, t]
   );
 
   // Active shift display
   const activeShiftDisplay = useMemo(
-    () => getActiveShiftDisplay(processedActiveShift),
-    [processedActiveShift]
+    () => getActiveShiftDisplay(processedActiveShift, t),
+    [processedActiveShift, t]
   );
 
   // ============================================

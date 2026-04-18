@@ -12,6 +12,7 @@
     "back": "Back",
     "next": "Next",
     "done": "Done",
+    "apply": "Apply",
     "yes": "Yes",
     "no": "No",
     "ok": "OK",
@@ -38,6 +39,8 @@
     "categoryAccommodation": "Accommodation",
     "categoryMedical": "Medical",
     "categoryLocation": "Location",
+    "minutes": "minutes",
+    "hours": "hours",
     "days": {
       "mon": "Mon",
       "tue": "Tue",
@@ -118,6 +121,22 @@
     "status": {
       "open": "OPEN",
       "closed": "CLOSED"
+    },
+    "statusLine": {
+      "open": "Open",
+      "closed": "Closed",
+      "loading": "Loading...",
+      "hoursUnavailable": "Hours not updated",
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "reopenAtFull": "Reopen at {{time}} {{dayLabel}}, {{date}}"
+    },
+    "siteStatus": {
+      "unknown": "Unknown",
+      "closingSoon": "Closing in {{time}}",
+      "openingSoon": "Opening in {{time}}",
+      "onDuty": "On Duty",
+      "remaining": "Remaining {{time}}"
     },
     "patron": "Patron",
     "notAssignedSite": "Not assigned to a site",
@@ -1711,6 +1730,7 @@
   },
   "eventsTab": {
     "listTitle": "Events list",
+    "createFirst": "Create your first event",
     "filter": "Filter",
     "filterTitle": "Filter events",
     "filterSectionStatus": "Approval status",

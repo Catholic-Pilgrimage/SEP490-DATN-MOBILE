@@ -12,6 +12,7 @@
     "back": "Quay lại",
     "next": "Tiếp theo",
     "done": "Hoàn tất",
+    "apply": "Áp dụng",
     "yes": "Có",
     "no": "Không",
     "ok": "Đồng ý",
@@ -38,6 +39,8 @@
     "categoryAccommodation": "Lưu trú",
     "categoryMedical": "Y tế",
     "categoryLocation": "Địa điểm",
+    "minutes": "phút",
+    "hours": "giờ",
     "days": {
       "mon": "Thứ 2",
       "tue": "Thứ 3",
@@ -119,6 +122,22 @@
     "status": {
       "open": "MỞ CỬA",
       "closed": "ĐÓNG CỬA"
+    },
+    "statusLine": {
+      "open": "Đang mở",
+      "closed": "Đóng cửa",
+      "loading": "Đang tải...",
+      "hoursUnavailable": "Chưa cập nhật giờ",
+      "today": "hôm nay",
+      "tomorrow": "ngày mai",
+      "reopenAtFull": "Mở lại {{time}} {{dayLabel}}, {{date}}"
+    },
+    "siteStatus": {
+      "unknown": "Không xác định",
+      "closingSoon": "Đóng cửa sau {{time}}",
+      "openingSoon": "Mở cửa sau {{time}}",
+      "onDuty": "Đang trực",
+      "remaining": "Còn {{time}}"
     },
     "patron": "Bổn mạng",
     "notAssignedSite": "Chưa được gán site",
@@ -1712,6 +1731,7 @@
   },
   "eventsTab": {
     "listTitle": "Danh sách sự kiện",
+    "createFirst": "Tạo sự kiện đầu tiên",
     "filter": "Lọc",
     "filterTitle": "Lọc sự kiện",
     "filterSectionStatus": "Trạng thái duyệt",

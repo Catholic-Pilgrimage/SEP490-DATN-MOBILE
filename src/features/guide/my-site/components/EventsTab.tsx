@@ -41,8 +41,10 @@ import {
 import { StatusBadge } from "./StatusBadge";
 import {
   CATEGORY_GROUP_GRADIENTS,
-  EVENT_CATEGORY_GROUPS,
+  CategoryGroup,
+  CategoryItem,
   getCategoryGradientForList,
+  getEventCategoryGroups,
   getEventCategoryLabel,
   resolveEventCategorySlug,
   stripLegacyCategoryTag,
@@ -54,7 +56,7 @@ import {
 
 type StatusFilter = "all" | EventStatus;
 
-const getCategoryFilterItems = (t: (key: string) => string): FilterItem[] => {
+const getCategoryFilterItems = (t: any): FilterItem[] => {
   const all: FilterItem = {
     key: "all",
     label: t("eventsTab.categoryAll"),
@@ -63,12 +65,14 @@ const getCategoryFilterItems = (t: (key: string) => string): FilterItem[] => {
     icon: "category",
     description: t("eventsTab.categoryAllDesc"),
   };
-  const items: FilterItem[] = EVENT_CATEGORY_GROUPS.flatMap((g) => g.items).map(
-    (item) => {
+  
+  const groups = getEventCategoryGroups(t);
+  const items: FilterItem[] = groups.flatMap((g: CategoryGroup) => g.items).map(
+    (item: CategoryItem) => {
       const th = CATEGORY_GROUP_GRADIENTS[item.value];
       return {
         key: item.value,
-        label: item.label,
+        label: t(item.labelKey),
         color: th?.colors[1] ?? PREMIUM_COLORS.gold,
         bgColor: "#FFF9F5",
         icon: (th?.icon ?? "event") as string,
@@ -490,7 +494,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
           activeOpacity={0.8}
         >
           <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={styles.emptyButtonText}>Tạo sự kiện đầu tiên</Text>
+          <Text style={styles.emptyButtonText}>{t("eventsTab.createFirst")}</Text>
         </TouchableOpacity>
       )}
     </View>
