@@ -4,54 +4,54 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    AppState,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SPACING,
+    BORDER_RADIUS,
+    COLORS,
+    SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
-  CalendarSyncError,
-  useCalendarSync,
+    CalendarSyncError,
+    useCalendarSync,
 } from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
 import type {
-  PlannerCompositeNavigationProp,
-  PlannerRouteProp,
+    PlannerCompositeNavigationProp,
+    PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -60,16 +60,16 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-  createOfflinePlannerItemId,
-  offlinePlannerService,
+    createOfflinePlannerItemId,
+    offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
 import {
-  AddPlanItemRequest,
-  PlanEntity,
-  PlanItem,
-  UpdatePlanRequest,
+    AddPlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
@@ -93,36 +93,36 @@ import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
 import {
-  type PlannerItemPatch,
-  usePlannerDayPatching,
+    type PlannerItemPatch,
+    usePlannerDayPatching,
 } from "../hooks/usePlannerDayPatching";
 import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
-  MAX_DEPOSIT_VND,
-  parsePenaltyPercent,
-  parseVndInteger,
+    MAX_DEPOSIT_VND,
+    parsePenaltyPercent,
+    parseVndInteger,
 } from "../utils/depositInput.utils";
 import {
-  extractApiErrorMessage,
-  showErrorToast,
+    extractApiErrorMessage,
+    showErrorToast,
 } from "../utils/planDetailHelpers";
 import {
-  LocalSiteSnapshot,
-  applyLocalAddItem,
-  applyLocalClearAllItems,
-  applyLocalDeleteItem,
-  sortPlanDayItems,
+    LocalSiteSnapshot,
+    applyLocalAddItem,
+    applyLocalClearAllItems,
+    applyLocalDeleteItem,
+    sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
-  buildPlanMapPins,
-  getPlanMapCenter,
-  getPlannerRosterCount,
+    buildPlanMapPins,
+    getPlanMapCenter,
+    getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-  buildDurationString,
-  calculateEndTimeRaw,
-  getDateForDayRaw,
+    buildDurationString,
+    calculateEndTimeRaw,
+    getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
 import { getGroupPatronConstraintFromPlan } from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
@@ -1822,7 +1822,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         if (isAvailableOffline) {
           await offlinePlannerService.deletePlannerData(planId);
         }
-        navigation.goBack();
+        Toast.show({
+          type: "success",
+          text1: t("planner.deleteSuccess", { defaultValue: "Đã xóa kế hoạch" }),
+        });
+        // Navigate back and trigger refresh
+        navigation.navigate("PlannerMain", { 
+          refresh: Date.now() // Use timestamp to force refresh
+        });
       } else {
         Toast.show({
           type: "error",

@@ -2596,5 +2596,86 @@
     "filter_pending": "Pending",
     "filter_approved": "Upcoming",
     "filter_history": "History"
+  },
+  "aiRoute": {
+    "title": "AI Route Planner",
+    "steps": {
+      "selection": "Select",
+      "configuration": "Configure",
+      "ai": "AI",
+      "result": "Result"
+    },
+    "siteSelection": {
+      "count": "{{count}}/{{max}} sites",
+      "selected": "Selected Sites",
+      "addMore": "Add Sites",
+      "search": "Search Sites",
+      "searchTitle": "Find Sites",
+      "searchPlaceholder": "Enter site name...",
+      "searchHint": "Enter site name to search",
+      "favorites": "Favorite Sites",
+      "noResults": "No sites found",
+      "noSites": "No sites available"
+    },
+    "configuration": {
+      "startDate": "Start Date",
+      "maxDays": "Maximum Days",
+      "transport": "Transportation",
+      "priority": "Priority",
+      "people": "Number of People",
+      "patronSaint": "Patron Saint (Optional)",
+      "patronSaintPlaceholder": "e.g., St. Joseph...",
+      "generate": "Generate Route",
+      "regenerate": "Regenerate Route",
+      "transportCar": "Car",
+      "transportMotorbike": "Motorbike",
+      "transportBus": "Bus",
+      "days": "days",
+      "people": "people",
+      "priorityTime": "Save Time",
+      "priorityTimeDesc": "Prioritize fastest route",
+      "priorityDistance": "Save Distance",
+      "priorityDistanceDesc": "Prioritize shortest route",
+      "priorityBalanced": "Balanced",
+      "priorityBalancedDesc": "Balance time and distance",
+      "prioritySpiritual": "Spiritual",
+      "prioritySpiritualDesc": "Prioritize spiritual significance"
+    },
+    "loading": {
+      "message": "AI is creating an optimized route for you...",
+      "slowTitle": "AI is processing",
+      "slowMessage": "AI is taking longer than usual. Please wait a bit more..."
+    },
+    "result": {
+      "summary": "Summary",
+      "tips": "AI Tips",
+      "itinerary": "Detailed Itinerary",
+      "createPlanner": "Create Planner",
+      "createSuccess": "Planner created successfully!",
+      "partialSuccess": "Planner created",
+      "someItemsFailed": "{{count}} locations could not be added",
+      "day": "Day",
+      "time": "Time",
+      "rest": "Rest",
+      "travel": "Travel",
+      "minutes": "min",
+      "metadataTitle": "Route Information",
+      "transport": "Transportation",
+      "priority": "Priority",
+      "sitesCount": "Number of Sites"
+    },
+    "errors": {
+      "title": "Cannot create route",
+      "maxSites": "Maximum 10 sites",
+      "minSites": "Please select at least 2 sites",
+      "apiFailed": "AI could not create route",
+      "networkError": "Connection error",
+      "createFailed": "Could not create planner",
+      "createError": "Error creating planner",
+      "dateOverlap": "Schedule conflicts with another plan",
+      "dateOverlapHint": "Please choose a different date or delete the old plan",
+      "invalidPeople": "Invalid number of people",
+      "invalidPeopleHint": "Number of people must be greater than 0"
+    }
   }
 }

@@ -1,47 +1,48 @@
 import {
-    Ionicons,
-    MaterialCommunityIcons,
-    MaterialIcons,
+  Ionicons,
+  MaterialCommunityIcons,
+  MaterialIcons,
 } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-    CommonActions,
-    useFocusEffect,
-    useScrollToTop,
+  CommonActions,
+  useFocusEffect,
+  useScrollToTop,
 } from "@react-navigation/native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    Dimensions,
-    ImageBackground,
-    Platform,
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  ImageBackground,
+  Platform,
   RefreshControl,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { AISparkles } from "../../../../components/ui/AISparkles";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import {
-    PlanEntity,
-    PlannerMyInvite,
-    TransportationType,
+  PlanEntity,
+  PlannerMyInvite,
+  TransportationType,
 } from "../../../../types/pilgrim/planner.types";
 import InvitedPlanCard, {
-    InvitedPlanUI,
+  InvitedPlanUI,
 } from "../components/shared/InvitedPlanCard";
 import PlanCard, { PlanUI } from "../components/shared/PlanCard";
 
@@ -429,6 +430,53 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   // ── Tab state ──
   const [activeTab, setActiveTab] = useState<PlannerTab>("my");
 
+  // ── Navigation helpers (must be defined before useEffect that uses them) ──
+  const guardedNavigatePlanner = useCallback(
+    <T extends keyof PlannerStackParamList>(
+      key: string,
+      screen: T,
+      params: PlannerStackParamList[T],
+    ) => {
+      runWithActionGuard(`planner-nav:${key}`, () => {
+        // @ts-ignore - Generic navigation typing issue
+        navigation.navigate(screen, params);
+      });
+    },
+    [navigation],
+  );
+
+  const guardedNavigateMain = useCallback(
+    <T extends keyof PilgrimMainStackParamList>(
+      key: string,
+      screen: T,
+      params: PilgrimMainStackParamList[T],
+    ) => {
+      runWithActionGuard(`planner-nav:${key}`, () => {
+        // @ts-ignore - Generic navigation typing issue
+        navigation.navigate(screen, params);
+      });
+    },
+    [navigation],
+  );
+
+  const navigateToPlanByStatus = useCallback(
+    (planId: string, status?: string, extraParams?: Record<string, any>) => {
+      const normalized = String(status || "").toLowerCase();
+      if (normalized === "ongoing") {
+        guardedNavigatePlanner("active-journey", "ActiveJourneyScreen", {
+          planId,
+          ...(extraParams || {}),
+        });
+        return;
+      }
+      guardedNavigatePlanner("plan-detail", "PlanDetailScreen", {
+        planId,
+        ...(extraParams || {}),
+      });
+    },
+    [guardedNavigatePlanner],
+  );
+
   useEffect(() => {
     const initial = route?.params?.initialTab as PlannerTab | undefined;
     if (initial === "invited" || initial === "my") {
@@ -710,6 +758,14 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
     }, [fetchAllPlans, loadGuestInvitedPlan, isGuest]),
   );
 
+  // Listen for refresh param from navigation
+  useEffect(() => {
+    const refreshParam = route?.params?.refresh;
+    if (refreshParam && !isGuest) {
+      fetchAllPlans({ silent: true });
+    }
+  }, [route?.params?.refresh, isGuest, fetchAllPlans]);
+
   const handleLogin = async () => {
     if (isGuest) {
       await exitGuestMode();
@@ -754,50 +810,6 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
     outputRange: [0, -50],
     extrapolate: "clamp",
   });
-
-  const guardedNavigatePlanner = useCallback(
-    <T extends keyof PlannerStackParamList>(
-      key: string,
-      screen: T,
-      params: PlannerStackParamList[T],
-    ) => {
-      runWithActionGuard(`planner-nav:${key}`, () => {
-        navigation.navigate(screen as never, params as never);
-      });
-    },
-    [navigation],
-  );
-
-  const guardedNavigateMain = useCallback(
-    <T extends keyof PilgrimMainStackParamList>(
-      key: string,
-      screen: T,
-      params: PilgrimMainStackParamList[T],
-    ) => {
-      runWithActionGuard(`planner-nav:${key}`, () => {
-        navigation.navigate(screen as never, params as never);
-      });
-    },
-    [navigation],
-  );
-
-  const navigateToPlanByStatus = useCallback(
-    (planId: string, status?: string, extraParams?: Record<string, any>) => {
-      const normalized = String(status || "").toLowerCase();
-      if (normalized === "ongoing") {
-        guardedNavigatePlanner("active-journey", "ActiveJourneyScreen", {
-          planId,
-          ...(extraParams || {}),
-        });
-        return;
-      }
-      guardedNavigatePlanner("plan-detail", "PlanDetailScreen", {
-        planId,
-        ...(extraParams || {}),
-      });
-    },
-    [guardedNavigatePlanner],
-  );
 
   // ── Render plan lists ──────
   const renderMyPlans = () => {
@@ -1074,15 +1086,26 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
 
       {/* FAB - Hidden for guests, only show on My tab */}
       {!isGuest && activeTab === "my" && (
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.9}
-          onPress={() =>
-            guardedNavigatePlanner("fab-create", "CreatePlanScreen", undefined)
-          }
-        >
-          <Ionicons name="add" size={32} color={COLORS.textPrimary} />
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={styles.fab}
+            activeOpacity={0.9}
+            onPress={() =>
+              guardedNavigatePlanner("fab-create", "CreatePlanScreen", undefined)
+            }
+          >
+            <Ionicons name="add" size={32} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.aiFab}
+            activeOpacity={0.9}
+            onPress={() =>
+              guardedNavigatePlanner("fab-ai-route", "AIRouteSuggestionScreen", undefined)
+            }
+          >
+            <AISparkles size={24} color="#FFFFFF" isAnimating={true} />
+          </TouchableOpacity>
+        </>
       )}
     </ImageBackground>
   );
@@ -1327,6 +1350,21 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: BORDER_RADIUS.full,
     backgroundColor: COLORS.accent,
+    justifyContent: "center",
+    alignItems: "center",
+    ...SHADOWS.large,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  aiFab: {
+    position: "absolute",
+    bottom: SPACING.xl + 74,
+    right: SPACING.lg,
+    width: 56,
+    height: 56,
+    borderRadius: BORDER_RADIUS.full,
+    backgroundColor: "#D4AF37",
     justifyContent: "center",
     alignItems: "center",
     ...SHADOWS.large,
