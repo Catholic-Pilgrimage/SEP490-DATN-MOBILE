@@ -219,6 +219,7 @@
       "daysAgo": "{{count}} ngày trước"
     }
   },
+
   "time": {
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -2632,11 +2633,12 @@
   },
   "media": {
     "modelViewer": {
-      "invalidUrl": "URL mô hình không hợp lệ (cần https)",
-      "loading": "Đang tải mô hình 3D…",
+      "loading": "Đang tải mô hình 3D...",
       "error": "Không thể hiển thị mô hình",
-      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: một ngón kéo; phóng to: chụm hai ngón.",
-      "interactionHint": "Kéo để xoay • Chạm để tương tác"
-    }
+      "errorHint": "Kiểm tra URL .glb/.gltf (HTTPS, CORS). Xoay: kéo; phóng to: chụm hai ngón.",
+      "invalidUrl": "URL mô hình không hợp lệ",
+      "interactionHint": "Xoay để xem • Chạm để tương tác"
+    },
+    "gallery": "Bộ sưu tập"
   }
 }

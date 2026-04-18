@@ -2632,11 +2632,12 @@
   },
   "media": {
     "modelViewer": {
-      "invalidUrl": "Invalid model URL (HTTPS required)",
       "loading": "Loading 3D model...",
-      "error": "Could not display model",
+      "error": "Unable to display model",
       "errorHint": "Check .glb/.gltf URL (HTTPS, CORS). Rotate: one-finger drag; Zoom: pinch two fingers.",
+      "invalidUrl": "Invalid model URL",
       "interactionHint": "Drag to rotate • Touch to interact"
-    }
+    },
+    "gallery": "Gallery"
   }
 }

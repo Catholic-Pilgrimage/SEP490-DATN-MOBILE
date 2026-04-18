@@ -3,6 +3,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   Image,
   Keyboard,
@@ -222,7 +223,21 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [reviewKeyboardHeight, setReviewKeyboardHeight] = useState(0);
   const [is3dModalVisible, setIs3dModalVisible] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const hintOpacity = useRef(new Animated.Value(1)).current;
   const mapRef = useRef<VietmapViewRef>(null);
+
+  // Fade out 3D interaction hints after 5s
+  useEffect(() => {
+    if (is3dModalVisible) {
+      hintOpacity.setValue(1);
+      Animated.timing(hintOpacity, {
+        toValue: 0,
+        duration: 1000,
+        delay: 5000,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [is3dModalVisible, hintOpacity]);
 
   // -- Fetch Data Hooks --
   const {
@@ -1950,96 +1965,104 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           {/* 3D Model Viewer Modal */}
           <Modal
             visible={is3dModalVisible}
-            animationType="slide"
+            animationType="fade"
             onRequestClose={() => setIs3dModalVisible(false)}
             transparent={false}
           >
-              <View style={styles.premium3dContainer}>
-                <StatusBar barStyle="light-content" />
-                
-                {/* Background Glow Effect */}
-                <LinearGradient
-                  colors={['rgba(212, 175, 55, 0.15)', 'transparent']}
-                  style={styles.premiumBackgroundGlow}
-                />
+            <LinearGradient
+              colors={['#2c1f12', '#120d08']}
+              style={styles.premium3dContainer}
+            >
+              <StatusBar barStyle="light-content" />
+              
+              {/* Sacred Header Overlay */}
+              <View style={styles.premiumTopControls}>
+                <TouchableOpacity 
+                  style={styles.premiumCloseBtn} 
+                  onPress={() => setIs3dModalVisible(false)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={24} color="rgba(255,255,255,0.6)" />
+                </TouchableOpacity>
 
-                {/* Floating Controls */}
-                <View style={styles.premiumTopControls}>
-                  <TouchableOpacity 
-                    style={styles.premiumCloseBtn} 
-                    onPress={() => setIs3dModalVisible(false)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="close" size={24} color="#fff" />
-                  </TouchableOpacity>
-
-                  <View style={styles.premiumHeaderCenter}>
-                    <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
-                    <Text style={styles.premiumHeaderLabel}>{t('siteModels3d.locationLabel', { defaultValue: 'ĐỊA ĐIỂM' })}</Text>
-                    <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
-                    <View style={styles.premiumDividerRow}>
-                      <View style={styles.premiumDividerLine} />
-                      <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
-                      <View style={styles.premiumDividerLine} />
-                    </View>
+                <View style={styles.premiumHeaderCenter}>
+                  <MaterialCommunityIcons name="church" size={20} color="#D4AF37" />
+                  <Text style={styles.premiumHeaderLabel}>{t('siteModels3d.locationLabel', { defaultValue: 'ĐỊA ĐIỂM' })}</Text>
+                  <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
+                  <View style={styles.premiumDividerRow}>
+                    <View style={styles.premiumDividerLine} />
+                    <View style={styles.sacredDiamond} />
+                    <View style={styles.premiumDividerLine} />
                   </View>
-                  {/* Bookmark button removed at user request */}
+                </View>
+              </View>
+
+              {models3d && models3d.length > 1 && (
+                <View style={styles.modelPickerRowPremium}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
+                    {models3d.map((m, idx) => (
+                      <TouchableOpacity
+                        key={m.id}
+                        onPress={() => setSelectedModelIndex(idx)}
+                        style={[
+                          styles.modelChipPremium,
+                          selectedModelIndex === idx && styles.modelChipActivePremium
+                        ]}
+                      >
+                        <Text style={[
+                          styles.modelChipTextPremium,
+                          selectedModelIndex === idx && styles.modelChipTextActivePremium
+                        ]}>
+                          {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              <View style={styles.modelViewerContainerPremium}>
+                {/* Spotlight & Pedestal effect behind/under model */}
+                <View style={styles.modelStageContainer}>
+                  <View style={styles.modelSpotlight} />
+                  <View style={styles.modelPedestal} />
                 </View>
 
-                {models3d && models3d.length > 1 && (
-                  <View style={styles.modelPickerRowPremium}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modelPickerContent}>
-                      {models3d.map((m, idx) => (
-                        <TouchableOpacity
-                          key={m.id}
-                          onPress={() => setSelectedModelIndex(idx)}
-                          style={[
-                            styles.modelChipPremium,
-                            selectedModelIndex === idx && styles.modelChipActivePremium
-                          ]}
-                        >
-                          <Text style={[
-                            styles.modelChipTextPremium,
-                            selectedModelIndex === idx && styles.modelChipTextActivePremium
-                          ]}>
-                            {m.code || t('siteModels3d.modelIndex', { index: idx + 1, defaultValue: `Mô hình ${idx + 1}` })}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
+                {models3d && models3d[selectedModelIndex] && (
+                  <ModelViewerWebView 
+                    modelUrl={models3d[selectedModelIndex].url} 
+                    fullscreen 
+                  />
+                )}
+
+                {/* Fading Interaction Hints */}
+                <Animated.View style={[styles.interactionHint, { opacity: hintOpacity }]}>
+                  <MaterialIcons name="touch-app" size={14} color="rgba(255,255,255,0.3)" />
+                  <Text style={styles.interactionHintText}>{t("media.modelViewer.interactionHint")}</Text>
+                </Animated.View>
+
+                {models3d && models3d[selectedModelIndex] && (
+                  <View style={styles.narrativePanelOverlay}>
+                    <SiteModelNarrativePanel 
+                      media={models3d[selectedModelIndex]} 
+                      bottomInset={insets.bottom} 
+                    />
                   </View>
                 )}
 
-                <View style={styles.modelViewerContainerPremium}>
-                  {models3d && models3d[selectedModelIndex] && (
-                    <ModelViewerWebView 
-                      modelUrl={models3d[selectedModelIndex].url} 
-                      fullscreen 
-                    />
-                  )}
-
-                  {models3d && models3d[selectedModelIndex] && (
-                    <View style={styles.narrativePanelOverlay}>
-                      <SiteModelNarrativePanel 
-                        media={models3d[selectedModelIndex]} 
-                        bottomInset={insets.bottom} 
-                      />
-                    </View>
-                  )}
-
-                  {/* Journal Access Point */}
-                  {(isAuthenticated && !isGuest) && (
-                    <SiteModelJournalOverlay
-                      siteId={siteId}
-                      siteName={site?.name}
-                      siteCoverImage={site?.coverImage}
-                      navigation={navigation}
-                      bottomInset={insets.bottom}
-                      visible={is3dModalVisible}
-                    />
-                  )}
-                </View>
+                {/* Journal Access Point */}
+                {(isAuthenticated && !isGuest) && (
+                  <SiteModelJournalOverlay
+                    siteId={siteId}
+                    siteName={site?.name}
+                    siteCoverImage={site?.coverImage}
+                    navigation={navigation}
+                    bottomInset={insets.bottom}
+                    visible={is3dModalVisible}
+                  />
+                )}
               </View>
+            </LinearGradient>
           </Modal>
 
           <AddToPlanModal
@@ -3052,16 +3075,57 @@ const styles = StyleSheet.create({
   // 3D Modal Overhaul Styles
   premium3dContainer: {
     flex: 1,
-    backgroundColor: "#1c1408", // Dark bronze/brown
   },
-  premiumBackgroundGlow: {
+  modelStageContainer: {
     position: 'absolute',
-    top: '20%',
-    left: '10%',
-    right: '10%',
-    height: '60%',
-    borderRadius: 1000,
-    opacity: 0.6,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 0,
+  },
+  modelSpotlight: {
+    position: 'absolute',
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(212, 175, 55, 0.04)',
+    zIndex: 0,
+  },
+  modelPedestal: {
+    position: 'absolute',
+    bottom: '22%',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: 'rgba(212, 175, 55, 0.02)',
+    borderWidth: 1,
+    borderColor: 'rgba(212, 175, 55, 0.12)',
+    transform: [{ scaleY: 0.35 }],
+    zIndex: 0,
+  },
+  sacredDiamond: {
+    width: 6,
+    height: 6,
+    backgroundColor: '#D4AF37',
+    transform: [{ rotate: '45deg' }],
+  },
+  interactionHint: {
+    position: 'absolute',
+    bottom: 120,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  interactionHintText: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.3)',
+    fontWeight: '500',
   },
   premiumTopControls: {
     position: 'absolute',
@@ -3070,16 +3134,15 @@ const styles = StyleSheet.create({
     right: 0,
     paddingTop: Platform.OS === 'ios' ? 20 : 40,
     zIndex: 100,
-    minHeight: 100,
   },
   premiumCloseBtn: {
     position: 'absolute',
     left: 16,
-    top: Platform.OS === 'ios' ? 20 : 40,
+    top: Platform.OS === 'ios' ? 24 : 44,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 110,
