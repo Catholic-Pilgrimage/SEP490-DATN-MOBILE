@@ -1,24 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import dayjs from 'dayjs';
 import 'dayjs/locale/vi';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
     ActivityIndicator,
     Alert,
     ImageBackground,
+    StyleSheet as RNStyleSheet,
     ScrollView,
-    TouchableOpacity,
-    View,
     Text,
-    StyleSheet as RNStyleSheet
+    TouchableOpacity,
+    View
 } from 'react-native';
-import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BORDER_RADIUS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
 import reportApi from '../../../../services/api/shared/reportApi';
 import { ReportEntity, ReportReason } from '../../../../types/report.types';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 const THEME = {
     primary: '#C05621',
@@ -32,6 +32,7 @@ const THEME = {
     info: '#3182CE',
     warning: '#D69E2E',
     gray: '#A0AEC0',
+    gold: '#D4AF37',
 };
 
 type ParamList = {
@@ -182,7 +183,7 @@ export const ReportDetailScreen = () => {
                     <Text style={styles.sectionTitle}>{t('reports.requestInfo')}</Text>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="information-circle-outline" size={20} color={THEME.textMuted} />
+                        <Ionicons name="information-circle-outline" size={20} color="#3B82F6" />
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>{t('reports.targetType')}</Text>
                             <Text style={styles.infoValue}>{getTargetTypeLabel(reportData.target_type, t)}</Text>
@@ -192,7 +193,7 @@ export const ReportDetailScreen = () => {
                     <View style={styles.divider} />
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="warning-outline" size={20} color={THEME.textMuted} />
+                        <Ionicons name="warning-outline" size={20} color="#F59E0B" />
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>{t('reports.reason')}</Text>
                             <Text style={styles.infoValue}>{getReasonLabel(reportData.reason, t)}</Text>
@@ -202,7 +203,7 @@ export const ReportDetailScreen = () => {
                     <View style={styles.divider} />
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="document-text-outline" size={20} color={THEME.textMuted} />
+                        <Ionicons name="document-text-outline" size={20} color="#8B5CF6" />
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>{t('reports.description')}</Text>
                             <Text style={styles.infoValue}>{reportData.description || t('reports.noDescription')}</Text>
@@ -212,7 +213,7 @@ export const ReportDetailScreen = () => {
                     <View style={styles.divider} />
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="calendar-outline" size={20} color={THEME.textMuted} />
+                        <Ionicons name="calendar-outline" size={20} color="#10B981" />
                         <View style={styles.infoContent}>
                             <Text style={styles.infoLabel}>{t('reports.timeLabel')}</Text>
                             <Text style={styles.infoValue}>

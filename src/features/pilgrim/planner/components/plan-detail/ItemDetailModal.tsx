@@ -2,12 +2,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useMemo } from "react";
 import {
-  Image,
-  Modal,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
+    Image,
+    Modal,
+    ScrollView,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { COLORS } from "../../../../../constants/theme.constants";
 import type { PlanItem } from "../../../../../types/pilgrim";
@@ -27,6 +27,8 @@ interface ItemDetailModalProps {
   handleDeleteItem: (itemId: string) => void;
   isPlanOwner: boolean;
   canDeleteItems?: boolean;
+  planStatus?: string;
+  confirm: (options: any) => Promise<boolean>;
 }
 
 export default function ItemDetailModal(props: ItemDetailModalProps) {
@@ -44,6 +46,8 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
     handleDeleteItem,
     isPlanOwner,
     canDeleteItems = false,
+    planStatus,
+    confirm,
   } = props;
 
   const s = styles as Record<string, any>;
@@ -104,7 +108,18 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
               {isPlanOwner ? (
                 <>
                   <TouchableOpacity
-                    onPress={() => {
+                    onPress={async () => {
+                      // Check if plan is completed
+                      if (planStatus === 'completed') {
+                        await confirm({
+                          iconName: "checkmark-circle",
+                          title: t("planner.completedPlanTitle"),
+                          message: t("planner.completedPlanCannotEditItem"),
+                          confirmText: t("planner.understood"),
+                          showCancel: false,
+                        });
+                        return;
+                      }
                       onClose();
                       handleOpenEditItem(selectedItem);
                     }}

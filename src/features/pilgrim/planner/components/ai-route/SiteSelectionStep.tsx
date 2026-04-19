@@ -3,14 +3,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    Modal,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { COLORS } from "../../../../../constants/theme.constants";
@@ -25,6 +26,8 @@ interface SiteInfo {
   thumbnail?: string;
   latitude?: number;
   longitude?: number;
+  type?: string;
+  patronSaint?: string;
 }
 
 interface SiteSelectionStepProps {
@@ -144,6 +147,8 @@ export const SiteSelectionStep = ({
       thumbnail: site.cover_image,
       latitude: site.latitude,
       longitude: site.longitude,
+      type: site.type,
+      patronSaint: site.patron_saint,
     };
     
     // Toggle selection instead of closing modal
@@ -251,6 +256,16 @@ export const SiteSelectionStep = ({
     });
   };
 
+  // Helper function to get type label for selected sites
+  const getTypeLabel = (site: SiteInfo): string => {
+    const raw = String(site.type ?? "").trim().toLowerCase();
+    if (raw === "church") return "Nhà thờ";
+    if (raw === "shrine") return "Thánh địa";
+    if (raw === "monastery") return "Tu viện";
+    if (raw === "center") return "Trung tâm";
+    return "Hành hương";
+  };
+
   const getDisplaySites = () => {
     const baseSites = searchQuery.trim().length > 0 ? searchResults : allSites;
     return filterSitesByRegion(baseSites);
@@ -278,23 +293,68 @@ export const SiteSelectionStep = ({
           </Text>
           {selectedSites.map((site, index) => (
             <View key={site.id} style={styles.siteCard}>
+              {/* Order Badge - positioned absolutely */}
               <View style={styles.siteOrderBadge}>
                 <Text style={styles.siteOrderText}>{index + 1}</Text>
               </View>
-              {site.thumbnail && (
-                <Image source={{ uri: site.thumbnail }} style={styles.siteThumbnail} />
-              )}
-              <View style={styles.siteInfo}>
-                <Text style={styles.siteName} numberOfLines={1}>
-                  {site.name}
-                </Text>
-                <Text style={styles.siteAddress} numberOfLines={1}>
-                  {site.address}
-                </Text>
+
+              {/* Card Content */}
+              <View style={styles.siteCardContent}>
+                {/* Top Row: Image + Info */}
+                <View style={styles.siteTopRow}>
+                  <View style={styles.siteImageWrap}>
+                    <Image
+                      source={{
+                        uri: site.thumbnail || "https://via.placeholder.com/60",
+                      }}
+                      style={styles.siteImage}
+                    />
+                  </View>
+
+                  <View style={styles.siteInfo}>
+                    <Text style={styles.siteName} numberOfLines={2}>
+                      {site.name}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Tags Row */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.siteTagsRow}
+                  style={styles.siteTagsScroller}
+                >
+                  {site.type && (
+                    <View style={styles.typeBadge}>
+                      <Text style={styles.typeBadgeText}>
+                        {getTypeLabel(site)}
+                      </Text>
+                    </View>
+                  )}
+                  {site.patronSaint && (
+                    <View style={styles.patronBadge}>
+                      <Text style={styles.patronBadgeText} numberOfLines={1}>
+                        Bổn mạng: {site.patronSaint}
+                      </Text>
+                    </View>
+                  )}
+                </ScrollView>
+
+                {/* Address Row */}
+                <View style={styles.siteAddressRow}>
+                  <Ionicons name="location" size={12} color="#DC2626" />
+                  <Text style={styles.siteAddress} numberOfLines={1}>
+                    {site.address}
+                  </Text>
+                </View>
               </View>
+
+              {/* Remove Button */}
               <TouchableOpacity
                 style={styles.removeButton}
                 onPress={() => onSiteRemove(site.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="close-circle" size={24} color={COLORS.danger} />
               </TouchableOpacity>
@@ -345,6 +405,8 @@ export const SiteSelectionStep = ({
                       thumbnail: item.cover_image,
                       latitude: item.latitude,
                       longitude: item.longitude,
+                      type: item.type,
+                      patronSaint: item.patron_saint,
                     };
                     onSiteAdd(siteInfo);
                   }}
@@ -462,32 +524,91 @@ export const SiteSelectionStep = ({
             <FlatList
               data={getDisplaySites()}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.searchResultItem,
-                    isSelected(item.id) && styles.searchResultItemSelected,
-                  ]}
-                  onPress={() => handleSelectSite(item)}
-                  disabled={!isSelected(item.id) && selectedSites.length >= 10}
-                >
-                  <Image
-                    source={{ uri: item.cover_image || "https://via.placeholder.com/100" }}
-                    style={styles.searchResultImage}
-                  />
-                  <View style={styles.searchResultInfo}>
-                    <Text style={styles.searchResultName}>{item.name}</Text>
-                    <Text style={styles.searchResultAddress} numberOfLines={1}>
-                      {item.address || item.province}
-                    </Text>
+              renderItem={({ item }) => {
+                const isItemSelected = isSelected(item.id);
+                
+                // Helper function to get type label
+                const getTypeLabel = (site: any): string => {
+                  const raw = String(site.type ?? "").trim().toLowerCase();
+                  if (raw === "church") return "Nhà thờ";
+                  if (raw === "shrine") return "Thánh địa";
+                  if (raw === "monastery") return "Tu viện";
+                  if (raw === "center") return "Trung tâm";
+                  return "Hành hương";
+                };
+
+                return (
+                  <View
+                    style={[
+                      styles.searchResultCard,
+                      isItemSelected && styles.searchResultCardSelected,
+                    ]}
+                  >
+                    <TouchableOpacity
+                      style={styles.searchResultPressable}
+                      onPress={() => handleSelectSite(item)}
+                      disabled={!isItemSelected && selectedSites.length >= 10}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.searchResultTopRow}>
+                        <View style={styles.searchResultImageWrap}>
+                          <Image
+                            source={{ uri: item.cover_image || "https://via.placeholder.com/60" }}
+                            style={styles.searchResultImage}
+                          />
+                        </View>
+
+                        <View style={styles.searchResultInfo}>
+                          <Text style={styles.searchResultName} numberOfLines={2}>
+                            {item.name}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Tags Row */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.searchResultTagsRow}
+                        style={styles.searchResultTagsScroller}
+                      >
+                        <View style={styles.searchResultTypeBadge}>
+                          <Text style={styles.searchResultTypeBadgeText}>
+                            {getTypeLabel(item)}
+                          </Text>
+                        </View>
+                        {item.patron_saint && (
+                          <View style={styles.searchResultPatronBadge}>
+                            <Text style={styles.searchResultPatronBadgeText} numberOfLines={1}>
+                              Bổn mạng: {item.patron_saint}
+                            </Text>
+                          </View>
+                        )}
+                      </ScrollView>
+
+                      <View style={styles.searchResultAddressRow}>
+                        <Ionicons name="location" size={12} color="#DC2626" />
+                        <Text style={styles.searchResultAddress} numberOfLines={1}>
+                          {item.address || item.province}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.searchResultActionButton}
+                      onPress={() => handleSelectSite(item)}
+                      disabled={!isItemSelected && selectedSites.length >= 10}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      {isItemSelected ? (
+                        <Ionicons name="checkmark-circle" size={24} color="#D4AF37" />
+                      ) : (
+                        <Ionicons name="add-circle" size={24} color="#D4AF37" />
+                      )}
+                    </TouchableOpacity>
                   </View>
-                  {isSelected(item.id) ? (
-                    <Ionicons name="checkmark-circle" size={24} color="#D4AF37" />
-                  ) : (
-                    <Ionicons name="add-circle-outline" size={24} color="#D4AF37" />
-                  )}
-                </TouchableOpacity>
-              )}
+                );
+              }}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
                   <Ionicons name="search-outline" size={64} color={COLORS.textTertiary} style={{ opacity: 0.3 }} />

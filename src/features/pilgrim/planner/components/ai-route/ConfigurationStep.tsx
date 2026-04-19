@@ -134,25 +134,25 @@ export const ConfigurationStep = ({ config, onChange }: ConfigurationStepProps) 
             {t("aiRoute.configuration.transport", { defaultValue: "Phương tiện" })}
           </Text>
         </View>
-        <View style={styles.optionsGrid}>
+        <View style={styles.transportRow}>
           {transportOptions.map((option) => (
             <TouchableOpacity
               key={option.value}
               style={[
-                styles.optionCard,
-                config.transportMode === option.value && styles.optionCardActive,
+                styles.transportBox,
+                config.transportMode === option.value && styles.transportBoxActive,
               ]}
               onPress={() => onChange({ transportMode: option.value })}
             >
               <Ionicons
                 name={option.icon as any}
-                size={24}
-                color={config.transportMode === option.value ? "#D4AF37" : COLORS.textSecondary}
+                size={28}
+                color={config.transportMode === option.value ? COLORS.white : COLORS.textTertiary}
               />
               <Text
                 style={[
-                  styles.optionLabel,
-                  config.transportMode === option.value && styles.optionLabelActive,
+                  styles.transportLabel,
+                  config.transportMode === option.value && styles.transportLabelActive,
                 ]}
               >
                 {option.label}

@@ -11,21 +11,21 @@
  * - Filter options with icons, labels, descriptions
  */
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  GUIDE_BORDER_RADIUS,
-  GUIDE_COLORS,
-  GUIDE_SHADOWS,
-  GUIDE_SPACING,
+    GUIDE_BORDER_RADIUS,
+    GUIDE_COLORS,
+    GUIDE_SHADOWS,
+    GUIDE_SPACING,
 } from "../../constants/guide.constants";
 
 // Premium Colors
@@ -73,6 +73,7 @@ export function FilterBottomSheet<T extends string = string>({
   onClose,
 }: FilterBottomSheetProps<T>) {
   const [selectedFilter, setSelectedFilter] = useState<T>(activeFilter);
+  const insets = useSafeAreaInsets();
 
   // Reset selection when opened
   useEffect(() => {
@@ -96,7 +97,7 @@ export function FilterBottomSheet<T extends string = string>({
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
-            <View style={styles.container}>
+            <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, GUIDE_SPACING.lg) }]}>
               {/* Handle Bar */}
               <View style={styles.handleBarContainer}>
                 <View style={styles.handleBar} />
@@ -212,20 +213,7 @@ export function FilterTriggerButton<T extends string = string>({
       >
         <Ionicons
           name="filter"
-          size={18}
-          color={isFiltered ? activeOption?.color : GUIDE_COLORS.textSecondary}
-        />
-        <Text
-          style={[
-            styles.triggerText,
-            isFiltered && { color: activeOption?.color },
-          ]}
-        >
-          {isFiltered ? activeOption?.label : "Lọc"}
-        </Text>
-        <Ionicons
-          name="chevron-down"
-          size={16}
+          size={20}
           color={isFiltered ? activeOption?.color : GUIDE_COLORS.textSecondary}
         />
       </TouchableOpacity>
@@ -250,7 +238,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    paddingBottom: Platform.OS === "ios" ? 34 : GUIDE_SPACING.lg,
   },
 
   // Handle Bar
@@ -357,10 +344,10 @@ const styles = StyleSheet.create({
   triggerButton: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     alignSelf: "flex-start",
-    gap: GUIDE_SPACING.xs,
-    paddingHorizontal: GUIDE_SPACING.md,
-    paddingVertical: GUIDE_SPACING.sm,
+    width: 40,
+    height: 40,
     borderRadius: GUIDE_BORDER_RADIUS.full,
     backgroundColor: GUIDE_COLORS.surface,
     borderWidth: 1.5,

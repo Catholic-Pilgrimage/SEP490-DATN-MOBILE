@@ -25,6 +25,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import {
+  FilterBottomSheet,
+  FilterOption,
+  FilterTriggerButton,
+} from "../../../../components/common/FilterBottomSheet";
 import { AISparkles } from "../../../../components/ui/AISparkles";
 import {
   BORDER_RADIUS,
@@ -430,6 +435,110 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   // ── Tab state ──
   const [activeTab, setActiveTab] = useState<PlannerTab>("my");
 
+  // ── Status filter state ──
+  type StatusFilter = "all" | "planning" | "locked" | "ongoing";
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+
+  // ── Invited filter state ──
+  type InvitedFilter = "all" | "pending" | "awaiting_payment" | "accepted";
+  const [invitedFilter, setInvitedFilter] = useState<InvitedFilter>("all");
+  const [invitedFilterSheetVisible, setInvitedFilterSheetVisible] = useState(false);
+
+  // ── Filter options ──
+  const filterOptions: FilterOption<StatusFilter>[] = [
+    {
+      key: "all",
+      label: t("planner.filterAll", { defaultValue: "Tất cả" }),
+      color: "#8B7355",
+      bgColor: "rgba(139, 115, 85, 0.1)",
+      icon: "apps",
+      description: t("planner.filterAllDesc", {
+        defaultValue: "Hiển thị tất cả kế hoạch",
+      }),
+    },
+    {
+      key: "planning",
+      label: t("planner.filterPlanning", {
+        defaultValue: "Đang lên kế hoạch",
+      }),
+      color: "#3B82F6",
+      bgColor: "rgba(59, 130, 246, 0.1)",
+      icon: "edit",
+      description: t("planner.filterPlanningDesc", {
+        defaultValue: "Kế hoạch đang được soạn thảo",
+      }),
+    },
+    {
+      key: "locked",
+      label: t("planner.filterLocked", { defaultValue: "Sẵn sàng" }),
+      color: "#10B981",
+      bgColor: "rgba(16, 185, 129, 0.1)",
+      icon: "check-circle",
+      description: t("planner.filterLockedDesc", {
+        defaultValue: "Kế hoạch đã sẵn sàng thực hiện",
+      }),
+    },
+    {
+      key: "ongoing",
+      label: t("planner.filterOngoing", {
+        defaultValue: "Đang thực hiện",
+      }),
+      color: "#F59E0B",
+      bgColor: "rgba(245, 158, 11, 0.1)",
+      icon: "navigation",
+      description: t("planner.filterOngoingDesc", {
+        defaultValue: "Kế hoạch đang được thực hiện",
+      }),
+    },
+  ];
+
+  // ── Invited filter options ──
+  const invitedFilterOptions: FilterOption<InvitedFilter>[] = [
+    {
+      key: "all",
+      label: t("planner.filterAll", { defaultValue: "Tất cả" }),
+      color: "#8B7355",
+      bgColor: "rgba(139, 115, 85, 0.1)",
+      icon: "apps",
+      description: t("planner.filterAllDesc", {
+        defaultValue: "Hiển thị tất cả lời mời",
+      }),
+    },
+    {
+      key: "pending",
+      label: t("planner.filterPending", { defaultValue: "Được mời" }),
+      color: "#3B82F6",
+      bgColor: "rgba(59, 130, 246, 0.1)",
+      icon: "mail",
+      description: t("planner.filterPendingDesc", {
+        defaultValue: "Lời mời chưa chấp nhận",
+      }),
+    },
+    {
+      key: "awaiting_payment",
+      label: t("planner.filterAwaitingPayment", {
+        defaultValue: "Chờ thanh toán",
+      }),
+      color: "#F59E0B",
+      bgColor: "rgba(245, 158, 11, 0.1)",
+      icon: "account-balance-wallet",
+      description: t("planner.filterAwaitingPaymentDesc", {
+        defaultValue: "Đang chờ thanh toán đặt cọc",
+      }),
+    },
+    {
+      key: "accepted",
+      label: t("planner.filterAccepted", { defaultValue: "Đã tham gia" }),
+      color: "#10B981",
+      bgColor: "rgba(16, 185, 129, 0.1)",
+      icon: "check-circle",
+      description: t("planner.filterAcceptedDesc", {
+        defaultValue: "Đã tham gia kế hoạch",
+      }),
+    },
+  ];
+
   // ── Navigation helpers (must be defined before useEffect that uses them) ──
   const guardedNavigatePlanner = useCallback(
     <T extends keyof PlannerStackParamList>(
@@ -811,6 +920,36 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
     extrapolate: "clamp",
   });
 
+  // ── Filter plans by status ──────
+  const filteredPlans = React.useMemo(() => {
+    if (statusFilter === "all") return plans;
+    return plans.filter((plan) => plan.status === statusFilter);
+  }, [plans, statusFilter]);
+
+  // ── Filter invited plans by invite status ──────
+  const filteredInvitedPlans = React.useMemo(() => {
+    if (invitedFilter === "all") return invitedPlans;
+    return invitedPlans.filter((plan) => {
+      const inviteStatus = (plan.inviteStatus || "").toLowerCase();
+      return inviteStatus === invitedFilter;
+    });
+  }, [invitedPlans, invitedFilter]);
+
+  // ── Check if filter should be shown (only if multiple statuses exist) ──────
+  const shouldShowMyPlansFilter = React.useMemo(() => {
+    if (plans.length === 0) return false;
+    const uniqueStatuses = new Set(plans.map((p) => p.status));
+    return uniqueStatuses.size > 1;
+  }, [plans]);
+
+  const shouldShowInvitedFilter = React.useMemo(() => {
+    if (invitedPlans.length === 0) return false;
+    const uniqueStatuses = new Set(
+      invitedPlans.map((p) => (p.inviteStatus || "").toLowerCase())
+    );
+    return uniqueStatuses.size > 1;
+  }, [invitedPlans]);
+
   // ── Render plan lists ──────
   const renderMyPlans = () => {
     if (loading) {
@@ -821,7 +960,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       );
     }
 
-    if (plans.length === 0) {
+    if (filteredPlans.length === 0) {
       return (
         <TouchableOpacity
           style={styles.emptyStateCard}
@@ -860,7 +999,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       );
     }
 
-    return plans.map((plan) => (
+    return filteredPlans.map((plan) => (
       <PlanCard
         key={plan.id}
         plan={plan}
@@ -884,11 +1023,11 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       );
     }
 
-    if (invitedPlans.length === 0) {
+    if (filteredInvitedPlans.length === 0) {
       return <InvitedEmptyState t={t} />;
     }
 
-    return invitedPlans.map((plan) => (
+    return filteredInvitedPlans.map((plan) => (
       <InvitedPlanCard
         key={plan.id}
         plan={plan}
@@ -1070,6 +1209,30 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
           invitedCount={invitedPlans.length}
         />
 
+        {/* Status Filter Button - Only show on My Plans tab */}
+        {activeTab === "my" && !isGuest && shouldShowMyPlansFilter && (
+          <View style={styles.filterButtonContainer}>
+            <FilterTriggerButton
+              options={filterOptions}
+              activeFilter={statusFilter}
+              onPress={() => setFilterSheetVisible(true)}
+              defaultFilterKey="all"
+            />
+          </View>
+        )}
+
+        {/* Invited Filter Button - Only show on Invited tab */}
+        {activeTab === "invited" && shouldShowInvitedFilter && (
+          <View style={styles.filterButtonContainer}>
+            <FilterTriggerButton
+              options={invitedFilterOptions}
+              activeFilter={invitedFilter}
+              onPress={() => setInvitedFilterSheetVisible(true)}
+              defaultFilterKey="all"
+            />
+          </View>
+        )}
+
         {/* Plans List */}
         <View style={{ marginTop: 12 }}>
           {activeTab === "my" ? (
@@ -1107,6 +1270,28 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
           </TouchableOpacity>
         </>
       )}
+
+      {/* Filter Bottom Sheet */}
+      <FilterBottomSheet
+        visible={filterSheetVisible}
+        title={t("planner.filterTitle", { defaultValue: "Lọc kế hoạch" })}
+        options={filterOptions}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+        onClose={() => setFilterSheetVisible(false)}
+      />
+
+      {/* Invited Filter Bottom Sheet */}
+      <FilterBottomSheet
+        visible={invitedFilterSheetVisible}
+        title={t("planner.filterInvitedTitle", {
+          defaultValue: "Lọc lời mời",
+        })}
+        options={invitedFilterOptions}
+        activeFilter={invitedFilter}
+        onFilterChange={setInvitedFilter}
+        onClose={() => setInvitedFilterSheetVisible(false)}
+      />
     </ImageBackground>
   );
 };
@@ -1208,6 +1393,20 @@ const styles = StyleSheet.create({
   tabBarContainer: {
     marginTop: 4,
     marginBottom: 0,
+  },
+  // ── Filter Chips ──────────────────────────────
+  filterChipsScroll: {
+    marginTop: 12,
+    marginBottom: 0,
+  },
+  filterChipsContainer: {
+    paddingHorizontal: 0,
+    gap: 8,
+  },
+  // ── Filter Button ──────────────────────────────
+  filterButtonContainer: {
+    marginTop: 8,
+    marginBottom: -4,
   },
   tabBarInner: {
     flexDirection: "row",

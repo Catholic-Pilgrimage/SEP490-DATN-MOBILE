@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -10,15 +11,14 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
-  SHADOWS,
-  SPACING,
+  SHADOWS
 } from "../../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
 import type {
@@ -259,12 +259,17 @@ export default function MarkVisitedModal({
       statusBarTranslucent
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable
-          style={[styles.modal, { paddingBottom: insets.bottom + 16 }]}
-          onPress={(e) => e.stopPropagation()}
+        <KeyboardAvoidingView
+          behavior="padding"
+          style={{ width: "100%" }}
+          keyboardVerticalOffset={-50}
         >
-          {/* Handle */}
-          <View style={styles.handleBar} />
+          <Pressable
+            style={[styles.modal, { paddingBottom: insets.bottom + 16 }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <View style={styles.handleBar} />
 
           {/* Header */}
           <View style={styles.header}>
@@ -383,6 +388,7 @@ export default function MarkVisitedModal({
             </TouchableOpacity>
           </View>
         </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

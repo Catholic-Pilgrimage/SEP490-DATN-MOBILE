@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
 } from "../../../../../constants/theme.constants";
 import type { PlanItem } from "../../../../../types/pilgrim/planner.types";
 
@@ -26,6 +26,7 @@ type Props = {
   onSkip: () => void;
   isSkipping?: boolean;
   isMarkingVisited?: boolean;
+  numberOfPeople?: number;
 };
 
 /**
@@ -43,6 +44,7 @@ export default function ItemActionSheet({
   onSkip,
   isSkipping,
   isMarkingVisited,
+  numberOfPeople = 1,
 }: Props) {
   const insets = useSafeAreaInsets();
   if (!item) return null;
@@ -93,31 +95,33 @@ export default function ItemActionSheet({
               </TouchableOpacity>
             )}
 
-            {/* Mark Visited */}
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => {
-                onClose();
-                onMarkVisited();
-              }}
-              disabled={isMarkingVisited}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: "#ECFDF5" }]}>
-                {isMarkingVisited ? (
-                  <ActivityIndicator size="small" color="#15803D" />
-                ) : (
-                  <Ionicons name="flag" size={20} color="#15803D" />
-                )}
-              </View>
-              <View style={styles.actionTextCol}>
-                <Text style={styles.actionLabel}>Chốt điểm</Text>
-                <Text style={styles.actionDesc}>
-                  Xác nhận đoàn đã viếng thăm địa điểm này
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
-            </TouchableOpacity>
+            {/* Mark Visited - Only show for group plans (2+ people) */}
+            {numberOfPeople >= 2 && (
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={() => {
+                  onClose();
+                  onMarkVisited();
+                }}
+                disabled={isMarkingVisited}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.actionIcon, { backgroundColor: "#ECFDF5" }]}>
+                  {isMarkingVisited ? (
+                    <ActivityIndicator size="small" color="#15803D" />
+                  ) : (
+                    <Ionicons name="flag" size={20} color="#15803D" />
+                  )}
+                </View>
+                <View style={styles.actionTextCol}>
+                  <Text style={styles.actionLabel}>Chốt điểm</Text>
+                  <Text style={styles.actionDesc}>
+                    Xác nhận đoàn đã viếng thăm địa điểm này
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textTertiary} />
+              </TouchableOpacity>
+            )}
 
             {/* Skip */}
             <TouchableOpacity

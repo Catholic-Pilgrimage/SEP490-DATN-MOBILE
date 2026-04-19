@@ -1,7 +1,8 @@
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useState } from "react";
-import { Alert, Linking, Platform } from "react-native";
+import { Platform } from "react-native";
 import Toast from "react-native-toast-message";
+import { useConfirm } from "../../../../hooks/useConfirm";
 
 export type CheckinPhotoResult = {
   uri: string;
@@ -17,40 +18,37 @@ export type CheckinPhotoResult = {
  */
 export const useCheckinPhoto = () => {
   const [picking, setPicking] = useState(false);
+  const { confirm } = useConfirm();
 
   const requestCameraPermission = useCallback(async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Cần quyền truy cập Camera",
-        "Để check-in, bạn cần cho phép ứng dụng sử dụng Camera.",
-        [
-          { text: "Hủy", style: "cancel" },
-          { text: "Mở Cài đặt", onPress: () => Linking.openSettings() },
-        ],
-      );
+      await confirm({
+        title: "Cần quyền truy cập Camera",
+        message: "Để check-in, bạn cần cho phép ứng dụng sử dụng Camera.",
+        confirmText: "OK",
+        showCancel: false,
+      });
       return false;
     }
     return true;
-  }, []);
+  }, [confirm]);
 
   const requestGalleryPermission = useCallback(async (): Promise<boolean> => {
     if (Platform.OS === "web") return true;
     const { status } =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Cần quyền truy cập Thư viện ảnh",
-        "Để check-in, bạn cần cho phép ứng dụng truy cập thư viện ảnh.",
-        [
-          { text: "Hủy", style: "cancel" },
-          { text: "Mở Cài đặt", onPress: () => Linking.openSettings() },
-        ],
-      );
+      await confirm({
+        title: "Cần quyền truy cập Thư viện ảnh",
+        message: "Để check-in, bạn cần cho phép ứng dụng truy cập thư viện ảnh.",
+        confirmText: "OK",
+        showCancel: false,
+      });
       return false;
     }
     return true;
-  }, []);
+  }, [confirm]);
 
   /** Mở Camera để chụp ảnh check-in */
   const takePhoto = useCallback(async (): Promise<CheckinPhotoResult | null> => {

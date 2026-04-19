@@ -1,5 +1,5 @@
-import { Platform } from "react-native";
 import * as ExpoCalendar from "expo-calendar";
+import { Platform } from "react-native";
 
 import { PlanCalendarSyncData, PlanCalendarSyncEvent } from "../../types/pilgrim";
 import storageService from "../storage/asyncStorage";
@@ -87,6 +87,60 @@ const buildEventDetails = (
 
   const alarms = getAlarmList(event, payload.sync_instructions?.alarm_offsets);
 
+  // Ensure notes is always a string
+  let notes: string | undefined = undefined;
+  if (event.notes) {
+    if (typeof event.notes === 'string') {
+      // Check if string contains [object Object] - this means backend didn't format properly
+      if (event.notes.includes('[object Object]')) {
+        // Try to clean it up - remove the [object Object] part
+        notes = event.notes.replace(/\[object Object\]/g, '(xem chi tiết trong app)');
+      } else {
+        notes = event.notes;
+      }
+    } else if (typeof event.notes === 'object') {
+      const notesObj = event.notes as any;
+      
+      // Handle different object formats
+      if (notesObj.start && notesObj.end) {
+        // Break time format: { start: "14:00", end: "15:00" }
+        notes = `Thời gian nghỉ: ${notesObj.start} - ${notesObj.end}`;
+      } else if (notesObj.hours !== undefined || notesObj.minutes !== undefined) {
+        // Duration format: { hours: 2, minutes: 30 }
+        const hours = notesObj.hours || 0;
+        const minutes = notesObj.minutes || 0;
+        if (hours > 0 && minutes > 0) {
+          notes = `Thời gian dừng: ${hours} giờ ${minutes} phút`;
+        } else if (hours > 0) {
+          notes = `Thời gian dừng: ${hours} giờ`;
+        } else if (minutes > 0) {
+          notes = `Thời gian dừng: ${minutes} phút`;
+        }
+      } else if (notesObj.value !== undefined && notesObj.unit) {
+        // Duration format: { value: 2, unit: "hours" }
+        const unitMap: Record<string, string> = {
+          hours: 'giờ',
+          hour: 'giờ',
+          minutes: 'phút',
+          minute: 'phút',
+          days: 'ngày',
+          day: 'ngày',
+        };
+        const unit = unitMap[notesObj.unit] || notesObj.unit;
+        notes = `Thời gian dừng: ${notesObj.value} ${unit}`;
+      } else {
+        // Fallback: convert to JSON
+        try {
+          notes = JSON.stringify(event.notes, null, 2);
+        } catch {
+          notes = String(event.notes);
+        }
+      }
+    } else {
+      notes = String(event.notes);
+    }
+  }
+
   return {
     title: event.title,
     startDate,
@@ -94,7 +148,7 @@ const buildEventDetails = (
     timeZone,
     endTimeZone: timeZone,
     location: event.location || undefined,
-    notes: event.notes || undefined,
+    notes,
     alarms,
     allDay: false,
   };

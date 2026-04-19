@@ -737,6 +737,19 @@ export function usePlannerSwapActions({
   const handleReorderIconPress = useCallback(
     (dayKey: string, item: PlanItem) => {
       if (!plan || isReadOnlyPlannerView) return;
+      
+      // Check if plan is completed
+      if (plan.status === 'completed') {
+        void confirm({
+          iconName: "checkmark-circle",
+          title: t("planner.completedPlanTitle"),
+          message: t("planner.completedPlanCannotSwap"),
+          confirmText: t("planner.understood"),
+          showCancel: false,
+        });
+        return;
+      }
+      
       const id = item.id;
       if (!id) return;
 

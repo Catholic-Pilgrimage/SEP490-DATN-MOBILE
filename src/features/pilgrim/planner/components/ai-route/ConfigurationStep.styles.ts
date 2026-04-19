@@ -95,6 +95,39 @@ export const styles = StyleSheet.create({
   optionLabelActive: {
     color: "#D4AF37",
   },
+  // Transport Row (matching CreatePlanScreen)
+  transportRow: {
+    flexDirection: "row",
+    gap: SPACING.md,
+  },
+  transportBox: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    paddingVertical: SPACING.lg + 4,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    minHeight: 100,
+  },
+  transportBoxActive: {
+    backgroundColor: "#D4AF37",
+    borderColor: "#D4AF37",
+    ...SHADOWS.medium,
+  },
+  transportLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textTertiary,
+    marginTop: 4,
+  },
+  transportLabelActive: {
+    color: COLORS.white,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
   priorityCard: {
     flexDirection: "row",
     alignItems: "center",
