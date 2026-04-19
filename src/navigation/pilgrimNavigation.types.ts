@@ -1,7 +1,6 @@
-import type { NavigatorScreenParams } from "@react-navigation/native";
-import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import type { CompositeNavigationProp, RouteProp } from "@react-navigation/native";
+import type { CompositeNavigationProp, NavigatorScreenParams, RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp, NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { PlanItem, TransportationType } from "../types/pilgrim/planner.types";
 
 export type PlannerInitialTab = "my" | "invited";
@@ -22,7 +21,7 @@ export type PlannerPlanPrefill = {
 };
 
 export type PlannerStackParamList = {
-  PlannerMain: { initialTab?: PlannerInitialTab; token?: string } | undefined;
+  PlannerMain: { initialTab?: PlannerInitialTab; token?: string; refresh?: number } | undefined;
   PlanDetailScreen: {
     planId: string;
     autoAddSiteId?: string;
@@ -54,6 +53,7 @@ export type PlannerStackParamList = {
     itemsByDay?: Record<string, PlanItem[]>;
   };
   CreatePlanScreen: undefined;
+  AIRouteSuggestionScreen: undefined;
 };
 
 export type JournalStackParamList = {

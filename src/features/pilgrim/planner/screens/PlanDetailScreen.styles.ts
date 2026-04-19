@@ -1,10 +1,10 @@
 import { StyleSheet } from "react-native";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 
 const styles = StyleSheet.create({
@@ -112,10 +112,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  statusBadgeCompleted: {
+    backgroundColor: "rgba(21, 128, 61, 0.95)",
+    borderColor: "#86EFAC",
+    borderWidth: 2,
+    shadowColor: "#15803D",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   statusText: {
     fontSize: 13,
     fontWeight: "700",
     color: "#FFF3C4",
+  },
+  statusTextCompleted: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
   },
   title: {
     fontSize: 25,

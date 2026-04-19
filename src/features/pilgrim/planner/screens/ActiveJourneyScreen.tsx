@@ -4,33 +4,33 @@ import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import type {
-  PlannerCompositeNavigationProp,
-  PlannerRouteProp,
+    PlannerCompositeNavigationProp,
+    PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
@@ -1090,6 +1090,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         visible={!!actionSheetItem}
         onClose={() => setActionSheetItem(null)}
         item={actionSheetItem}
+        numberOfPeople={plan.number_of_people}
         isSkipping={skippingItemId === actionSheetItem?.id}
         onViewRoute={() => {
           if (actionSheetItem) {

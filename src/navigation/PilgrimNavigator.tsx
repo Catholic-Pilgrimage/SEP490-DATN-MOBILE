@@ -1,24 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, TYPOGRAPHY } from '../constants/theme.constants';
-import { CommunityScreen, CreatePostScreen,PostDetailScreen } from '../features/pilgrim/community/screens';
+import { CommunityScreen, CreatePostScreen, PostDetailScreen } from '../features/pilgrim/community/screens';
 import { AllSitesScreen, ExploreScreen } from '../features/pilgrim/explore/screens';
 import CreateJournalScreen from '../features/pilgrim/journal/screens/CreateJournalScreen';
 import JournalDetailScreen from '../features/pilgrim/journal/screens/JournalDetailScreen';
 import { JournalScreen } from '../features/pilgrim/journal/screens/JournalScreen';
-import PlanChatScreen from '../features/pilgrim/planner/screens/PlanChatScreen';
 import ActiveJourneyScreen from '../features/pilgrim/planner/screens/ActiveJourneyScreen';
+import AIRouteSuggestionScreen from '../features/pilgrim/planner/screens/AIRouteSuggestionScreen';
 import CreatePlanScreen from '../features/pilgrim/planner/screens/CreatePlanScreen';
+import NearbySiteAmenitiesScreen from '../features/pilgrim/planner/screens/NearbySiteAmenitiesScreen';
+import PlanChatScreen from '../features/pilgrim/planner/screens/PlanChatScreen';
 import PlanDetailScreen from '../features/pilgrim/planner/screens/PlanDetailScreen';
+import PlannerMapScreen from '../features/pilgrim/planner/screens/PlannerMapScreen';
 import PlannerMembersScreen from '../features/pilgrim/planner/screens/PlannerMembersScreen';
 import PlannerScreen from '../features/pilgrim/planner/screens/PlannerScreen';
-import PlannerMapScreen from '../features/pilgrim/planner/screens/PlannerMapScreen';
-import NearbySiteAmenitiesScreen from '../features/pilgrim/planner/screens/NearbySiteAmenitiesScreen';
 import SiteDetailScreen from '../features/pilgrim/site/screens/SiteDetailScreen';
 import {
   JournalStackParamList,
@@ -111,21 +112,26 @@ const PlannerStackNavigator = () => (
       component={CreatePlanScreen}
       options={{ presentation: 'modal' }}
     />
+    <PlannerStack.Screen
+      name="AIRouteSuggestionScreen"
+      component={AIRouteSuggestionScreen}
+      options={{ presentation: 'modal' }}
+    />
   </PlannerStack.Navigator>
 );
 
 import { useTranslation } from 'react-i18next';
 import EditProfileScreen from '../features/pilgrim/profile/screens/EditProfileScreen';
 import FavoriteSitesScreen from '../features/pilgrim/profile/screens/FavoriteSitesScreen';
+import FriendListScreen from '../features/pilgrim/profile/screens/FriendListScreen';
+import HistoryScreen from '../features/pilgrim/profile/screens/HistoryScreen';
+import MyReportsScreen from '../features/pilgrim/profile/screens/MyReportsScreen';
 import OfflineDownloadsScreen from '../features/pilgrim/profile/screens/OfflineDownloadsScreen';
 import ProfileScreen from '../features/pilgrim/profile/screens/ProfileScreen';
-import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen';
-import WalletScreen from '../features/pilgrim/profile/screens/WalletScreen';
-import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
-import FriendListScreen from '../features/pilgrim/profile/screens/FriendListScreen';
-import MyReportsScreen from '../features/pilgrim/profile/screens/MyReportsScreen';
 import ReportDetailScreen from '../features/pilgrim/profile/screens/ReportDetailScreen';
-import HistoryScreen from '../features/pilgrim/profile/screens/HistoryScreen';
+import SOSDetailScreen from '../features/pilgrim/profile/screens/SOSDetailScreen';
+import SOSHistoryScreen from '../features/pilgrim/profile/screens/SOSHistoryScreen';
+import WalletScreen from '../features/pilgrim/profile/screens/WalletScreen';
 
 
 const ProfileStack = createNativeStackNavigator();
@@ -148,7 +154,10 @@ const ProfileStackNavigator = () => (
     <ProfileStack.Screen name="MyReports" component={MyReportsScreen} />
     <ProfileStack.Screen name="ReportDetail" component={ReportDetailScreen} />
     <ProfileStack.Screen name="History" component={HistoryScreen} />
-    <ProfileStack.Screen name="PlanDetailScreen" component={PlanDetailScreen} />
+    <ProfileStack.Screen 
+      name="PlanDetailScreen" 
+      component={PlanDetailScreen as any} 
+    />
   </ProfileStack.Navigator>
 );
 
@@ -201,7 +210,7 @@ const BottomTabNavigator = () => {
           fontWeight: TYPOGRAPHY.fontWeight.medium,
         },
         tabBarLabel: ({ focused, color }) => {
-          let label = route.name;
+          let label: string = route.name;
           switch (route.name) {
             case 'Hanh huong':
               label = t('navigation.explore', { defaultValue: 'Khám phá' });
@@ -253,7 +262,7 @@ const BottomTabNavigator = () => {
         component={JournalStackNavigator}
         listeners={({ navigation }) => ({
           tabPress: () => {
-            navigation.navigate("Nhat ky", {
+            navigation.navigate("Nhat ky" as any, {
               screen: "JournalMain",
               params: undefined,
             });
@@ -263,7 +272,6 @@ const BottomTabNavigator = () => {
       <Tab.Screen
         name="Lich trinh"
         component={PlannerStackNavigator}
-        options={{ unmountOnBlur: true }}
       />
       <Tab.Screen name="Cong dong" component={CommunityStackNavigator} />
       <Tab.Screen name="Ho so" component={ProfileStackNavigator} />

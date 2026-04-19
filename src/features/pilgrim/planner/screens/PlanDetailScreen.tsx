@@ -836,6 +836,23 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     return unsubscribe;
   }, [navigation, planId]);
 
+  // Auto-reload for members when plan is ongoing (polling every 30 seconds)
+  useEffect(() => {
+    // Only poll for members (not owner) when plan is active
+    if (isPlanOwner || !plan || isOffline) return;
+    
+    const planStatus = String(plan.status || '').toLowerCase();
+    const shouldPoll = planStatus === 'ongoing' || planStatus === 'locked';
+    
+    if (!shouldPoll) return;
+
+    const interval = setInterval(() => {
+      void loadPlan({ silent: true });
+    }, 30000); // Reload every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [isPlanOwner, plan?.status, planId, isOffline]);
+
   async function checkOfflineAvailability() {
     const [available, tileTemplate] = await Promise.all([
       checkAvailability(planId),
@@ -1208,8 +1225,21 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
   }
 
-  const handleOpenEditPlan = () => {
+  const handleOpenEditPlan = async () => {
     if (isReadOnlyPlannerView) return;
+    
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotEdit"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+    
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1791,6 +1821,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     if (isReadOnlyPlannerView) return;
     setShowMenuDropdown(false);
 
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotDelete"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1822,7 +1864,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         if (isAvailableOffline) {
           await offlinePlannerService.deletePlannerData(planId);
         }
-        navigation.goBack();
+        Toast.show({
+          type: "success",
+          text1: t("planner.deleteSuccess", { defaultValue: "Đã xóa kế hoạch" }),
+        });
+        // Navigate back and trigger refresh
+        navigation.navigate("PlannerMain", { 
+          refresh: Date.now() // Use timestamp to force refresh
+        });
       } else {
         Toast.show({
           type: "error",
@@ -1849,6 +1898,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const handleClearAllItems = async () => {
     if (isReadOnlyPlannerView || !plan) return;
     setShowMenuDropdown(false);
+
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotClearItems"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
 
     const confirmed = await confirm({
       type: "danger",
@@ -1922,6 +1983,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   const handleSyncCalendar = async () => {
     setShowMenuDropdown(false);
+
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotSyncCalendar"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
 
     if (isOffline) {
       showConnectionRequiredAlert();
@@ -2096,6 +2169,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const handleReloadEtaFromMenu = async () => {
     setShowMenuDropdown(false);
 
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotSyncEta"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     const targetDay =
       etaSyncFromDay ||
       Object.keys(plan?.items_by_day || {})
@@ -2167,6 +2252,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   };
 
   const handleDeleteItem = async (itemId: string) => {
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotDeleteItem"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     const confirmed = await confirm({
       type: "danger",
       iconName: "trash-outline",
@@ -2592,6 +2689,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     getDateForDayRaw(startDateStr, dayNumber);
 
   const handleAddItem = async (siteId: string, eventId?: string) => {
+    // Check if plan is completed
+    if (plan?.status === 'completed') {
+      await confirm({
+        iconName: "checkmark-circle",
+        title: t("planner.completedPlanTitle"),
+        message: t("planner.completedPlanCannotAddItem"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     setAddFlowOriginDay(selectedDay);
     await addSiteFlow.startFlow(siteId, eventId);
   };
@@ -3903,8 +4012,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           pointerEvents="box-none"
         >
           <View style={styles.badgeContainer}>
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusText}>
+            <View style={[
+              styles.statusBadge,
+              plan.status === 'completed' && styles.statusBadgeCompleted
+            ]}>
+              <Text style={[
+                styles.statusText,
+                plan.status === 'completed' && styles.statusTextCompleted
+              ]}>
                 {translateStatus(plan.status)}
               </Text>
             </View>
@@ -4703,6 +4818,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         handleDeleteItem={handleDeleteItem}
         isPlanOwner={isPlanOwner}
         canDeleteItems={canDeleteItems}
+        planStatus={plan?.status}
+        confirm={confirm}
       />
 
       {/* Edit Time Picker */}

@@ -1,0 +1,170 @@
+import { StyleSheet } from "react-native";
+import {
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
+} from "../../../../../constants/theme.constants";
+
+export const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: SPACING.md,
+  },
+  sectionTitle: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+  },
+  dateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.white,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  dateButtonText: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+  },
+  counterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.white,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    gap: SPACING.lg,
+    ...SHADOWS.small,
+  },
+  counterButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.backgroundSoft,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  counterValue: {
+    fontSize: TYPOGRAPHY.fontSize.xl,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+    color: COLORS.textPrimary,
+    minWidth: 100,
+    textAlign: "center",
+  },
+  optionsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.md,
+  },
+  optionCard: {
+    flex: 1,
+    minWidth: "45%",
+    backgroundColor: COLORS.white,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  optionCardActive: {
+    borderColor: "#D4AF37",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+  },
+  optionLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textSecondary,
+  },
+  optionLabelActive: {
+    color: "#D4AF37",
+  },
+  // Transport Row (matching CreatePlanScreen)
+  transportRow: {
+    flexDirection: "row",
+    gap: SPACING.md,
+  },
+  transportBox: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    paddingVertical: SPACING.lg + 4,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+    minHeight: 100,
+  },
+  transportBoxActive: {
+    backgroundColor: "#D4AF37",
+    borderColor: "#D4AF37",
+    ...SHADOWS.medium,
+  },
+  transportLabel: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textTertiary,
+    marginTop: 4,
+  },
+  transportLabelActive: {
+    color: COLORS.white,
+    fontWeight: TYPOGRAPHY.fontWeight.bold,
+  },
+  priorityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.sm,
+    borderWidth: 2,
+    borderColor: COLORS.border,
+  },
+  priorityCardActive: {
+    borderColor: "#D4AF37",
+    backgroundColor: "rgba(212, 175, 55, 0.1)",
+  },
+  priorityIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.backgroundSoft,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: SPACING.md,
+  },
+  priorityInfo: {
+    flex: 1,
+  },
+  priorityLabel: {
+    fontSize: TYPOGRAPHY.fontSize.md,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  priorityLabelActive: {
+    color: "#D4AF37",
+  },
+  priorityDesc: {
+    fontSize: TYPOGRAPHY.fontSize.sm,
+    color: COLORS.textSecondary,
+  },
+});

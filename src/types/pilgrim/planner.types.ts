@@ -242,7 +242,7 @@ export interface PlanCalendarSyncEvent {
   startDate: string;
   endDate: string;
   location?: string;
-  notes?: string;
+  notes?: string | { start?: string; end?: string; [key: string]: any };
   alarms?: PlanCalendarSyncAlarm[];
   timeZone?: string;
   metadata?: PlanCalendarSyncMetadata;

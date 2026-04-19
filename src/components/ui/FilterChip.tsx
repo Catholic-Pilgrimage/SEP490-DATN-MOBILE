@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BORDER_RADIUS, COLORS, SPACING, TYPOGRAPHY } from '../../constants/theme.constants';
 import { getSpacing, responsive } from '../../utils/responsive';
 
@@ -7,9 +7,10 @@ interface FilterChipProps {
   label: string;
   selected: boolean;
   onPress: () => void;
+  icon?: React.ReactNode;
 }
 
-export const FilterChip: React.FC<FilterChipProps> = ({ label, selected, onPress }) => {
+export const FilterChip: React.FC<FilterChipProps> = ({ label, selected, onPress, icon }) => {
   const scaleValue = React.useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -37,7 +38,10 @@ export const FilterChip: React.FC<FilterChipProps> = ({ label, selected, onPress
         onPressOut={handlePressOut}
         activeOpacity={1}
       >
-        <Text style={[styles.text, selected && styles.textSelected]}>{label}</Text>
+        <View style={styles.chipContent}>
+          {icon && <View style={styles.iconContainer}>{icon}</View>}
+          <Text style={[styles.text, selected && styles.textSelected]}>{label}</Text>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -64,6 +68,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 5,
+  },
+  chipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   text: {
     fontSize: responsive({
