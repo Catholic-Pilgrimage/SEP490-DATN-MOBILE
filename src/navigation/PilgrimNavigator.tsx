@@ -272,6 +272,14 @@ const BottomTabNavigator = () => {
       <Tab.Screen
         name="Lich trinh"
         component={PlannerStackNavigator}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate("Lich trinh" as any, {
+              screen: "PlannerMain",
+              params: undefined,
+            });
+          },
+        })}
       />
       <Tab.Screen name="Cong dong" component={CommunityStackNavigator} />
       <Tab.Screen name="Ho so" component={ProfileStackNavigator} />
@@ -340,6 +348,14 @@ export const PilgrimNavigator = () => {
         component={JournalDetailScreen}
         options={{
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+        }}
+      />
+      <MainStack.Screen
+        name="CreateJournalScreen"
+        component={CreateJournalScreen}
+        options={{
+          presentation: 'modal',
+          animation: Platform.OS === 'ios' ? 'slide_from_bottom' : 'slide_from_bottom',
         }}
       />
     </MainStack.Navigator>

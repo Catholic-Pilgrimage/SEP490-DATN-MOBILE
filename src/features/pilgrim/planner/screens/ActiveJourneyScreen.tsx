@@ -870,17 +870,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             style={styles.toolbarBtn}
             onPress={() =>
               runGuardedUiAction("open-journal", () => {
-                navigation.navigate("Nhat ky" as never, {
-                  screen: "CreateJournalScreen",
-                  params: {
-                    planId: plan.id,
-                    planName: plan.name,
-                    plannerItemId: journalPrefillItem?.id,
-                    plannerItemIds: journalPrefillItemIds,
-                    siteName: journalPrefillItem?.site?.name,
-                    from: "ActiveJourney",
-                  },
-                } as never);
+                navigation.navigate("CreateJournalScreen", {
+                  planId: plan.id,
+                  planName: plan.name,
+                  plannerItemId: journalPrefillItem?.id,
+                  plannerItemIds: journalPrefillItemIds,
+                  siteName: journalPrefillItem?.site?.name,
+                  from: "ActiveJourney",
+                });
               })
             }
             activeOpacity={0.7}

@@ -90,6 +90,17 @@ export type PilgrimMainStackParamList = {
   SOSHistory: undefined;
   SOSDetail: { id?: string } | undefined;
   JournalDetail: { journalId?: string } | undefined;
+  CreateJournalScreen:
+    | {
+        journalId?: string;
+        plannerItemId?: string;
+        plannerItemIds?: string[];
+        planId?: string;
+        planName?: string;
+        siteName?: string;
+        from?: "ActiveJourney" | string;
+      }
+    | undefined;
 };
 
 export type PlannerCompositeNavigationProp = CompositeNavigationProp<

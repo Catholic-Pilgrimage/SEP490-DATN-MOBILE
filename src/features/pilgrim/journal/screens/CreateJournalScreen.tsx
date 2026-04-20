@@ -212,20 +212,18 @@ export default function CreateJournalScreen() {
   );
   const insets = useSafeAreaInsets();
 
-  const resetJournalTabToMain = () => {
-    navigation.navigate("Nhat ky", {
-      screen: "JournalMain",
-      params: undefined,
-    });
-  };
-
   const handleBackNavigation = () => {
     if (fromActiveJourneyFlow) {
-      resetJournalTabToMain();
-      navigation.navigate("Lich trinh", {
-        screen: "ActiveJourneyScreen",
-        params: { planId: paramPlanId },
-      });
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate("MainTabs", {
+          screen: "Lich trinh",
+          params: {
+            screen: "PlannerMain",
+          },
+        });
+      }
       return;
     }
 
@@ -250,7 +248,6 @@ export default function CreateJournalScreen() {
 
       return () => {
         backSub.remove();
-        resetJournalTabToMain();
       };
     }, [fromActiveJourneyFlow]),
   );
