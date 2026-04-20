@@ -243,6 +243,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   );
 
   const mapRef = useRef<VietmapViewRef>(null);
+  const autoRedirectedToActiveRef = useRef(false);
   const [plannerUserLocation, setPlannerUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -587,45 +588,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setLastClosedDayNumber((current) => Math.max(current, fromPlan));
   }, [getLastClosedDayFromPlan, plan]);
 
-  const inferClosedDayFromProgress = useMemo(() => {
-    if (String(plan?.status || "").toLowerCase() !== "ongoing") return 0;
-
-    const totalDays =
-      Number(plan?.number_of_days) ||
-      (plan?.items_by_day ? Object.keys(plan.items_by_day).length : 0);
-    if (!totalDays || totalDays <= 0) return 0;
-
-    const isHandled = (item: PlanItem) => {
-      const status = String(item.status || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/-/g, "_");
-      return (
-        status === "visited" ||
-        status === "skipped" ||
-        status === "checked_in" ||
-        status === "completed" ||
-        status === "done"
-      );
-    };
-
-    let inferred = 0;
-    for (let day = 1; day <= totalDays; day += 1) {
-      const dayItems = sortPlanDayItems(plan?.items_by_day?.[String(day)] || []);
-      if (dayItems.length === 0) break;
-      const allHandled = dayItems.every(isHandled);
-      if (!allHandled) break;
-      inferred = day;
-    }
-
-    return inferred;
-  }, [plan?.items_by_day, plan?.number_of_days, plan?.status]);
-
-  const effectiveLastClosedDayNumber = useMemo(
-    () => Math.max(lastClosedDayNumber, inferClosedDayFromProgress),
-    [inferClosedDayFromProgress, lastClosedDayNumber],
-  );
+  // Important: only trust backend closed-day markers.
+  // Do not infer "closed" from handled item statuses to avoid premature lock UI.
+  const effectiveLastClosedDayNumber = lastClosedDayNumber;
 
   // ── Add Site Flow (hook) ──
   const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
@@ -851,10 +816,36 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
     const interval = setInterval(() => {
       void loadPlan({ silent: true });
-    }, 30000); // Reload every 30 seconds
+    }, 8000); // Keep members in sync quickly for auto-transition UX
 
     return () => clearInterval(interval);
   }, [isPlanOwner, plan?.status, planId, isOffline]);
+
+  // Member auto-transition: when owner starts pilgrimage, move members to ActiveJourney immediately.
+  useEffect(() => {
+    const status = String(plan?.status || "").toLowerCase();
+
+    if (status !== "ongoing") {
+      autoRedirectedToActiveRef.current = false;
+      return;
+    }
+
+    if (!plan?.id) return;
+    if (isPlanOwner) return;
+    if (isInvitePendingView) return;
+    if (isDroppedOut) return;
+    if (autoRedirectedToActiveRef.current) return;
+
+    autoRedirectedToActiveRef.current = true;
+    navigation.replace("ActiveJourneyScreen", { planId: plan.id });
+  }, [
+    isDroppedOut,
+    isInvitePendingView,
+    isPlanOwner,
+    navigation,
+    plan?.id,
+    plan?.status,
+  ]);
 
   async function checkOfflineAvailability() {
     const [available, tileTemplate] = await Promise.all([
