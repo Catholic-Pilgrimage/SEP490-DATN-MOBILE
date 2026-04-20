@@ -124,7 +124,10 @@ import {
   calculateEndTimeRaw,
   getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
-import { getGroupPatronConstraintFromPlan } from "../utils/planPatronScope.utils";
+import {
+  getGroupPatronConstraintFromPlan,
+  isGroupJourneyPlan,
+} from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
@@ -1715,7 +1718,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     // 12-hour warning check for Group Lock Plan
     if (
       isLock &&
-      Number(plan?.number_of_people || 1) > 1 &&
+      isGroupJourneyPlan(plan || {}) &&
       plan?.is_locked &&
       plan?.edit_lock_at
     ) {
@@ -1754,7 +1757,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setUpdatingPlanStatus(true);
     try {
       // Solo planner: auto-lock status before starting (backend requires 'locked' before 'ongoing')
-      const isSolo = Number(plan?.number_of_people || 1) <= 1;
+      const isSolo = !isGroupJourneyPlan(plan || {});
       const currentStatus = (plan?.status || "").toLowerCase();
 
       if (isStart && isSolo && currentStatus === "planning") {
@@ -3904,7 +3907,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const planStatusStr = (plan?.status || "").toLowerCase();
   const isCompletedPlan = planStatusStr === "completed";
   const isOngoingPlan = planStatusStr === "ongoing";
-  const isSoloPlan = Number(plan?.number_of_people || 1) <= 1;
+  const isSoloPlan = !isGroupJourneyPlan(plan || {});
+  const isGroupPlan = !isSoloPlan;
   const canDeleteItems =
     isPlanOwner &&
     !plan?.is_locked &&
@@ -3984,7 +3988,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             insets={insets}
             isPlanOwner={isPlanOwner}
             isOffline={isOffline}
-            isGroupPlan={(plan?.number_of_people || 1) > 1}
+            isGroupPlan={isGroupPlan}
             reloadingEta={reloadingDayNumber !== null}
             showEtaSyncAction={etaSyncFromDay !== null}
             syncingCalendar={syncingCalendar}
