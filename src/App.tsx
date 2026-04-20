@@ -17,6 +17,57 @@ import "./i18n";
 import { RootNavigator } from "./navigation/RootNavigator";
 import offlineSyncServiceInstance from "./services/offline/offlineSyncService";
 
+let consoleErrorPatched = false;
+let lastErrorToastText = "";
+let lastErrorToastAt = 0;
+
+function getConsoleErrorToastText(args: unknown[]): string {
+  const parts = args
+    .map((arg) => {
+      if (typeof arg === "string") return arg.trim();
+      if (arg instanceof Error) return arg.message?.trim() || "";
+      try {
+        return JSON.stringify(arg);
+      } catch {
+        return String(arg ?? "");
+      }
+    })
+    .filter(Boolean);
+
+  const text = parts.join(" ").replace(/\s+/g, " ").trim();
+  return text || "Đã xảy ra lỗi. Vui lòng thử lại.";
+}
+
+function patchConsoleErrorToToast() {
+  if (consoleErrorPatched) return;
+  consoleErrorPatched = true;
+
+  console.error = (...args: unknown[]) => {
+    const text = getConsoleErrorToastText(args);
+    const now = Date.now();
+
+    // Avoid toast storm when the same error is emitted repeatedly.
+    if (text === lastErrorToastText && now - lastErrorToastAt < 1500) {
+      return;
+    }
+
+    lastErrorToastText = text;
+    lastErrorToastAt = now;
+
+    try {
+      Toast.show({
+        type: "error",
+        text1: "Đã xảy ra lỗi",
+        text2: text,
+        visibilityTime: 4000,
+        topOffset: 56,
+      });
+    } catch {
+      // Keep silent to avoid recursive console error loops.
+    }
+  };
+}
+
 // Keep the native splash screen visible until we explicitly hide it
 NativeSplashScreen.preventAutoHideAsync().catch(() => { });
 
@@ -77,6 +128,10 @@ const OfflineSyncToastBridge: React.FC = () => {
 
 export default function App() {
   const [appIsReady] = useState(true);
+
+  useEffect(() => {
+    patchConsoleErrorToToast();
+  }, []);
 
   const onLayoutRootView = useCallback(async () => {
     if (appIsReady) {

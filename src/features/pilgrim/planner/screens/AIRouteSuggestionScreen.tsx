@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -18,6 +19,7 @@ import { COLORS } from "../../../../constants/theme.constants";
 import type { PlannerCompositeNavigationProp } from "../../../../navigation/pilgrimNavigation.types";
 import aiService, { SuggestRouteResponse } from "../../../../services/ai/aiService";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import { getApiErrorMessage } from "../../../../utils/apiError";
 import { ConfigurationStep } from "../components/ai-route/ConfigurationStep";
 import { ResultStep } from "../components/ai-route/ResultStep";
 import { SiteSelectionStep } from "../components/ai-route/SiteSelectionStep";
@@ -52,6 +54,17 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
+  useFocusEffect(
+    React.useCallback(() => {
+      const parent = navigation.getParent();
+      parent?.setOptions({ tabBarStyle: { display: "none" } });
+
+      return () => {
+        parent?.setOptions({ tabBarStyle: undefined });
+      };
+    }, [navigation]),
+  );
+
   const [currentStep, setCurrentStep] = useState<Step>("selection");
   const [selectedSites, setSelectedSites] = useState<SiteInfo[]>([]);
   const [config, setConfig] = useState<AIRouteConfig>({
@@ -65,13 +78,88 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
   const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isAISlow, setIsAISlow] = useState(false);
-  const aiSlowTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const aiSlowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearAISlowTimer = () => {
     if (aiSlowTimerRef.current) {
       clearTimeout(aiSlowTimerRef.current);
       aiSlowTimerRef.current = null;
     }
+  };
+
+  const normalizePriorityForApi = (
+    priority: AIRouteConfig["priority"],
+  ): string => {
+    if (priority === "distance") return "shortest_distance";
+    if (priority === "time") return "shortest_time";
+    if (priority === "spiritual") return "most_spiritual";
+    return "balanced";
+  };
+
+  const parseDateOnly = (value: string): Date => {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(year, (month || 1) - 1, day || 1);
+  };
+
+  const isStartDateValid = (value: string): boolean => {
+    if (!value) return false;
+
+    const picked = parseDateOnly(value);
+    if (Number.isNaN(picked.getTime())) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() + 1);
+
+    if (picked < minDate) {
+      Toast.show({
+        type: "error",
+        text1: t("aiRoute.errors.invalidDate", {
+          defaultValue: "Ngày khởi hành không hợp lệ",
+        }),
+        text2: t("aiRoute.errors.invalidDateHint", {
+          defaultValue: "Vui lòng chọn từ ngày mai trở đi.",
+        }),
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const checkDateOverlap = async (
+    startDate: string,
+    endDate: string,
+  ): Promise<boolean> => {
+    const [planningRes, lockedRes, ongoingRes] = await Promise.all([
+      pilgrimPlannerApi.getPlans({ page: 1, limit: 100, status: "planning" }),
+      pilgrimPlannerApi.getPlans({ page: 1, limit: 100, status: "locked" }),
+      pilgrimPlannerApi.getPlans({ page: 1, limit: 100, status: "ongoing" }),
+    ]);
+
+    const allPlans = [
+      ...(planningRes?.data?.planners || []),
+      ...(lockedRes?.data?.planners || []),
+      ...(ongoingRes?.data?.planners || []),
+    ];
+
+    const nextStart = parseDateOnly(startDate);
+    const nextEnd = parseDateOnly(endDate || startDate);
+
+    return allPlans.some((p) => {
+      const existingStart = parseDateOnly(p.start_date || "");
+      const existingEnd = parseDateOnly(p.end_date || p.start_date || "");
+
+      if (
+        Number.isNaN(existingStart.getTime()) ||
+        Number.isNaN(existingEnd.getTime())
+      ) {
+        return false;
+      }
+
+      return nextStart <= existingEnd && existingStart <= nextEnd;
+    });
   };
 
   const handleSiteSelect = (site: SiteInfo) => {
@@ -112,6 +200,10 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
   };
 
   const handleGenerateRoute = async () => {
+    if (!isStartDateValid(config.startDate)) {
+      return;
+    }
+
     setCurrentStep("loading");
     setIsLoading(true);
     setError("");
@@ -132,56 +224,17 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
     }, AI_SUGGESTION_SLOW_THRESHOLD_MS);
 
     try {
-      console.log('=== AI Route Request ===');
-      console.log('Selected sites:', selectedSites.map(s => ({ id: s.id, name: s.name })));
-      console.log('Config:', config);
-      
       const response = await aiService.suggestRoute({
         site_ids: selectedSites.map((s) => s.id),
         start_date: config.startDate,
         max_days: config.maxDays,
         transport_mode: config.transportMode,
-        priority: config.priority,
+        priority: normalizePriorityForApi(config.priority) as any,
         number_of_people: config.numberOfPeople,
       });
 
       clearAISlowTimer();
       setIsAISlow(false);
-
-      console.log('=== AI Route Response ===');
-      console.log('Success:', response.success);
-      console.log('Full response:', JSON.stringify(response, null, 2));
-      
-      if (response.data?.daily_itinerary) {
-        console.log('=== Daily Itinerary Analysis ===');
-        response.data.daily_itinerary.forEach((day, idx) => {
-          console.log(`Day ${day.day_number}:`, day.theme);
-          console.log(`  Items count: ${day.items.length}`);
-          day.items.forEach((item, itemIdx) => {
-            console.log(`  Item ${itemIdx + 1}:`, {
-              site_id: item.site_id,
-              site_name: item.site_name,
-              day_number: item.day_number,
-              order_index: item.order_index,
-            });
-          });
-        });
-        
-        // Check which sites were included/excluded
-        const includedSiteIds = new Set(
-          response.data.daily_itinerary.flatMap(day => 
-            day.items.map(item => item.site_id)
-          )
-        );
-        const excludedSites = selectedSites.filter(s => !includedSiteIds.has(s.id));
-        
-        if (excludedSites.length > 0) {
-          console.log('=== EXCLUDED SITES ===');
-          excludedSites.forEach(site => {
-            console.log(`- ${site.name} (${site.id})`);
-          });
-        }
-      }
 
       if (response.success) {
         setAiResult(response);
@@ -191,16 +244,19 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
         setCurrentStep("configuration");
       }
     } catch (err: any) {
-      console.error('=== AI Route Error ===', err);
       clearAISlowTimer();
       setIsAISlow(false);
-      setError(err.message || t("aiRoute.errors.networkError", { defaultValue: "Lỗi kết nối" }));
+      const errorMessage = getApiErrorMessage(
+        err,
+        t("aiRoute.errors.networkError", { defaultValue: "Lỗi kết nối" }),
+      );
+      setError(errorMessage);
       setCurrentStep("configuration");
       
       Toast.show({
         type: "error",
         text1: t("aiRoute.errors.title", { defaultValue: "Không thể tạo lộ trình" }),
-        text2: err.message || t("aiRoute.errors.networkError", { defaultValue: "Lỗi kết nối" }),
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -214,6 +270,30 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
 
     setIsLoading(true);
     try {
+      if (!isStartDateValid(aiResult.data.planner.start_date)) {
+        setIsLoading(false);
+        return;
+      }
+
+      const hasOverlap = await checkDateOverlap(
+        aiResult.data.planner.start_date,
+        aiResult.data.planner.end_date,
+      );
+
+      if (hasOverlap) {
+        Toast.show({
+          type: "error",
+          text1: t("aiRoute.errors.dateOverlap", {
+            defaultValue: "Trùng lịch với kế hoạch khác",
+          }),
+          text2: t("aiRoute.errors.dateOverlapHint", {
+            defaultValue: "Vui lòng chọn ngày khác hoặc xóa kế hoạch cũ",
+          }),
+        });
+        setIsLoading(false);
+        return;
+      }
+
       // Step 1: Create planner
       const numberOfPeople = aiResult.data.planner.number_of_people;
       
@@ -249,8 +329,11 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
       const createResponse = await pilgrimPlannerApi.createPlan(createPayload);
 
       if (!createResponse.success || !createResponse.data) {
-        // Check for date overlap error
-        const errorMsg = (createResponse as any)?.error?.message || "";
+        const errorMsg =
+          createResponse.message ||
+          t("aiRoute.errors.createFailed", {
+            defaultValue: "Không thể tạo kế hoạch",
+          });
         if (errorMsg.includes("overlap") || errorMsg.includes("trùng")) {
           Toast.show({
             type: "error",
@@ -307,17 +390,14 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
       let failedCount = 0;
       for (const itemData of itemsToAdd) {
         try {
-          console.log('Adding item:', itemData);
           await pilgrimPlannerApi.addPlanItem(plannerId, itemData);
-        } catch (error) {
-          console.error('Failed to add item:', itemData, error);
+        } catch {
           failedCount++;
         }
       }
       
       // Check if any items failed
       if (failedCount > 0) {
-        console.log(`${failedCount} items failed to add`);
         Toast.show({
           type: "info",
           text1: t("aiRoute.result.partialSuccess", { 
@@ -345,22 +425,18 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
         ]
       });
     } catch (err: any) {
-      console.error('Create planner error:', err);
+      const errorMessage = getApiErrorMessage(
+        err,
+        t("aiRoute.errors.createError", { defaultValue: "Lỗi tạo kế hoạch" }),
+      );
       Toast.show({
         type: "error",
         text1: t("aiRoute.errors.createError", { defaultValue: "Lỗi tạo kế hoạch" }),
-        text2: err.message || "",
+        text2: errorMessage,
       });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleStartOver = () => {
-    setCurrentStep("selection");
-    setSelectedSites([]);
-    setAiResult(null);
-    setError("");
   };
 
   return (
@@ -396,6 +472,12 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
           <StepDot step={4} active={currentStep === "result"} completed={false} label={t("aiRoute.steps.result")} />
         </View>
 
+        {!!error && currentStep !== "loading" && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <Text style={{ color: "#B3261E", fontSize: 13 }}>{error}</Text>
+          </View>
+        )}
+
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}
@@ -419,6 +501,14 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
               <Text style={styles.loadingText}>
                 {t("aiRoute.loading.message", { defaultValue: "AI đang tạo lộ trình tối ưu cho bạn..." })}
               </Text>
+              {isAISlow && (
+                <Text style={{ marginTop: 10, color: COLORS.textSecondary }}>
+                  {t("aiRoute.loading.slowMessage", {
+                    defaultValue:
+                      "AI đang mất nhiều thời gian hơn bình thường. Vui lòng chờ thêm chút...",
+                  })}
+                </Text>
+              )}
             </View>
           )}
           {currentStep === "result" && aiResult && (

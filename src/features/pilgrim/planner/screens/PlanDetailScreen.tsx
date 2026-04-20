@@ -1569,7 +1569,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
     const confirmed = await confirm({
       type: "info",
-      iconName: "lock-closed-outline",
+      iconName: "shield-checkmark-outline",
       title: t("planner.lockEditConfirmTitle", {
         defaultValue: "Khoá chỉnh sửa lộ trình?",
       }),
@@ -1735,10 +1735,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     const confirmed = await confirm({
       type: confirmType,
       iconName: isLock
-        ? "lock-closed-outline"
+        ? "flag-outline"
         : isStart
-          ? "walk-outline"
-          : "flag-outline",
+          ? "compass-outline"
+          : "checkmark-done-circle-outline",
       title,
       message: msg,
       confirmText: isLock
@@ -4164,7 +4164,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               onPress={handleOpenChat}
               disabled={isOffline}
             >
-              <Ionicons name="chatbubbles-outline" size={18} color="#FFF8E7" />
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFF8E7" />
               <Text style={styles.quickActionText}>
                 {t("planner.groupChat", { defaultValue: "Chat nhóm" })}
               </Text>
@@ -4191,7 +4191,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 disabled={isOffline}
               >
                 <Ionicons
-                  name={isSoloPlan ? "analytics-outline" : "people-outline"}
+                  name={isSoloPlan ? "pulse-outline" : "people-circle-outline"}
                   size={18}
                   color="#FFF8E7"
                 />
@@ -4230,7 +4230,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               >
                 <Ionicons
                   name={
-                    isCompletedPlan ? "share-social-outline" : "qr-code-outline"
+                    isCompletedPlan ? "megaphone-outline" : "person-add-outline"
                   }
                   size={18}
                   color="#FFF8E7"
@@ -4471,7 +4471,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                   />
                 ) : (
                   <Ionicons
-                    name="walk-outline"
+                    name="compass-outline"
                     size={20}
                     color="#fff"
                     style={{ marginRight: 8 }}

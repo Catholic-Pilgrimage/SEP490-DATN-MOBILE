@@ -24,6 +24,8 @@ import {
 export interface PlanUI extends PlanSummary {
   isShared?: boolean;
   transportation?: TransportationType[];
+  isLocked?: boolean;
+  sharedToCommunity?: boolean;
 }
 
 interface PlanCardProps {
@@ -80,6 +82,10 @@ export const PlanCard: React.FC<PlanCardProps> = ({
   onEdit,
 }) => {
   const { t, i18n } = useTranslation();
+  const normalizedStatus = String(plan.status || "planning").toLowerCase();
+  const canShowShare = normalizedStatus === "completed" && !!onShare;
+  const canShowEdit = !!onEdit;
+  const hasSecondaryActions = canShowShare || canShowEdit;
 
   // N+1 fallback: nếu API list không có số lượng, ta tự fetch detail để đếm.
   const [realStopCount, setRealStopCount] = React.useState<number>(
@@ -138,40 +144,40 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       return {
         text: t("planner.statusOngoing"),
         color: "#FFFFFF",
-        bg: "#5C6B52",
-        icon: "rocket-outline",
+        bg: "#2F6D5D",
+        icon: "walk-outline",
       };
     }
     if (s === "locked") {
       return {
         text: t("planner.statusLocked"),
         color: "#FFFFFF",
-        bg: "#5C6B52",
-        icon: "lock-closed-outline",
+        bg: "#2E5B8A",
+        icon: "shield-checkmark-outline",
       };
     }
     if (s === "completed") {
       return {
         text: t("planner.statusCompleted"),
         color: "#FFFFFF",
-        bg: "#4A6B58",
-        icon: "checkmark-circle-outline",
+        bg: "#1F7A4D",
+        icon: "checkmark-done-circle-outline",
       };
     }
     if (s === "cancelled") {
       return {
         text: t("planner.statusCancelled"),
         color: "#FFFFFF",
-        bg: "#8B5344",
-        icon: "close-circle-outline",
+        bg: "#8B3F3F",
+        icon: "ban-outline",
       };
     }
     // Default to planning/draft
     return {
       text: t("planner.statusPlanning"),
       color: "#FFFFFF",
-      bg: "#9E7B55",
-      icon: "create-outline",
+      bg: "#8A6A3E",
+      icon: "map-outline",
     };
   };
 
@@ -267,13 +273,13 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
   return (
     <Swipeable
-      renderLeftActions={renderLeftActions}
-      renderRightActions={renderRightActions}
+      renderLeftActions={canShowShare ? renderLeftActions : undefined}
+      renderRightActions={canShowEdit ? renderRightActions : undefined}
       onSwipeableLeftOpen={() => {
-        if (onShare) onShare();
+        if (canShowShare) onShare?.();
       }}
       onSwipeableRightOpen={() => {
-        if (onEdit) onEdit();
+        if (canShowEdit) onEdit?.();
       }}
       containerStyle={styles.swipeContainer}
     >
@@ -402,24 +408,33 @@ export const PlanCard: React.FC<PlanCardProps> = ({
 
           {/* Action Bar Bottom */}
           <View style={styles.actionContainer}>
-            <View style={styles.actionRowTop}>
-              <Pressable style={styles.actionBtnOutline} onPress={onPress}>
-                <Ionicons name="document-text" size={18} color="#4A3110" />
-                <Text style={styles.actionTextOutline}>
-                  {t("planner.viewDetail", "View detail")}
-                </Text>
-              </Pressable>
+            {hasSecondaryActions ? (
+              <View style={styles.actionRowTop}>
+                {canShowEdit ? (
+                  <Pressable
+                    style={styles.actionBtnOutline}
+                    onPress={() => onEdit && onEdit()}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#4A3110" />
+                    <Text style={styles.actionTextOutline}>
+                      {t("planner.edit", "Sửa")}
+                    </Text>
+                  </Pressable>
+                ) : null}
 
-              <Pressable
-                style={styles.actionBtnOutline}
-                onPress={() => onShare && onShare()}
-              >
-                <Ionicons name="share-social" size={18} color="#4A3110" />
-                <Text style={styles.actionTextOutline}>
-                  {t("planner.share", "Chia sẻ")}
-                </Text>
-              </Pressable>
-            </View>
+                {canShowShare ? (
+                  <Pressable
+                    style={styles.actionBtnOutline}
+                    onPress={() => onShare && onShare()}
+                  >
+                    <Ionicons name="share-social" size={18} color="#4A3110" />
+                    <Text style={styles.actionTextOutline}>
+                      {t("planner.share", "Chia sẻ")}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
 
             <Pressable style={styles.actionBtnPrimary} onPress={onPress}>
               <LinearGradient

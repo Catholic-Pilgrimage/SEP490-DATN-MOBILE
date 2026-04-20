@@ -51,7 +51,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Ionicons
-            name="timer-outline"
+            name="hourglass-outline"
             size={18}
             color="#2563EB"
             style={{ marginRight: 8 }}
@@ -190,7 +190,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                     />
                   ) : (
                     <Ionicons
-                      name="settings-outline"
+                      name="shield-checkmark-outline"
                       size={18}
                       color="#fff"
                       style={{ marginRight: 8 }}
@@ -223,7 +223,7 @@ export const LockScheduleCard: React.FC<LockScheduleCardProps> = ({
                     />
                   ) : (
                     <Ionicons
-                      name="lock-closed-outline"
+                      name="flag-outline"
                       size={18}
                       color="#fff"
                       style={{ marginRight: 8 }}
