@@ -8,61 +8,61 @@ import type { TFunction } from "i18next";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Animated,
-  Dimensions,
-  FlatList,
-  Image,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    FlatList,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useRemoveFriend, useRespondFriendRequest, useSendFriendRequest, useUserFriendshipStatus } from "../../../../hooks/useFriendship";
 import {
-  useAddComment,
-  useDeleteComment,
-  useDeletePost,
-  useLikePost,
-  usePostComments,
-  usePostDetail,
-  useTranslateComment,
-  useTranslatePost,
-  useUpdateComment,
+    useAddComment,
+    useDeleteComment,
+    useDeletePost,
+    useLikePost,
+    usePostComments,
+    usePostDetail,
+    useTranslateComment,
+    useTranslatePost,
+    useUpdateComment,
 } from "../../../../hooks/usePosts";
 import i18n from "../../../../i18n";
 import {
-  pilgrimJournalApi,
-  pilgrimPlannerApi,
-  pilgrimSiteApi,
+    pilgrimJournalApi,
+    pilgrimPlannerApi,
+    pilgrimSiteApi,
 } from "../../../../services/api/pilgrim";
 import type {
-  FeedPost,
-  FeedPostComment,
-  FeedTranslationResult,
+    FeedPost,
+    FeedPostComment,
+    FeedTranslationResult,
 } from "../../../../types/post.types";
 import {
-  getFeedPostLocationName,
-  getFeedPostPlannerId,
-  getFeedPostPlannerItemIds,
-  getFeedPostSiteId,
+    getFeedPostLocationName,
+    getFeedPostPlannerId,
+    getFeedPostPlannerItemIds,
+    getFeedPostSiteId,
 } from "../../../../utils/feedPostLocation";
 import { resolveJournalLocationName } from "../../../../utils/journalLocation";
 import { MediaLightbox } from "../../../guide/my-site/components/MediaLightbox";
@@ -1117,8 +1117,8 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
           text2: t("planner.cloneSuccess"),
         });
 
-        // Navigate back to the Planner main dashboard (Schedule tab)
-        navigation.navigate("Schedule");
+        // Navigate back to the Planner main dashboard
+        navigation.navigate("PlannerMain");
       } else {
         throw new Error(res.message || t("planner.cloneError"));
       }

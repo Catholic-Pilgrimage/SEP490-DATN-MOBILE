@@ -129,7 +129,8 @@ export function useClaimableSites(params?: {
     type?: string;
     claim_type?: string;
 }) {
-    const { isAuthenticated } = useAuth();
+    // Note: This API is available for both authenticated users and guests
+    // Guests need to see claimable sites to submit verification requests
     
     return useQuery({
         queryKey: [...VERIFICATION_KEYS.claimableSites(), params],
@@ -137,7 +138,8 @@ export function useClaimableSites(params?: {
             const response = await verificationApi.getClaimableSites(params);
             return response.data;
         },
-        enabled: isAuthenticated,
+        enabled: params !== undefined, // Only fetch when params provided (modal open)
         staleTime: 1000 * 60 * 2, // 2 minutes
+        retry: 1,
     });
 }
