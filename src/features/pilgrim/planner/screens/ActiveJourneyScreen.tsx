@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
+import { StackActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -139,6 +139,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const [closingDayNumber, setClosingDayNumber] = React.useState<number | null>(
     null,
   );
+  const [shouldSnapToActionableDay, setShouldSnapToActionableDay] =
+    React.useState(true);
   const [skipReasonItem, setSkipReasonItem] = React.useState<PlanItem | null>(
     null,
   );
@@ -174,12 +176,6 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     void fetchProgress();
   }, [planId, user?.id, plan?.items_by_day]);
 
-  useEffect(() => {
-    if (sortedDays.length > 0 && !selectedDay) {
-      setSelectedDay(sortedDays[todayIdx >= 0 ? todayIdx : 0] || "");
-    }
-  }, [sortedDays, todayIdx, selectedDay]);
-
   const getLastClosedDayFromPlan = useCallback(
     (sourcePlan: any): number => {
       if (!sourcePlan || typeof sourcePlan !== "object") return 0;
@@ -212,12 +208,22 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     const fromPlan = getLastClosedDayFromPlan(plan);
-    setLastClosedDayNumber((current) => Math.max(current, fromPlan));
+    setLastClosedDayNumber(fromPlan);
   }, [getLastClosedDayFromPlan, plan]);
 
   useFocusEffect(
     useCallback(() => {
-      refreshPlan();
+      let active = true;
+      setShouldSnapToActionableDay(false);
+      void refreshPlan().finally(() => {
+        if (active) {
+          setShouldSnapToActionableDay(true);
+        }
+      });
+
+      return () => {
+        active = false;
+      };
     }, [refreshPlan]),
   );
 
@@ -266,6 +272,22 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     if (!actionableDayItems.length) return false;
     return actionableDayItems.every((item) => isHandledStatus(item));
   }, [actionableDayItems, isHandledStatus]);
+
+  const inferredCurrentCheckinDayKey = useMemo(() => {
+    if (!sortedDays.length) return "";
+
+    for (const dayKey of sortedDays) {
+      const dayItems = [...(plan?.items_by_day?.[dayKey] || [])].sort(compareItemsInDay);
+      if (!dayItems.length) continue;
+
+      const allHandled = dayItems.every((item) => isHandledStatus(item));
+      if (!allHandled) {
+        return dayKey;
+      }
+    }
+
+    return actionableDayKey || sortedDays[sortedDays.length - 1] || "";
+  }, [actionableDayKey, isHandledStatus, plan?.items_by_day, sortedDays]);
 
   const nextPendingItem = useMemo(
     () =>
@@ -498,11 +520,25 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   ]);
 
   useEffect(() => {
-    if (!actionableDayKey) return;
-    if (!selectedDay) {
-      setSelectedDay(actionableDayKey);
+    if (!shouldSnapToActionableDay) return;
+
+    // Prioritize day inferred from real check-in progress, then fall back to last_closed_day + 1.
+    const fallbackTodayDay = sortedDays[todayIdx >= 0 ? todayIdx : 0] || "";
+    const targetDay = inferredCurrentCheckinDayKey || actionableDayKey || fallbackTodayDay;
+    if (!targetDay) return;
+
+    if (selectedDay !== targetDay) {
+      setSelectedDay(targetDay);
     }
-  }, [actionableDayKey, selectedDay]);
+    setShouldSnapToActionableDay(false);
+  }, [
+    inferredCurrentCheckinDayKey,
+    actionableDayKey,
+    selectedDay,
+    shouldSnapToActionableDay,
+    sortedDays,
+    todayIdx,
+  ]);
 
   const isLastItem = useMemo(() => {
     if (allItemsFlat.length === 0 || !nextPendingItem) return false;
@@ -561,6 +597,11 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     () => Number(plan?.number_of_people || 1) <= 1,
     [plan?.number_of_people],
   );
+  const topBarTitle = useMemo(() => {
+    const rawName = String(plan?.name || "").trim();
+    if (rawName.length >= 4) return rawName;
+    return t("planner.active.headerTitle", { defaultValue: "Hành trình" });
+  }, [plan?.name, t]);
 
   const runGuardedUiAction = useCallback(
     (key: string, action: () => void) => {
@@ -758,45 +799,6 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         backgroundColor="transparent"
       />
 
-      {/* TOP BAR */}
-      <View
-        style={[
-          styles.topBar,
-          { paddingTop: insets.top + 10, paddingBottom: 14 },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.topBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <Text style={styles.topTitle} numberOfLines={1} ellipsizeMode="tail">
-            {plan?.name || t("planner.planName", { defaultValue: "Kế hoạch" })}
-          </Text>
-        </View>
-        {!isSoloPlan ? (
-          <TouchableOpacity
-            style={styles.topBtn}
-            onPress={() =>
-              runGuardedUiAction("open-chat", () => {
-                navigation.navigate("PlanChatScreen" as never, {
-                  planId: plan.id,
-                  planName: plan.name,
-                } as never);
-              })
-            }
-          >
-            <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 44 }} />
-        )}
-      </View>
-
       {/* SCROLLABLE CONTENT */}
       <ScrollView
         style={{ flex: 1 }}
@@ -814,8 +816,52 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           />
         }
       >
-        {/* BANNER */}
-        <PlanHeader plan={plan} firstItem={nextPendingItem || firstItem} />
+        {/* HERO */}
+        <View style={styles.heroWrap}>
+          <PlanHeader plan={plan} firstItem={nextPendingItem || firstItem} />
+
+          <LinearGradient
+            colors={["rgba(14, 9, 4, 0.55)", "rgba(14, 9, 4, 0.12)", "transparent"]}
+            locations={[0, 0.5, 1]}
+            style={[
+              styles.topBarOverlay,
+              { paddingTop: insets.top + 8 },
+            ]}
+          >
+            <View style={styles.topBar}>
+              <TouchableOpacity
+                style={styles.topBtn}
+                onPress={() => navigation.goBack()}
+              >
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </TouchableOpacity>
+              <View
+                style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={styles.topTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {topBarTitle}
+                </Text>
+              </View>
+              {!isSoloPlan ? (
+                <TouchableOpacity
+                  style={styles.topBtn}
+                  onPress={() =>
+                    runGuardedUiAction("open-chat", () => {
+                      navigation.navigate("PlanChatScreen" as never, {
+                        planId: plan.id,
+                        planName: plan.name,
+                      } as never);
+                    })
+                  }
+                >
+                  <Ionicons name="chatbubbles-outline" size={24} color="#fff" />
+                </TouchableOpacity>
+              ) : (
+                <View style={{ width: 44 }} />
+              )}
+            </View>
+          </LinearGradient>
+        </View>
 
         {/* TOOLBAR: Quick-Access Buttons */}
         <View style={styles.toolbar}>
@@ -838,7 +884,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             }
             activeOpacity={0.7}
           >
-            <View style={styles.toolbarIconBox}>
+            <View style={[styles.toolbarIconBox, styles.toolbarIconJournal]}>
               <Ionicons name="book-outline" size={22} color={COLORS.holy} />
             </View>
             <Text style={styles.toolbarBtnText}>
@@ -858,7 +904,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             }
             activeOpacity={0.7}
           >
-            <View style={styles.toolbarIconBox}>
+            <View style={[styles.toolbarIconBox, styles.toolbarIconMap]}>
               <Ionicons name="map-outline" size={22} color="#1A67C1" />
             </View>
             <Text style={styles.toolbarBtnText}>
@@ -878,7 +924,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             }
             activeOpacity={0.7}
           >
-            <View style={styles.toolbarIconBox}>
+            <View style={[styles.toolbarIconBox, styles.toolbarIconProgress]}>
               <Ionicons
                 name={isSoloPlan ? "analytics-outline" : "people-outline"}
                 size={22}
@@ -911,28 +957,33 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         {/* TIMELINE SECTION */}
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
-            <Text style={styles.timelineTitle}>
-              {t("planner.active.timelineTitle", {
-                defaultValue: "Lịch trình chuyến đi",
-              })}
-            </Text>
-            {isOwner && planStatus === "ongoing" && (
-              <TouchableOpacity
-                style={styles.editItineraryBtn}
-                onPress={() =>
-                  runGuardedUiAction("open-plan-detail", () => {
-                    navigation.navigate("PlanDetailScreen", { planId });
-                  })
-                }
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="create-outline"
-                  size={20}
-                  color={COLORS.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
+            <View style={styles.timelineTitleWrap}>
+              <View style={styles.timelineIconWrap}>
+                <Ionicons name="trail-sign-outline" size={16} color={COLORS.holy} />
+              </View>
+              <Text style={styles.timelineTitle}>
+                {t("planner.active.timelineTitle", {
+                  defaultValue: "Lịch trình hành hương",
+                })}
+              </Text>
+              {isOwner && planStatus === "ongoing" && (
+                <TouchableOpacity
+                  style={styles.editItineraryBtn}
+                  onPress={() =>
+                    runGuardedUiAction("open-plan-detail", () => {
+                      navigation.navigate("PlanDetailScreen", { planId });
+                    })
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="create-outline"
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {sortedDays.length > 0 ? (
@@ -940,10 +991,16 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
               days={sortedDays.map((d, idx) => {
                 const date = new Date(plan!.start_date!);
                 date.setDate(date.getDate() + idx);
+                const dayItems = [...(plan?.items_by_day?.[d] || [])].sort(compareItemsInDay);
+                const totalStops = dayItems.length;
+                const handledStops = dayItems.filter((item) => isHandledStatus(item)).length;
+
                 return {
                   key: d,
                   label: date.toISOString().split("T")[0],
                   isToday: idx === todayIdx,
+                  totalStops,
+                  handledStops,
                 };
               })}
               selectedDay={selectedDay}
@@ -959,6 +1016,30 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                     focusDay: selectedDay,
                     itemsByDay: plan.items_by_day,
                   });
+                })
+              }
+              onRateSite={(item) =>
+                runGuardedUiAction(`rate-site:${item?.id || "unknown"}`, () => {
+                  const siteId = item?.site?.id;
+                  if (!siteId) {
+                    Toast.show({
+                      type: "info",
+                      text1: t("common.info", { defaultValue: "Thông báo" }),
+                      text2: t("planner.siteNameUnknown", {
+                        defaultValue: "Không tìm thấy địa điểm để đánh giá.",
+                      }),
+                    });
+                    return;
+                  }
+
+                  navigation.dispatch(
+                    StackActions.push("SiteDetail", {
+                      siteId,
+                      fromActiveJourneyReview: true,
+                      autoScrollTo: "reviews",
+                      hideAddToPlan: true,
+                    }),
+                  );
                 })
               }
             />
@@ -1217,14 +1298,25 @@ const styles = StyleSheet.create({
   },
 
   // TOP BAR
+  heroWrap: {
+    position: "relative",
+    marginBottom: 4,
+  },
+  topBarOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
   topBar: {
-    backgroundColor: COLORS.holy, // Nâu vàng đậm
-    paddingHorizontal: 14,
-    paddingBottom: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    ...SHADOWS.small,
+    backgroundColor: "transparent",
   },
   topBtn: {
     width: 44,
@@ -1232,29 +1324,35 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: "rgba(255, 255, 255, 0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
   },
   topTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "800",
     textAlign: "center",
-    maxWidth: 240,
-    letterSpacing: 0.5,
+    maxWidth: 220,
+    letterSpacing: 0.3,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-
   // TOOLBAR (Quick-Access Buttons)
   toolbar: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
     paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     marginHorizontal: 10,
     marginTop: 12,
     marginBottom: 4,
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: "rgba(154, 116, 73, 0.14)",
     ...SHADOWS.small,
   },
   toolbarBtn: {
@@ -1264,15 +1362,27 @@ const styles = StyleSheet.create({
     minWidth: 64,
   },
   toolbarIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+    width: 50,
+    height: 50,
+    borderRadius: 15,
     backgroundColor: COLORS.surface0,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(139, 115, 85, 0.14)",
+  },
+  toolbarIconJournal: {
+    backgroundColor: "#FAF5EC",
+  },
+  toolbarIconMap: {
+    backgroundColor: "#EFF6FF",
+  },
+  toolbarIconProgress: {
+    backgroundColor: "#F8F7F3",
   },
   sosIconBox: {
     backgroundColor: "#FEF2F2",
+    borderColor: "rgba(220, 38, 38, 0.2)",
   },
   toolbarBtnText: {
     fontSize: 12,
@@ -1290,25 +1400,45 @@ const styles = StyleSheet.create({
   timelineHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     marginBottom: 12,
     paddingHorizontal: 4,
   },
+  timelineTitleWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  timelineIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#F8F3E9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   timelineTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#4B5563",
-    letterSpacing: 0.3,
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#3F2E1D",
+    letterSpacing: 0.2,
   },
   editItineraryBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.surface0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginLeft: 4,
+    backgroundColor: COLORS.holy,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(139, 115, 85, 0.15)",
+    borderColor: "rgba(139, 115, 85, 0.65)",
+    shadowColor: COLORS.holy,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   timelineEmptyContainer: {
     flex: 1,
@@ -1347,11 +1477,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
     shadowColor: "#D35400",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.36,
+    shadowRadius: 10,
+    elevation: 7,
   },
   stickyCloseDayBtn: {
     backgroundColor: "#0F766E",

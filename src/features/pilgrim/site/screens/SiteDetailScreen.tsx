@@ -1,6 +1,6 @@
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -203,7 +203,13 @@ const normalizeReviewErrorMessage = (error: unknown, t: any) => {
 };
 
 export const SiteDetailScreen = ({ navigation, route }: any) => {
-  const { siteId } = route.params || {};
+  const {
+    siteId,
+    fromActiveJourneyReview = false,
+    autoScrollTo,
+    hideAddToPlan: hideAddToPlanParam = false,
+  } = route.params || {};
+  const hideAddToPlan = hideAddToPlanParam || fromActiveJourneyReview;
   const insets = useSafeAreaInsets();
   const { user, isAuthenticated, isGuest } = useAuth();
   const { t } = useI18n();
@@ -222,6 +228,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [reviewKeyboardHeight, setReviewKeyboardHeight] = useState(0);
   const [is3dModalVisible, setIs3dModalVisible] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const reviewSectionYRef = useRef(0);
+  const hasAutoScrolledToReviewRef = useRef(false);
   const mapRef = useRef<VietmapViewRef>(null);
 
   // -- Fetch Data Hooks --
@@ -309,6 +318,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     toggleFav(siteId);
   };
   const handleAddToPlan = () => {
+    if (hideAddToPlan) return;
     if (!isAuthenticated || isGuest) {
       setShowGuestLogin(true);
       return;
@@ -436,6 +446,29 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       hideSubscription.remove();
     };
   }, [insets.bottom]);
+
+  useEffect(() => {
+    const shouldScrollToReviews =
+      fromActiveJourneyReview ||
+      String(autoScrollTo || "").toLowerCase() === "reviews";
+
+    if (!shouldScrollToReviews) return;
+    if (!site || isLoading) return;
+    if (hasAutoScrolledToReviewRef.current) return;
+
+    const performScroll = () => {
+      if (!scrollViewRef.current) return;
+      if (reviewSectionYRef.current <= 0) return;
+
+      const targetY = Math.max(0, reviewSectionYRef.current - (insets.top + 28));
+      scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+      hasAutoScrolledToReviewRef.current = true;
+    };
+
+    const timer = setTimeout(performScroll, 220);
+
+    return () => clearTimeout(timer);
+  }, [autoScrollTo, fromActiveJourneyReview, insets.top, isLoading, site]);
 
   const myReview = useMemo(
     () => reviews.find((review) => review.userId === user?.id),
@@ -608,7 +641,28 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   );
 
   const reviewSection = (
-    <View style={styles.section}>
+    <View
+      style={styles.section}
+      onLayout={(event) => {
+        reviewSectionYRef.current = event.nativeEvent.layout.y;
+
+        const shouldScrollToReviews =
+          fromActiveJourneyReview ||
+          String(autoScrollTo || "").toLowerCase() === "reviews";
+
+        if (!shouldScrollToReviews) return;
+        if (hasAutoScrolledToReviewRef.current) return;
+
+        setTimeout(() => {
+          if (!scrollViewRef.current) return;
+          if (reviewSectionYRef.current <= 0) return;
+
+          const targetY = Math.max(0, reviewSectionYRef.current - (insets.top + 28));
+          scrollViewRef.current.scrollTo({ y: targetY, animated: true });
+          hasAutoScrolledToReviewRef.current = true;
+        }, 80);
+      }}
+    >
       <View style={styles.sectionHeader}>
         <View style={styles.reviewHeaderBlock}>
           <Text style={styles.sectionTitle}>{t("siteDetail.reviews", { defaultValue: "Đánh giá" })}</Text>
@@ -839,6 +893,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       />
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -1683,27 +1738,29 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
       </ScrollView>
 
       {/* Floating Bottom Bar - Add to Plan */}
-      <LinearGradient
-        colors={["transparent", "rgba(246,243,235,0.95)", COLORS.background]}
-        style={[styles.floatingBarGradient, { paddingBottom: insets.bottom + SPACING.sm }]}
-        pointerEvents="box-none"
-      >
-        <TouchableOpacity
-          style={styles.addToPlanBtn}
-          onPress={handleAddToPlan}
-          activeOpacity={0.85}
+      {!hideAddToPlan && (
+        <LinearGradient
+          colors={["transparent", "rgba(246,243,235,0.95)", COLORS.background]}
+          style={[styles.floatingBarGradient, { paddingBottom: insets.bottom + SPACING.sm }]}
+          pointerEvents="box-none"
         >
-          <LinearGradient
-            colors={[COLORS.accent, COLORS.accentDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.addToPlanBtnGradient}
+          <TouchableOpacity
+            style={styles.addToPlanBtn}
+            onPress={handleAddToPlan}
+            activeOpacity={0.85}
           >
-            <Ionicons name="calendar" size={20} color="#fff" />
-            <Text style={styles.addToPlanBtnText}>{t('siteDetail.addToPlan', { defaultValue: 'Thêm vào lịch trình' })}</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </LinearGradient>
+            <LinearGradient
+              colors={[COLORS.accent, COLORS.accentDark]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.addToPlanBtnGradient}
+            >
+              <Ionicons name="calendar" size={20} color="#fff" />
+              <Text style={styles.addToPlanBtnText}>{t('siteDetail.addToPlan', { defaultValue: 'Thêm vào lịch trình' })}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
+      )}
 
       {/* SOS Modal */}
       {site && (
@@ -2053,14 +2110,16 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
             </View>
           </Modal>
 
-          <AddToPlanModal
-            visible={showAddToPlan}
-            onClose={() => setShowAddToPlan(false)}
-            siteId={site.id}
-            siteName={site.name}
-            siteCoverImage={site.coverImage}
-            navigation={navigation}
-          />
+          {!hideAddToPlan && (
+            <AddToPlanModal
+              visible={showAddToPlan}
+              onClose={() => setShowAddToPlan(false)}
+              siteId={site.id}
+              siteName={site.name}
+              siteCoverImage={site.coverImage}
+              navigation={navigation}
+            />
+          )}
         </>
       )}
 

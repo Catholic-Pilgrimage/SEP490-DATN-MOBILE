@@ -59,6 +59,7 @@ import type {
   PlannerStackParamList,
 } from "../../../../navigation/pilgrimNavigation.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
+import { getApiErrorMessage } from "../../../../utils/apiError";
 import { emailsMatch } from "../utils/planShare.utils";
 
 // ─── Tab enum ────────────────────────────────────────────────
@@ -319,6 +320,8 @@ const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
     participantCount: entity.number_of_people,
     coverImage: "https://images.unsplash.com/photo-1548625361-e88c60eb83fe",
     isShared: !!entity.share_token,
+    isLocked: !!entity.is_locked,
+    sharedToCommunity: !!entity.shared_to_community,
     transportation: [normalizePlannerTransport(entity.transportation)],
   };
 };
@@ -709,6 +712,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   // ── Invited Plans state ──
   const [invitedPlans, setInvitedPlans] = useState<InvitedPlanUI[]>([]);
   const [invitedLoading, setInvitedLoading] = useState(!isGuest);
+  const [sharingPlanId, setSharingPlanId] = useState<string | null>(null);
 
   // ── Fetch All Plans ──
   const fetchAllPlans = useCallback(async (options?: { silent?: boolean }) => {
@@ -950,6 +954,96 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
     return uniqueStatuses.size > 1;
   }, [invitedPlans]);
 
+  const handleSharePlanToCommunity = useCallback(
+    async (plan: PlanUI) => {
+      const normalizedStatus = String(plan.status || "").toLowerCase();
+      if (normalizedStatus !== "completed") return;
+      if (plan.sharedToCommunity) {
+        Toast.show({
+          type: "info",
+          text1: t("common.info", { defaultValue: "Thông báo" }),
+          text2: t("planner.alreadySharedCommunity", {
+            defaultValue: "Kế hoạch này đã được chia sẻ lên cộng đồng.",
+          }),
+        });
+        return;
+      }
+      if (sharingPlanId === plan.id) return;
+
+      setSharingPlanId(plan.id);
+      try {
+        const response = await pilgrimPlannerApi.sharePlannerToCommunity(plan.id);
+        if (response.success) {
+          Toast.show({
+            type: "success",
+            text1: t("planner.shareCommunitySuccessTitle", {
+              defaultValue: "Đã chia sẻ lên cộng đồng",
+            }),
+            text2: t("planner.shareCommunitySuccessBody", {
+              defaultValue: "Bài viết đã được tạo từ hành trình của bạn.",
+            }),
+          });
+
+          setPlans((prev) =>
+            prev.map((p) =>
+              p.id === plan.id
+                ? { ...p, sharedToCommunity: true, isShared: true }
+                : p,
+            ),
+          );
+          await fetchAllPlans({ silent: true });
+          return;
+        }
+
+        Toast.show({
+          type: "error",
+          text1: t("common.error", { defaultValue: "Lỗi" }),
+          text2:
+            response.message ||
+            t("planner.shareCommunityError", {
+              defaultValue:
+                "Không thể chia sẻ. Kiểm tra quyền và trạng thái kế hoạch.",
+            }),
+        });
+      } catch (error: any) {
+        Toast.show({
+          type: "error",
+          text1: t("common.error", { defaultValue: "Lỗi" }),
+          text2: getApiErrorMessage(
+            error,
+            t("planner.shareCommunityError", {
+              defaultValue:
+                "Không thể chia sẻ. Kiểm tra quyền và trạng thái kế hoạch.",
+            }),
+          ),
+        });
+      } finally {
+        setSharingPlanId((prev) => (prev === plan.id ? null : prev));
+      }
+    },
+    [fetchAllPlans, sharingPlanId, t],
+  );
+
+  const handleEditPlan = useCallback(
+    (plan: PlanUI) => {
+      if (plan.isLocked) {
+        Toast.show({
+          type: "info",
+          text1: t("common.info", { defaultValue: "Thông báo" }),
+          text2: t("planner.lockedCannotEdit", {
+            defaultValue: "Kế hoạch đã khoá, không thể chỉnh sửa.",
+          }),
+        });
+        return;
+      }
+
+      navigateToPlanByStatus(plan.id, plan.status, {
+        planPrefill: buildPlanPrefill(plan),
+      });
+    },
+    [navigateToPlanByStatus, t],
+  );
+
   // ── Render plan lists ──────
   const renderMyPlans = () => {
     if (loading) {
@@ -1008,8 +1102,13 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
             planPrefill: buildPlanPrefill(plan),
           })
         }
-        onShare={() => console.log("Share plan", plan.id)}
-        onEdit={() => console.log("Edit plan", plan.id)}
+        onShare={
+          String(plan.status || "").toLowerCase() === "completed" &&
+          !plan.sharedToCommunity
+            ? () => void handleSharePlanToCommunity(plan)
+            : undefined
+        }
+        onEdit={!plan.isLocked ? () => handleEditPlan(plan) : undefined}
       />
     ));
   };
