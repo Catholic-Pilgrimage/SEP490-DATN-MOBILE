@@ -13,8 +13,53 @@ export function normalizePatronSaint(value: string | undefined | null): string {
 
 export function isGroupJourneyPlan(plan: {
   number_of_people?: number;
+  deposit_amount?: number | null;
+  penalty_percentage?: number | null;
+  viewer_join_status?: string | null;
+  is_group_plan?: boolean;
+  group_plan?: boolean;
+  plan_type?: string;
+  mode?: string;
+  is_locked?: boolean;
+  edit_lock_at?: string | null;
+  planner_lock_at?: string | null;
+  first_invite_at?: string | null;
+  edit_lock_available_at?: string | null;
+  can_set_edit_lock_at?: boolean;
+  members?: unknown[];
 }): boolean {
-  return (plan.number_of_people ?? 1) > 1;
+  const meta = plan as Record<string, unknown>;
+
+  if (meta.is_group_plan === true || meta.group_plan === true) return true;
+
+  const planType = String(meta.plan_type || meta.mode || "")
+    .trim()
+    .toLowerCase();
+  if (planType === "group" || planType === "team") return true;
+
+  if ((plan.number_of_people ?? 1) > 1) return true;
+
+  const joinStatus = String(plan.viewer_join_status || "")
+    .trim()
+    .toLowerCase();
+  if (joinStatus === "joined" || joinStatus === "dropped_out") return true;
+
+  if (Array.isArray(plan.members) && plan.members.length > 0) return true;
+
+  // Group-only financial/lifecycle fields from backend payloads.
+  if (plan.deposit_amount != null || plan.penalty_percentage != null) return true;
+  if (
+    plan.edit_lock_at != null ||
+    plan.planner_lock_at != null ||
+    plan.first_invite_at != null ||
+    plan.edit_lock_available_at != null ||
+    typeof plan.can_set_edit_lock_at === "boolean" ||
+    typeof plan.is_locked === "boolean"
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /** Thứ tự điểm như lịch trình: theo ngày (key trong items_by_day) rồi order_index. */

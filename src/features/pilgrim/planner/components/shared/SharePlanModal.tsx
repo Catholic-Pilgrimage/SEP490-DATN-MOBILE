@@ -40,6 +40,7 @@ import {
   filterInvitesNeedingAction,
   mapMembersToParticipants,
 } from "../../utils/planShare.utils";
+import { isGroupJourneyPlan } from "../../utils/planPatronScope.utils";
 import { scheduleCompleteHeuristic } from "../../utils/plannerFlow.utils";
 import { FriendPickerModal } from "./FriendPickerModal";
 import type { FriendshipListItem } from "../../../../../types/pilgrim";
@@ -702,10 +703,11 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
     );
   };
 
+  const isGroupPlan = isGroupJourneyPlan(plan || {});
   const planPeople = plan?.number_of_people ?? 1;
   const isPlanLocked = String(plan?.status || "").toLowerCase() === "locked";
-  const lockEditDisabled = planPeople <= 1;
-  const canLockPlan = planPeople <= 1 ? true : manualLock || !!plan?.is_locked;
+  const lockEditDisabled = !isGroupPlan;
+  const canLockPlan = !isGroupPlan ? true : manualLock || !!plan?.is_locked;
 
   return (
     <Modal
@@ -734,7 +736,7 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
                 <Text style={styles.sectionTitleFlex} numberOfLines={2}>
                   {t("planner.addMember")}
                 </Text>
-                {plan && (plan.number_of_people ?? 1) > 1 ? (
+                {isGroupPlan ? (
                   <TouchableOpacity
                     onPress={() => setChecklistGuideVisible(true)}
                     hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
