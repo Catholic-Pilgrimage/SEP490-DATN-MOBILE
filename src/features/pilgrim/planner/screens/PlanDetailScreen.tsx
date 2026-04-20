@@ -124,7 +124,10 @@ import {
   calculateEndTimeRaw,
   getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
-import { getGroupPatronConstraintFromPlan } from "../utils/planPatronScope.utils";
+import {
+  getGroupPatronConstraintFromPlan,
+  isGroupJourneyPlan,
+} from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
@@ -240,6 +243,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   );
 
   const mapRef = useRef<VietmapViewRef>(null);
+  const autoRedirectedToActiveRef = useRef(false);
   const [plannerUserLocation, setPlannerUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -584,45 +588,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setLastClosedDayNumber((current) => Math.max(current, fromPlan));
   }, [getLastClosedDayFromPlan, plan]);
 
-  const inferClosedDayFromProgress = useMemo(() => {
-    if (String(plan?.status || "").toLowerCase() !== "ongoing") return 0;
-
-    const totalDays =
-      Number(plan?.number_of_days) ||
-      (plan?.items_by_day ? Object.keys(plan.items_by_day).length : 0);
-    if (!totalDays || totalDays <= 0) return 0;
-
-    const isHandled = (item: PlanItem) => {
-      const status = String(item.status || "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/-/g, "_");
-      return (
-        status === "visited" ||
-        status === "skipped" ||
-        status === "checked_in" ||
-        status === "completed" ||
-        status === "done"
-      );
-    };
-
-    let inferred = 0;
-    for (let day = 1; day <= totalDays; day += 1) {
-      const dayItems = sortPlanDayItems(plan?.items_by_day?.[String(day)] || []);
-      if (dayItems.length === 0) break;
-      const allHandled = dayItems.every(isHandled);
-      if (!allHandled) break;
-      inferred = day;
-    }
-
-    return inferred;
-  }, [plan?.items_by_day, plan?.number_of_days, plan?.status]);
-
-  const effectiveLastClosedDayNumber = useMemo(
-    () => Math.max(lastClosedDayNumber, inferClosedDayFromProgress),
-    [inferClosedDayFromProgress, lastClosedDayNumber],
-  );
+  // Important: only trust backend closed-day markers.
+  // Do not infer "closed" from handled item statuses to avoid premature lock UI.
+  const effectiveLastClosedDayNumber = lastClosedDayNumber;
 
   // ── Add Site Flow (hook) ──
   const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
@@ -848,10 +816,36 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
     const interval = setInterval(() => {
       void loadPlan({ silent: true });
-    }, 30000); // Reload every 30 seconds
+    }, 8000); // Keep members in sync quickly for auto-transition UX
 
     return () => clearInterval(interval);
   }, [isPlanOwner, plan?.status, planId, isOffline]);
+
+  // Member auto-transition: when owner starts pilgrimage, move members to ActiveJourney immediately.
+  useEffect(() => {
+    const status = String(plan?.status || "").toLowerCase();
+
+    if (status !== "ongoing") {
+      autoRedirectedToActiveRef.current = false;
+      return;
+    }
+
+    if (!plan?.id) return;
+    if (isPlanOwner) return;
+    if (isInvitePendingView) return;
+    if (isDroppedOut) return;
+    if (autoRedirectedToActiveRef.current) return;
+
+    autoRedirectedToActiveRef.current = true;
+    navigation.replace("ActiveJourneyScreen", { planId: plan.id });
+  }, [
+    isDroppedOut,
+    isInvitePendingView,
+    isPlanOwner,
+    navigation,
+    plan?.id,
+    plan?.status,
+  ]);
 
   async function checkOfflineAvailability() {
     const [available, tileTemplate] = await Promise.all([
@@ -1715,7 +1709,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     // 12-hour warning check for Group Lock Plan
     if (
       isLock &&
-      Number(plan?.number_of_people || 1) > 1 &&
+      isGroupJourneyPlan(plan || {}) &&
       plan?.is_locked &&
       plan?.edit_lock_at
     ) {
@@ -1754,7 +1748,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setUpdatingPlanStatus(true);
     try {
       // Solo planner: auto-lock status before starting (backend requires 'locked' before 'ongoing')
-      const isSolo = Number(plan?.number_of_people || 1) <= 1;
+      const isSolo = !isGroupJourneyPlan(plan || {});
       const currentStatus = (plan?.status || "").toLowerCase();
 
       if (isStart && isSolo && currentStatus === "planning") {
@@ -3904,7 +3898,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const planStatusStr = (plan?.status || "").toLowerCase();
   const isCompletedPlan = planStatusStr === "completed";
   const isOngoingPlan = planStatusStr === "ongoing";
-  const isSoloPlan = Number(plan?.number_of_people || 1) <= 1;
+  const isSoloPlan = !isGroupJourneyPlan(plan || {});
+  const isGroupPlan = !isSoloPlan;
   const canDeleteItems =
     isPlanOwner &&
     !plan?.is_locked &&
@@ -3984,7 +3979,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             insets={insets}
             isPlanOwner={isPlanOwner}
             isOffline={isOffline}
-            isGroupPlan={(plan?.number_of_people || 1) > 1}
+            isGroupPlan={isGroupPlan}
             reloadingEta={reloadingDayNumber !== null}
             showEtaSyncAction={etaSyncFromDay !== null}
             syncingCalendar={syncingCalendar}

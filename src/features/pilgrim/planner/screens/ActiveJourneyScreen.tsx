@@ -44,6 +44,7 @@ import TimelineDaySection from "../components/active-journey/TimelineDaySection"
 import { useCheckinPhoto } from "../hooks/useCheckinPhoto";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
+import { isGroupJourneyPlan } from "../utils/planPatronScope.utils";
 
 type Props = {
   route: PlannerRouteProp<"ActiveJourneyScreen">;
@@ -594,8 +595,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     [plan?.status],
   );
   const isSoloPlan = useMemo(
-    () => Number(plan?.number_of_people || 1) <= 1,
-    [plan?.number_of_people],
+    () => !isGroupJourneyPlan(plan || {}),
+    [plan],
   );
   const topBarTitle = useMemo(() => {
     const rawName = String(plan?.name || "").trim();

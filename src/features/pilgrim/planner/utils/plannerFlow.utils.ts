@@ -1,4 +1,5 @@
 import type { PlanEntity } from "../../../../types/pilgrim/planner.types";
+import { isGroupJourneyPlan } from "./planPatronScope.utils";
 
 /** Pha UX — khớp gần với backend (planning / ongoing / completed / cancelled) */
 export type PlannerFlowPhase =
@@ -46,7 +47,7 @@ export function scheduleCompleteHeuristic(plan: PlanEntity): boolean {
  */
 export function getPlannerFlowContext(plan: PlanEntity): PlannerFlowContext {
   const st = (plan.status || "").toLowerCase();
-  const isSolo = (plan.number_of_people ?? 1) <= 1;
+  const isSolo = !isGroupJourneyPlan(plan);
   const hasItems = countItems(plan) > 0;
   const scheduleLooksComplete = scheduleCompleteHeuristic(plan);
   const isPlanLocked = st === "locked";
