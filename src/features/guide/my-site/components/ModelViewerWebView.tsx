@@ -161,7 +161,7 @@ export const ModelViewerWebView: React.FC<ModelViewerWebViewProps> = ({
         if (still) setError(true);
         return false;
       });
-    }, 45000);
+    }, 90000);
   }, [clearLoadTimeout]);
 
   const trimmed = modelUrl?.trim() ?? "";
