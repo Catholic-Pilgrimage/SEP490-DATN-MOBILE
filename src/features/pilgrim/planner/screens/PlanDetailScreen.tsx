@@ -1411,24 +1411,33 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         penaltyPct = pen;
       }
 
-      const updateBody: UpdatePlanRequest = {
-        name: editPlanName.trim(),
-        start_date: editPlanStartDate,
-        end_date: editPlanEndDate,
-        number_of_people: editPlanPeople,
-        transportation: editPlanTransportation,
-        ...(editPlanPeople > 1
-          ? {
-              deposit_amount: depositAmount,
-              penalty_percentage: penaltyPct,
-              min_people_required: editPlanMinPeople,
-              // Chỉ gửi edit_lock_at nếu giá trị thay đổi so với ban đầu
-              ...(editLockAt !== (plan?.edit_lock_at || null)
-                ? { edit_lock_at: editLockAt }
-                : {}),
-            }
-          : { deposit_amount: 0, penalty_percentage: 0 }),
-      };
+      let updateBody: UpdatePlanRequest;
+      
+      if (plan?.is_locked) {
+        // If plan is already edit-locked, only allow updating the lock schedule
+        updateBody = {
+          edit_lock_at: editLockAt,
+        } as any;
+      } else {
+        updateBody = {
+          name: editPlanName.trim(),
+          start_date: editPlanStartDate,
+          end_date: editPlanEndDate,
+          number_of_people: editPlanPeople,
+          transportation: editPlanTransportation,
+          ...(editPlanPeople > 1
+            ? {
+                deposit_amount: depositAmount,
+                penalty_percentage: penaltyPct,
+                min_people_required: editPlanMinPeople,
+                // Chỉ gửi edit_lock_at nếu giá trị thay đổi so với ban đầu
+                ...(editLockAt !== (plan?.edit_lock_at || null)
+                  ? { edit_lock_at: editLockAt }
+                  : {}),
+              }
+            : { deposit_amount: 0, penalty_percentage: 0 }),
+        };
+      }
 
       const response = await pilgrimPlannerApi.updatePlan(planId, updateBody);
       if (response.success) {
