@@ -2036,7 +2036,14 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 <View style={styles.premiumHeaderCenter}>
                   <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
                   <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
-                  <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
+                  <Text
+                    style={styles.premiumHeaderTitle}
+                    numberOfLines={2}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
+                  >
+                    {site?.name?.toUpperCase()}
+                  </Text>
                   <View style={styles.premiumDividerRow}>
                     <View style={styles.premiumDividerLine} />
                     <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
@@ -3159,7 +3166,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   premiumHeaderCenter: {
+    flex: 1,
     alignItems: 'center',
+    marginHorizontal: 12,
     gap: 4,
     marginTop: 4,
   },
@@ -3170,11 +3179,12 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   premiumHeaderTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
     color: '#fff',
     letterSpacing: 0.5,
     textAlign: 'center',
+    lineHeight: 28,
   },
   premiumDividerRow: {
     flexDirection: 'row',
