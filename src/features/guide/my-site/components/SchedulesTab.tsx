@@ -16,38 +16,39 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    TouchableWithoutFeedback,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
-    GUIDE_COLORS,
-    GUIDE_SPACING,
+  GUIDE_COLORS,
+  GUIDE_SPACING,
 } from "../../../../constants/guide.constants";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import {
-    DayOfWeek,
-    MassSchedule,
-    MassScheduleStatus,
+  DayOfWeek,
+  MassSchedule,
+  MassScheduleStatus,
 } from "../../../../types/guide";
 import { PREMIUM_COLORS, STATUS_COLORS } from "../constants";
 import { useMassSchedule } from "../hooks/useMassSchedule";
 import type { FilterItem } from "./FilterBottomSheet";
 import { FilterBottomSheet, FilterTrigger } from "./FilterBottomSheet";
 import {
-    getFabScrollBottomInset,
-    GUIDE_FAB_SIZE,
-    GuideFabButton,
+  getFabScrollBottomInset,
+  GUIDE_FAB_SIZE,
+  GuideFabButton,
 } from "./GuideFabButton";
 import { styles } from "./SchedulesTab.styles";
 import { StatusBadge } from "./StatusBadge";
@@ -859,19 +860,6 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const [dayFilter, setDayFilter] = useState<DayOfWeek | null>(null);
   const [weekOverviewExpanded, setWeekOverviewExpanded] = useState(true);
 
-  const showInfoDialog = useCallback(
-    async (title: string, message: string) => {
-      await confirm({
-        type: "info",
-        title,
-        message,
-        confirmText: t("common.ok", { defaultValue: "OK" }),
-        showCancel: false,
-      });
-    },
-    [confirm, t],
-  );
-
   // Refetch on focus
   useFocusEffect(
     useCallback(() => {
@@ -892,7 +880,11 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
   const handleDeletePress = async (schedule: MassSchedule) => {
     const success = await remove(schedule.id);
     if (success) {
-      await showInfoDialog(t("common.success"), t("schedulesTab.deleteSuccess"));
+      Toast.show({
+        type: "success",
+        text1: t("common.success"),
+        text2: t("schedulesTab.deleteSuccess"),
+      });
     }
   };
 
@@ -1045,7 +1037,11 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        await showInfoDialog(t("common.success"), t("schedulesTab.updateSuccess"));
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("schedulesTab.updateSuccess"),
+        });
       }
     } else {
       const result = await create({
@@ -1055,7 +1051,11 @@ const SchedulesTab: React.FC<SchedulesTabProps> = () => {
       });
       if (result) {
         setModalVisible(false);
-        await showInfoDialog(t("common.success"), t("schedulesTab.createSuccess"));
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("schedulesTab.createSuccess"),
+        });
       }
     }
   };

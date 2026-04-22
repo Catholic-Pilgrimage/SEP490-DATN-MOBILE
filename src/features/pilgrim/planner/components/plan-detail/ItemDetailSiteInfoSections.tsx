@@ -16,7 +16,6 @@ import {
   SHADOWS,
   SPACING,
 } from "../../../../../constants/theme.constants";
-import { NearbyPlaceCard } from "../../../site/components/NearbyPlaceCard";
 import {
   useSiteDetail,
   useSiteEvents,
@@ -26,6 +25,7 @@ import {
 } from "../../../../../hooks/useSites";
 import { DayOfWeek } from "../../../../../types";
 import type { SiteEvent } from "../../../../../types/pilgrim";
+import { NearbyPlaceCard } from "../../../site/components/NearbyPlaceCard";
 
 type TFn = (key: string, options?: Record<string, unknown>) => string;
 
@@ -79,7 +79,7 @@ export default function ItemDetailSiteInfoSections({
   );
   const { events, isLoading: loadingEvents } = useSiteEvents(siteId, {
     autoFetch: canFetch,
-    params: { upcoming: "true", limit: 6 },
+    params: { time_state: "upcoming", limit: 6 },
   });
   const { places, isLoading: loadingPlaces } = useSiteNearbyPlaces(siteId, {
     autoFetch: canFetch,

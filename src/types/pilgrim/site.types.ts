@@ -4,11 +4,11 @@
 
 // Enums
 import {
-  DayOfWeek,
-  NearbyPlaceCategory,
-  SiteMediaType,
-  SiteRegion,
-  SiteType,
+    DayOfWeek,
+    NearbyPlaceCategory,
+    SiteMediaType,
+    SiteRegion,
+    SiteType,
 } from "../common.types";
 
 // Site Base
@@ -188,7 +188,8 @@ export interface SiteEvent {
 export interface GetSiteEventsParams {
   page?: number;
   limit?: number;
-  upcoming?: "true" | "false";
+  upcoming?: "true" | "false"; // Deprecated: use time_state instead
+  time_state?: "upcoming" | "ongoing" | "ended";
   start_date?: string;
   end_date?: string;
 }

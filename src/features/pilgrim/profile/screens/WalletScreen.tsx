@@ -3,53 +3,53 @@ import { useNavigation } from "@react-navigation/native";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Image,
-  ImageBackground,
-  Keyboard,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  PanResponder,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    Image,
+    ImageBackground,
+    Keyboard,
+    KeyboardAvoidingView,
+    Linking,
+    Modal,
+    PanResponder,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import {
-  SafeAreaView,
-  useSafeAreaInsets,
+    SafeAreaView,
+    useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { COLORS, SPACING } from "../../../../constants/theme.constants";
 import {
-  getWalletBanks,
-  getWalletInfo,
-  getWalletTransactionById,
-  getWalletTransactions,
-  requestWalletTopup,
-  requestWalletWithdrawal,
+    getWalletBanks,
+    getWalletInfo,
+    getWalletTransactionById,
+    getWalletTransactions,
+    requestWalletTopup,
+    requestWalletWithdrawal,
 } from "../../../../services/api/pilgrim/walletApi";
 import type {
-  WalletBankOption,
-  WalletInfo,
-  WalletTransaction,
-  WalletTransactionTypeFilter,
-  WalletTransactionsQuery,
+    WalletBankOption,
+    WalletInfo,
+    WalletTransaction,
+    WalletTransactionTypeFilter,
+    WalletTransactionsQuery,
 } from "../../../../types/pilgrim/wallet.types";
 import {
-  walletReferenceContextLabel,
-  walletTransactionStatusLabel,
-  walletTransactionTypeLabel,
+    walletReferenceContextLabel,
+    walletTransactionStatusLabel,
+    walletTransactionTypeLabel,
 } from "../../../../utils/walletTransactionLabels";
 
 // ─── Icon/Color by transaction type ────────────────────────────────────────
@@ -405,29 +405,49 @@ const WalletScreen: React.FC = () => {
           );
         }
       } else {
+        // Ưu tiên lấy message từ res.error.message, sau đó res.message
         let cleanMsg =
+          res.error?.message ||
           res.message ||
           t("wallet.withdrawFailed", {
             defaultValue: "Rút tiền thất bại. Thử lại sau.",
           });
-        if (cleanMsg.includes("HTTP 200") || cleanMsg.includes("code: 607")) {
+        
+        console.log('[WalletScreen] Withdraw failed - raw response:', {
+          success: res.success,
+          message: res.message,
+          error: res.error,
+          cleanMsg
+        });
+        
+        // Kiểm tra error code từ res.error.code
+        const errorCode = res.error?.code;
+        if (errorCode === "607" || cleanMsg.includes("code: 607") || cleanMsg.includes("HTTP 200")) {
           cleanMsg = t("wallet.withdrawAccountUnsupported", {
             defaultValue:
               "Tài khoản nhận không đúng hoặc không hỗ trợ nhận tiền.",
           });
         } else {
+          // Làm sạch message: remove "HTTP xxx" và "(code: xxx)"
           cleanMsg = cleanMsg
             .replace(/HTTP \d+,?\s*/g, "")
             .replace(/\(code: \d+\)/g, "")
             .trim();
         }
-        Toast.show({
-          type: "error",
-          text1: t("wallet.transactionFailedTitle", {
-            defaultValue: "Giao dịch không thành công",
-          }),
-          text2: cleanMsg,
-        });
+        
+        console.log('[WalletScreen] Showing error toast:', cleanMsg);
+        
+        // Đóng modal trước, sau đó show Toast
+        setWithdrawOpen(false);
+        setTimeout(() => {
+          Toast.show({
+            type: "error",
+            text1: t("wallet.transactionFailedTitle", {
+              defaultValue: "Giao dịch không thành công",
+            }),
+            text2: cleanMsg,
+          });
+        }, 300);
       }
     } catch (e: unknown) {
       let cleanMsg =
@@ -436,24 +456,34 @@ const WalletScreen: React.FC = () => {
           : t("wallet.withdrawFailed", {
               defaultValue: "Rút tiền thất bại. Thử lại sau.",
             });
+      
+      console.log('[WalletScreen] Withdraw exception:', e);
+      
+      // Kiểm tra error code trong message
       if (cleanMsg.includes("HTTP 200") || cleanMsg.includes("code: 607")) {
         cleanMsg = t("wallet.withdrawAccountUnsupported", {
           defaultValue:
             "Tài khoản nhận không đúng hoặc không hỗ trợ nhận tiền.",
         });
       } else {
+        // Làm sạch message: remove "HTTP xxx" và "(code: xxx)"
         cleanMsg = cleanMsg
           .replace(/HTTP \d+,?\s*/g, "")
           .replace(/\(code: \d+\)/g, "")
           .trim();
       }
-      Toast.show({
-        type: "error",
-        text1: t("wallet.transactionFailedTitle", {
-          defaultValue: "Giao dịch không thành công",
-        }),
-        text2: cleanMsg,
-      });
+      
+      // Đóng modal trước, sau đó show Toast
+      setWithdrawOpen(false);
+      setTimeout(() => {
+        Toast.show({
+          type: "error",
+          text1: t("wallet.transactionFailedTitle", {
+            defaultValue: "Giao dịch không thành công",
+          }),
+          text2: cleanMsg,
+        });
+      }, 300);
     } finally {
       setSubmitting(false);
     }
@@ -500,12 +530,14 @@ const WalletScreen: React.FC = () => {
           );
         }
       } else {
-        setTopupError(
+        // Ưu tiên lấy message từ res.error.message, sau đó res.message
+        const errorMsg =
+          res.error?.message ||
           res.message ||
-            t("wallet.topupFailed", {
-              defaultValue: "Nạp tiền thất bại. Thử lại sau.",
-            }),
-        );
+          t("wallet.topupFailed", {
+            defaultValue: "Nạp tiền thất bại. Thử lại sau.",
+          });
+        setTopupError(errorMsg);
       }
     } catch (e: unknown) {
       setTopupError(
@@ -1151,14 +1183,6 @@ const WalletScreen: React.FC = () => {
                 })}
               </Text>
 
-              {/* Inline error */}
-              {withdrawError ? (
-                <View style={s.inlineError}>
-                  <Ionicons name="alert-circle" size={16} color="#DC2626" />
-                  <Text style={s.inlineErrorText}>{withdrawError}</Text>
-                </View>
-              ) : null}
-
               <TouchableOpacity
                 style={[s.submitBtn, submitting && { opacity: 0.7 }]}
                 disabled={submitting || banksLoading}
@@ -1594,124 +1618,130 @@ const WalletScreen: React.FC = () => {
           setBankSearch("");
         }}
       >
-        <TouchableOpacity
-          style={s.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setBankPickerOpen(false);
-            setBankSearch("");
-          }}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
         >
           <TouchableOpacity
+            style={s.pickerOverlay}
             activeOpacity={1}
-            onPress={() => {}}
-            style={[
-              s.pickerSheet,
-              { paddingBottom: Math.max(insets.bottom, 8) },
-            ]}
+            onPress={() => {
+              Keyboard.dismiss();
+              setBankPickerOpen(false);
+              setBankSearch("");
+            }}
           >
-            <View style={s.pickerHandle} />
-            <Text style={s.pickerTitle}>
-              {t("wallet.selectBank", { defaultValue: "Chọn ngân hàng" })}
-            </Text>
+            <TouchableOpacity
+              activeOpacity={1}
+              onPress={() => {}}
+              style={[
+                s.pickerSheet,
+                { paddingBottom: Math.max(insets.bottom, 8) },
+              ]}
+            >
+              <View style={s.pickerHandle} />
+              <Text style={s.pickerTitle}>
+                {t("wallet.selectBank", { defaultValue: "Chọn ngân hàng" })}
+              </Text>
 
-            {/* Search */}
-            <View style={s.bankSearchWrap}>
-              <Ionicons name="search" size={18} color={COLORS.textTertiary} />
-              <TextInput
-                style={s.bankSearchInput}
-                placeholder={t("wallet.searchBankPlaceholder", {
-                  defaultValue: "Tìm ngân hàng...",
-                })}
-                placeholderTextColor="rgba(0,0,0,0.25)"
-                value={bankSearch}
-                onChangeText={setBankSearch}
-                autoCorrect={false}
-                returnKeyType="search"
-              />
-              {bankSearch.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => setBankSearch("")}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={18}
-                    color={COLORS.textTertiary}
-                  />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <FlatList
-              data={banks.filter((b) => {
-                if (!bankSearch.trim()) return true;
-                const q = bankSearch.trim().toLowerCase();
-                return (
-                  (b.name || "").toLowerCase().includes(q) ||
-                  (b.short_name || "").toLowerCase().includes(q) ||
-                  (b.code || "").toLowerCase().includes(q) ||
-                  (b.bin || "").includes(q)
-                );
-              })}
-              keyExtractor={(b) => b.code + b.bin}
-              style={{ maxHeight: 400 }}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <View style={{ paddingVertical: 28, alignItems: "center" }}>
-                  <Ionicons
-                    name="search-outline"
-                    size={32}
-                    color="rgba(201,165,114,0.3)"
-                  />
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      color: COLORS.textTertiary,
-                      marginTop: 8,
-                    }}
+              {/* Search */}
+              <View style={s.bankSearchWrap}>
+                <Ionicons name="search" size={18} color={COLORS.textTertiary} />
+                <TextInput
+                  style={s.bankSearchInput}
+                  placeholder={t("wallet.searchBankPlaceholder", {
+                    defaultValue: "Tìm ngân hàng...",
+                  })}
+                  placeholderTextColor="rgba(0,0,0,0.25)"
+                  value={bankSearch}
+                  onChangeText={setBankSearch}
+                  autoCorrect={false}
+                  returnKeyType="search"
+                />
+                {bankSearch.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setBankSearch("")}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    {t("wallet.noBanksFound", {
-                      defaultValue: "Không tìm thấy ngân hàng",
-                    })}
-                  </Text>
-                </View>
-              }
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={s.bankRow}
-                  onPress={() => {
-                    setSelectedBank(item);
-                    setBankPickerOpen(false);
-                    setBankSearch("");
-                  }}
-                >
-                  {item.logo ? (
-                    <Image
-                      source={{ uri: item.logo }}
-                      style={s.bankLogo}
-                      resizeMode="contain"
+                    <Ionicons
+                      name="close-circle"
+                      size={18}
+                      color={COLORS.textTertiary}
                     />
-                  ) : (
-                    <View style={s.bankLogoFallback}>
-                      <Text style={s.bankLogoFallbackText}>
-                        {(item.short_name || item.code || "B")
-                          .slice(0, 2)
-                          .toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.bankName}>{item.name}</Text>
-                    <Text style={s.bankCode}>
-                      {item.short_name || item.code}
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <FlatList
+                data={banks.filter((b) => {
+                  if (!bankSearch.trim()) return true;
+                  const q = bankSearch.trim().toLowerCase();
+                  return (
+                    (b.name || "").toLowerCase().includes(q) ||
+                    (b.short_name || "").toLowerCase().includes(q) ||
+                    (b.code || "").toLowerCase().includes(q) ||
+                    (b.bin || "").includes(q)
+                  );
+                })}
+                keyExtractor={(b) => b.code + b.bin}
+                style={{ maxHeight: 400 }}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <View style={{ paddingVertical: 28, alignItems: "center" }}>
+                    <Ionicons
+                      name="search-outline"
+                      size={32}
+                      color="rgba(201,165,114,0.3)"
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        color: COLORS.textTertiary,
+                        marginTop: 8,
+                      }}
+                    >
+                      {t("wallet.noBanksFound", {
+                        defaultValue: "Không tìm thấy ngân hàng",
+                      })}
                     </Text>
                   </View>
-                </TouchableOpacity>
-              )}
-            />
+                }
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={s.bankRow}
+                    onPress={() => {
+                      setSelectedBank(item);
+                      setBankPickerOpen(false);
+                      setBankSearch("");
+                    }}
+                  >
+                    {item.logo ? (
+                      <Image
+                        source={{ uri: item.logo }}
+                        style={s.bankLogo}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={s.bankLogoFallback}>
+                        <Text style={s.bankLogoFallbackText}>
+                          {(item.short_name || item.code || "B")
+                            .slice(0, 2)
+                            .toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.bankName}>{item.name}</Text>
+                      <Text style={s.bankCode}>
+                        {item.short_name || item.code}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              />
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </ImageBackground>
   );
