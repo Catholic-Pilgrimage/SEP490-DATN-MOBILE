@@ -586,7 +586,7 @@ export default function EditPlanModal(props: EditPlanModalProps) {
             {/* Lock Schedule — Nhóm only */}
             {isGroup && (
               <View style={{ marginBottom: 20 }}>
-                {isLocked ? (
+                {(false && isLocked) ? (
                   <View
                     style={{
                       backgroundColor: "#F0FDF4",
