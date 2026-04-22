@@ -303,9 +303,7 @@ function transformError(error: AxiosError): Error {
     console.warn(
       "[API] Error response",
       status,
-      typeof (error.response as AxiosResponse<any>).data === "string"
-        ? String((error.response as AxiosResponse<any>).data).slice(0, 400)
-        : (error.response as AxiosResponse<any>).data,
+      JSON.stringify((error.response as AxiosResponse<any>).data, null, 2)?.slice(0, 800),
     );
   }
 

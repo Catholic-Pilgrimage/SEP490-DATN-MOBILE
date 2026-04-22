@@ -420,6 +420,69 @@ export const suggestArrivalTime = (params: {
   };
 };
 
+// ─── Event window (for confirmation modal & insight) ───────────────────────
+
+/**
+ * Khi đến **trong** khung [start, end) nhưng đã trôi hơn **một nửa** thời lượng từ start,
+ * trả về số phút còn lại trước khi sự kiện kết thúc (để cảnh báo người dùng).
+ * Khác ngày / end <= start: trả về null.
+ */
+export function getEventPastHalfWindowWarning(
+  estimatedTime: string,
+  eventStartTime: string,
+  eventEndTime: string,
+): { remainingMinutes: number } | null {
+  const a = timeToMinutes(estimatedTime);
+  const s = timeToMinutes(eventStartTime);
+  const e = timeToMinutes(eventEndTime);
+  if (e <= s) return null;
+  if (a < s || a >= e) return null;
+  const span = e - s;
+  const passed = a - s;
+  if (passed / span <= 0.5) return null;
+  return { remainingMinutes: e - a };
+}
+
+/**
+ * Gợi ý **mặc định** thời gian nghỉ tại điểm (phút) khi mới mở form / gắn sự kiện.
+ * Không dùng làm trần: người dùng có thể tăng tùy ý, kể cả qua nhiều ngày (lưu trú, ăn uống, y tế…).
+ * Sự kiện / giờ đóng / hết ngày chỉ hỗ trợ tính gợi ý hợp lý **trong** ngày, không chặn giá trị sau khi chọn.
+ */
+export function suggestRestDurationForPlannedStop(input: {
+  estimatedTime: string;
+  eventEndTime?: string;
+  siteCloseTime?: string;
+}): { defaultMinutes: number } {
+  const a = timeToMinutes(input.estimatedTime);
+  let windowM = Math.max(0, 1440 - a);
+  const c = input.siteCloseTime ? timeToMinutes(input.siteCloseTime) : null;
+  const e = input.eventEndTime ? timeToMinutes(input.eventEndTime) : null;
+  if (c != null && c > a) {
+    windowM = Math.min(windowM, c - a);
+  }
+  if (e != null && e > a) {
+    windowM = Math.min(windowM, e - a);
+  }
+  windowM = Math.max(0, Math.floor(windowM));
+
+  const TYPICAL_DEFAULT = 120;
+  const CHIP_MAX = 180;
+
+  if (windowM <= 0) {
+    return { defaultMinutes: TYPICAL_DEFAULT };
+  }
+
+  const minM = windowM < 15 ? 0 : Math.min(60, windowM);
+  let def: number;
+  if (windowM < TYPICAL_DEFAULT) {
+    def = windowM;
+  } else {
+    def = Math.min(CHIP_MAX, TYPICAL_DEFAULT, windowM);
+  }
+  def = Math.max(minM, Math.min(def, windowM));
+  return { defaultMinutes: def };
+}
+
 // ─── Insight Generator ────────────────────────────────────────────────────────
 
 export type InsightType =
@@ -427,6 +490,8 @@ export type InsightType =
   | "error_closed" // Site is closed at selected time
   | "event_late" // Arrives after event/mass start
   | "event_ok" // Arrives with buffer before event
+  | "event_within" // Before event, but under the preferred buffer
+  | "event_unreachable" // Even earliest arrival is after the event (from travel)
   | "early" // Arrives before opening
   | "late" // Arrives after closing
   | "buffer" // Good travel buffer
@@ -459,6 +524,7 @@ export const generateInsight = (params: {
   fastestArrival?: string;
   travelMinutes?: number;
   eventStartTime?: string;
+  eventEndTime?: string;
   eventName?: string;
   openTime?: string;
   closeTime?: string;
@@ -472,6 +538,7 @@ export const generateInsight = (params: {
     fastestArrival,
     travelMinutes,
     eventStartTime,
+    eventEndTime,
     eventName,
     openTime,
     closeTime,
@@ -500,6 +567,33 @@ export const generateInsight = (params: {
         color: "#DC2626",
         bgColor: "#FEF2F2",
         iconName: "car-sport",
+        isBlocking: true,
+      };
+    }
+  }
+
+  // ── P1b: "Unreachable" chỉ khi nhanh nhất cũng không tới nổi **trước lúc sự kiện kết thúc**
+  // (trễ giờ bắt đầu nhưng còn trong [start, end) vẫn thêm được — xử lý ở P3 / modal 50%)
+  if (eventStartTime && eventEndTime && hasTravelInfo && fastestArrival) {
+    const fastestMin = timeToMinutes(fastestArrival);
+    const eventStartMin = timeToMinutes(eventStartTime);
+    const eventEndMin = timeToMinutes(eventEndTime);
+    if (eventEndMin > eventStartMin && fastestMin >= eventEndMin) {
+      const name = eventName || t("planner.term.event");
+      return {
+        type: "event_unreachable",
+        title: t("planner.insight.eventUnreachable.title", {
+          name,
+          time: eventStartTime,
+        }),
+        message: t("planner.insight.eventUnreachable.messageWithEnd", {
+          duration: formatDurationLocalized(travelMinutes || 0, t),
+          fastest: fastestArrival,
+          end: eventEndTime,
+        }),
+        color: "#B91C1C",
+        bgColor: "#FEF2F2",
+        iconName: "close-circle",
         isBlocking: true,
       };
     }
@@ -564,6 +658,49 @@ export const generateInsight = (params: {
     const eventMin = timeToMinutes(eventStartTime);
     const diffMin = eventMin - selectedMin;
     if (diffMin < 0) {
+      const lateByMin = Math.abs(diffMin);
+      if (eventEndTime) {
+        const eventEndMin = timeToMinutes(eventEndTime);
+        if (eventEndMin > eventMin && selectedMin >= eventEndMin) {
+          return {
+            type: "event_late",
+            title: t("planner.insight.eventAfterEnd.title", {
+              defaultValue: "Đến sau khi sự kiện đã kết thúc",
+            }),
+            message: t("planner.insight.eventAfterEnd.message", {
+              defaultValue:
+                "Giờ bạn chọn ({{arrival}}) sau {{end}} — không còn trong thời gian diễn ra. Hãy điều chỉnh giờ dự kiến hoặc bỏ liên kết sự kiện.",
+              arrival: estimatedTime,
+              end: eventEndTime,
+            }),
+            color: "#B91C1C",
+            bgColor: "#FEF2F2",
+            iconName: "alert-circle",
+            isBlocking: true,
+          };
+        }
+        if (eventEndMin > eventMin && selectedMin < eventEndMin) {
+          const remain = eventEndMin - selectedMin;
+          return {
+            type: "event_late",
+            title: t("planner.insight.eventLateInWindow.title", {
+              defaultValue: "Đến sau lúc bắt đầu, vẫn còn trong sự kiện",
+            }),
+            message: t("planner.insight.eventLateInWindow.message", {
+              defaultValue:
+                "Bạn tới trễ {{late}} so với lúc bắt đầu, nhưng vẫn còn {{remain}} nữa trước khi kết thúc ({{end}}). Bạn vẫn có thể thêm vào lịch nếu phù hợp.",
+              late: formatDurationLocalized(lateByMin, t),
+              remain: formatDurationLocalized(remain, t),
+              end: eventEndTime,
+            }),
+            color: "#C2410C",
+            bgColor: "rgba(194, 65, 12, 0.08)",
+            iconName: "time-outline",
+            isBlocking: false,
+            visitingWindowMinutes: remain,
+          };
+        }
+      }
       return {
         type: "event_late",
         title: t("planner.insight.eventLate.title", {
@@ -572,7 +709,7 @@ export const generateInsight = (params: {
         }),
         message: t("planner.insight.eventLate.message", {
           selected: estimatedTime,
-          diff: formatDurationLocalized(Math.abs(diffMin), t),
+          diff: formatDurationLocalized(lateByMin, t),
         }),
         color: "#BE123C",
         bgColor: "#FFE4E6",
@@ -588,8 +725,11 @@ export const generateInsight = (params: {
       ? t("planner.term.event")
       : t("planner.term.mass");
 
+    const eventInsightType: "event_ok" | "event_within" =
+      diffMin >= PRE_EVENT_BUFFER_MINUTES ? "event_ok" : "event_within";
+
     return {
-      type: "event_ok",
+      type: eventInsightType,
       title: t("planner.insight.eventOk.title", {
         name: eventLabel,
         time: eventStartTime,

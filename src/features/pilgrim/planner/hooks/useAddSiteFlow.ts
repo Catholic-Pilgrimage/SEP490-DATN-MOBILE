@@ -32,6 +32,7 @@ import {
     getMassTimesForDate,
     parseOpeningHours,
     suggestArrivalTime,
+    suggestRestDurationForPlannedStop,
 } from "../utils/siteScheduleHelper";
 import { formatTimeValue, parseDurationToMinutes } from "../utils/time";
 
@@ -57,6 +58,8 @@ export interface SiteTravelData {
   massTimesForDay: string[];
   eventsForDay: DayEvent[];
   eventStartTime?: string;
+  /** Giờ kết thúc sự kiện (HH:MM) khi API có cung cấp */
+  eventEndTime?: string;
   eventName?: string;
   /** true when travel data comes from previous day's last item (cross-day) */
   isCrossDayTravel?: boolean;
@@ -65,6 +68,12 @@ export interface SiteTravelData {
 export interface AddSiteFlowState {
   selectedSiteId: string;
   selectedEventId: string | null;
+  /** true when item is bound to a specific event → estimated_time is locked */
+  isEventLocked: boolean;
+  /** Buffer minutes before event start (default 30, user can pick 15/30/45/60) */
+  bufferMinutes: number;
+  /** Duration of the selected event in minutes (used as rest_duration floor) */
+  eventDurationMinutes: number | null;
   estimatedTime: string;
   restDuration: number;
   note: string;
@@ -78,18 +87,31 @@ export interface AddSiteFlowState {
   suggestedTime: SuggestedArrival | null;
 }
 
+/** Tham số tùy chọn khi mở luồng thêm địa điểm (vd. tab "Sự kiện" cần gắn sự kiện trong ngày ngay). */
+export type StartFlowOptions = {
+  /** Khi bật: không có `eventId` thì tự gắn sự kiện đầu tiên có giờ trong ngày. Tắt/bỏ: mặc định site thường; gắn sự kiện qua CTA "Áp dụng" trong màn thời gian. */
+  autoBindFirstDayEvent?: boolean;
+};
+
 export interface AddSiteFlowActions {
   startFlow: (
     siteId: string,
     eventId?: string,
     dayOverride?: number,
+    options?: StartFlowOptions,
   ) => Promise<void>;
   setEstimatedTime: (time: string) => void;
   applySuggestedTime: (
     time: string,
-    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+    source?: {
+      priority: "event" | "mass" | "opening" | "default";
+      eventId?: string;
+    },
   ) => void;
   setRestDuration: (duration: number) => void;
+  setBufferMinutes: (minutes: number) => void;
+  /** Remove event binding and switch to normal site mode */
+  unlockEvent: () => void;
   setNote: (note: string) => void;
   closeTimeModal: () => void;
   resetFlow: () => void;
@@ -97,9 +119,14 @@ export interface AddSiteFlowActions {
 
 // ─── Initial State ────────────────────────────────────────────────────────────
 
+const DEFAULT_BUFFER_MINUTES = 30;
+
 const INITIAL_STATE: AddSiteFlowState = {
   selectedSiteId: "",
   selectedEventId: null,
+  isEventLocked: false,
+  bufferMinutes: DEFAULT_BUFFER_MINUTES,
+  eventDurationMinutes: null,
   estimatedTime: "08:00",
   restDuration: 120,
   note: "",
@@ -193,6 +220,7 @@ export function useAddSiteFlow(params: {
       eventStartTime: shouldUseEventInsight
         ? selectedEvent?.startTime || state.travelData.eventStartTime
         : undefined,
+      eventEndTime: shouldUseEventInsight ? selectedEvent?.endTime : undefined,
       eventName: shouldUseEventInsight
         ? selectedEvent?.name || state.travelData.eventName
         : undefined,
@@ -254,7 +282,12 @@ export function useAddSiteFlow(params: {
 
   // ── Start the add-site flow ──
   const startFlow = useCallback(
-    async (siteId: string, eventId?: string, dayOverride?: number) => {
+    async (
+      siteId: string,
+      eventId?: string,
+      dayOverride?: number,
+      options?: StartFlowOptions,
+    ) => {
       const flowId = ++flowIdRef.current;
       const targetDay = dayOverride ?? selectedDay;
 
@@ -262,6 +295,9 @@ export function useAddSiteFlow(params: {
         ...prev,
         selectedSiteId: siteId,
         selectedEventId: eventId || null,
+        isEventLocked: false,
+        bufferMinutes: prev.bufferMinutes || DEFAULT_BUFFER_MINUTES,
+        eventDurationMinutes: null,
         calculatingRoute: true,
         crossDayWarning: null,
         crossDaysAdded: 0,
@@ -328,12 +364,33 @@ export function useAddSiteFlow(params: {
             evtName = ev.name;
             evtStart = ev.start_time || undefined;
           }
-        } else if (eventsForDay.length > 0) {
-          const firstEventWithTime = eventsForDay.find((eventItem) => !!eventItem.startTime);
+        } else if (options?.autoBindFirstDayEvent && eventsForDay.length > 0) {
+          const firstEventWithTime = eventsForDay.find(
+            (eventItem) => !!eventItem.startTime,
+          );
           if (firstEventWithTime) {
             resolvedEventId = String(firstEventWithTime.id);
             evtName = firstEventWithTime.name;
             evtStart = firstEventWithTime.startTime;
+          }
+        }
+
+        let evtEnd: string | undefined;
+        if (resolvedEventId) {
+          const fromDay = eventsForDay.find(
+            (e) => String(e.id) === String(resolvedEventId),
+          );
+          const endFromDay = fromDay?.endTime as string | undefined;
+          if (endFromDay) {
+            evtEnd = endFromDay;
+          } else {
+            const fromSite = siteEvents.find(
+              (e) => String(e.id) === String(resolvedEventId),
+            ) as { end_time?: string } | undefined;
+            if (fromSite?.end_time) {
+              const raw = fromSite.end_time;
+              evtEnd = typeof raw === "string" ? raw.slice(0, 5) : undefined;
+            }
           }
         }
 
@@ -358,6 +415,7 @@ export function useAddSiteFlow(params: {
           massTimesForDay,
           eventsForDay,
           eventStartTime: evtStart,
+          eventEndTime: evtEnd,
           eventName: evtName,
         };
 
@@ -473,7 +531,6 @@ export function useAddSiteFlow(params: {
                 routeResult.durationMinutes,
                 t,
               );
-
             }
           }
         }
@@ -500,12 +557,102 @@ export function useAddSiteFlow(params: {
           ? suggested.time
           : fastestArrival || suggested.time;
 
+        // ── 7. Event-locking logic ──
+        // When user explicitly chose an event, lock estimated_time to event.start - buffer.
+        // Also compute event duration for rest_duration floor.
+        let isEventLocked = false;
+        let eventDurationMinutes: number | null = null;
+        let eventLockedRestDuration = 120;
+        let eventLockedNote = "";
+
+        if (resolvedEventId && evtStart) {
+          const evtStartMin = parseClockToMinutes(evtStart) ?? 0;
+
+          // Find the resolved event's endTime from eventsForDay or siteEvents
+          const resolvedEvt =
+            eventsForDay.find(
+              (e) => String(e.id) === String(resolvedEventId),
+            ) ||
+            siteEvents.find((e) => String(e.id) === String(resolvedEventId));
+          const evtEndStr = resolvedEvt
+            ? (resolvedEvt as DayEvent).endTime || (resolvedEvt as any).end_time
+            : undefined;
+          const evtEndMin = parseClockToMinutes(
+            typeof evtEndStr === "string" ? evtEndStr.slice(0, 5) : undefined,
+          );
+
+          if (evtEndMin !== null && evtEndMin > evtStartMin) {
+            eventDurationMinutes = evtEndMin - evtStartMin;
+          }
+
+          // Compute locked arrival = event.start - buffer
+          const bufferMin = DEFAULT_BUFFER_MINUTES;
+          const lockedArrivalMin = Math.max(0, evtStartMin - bufferMin);
+          const lockedArrival = `${String(Math.floor(lockedArrivalMin / 60)).padStart(2, "0")}:${String(lockedArrivalMin % 60).padStart(2, "0")}`;
+
+          // Check if physically reachable
+          const fastestMin = parseClockToMinutes(travelData.fastestArrival);
+          const canReachInTime =
+            fastestMin === null || lockedArrivalMin >= fastestMin;
+
+          if (canReachInTime) {
+            isEventLocked = true;
+            estimatedTime = lockedArrival;
+            const evtEndStrForRest =
+              typeof evtEndStr === "string" ? evtEndStr.slice(0, 5) : undefined;
+            eventLockedRestDuration = suggestRestDurationForPlannedStop({
+              estimatedTime: lockedArrival,
+              eventEndTime: evtEndStrForRest,
+              siteCloseTime: closeTime,
+            }).defaultMinutes;
+            eventLockedNote = evtName
+              ? t("planner.autoNoteEvent", {
+                  defaultValue: "Tham dự {{name}}",
+                  name: evtName,
+                })
+              : "";
+          } else {
+            // Đến trễ so với (bắt đầu − buffer) nhưng vẫn trong khung sự kiện
+            // (vd. 16:22 trong 06:07–17:07) → vẫn gắn sự kiện + khóa giờ theo sự kiện (UI như “ảnh 3”).
+            const estMin = parseClockToMinutes(estimatedTime);
+            const inEventWindow =
+              estMin !== null &&
+              estMin >= evtStartMin &&
+              (evtEndMin === null || estMin < evtEndMin);
+            if (inEventWindow) {
+              isEventLocked = true;
+              const evtEndStrForRest =
+                typeof evtEndStr === "string"
+                  ? evtEndStr.slice(0, 5)
+                  : undefined;
+              eventLockedRestDuration = suggestRestDurationForPlannedStop({
+                estimatedTime,
+                eventEndTime: evtEndStrForRest,
+                siteCloseTime: closeTime,
+              }).defaultMinutes;
+              eventLockedNote = evtName
+                ? t("planner.autoNoteEvent", {
+                    defaultValue: "Tham dự {{name}}",
+                    name: evtName,
+                  })
+                : "";
+            }
+            // Ngoài khung sự kiện / chưa tới: isEventLocked false → insight/ gợi ý
+          }
+        }
+
         if (flowId !== flowIdRef.current) return;
 
         setState((prev) => ({
           ...prev,
           selectedEventId: resolvedEventId,
+          isEventLocked,
+          eventDurationMinutes,
           estimatedTime,
+          restDuration: isEventLocked
+            ? eventLockedRestDuration
+            : prev.restDuration,
+          note: isEventLocked && eventLockedNote ? eventLockedNote : prev.note,
           travelTimeMinutes,
           crossDayWarning,
           crossDaysAdded,
@@ -545,13 +692,15 @@ export function useAddSiteFlow(params: {
   const setEstimatedTime = useCallback(
     (time: string) =>
       setState((prev) => {
+        // When event-locked, time changes are blocked — user must use buffer picker or unlock
+        if (prev.isEventLocked) return prev;
+
         if (!prev.travelData || !prev.selectedEventId) {
           return { ...prev, estimatedTime: time };
         }
 
         const selectedEvent = prev.travelData.eventsForDay.find(
-          (eventItem) =>
-            String(eventItem.id) === String(prev.selectedEventId),
+          (eventItem) => String(eventItem.id) === String(prev.selectedEventId),
         );
 
         const selectedMin = parseClockToMinutes(time);
@@ -565,7 +714,9 @@ export function useAddSiteFlow(params: {
         return {
           ...prev,
           estimatedTime: time,
-          selectedEventId: shouldClearSelectedEvent ? null : prev.selectedEventId,
+          selectedEventId: shouldClearSelectedEvent
+            ? null
+            : prev.selectedEventId,
         };
       }),
     [parseClockToMinutes],
@@ -574,22 +725,212 @@ export function useAddSiteFlow(params: {
   const applySuggestedTime = useCallback(
     (
       time: string,
-      source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+      source?: {
+        priority: "event" | "mass" | "opening" | "default";
+        eventId?: string;
+      },
     ) =>
-      setState((prev) => ({
-        ...prev,
-        estimatedTime: time,
-        selectedEventId:
-          source?.priority === "event"
-            ? source.eventId || prev.selectedEventId
-            : null,
-      })),
-    [],
+      setState((prev) => {
+        if (prev.isEventLocked && source?.priority !== "event") return prev;
+
+        if (source?.priority !== "event") {
+          return {
+            ...prev,
+            estimatedTime: time,
+            selectedEventId: null,
+            isEventLocked: false,
+            eventDurationMinutes: null,
+          };
+        }
+
+        const eventId = source?.eventId || prev.selectedEventId;
+        if (!eventId) {
+          return { ...prev, estimatedTime: time, isEventLocked: false };
+        }
+        if (!prev.travelData) {
+          return {
+            ...prev,
+            estimatedTime: time,
+            selectedEventId: String(eventId),
+            isEventLocked: true,
+          };
+        }
+
+        const list = prev.travelData.eventsForDay || [];
+        const fromList = list.find((e) => String(e.id) === String(eventId)) as
+          | (DayEvent & { name?: string; startTime?: string; endTime?: string })
+          | undefined;
+        const fromSite = siteEvents.find(
+          (e) => String(e.id) === String(eventId),
+        ) as
+          | ((typeof siteEvents)[number] & {
+              start_time?: string;
+              end_time?: string;
+            })
+          | undefined;
+        const row = fromList || fromSite;
+        if (!row) {
+          return {
+            ...prev,
+            estimatedTime: time,
+            selectedEventId: String(eventId),
+            isEventLocked: true,
+          };
+        }
+
+        const evtName =
+          fromList?.name ?? (fromSite as { name?: string } | undefined)?.name;
+        const evtStart = fromList?.startTime || fromSite?.start_time;
+        const evtEndRaw =
+          fromList?.endTime ||
+          (fromSite as { end_time?: string } | undefined)?.end_time;
+        const evtEndStr =
+          typeof evtEndRaw === "string" ? evtEndRaw.slice(0, 5) : undefined;
+
+        if (!evtStart) {
+          return {
+            ...prev,
+            estimatedTime: time,
+            selectedEventId: String(eventId),
+            isEventLocked: true,
+            travelData: {
+              ...prev.travelData,
+              eventName: evtName,
+              eventStartTime: evtStart,
+              eventEndTime: evtEndStr,
+            },
+          };
+        }
+
+        const evtStartMin = parseClockToMinutes(evtStart) ?? 0;
+        const evtEndMin = parseClockToMinutes(evtEndStr);
+        let eventDurationMinutes: number | null = null;
+        if (evtEndMin != null && evtEndMin > evtStartMin) {
+          eventDurationMinutes = evtEndMin - evtStartMin;
+        }
+
+        const arrivalMin = parseClockToMinutes(time) ?? 0;
+        const nextTravel: SiteTravelData = {
+          ...prev.travelData,
+          eventStartTime: evtStart,
+          eventEndTime: evtEndStr,
+          eventName: evtName,
+        };
+
+        const autoNote = evtName
+          ? t("planner.autoNoteEvent", {
+              defaultValue: "Tham dự {{name}}",
+              name: evtName,
+            })
+          : "";
+        const nextNote = prev.note?.trim() ? prev.note : autoNote;
+
+        const toHHmm = (m: number) =>
+          `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+        const restFor = (est: string) =>
+          suggestRestDurationForPlannedStop({
+            estimatedTime: est,
+            eventEndTime: evtEndStr,
+            siteCloseTime: prev.travelData?.closeTime,
+          }).defaultMinutes;
+
+        const fastestMin = parseClockToMinutes(prev.travelData?.fastestArrival);
+
+        if (arrivalMin < evtStartMin) {
+          const rawBuffer = evtStartMin - arrivalMin;
+          const chipOptions: number[] = [15, 30, 45, 60];
+          const bufferMinutes = chipOptions.reduce((a, b) =>
+            Math.abs(b - rawBuffer) < Math.abs(a - rawBuffer) ? b : a,
+          );
+          const lockedArrivalMin = Math.max(0, evtStartMin - bufferMinutes);
+          const canReach = fastestMin == null || lockedArrivalMin >= fastestMin;
+          if (canReach) {
+            const estLocked = toHHmm(lockedArrivalMin);
+            return {
+              ...prev,
+              selectedEventId: String(eventId),
+              isEventLocked: true,
+              bufferMinutes,
+              eventDurationMinutes,
+              estimatedTime: estLocked,
+              restDuration: restFor(estLocked),
+              travelData: nextTravel,
+              note: nextNote,
+            };
+          }
+          // Trước giờ bắt đầu nhưng vẫn gắn sự kiện + buffer hiển thị đúng với {{time}} đang chọn
+          return {
+            ...prev,
+            selectedEventId: String(eventId),
+            isEventLocked: true,
+            bufferMinutes,
+            eventDurationMinutes,
+            estimatedTime: time,
+            restDuration: restFor(time),
+            travelData: nextTravel,
+            note: nextNote,
+          };
+        }
+
+        // Đã đến/đến trễ sau giờ bắt đầu: gắn sự kiện + giờ theo lựa chọn, không dùng buffer "Đến trước" (xử lý ở UI)
+        return {
+          ...prev,
+          selectedEventId: String(eventId),
+          isEventLocked: true,
+          eventDurationMinutes,
+          estimatedTime: time,
+          restDuration: restFor(time),
+          travelData: nextTravel,
+          note: nextNote,
+        };
+      }),
+    [parseClockToMinutes, siteEvents, t],
   );
 
   const setRestDuration = useCallback(
     (duration: number) =>
       setState((prev) => ({ ...prev, restDuration: duration })),
+    [],
+  );
+
+  /** Change pre-event buffer (15/30/45/60) and recalculate locked arrival time */
+  const setBufferMinutes = useCallback(
+    (minutes: number) =>
+      setState((prev) => {
+        if (!prev.isEventLocked || !prev.travelData?.eventStartTime) {
+          return { ...prev, bufferMinutes: minutes };
+        }
+
+        const evtStartMin =
+          parseClockToMinutes(prev.travelData.eventStartTime) ?? 0;
+        const estMin = parseClockToMinutes(prev.estimatedTime) ?? 0;
+        // Khi giờ đến nằm từ lúc bắt đầu sự kiện trở đi (ví dụ từ gợi ý/điều chỉnh trễ), không đổi giờ qua buffer
+        if (estMin >= evtStartMin) {
+          return prev;
+        }
+
+        const lockedArrivalMin = Math.max(0, evtStartMin - minutes);
+        const lockedArrival = `${String(Math.floor(lockedArrivalMin / 60)).padStart(2, "0")}:${String(lockedArrivalMin % 60).padStart(2, "0")}`;
+
+        return {
+          ...prev,
+          bufferMinutes: minutes,
+          estimatedTime: lockedArrival,
+        };
+      }),
+    [parseClockToMinutes],
+  );
+
+  /** Remove event binding — switch to normal site mode with current estimated_time */
+  const unlockEvent = useCallback(
+    () =>
+      setState((prev) => ({
+        ...prev,
+        isEventLocked: false,
+        selectedEventId: null,
+        eventDurationMinutes: null,
+      })),
     [],
   );
 
@@ -615,6 +956,8 @@ export function useAddSiteFlow(params: {
     setEstimatedTime,
     applySuggestedTime,
     setRestDuration,
+    setBufferMinutes,
+    unlockEvent,
     setNote,
     closeTimeModal,
     resetFlow,

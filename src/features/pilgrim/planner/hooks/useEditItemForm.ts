@@ -12,7 +12,9 @@ import type {
     UpdatePlanItemRequest,
 } from "../../../../types/pilgrim/planner.types";
 import {
+  applyLocalItemTimeAndTravel,
   applyLocalItemUpdate,
+  applyLocalMoveItemToDay,
   sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import { buildDurationString } from "../utils/planDetailTime.utils";
@@ -57,6 +59,7 @@ type EditScheduleContext = {
   massTimesForDay: string[];
   eventsForDay: DayEvent[];
   eventStartTime?: string;
+  eventEndTime?: string;
   eventName?: string;
   crossDayWarning: string | null;
   crossDaysAdded: number;
@@ -217,6 +220,7 @@ export const useEditItemForm = ({
         massTimesForDay,
         eventsForDay,
         eventStartTime: selectedEvent?.startTime,
+        eventEndTime: selectedEvent?.endTime,
         eventName: selectedEvent?.name,
       };
 
@@ -476,6 +480,253 @@ export const useEditItemForm = ({
     }
   };
 
+  /**
+   * Chuyển item đang edit sang ngày tiếp theo, thêm lại ở đầu ngày đó và reset theo giờ mở cửa
+   * (không kế thừa thời gian dự kiến trước đó). Dùng khi trong ngày hiện tại:
+   *  - không đủ thời gian di chuyển, hoặc
+   *  - nhanh nhất có thể đến lại muộn hơn giờ đóng cửa.
+   */
+  const handleMoveEditItemToNextDay = async (targetDay: number) => {
+    if (!editingItem || !planId) return;
+
+    const totalDays =
+      Number(plan?.number_of_days || plan?.estimated_days || 0) || 0;
+    if (totalDays > 0 && targetDay > totalDays) {
+      Toast.show({
+        type: "error",
+        text1: t("planner.cannotUpdateItem", {
+          defaultValue: "Không thể cập nhật địa điểm",
+        }),
+        text2: t("planner.moveNextDayOutOfRange", {
+          defaultValue:
+            "Đã hết ngày trong hành trình. Hãy tăng số ngày hoặc dời điểm khác trước.",
+        }),
+      });
+      return;
+    }
+
+    const siteOpeningSource =
+      editScheduleContext.openTime ||
+      (editingItem.site as { opening_hours?: unknown } | undefined)?.opening_hours;
+
+    let nextDayOpenTime: string | undefined = undefined;
+    if (plan?.start_date) {
+      const nextDate = getDateForLeg(plan.start_date, targetDay);
+      const siteIdForHours =
+        editingItem.site_id || editingItem.site?.id || undefined;
+
+      let openingPayload: unknown = siteOpeningSource;
+      if (!openingPayload && siteIdForHours) {
+        try {
+          const detail = await pilgrimSiteApi.getSiteDetail(siteIdForHours);
+          openingPayload = (detail?.data as { opening_hours?: unknown })
+            ?.opening_hours;
+        } catch {
+          openingPayload = null;
+        }
+      }
+
+      if (openingPayload) {
+        const sched = parseOpeningHours(openingPayload, nextDate);
+        nextDayOpenTime = sched?.open;
+      }
+    }
+
+    const fallbackOpen = editScheduleContext.openTime || "08:00";
+    const startTime =
+      typeof nextDayOpenTime === "string" && nextDayOpenTime
+        ? nextDayOpenTime
+        : fallbackOpen;
+
+    const extractCreatedItemId = (resp: any): string | undefined => {
+      const rawId =
+        resp?.data?.item?.id ??
+        resp?.data?.id ??
+        resp?.item?.id ??
+        resp?.id;
+      const s = rawId != null ? String(rawId).trim() : "";
+      return s || undefined;
+    };
+
+    try {
+      setSavingEdit(true);
+
+      const isOnline = await networkService.checkConnection();
+
+      if (!isOnline) {
+        await networkService.addToOfflineQueue({
+          endpoint: `/api/planners/${planId}/items/${editingItem.id}`,
+          method: "PATCH",
+          data: {
+            planner_item_id: editingItem.id,
+            day_number: targetDay,
+            leg_number: targetDay,
+            order_index: 1,
+            estimated_time: startTime,
+            travel_time_minutes: 0,
+          },
+        });
+
+        await applyPlanMutation((currentPlan) => {
+          const movedPlan = applyLocalMoveItemToDay(
+            currentPlan,
+            editingItem.id,
+            targetDay,
+            "first",
+          );
+          return applyLocalItemTimeAndTravel(movedPlan, editingItem.id, {
+            estimated_time: startTime,
+            travel_time_minutes: 0,
+          });
+        });
+
+        Toast.show({
+          type: "success",
+          text1: t("common.success"),
+          text2: t("offline.changesSavedOffline"),
+        });
+        setShowEditItemModal(false);
+        setEditingItem(null);
+        return;
+      }
+
+      if (String(editingItem.id).startsWith("offline_")) {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: t("planner.offlineItemNeedsReload", {
+            defaultValue:
+              "Địa điểm này đang là dữ liệu tạm. Hãy tải lại kế hoạch rồi thử chỉnh sửa lại.",
+          }),
+        });
+        await loadPlan();
+        return;
+      }
+
+      // BE hiện không hỗ trợ PATCH `day_number`/`leg_number` để dời chặng →
+      // thử PATCH; nếu không dịch ngày thì fallback bằng addItem(ngày mới) + deleteItem(cũ).
+      const updatePayload = {
+        day_number: targetDay,
+        leg_number: targetDay,
+        order_index: 1,
+        estimated_time: startTime,
+        travel_time_minutes: 0,
+      } as any;
+
+      const patchResponse = await pilgrimPlannerApi
+        .updatePlanItem(planId, editingItem.id, updatePayload)
+        .catch(() => null);
+
+      const patchedDay = Number(
+        (patchResponse?.data as any)?.day_number ??
+          (patchResponse?.data as any)?.leg_number ??
+          0,
+      );
+      const patchMovedSuccessfully =
+        !!patchResponse?.success &&
+        Number.isFinite(patchedDay) &&
+        patchedDay === targetDay;
+
+      if (!patchMovedSuccessfully) {
+        // Fallback: tạo item mới ở ngày đích → xoá item cũ.
+        const siteId = editingItem.site_id || editingItem.site?.id;
+        if (!siteId) {
+          throw new Error(
+            t("planner.moveNextDayMissingSite", {
+              defaultValue:
+                "Không thể dời chặng vì thiếu thông tin địa điểm.",
+            }),
+          );
+        }
+
+        const createResponse = await pilgrimPlannerApi.addPlanItem(planId, {
+          site_id: String(siteId),
+          leg_number: targetDay,
+          event_id: editingItem.event_id || undefined,
+          note: editingItem.note || undefined,
+          estimated_time: startTime,
+          rest_duration: editingItem.rest_duration || undefined,
+          travel_time_minutes: 0,
+        });
+
+        const newItemId = extractCreatedItemId(createResponse);
+        if (!createResponse?.success || !newItemId) {
+          throw new Error(
+            createResponse?.message ||
+              t("planner.moveNextDayCreateFailed", {
+                defaultValue: "Không thể tạo điểm ở ngày tiếp theo.",
+              }),
+          );
+        }
+
+        // Đảm bảo order_index/estimated_time/travel đúng sau khi tạo.
+        await pilgrimPlannerApi
+          .updatePlanItem(planId, newItemId, {
+            day_number: targetDay,
+            leg_number: targetDay,
+            order_index: 1,
+            estimated_time: startTime,
+            travel_time_minutes: 0,
+            note: editingItem.note || undefined,
+            rest_duration: editingItem.rest_duration || undefined,
+          } as any)
+          .catch(() => null);
+
+        const deleteResponse = await pilgrimPlannerApi.deletePlanItem(
+          planId,
+          editingItem.id,
+        );
+
+        if (!deleteResponse?.success) {
+          // Rollback để tránh duplicate trên BE.
+          await pilgrimPlannerApi
+            .deletePlanItem(planId, newItemId)
+            .catch(() => null);
+          throw new Error(
+            deleteResponse?.message ||
+              t("planner.moveNextDayDeleteFailed", {
+                defaultValue:
+                  "Không thể xoá điểm cũ sau khi dời chặng. Vui lòng thử lại.",
+              }),
+          );
+        }
+      }
+
+      await loadPlan();
+
+      Toast.show({
+        type: "success",
+        text1: t("planner.moveToNextDaySuccessTitle", {
+          defaultValue: "Đã dời sang ngày tiếp theo",
+        }),
+        text2: t("planner.moveToNextDaySuccessMessage", {
+          defaultValue:
+            "Điểm được đặt đầu ngày {{day}} lúc {{time}} (theo giờ mở cửa). Nhớ bấm Đồng bộ các ngày sau nếu có điểm phụ thuộc.",
+          day: targetDay,
+          time: startTime,
+        }),
+      });
+
+      setShowEditItemModal(false);
+      setEditingItem(null);
+    } catch (error: any) {
+      const respData = error?.response?.data;
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2:
+          respData?.error?.message ||
+          respData?.message ||
+          error?.message ||
+          t("planner.cannotUpdateItem", {
+            defaultValue: "Không thể cập nhật địa điểm",
+          }),
+      });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const editSuggestedTime = useMemo(() => {
     if (!editingItem) return null;
     return suggestArrivalTime({
@@ -499,14 +750,18 @@ export const useEditItemForm = ({
       fastestArrival: editScheduleContext.fastestArrival,
       travelMinutes: editScheduleContext.travelMinutes,
       eventStartTime: editScheduleContext.eventStartTime,
+      eventEndTime: editScheduleContext.eventEndTime,
       eventName: editScheduleContext.eventName,
       openTime: editScheduleContext.openTime,
       closeTime: editScheduleContext.closeTime,
       massTimesForDay: editScheduleContext.massTimesForDay,
       restDuration: editRestDuration,
+      itemLegDay:
+        Number(editingItem?.day_number ?? editingItem?.leg_number ?? 1) || 1,
+      planNumberOfDays: plan?.number_of_days,
       t,
     });
-  }, [editingItem, editEstimatedTime, editRestDuration, editScheduleContext, t]);
+  }, [editingItem, editEstimatedTime, editRestDuration, editScheduleContext, plan?.number_of_days, t]);
 
   return {
     showEditItemModal,
@@ -530,5 +785,6 @@ export const useEditItemForm = ({
     handleEditTimeChange,
     openEditTimePicker,
     handleSaveEditItem,
+    handleMoveEditItemToNextDay,
   };
 };

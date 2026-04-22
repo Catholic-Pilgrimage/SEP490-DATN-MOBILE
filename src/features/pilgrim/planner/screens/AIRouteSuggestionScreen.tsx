@@ -324,6 +324,7 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
       if (numberOfPeople > 1) {
         createPayload.deposit_amount = 2000; // Default 2,000 VND
         createPayload.penalty_percentage = 10; // Default 10%
+        createPayload.min_people_required = Math.min(2, numberOfPeople);
       }
 
       const createResponse = await pilgrimPlannerApi.createPlan(createPayload);

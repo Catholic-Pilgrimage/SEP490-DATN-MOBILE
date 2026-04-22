@@ -589,7 +589,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     () => !!plan && !!user?.id && String(plan.user_id) === String(user.id),
     [plan, user?.id],
   );
-  const completingRef = useRef(false);
+
   const planStatus = useMemo(
     () => String(plan?.status || "").toLowerCase(),
     [plan?.status],
@@ -611,14 +611,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     [planId],
   );
 
-  const allStopsHandled = useMemo(() => {
-    if (!plan?.items_by_day) return false;
-    const items = Object.values(plan.items_by_day).flat();
-    if (!items.length) return false;
-    return items.every((item) => {
-      return isHandledItemStatus(item.status);
-    });
-  }, [plan?.items_by_day]);
+
 
   // Vòng lặp silent tự động tải lại kế hoạch để các thành viên nhận thông tin thay đổi mới (nếu có)
   useEffect(() => {
@@ -636,19 +629,14 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     return () => clearInterval(interval);
   }, [planId, setPlan]);
 
-  const hasVisitedStops = useMemo(() => {
-    if (!plan?.items_by_day) return false;
-    const items = Object.values(plan.items_by_day).flat();
-    return items.some(
-      (item) => String(item.status || "").toLowerCase() === "visited",
-    );
-  }, [plan]);
+
 
   // Auto-detect completion: navigate away if plan is no longer ongoing
+  // (e.g. backend or markVisited already transitioned to completed/cancelled)
   useEffect(() => {
     if (!plan?.id) return;
 
-    // Case 1: Backend đã tự chuyển sang completed/cancelled → navigate ngay
+    // Backend đã chuyển sang completed/cancelled → navigate ngay
     if (planStatus === "completed" || planStatus === "cancelled") {
       Toast.show({
         type: planStatus === "completed" ? "success" : "info",
@@ -668,77 +656,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       return;
     }
 
-    // Case 2: Tất cả điểm đã được xử lý (visited/skipped) → Owner gọi API complete
-    if (planStatus !== "ongoing" || !allStopsHandled) return;
-
-    if (!isOwner) return; // Member chờ owner xử lý
-
-    if (!hasVisitedStops) {
-      // Skip toàn bộ → backend sẽ tự cancelled
-      Toast.show({
-        type: "info",
-        text1: t("planner.active.tripCancelled", {
-          defaultValue: "Chuyến đi bị hủy",
-        }),
-        text2: t("planner.active.allStopsSkipped", {
-          defaultValue: "Tất cả địa điểm đã bị bỏ qua",
-        }),
-      });
-      navigation.replace("PlanDetailScreen", { planId: plan.id });
-      return;
-    }
-
-    if (completingRef.current) return;
-
-    const completeJourney = async () => {
-      try {
-        completingRef.current = true;
-        const response = await pilgrimPlannerApi.updatePlannerStatus(plan.id, {
-          status: "completed",
-        });
-        if (!response.success) {
-          throw new Error(
-            response.message ||
-              t("planner.active.cannotCompleteTrip", {
-                defaultValue: "Không thể kết thúc chuyến đi",
-              }),
-          );
-        }
-        Toast.show({
-          type: "success",
-          text1: t("planner.active.tripCompleted", {
-            defaultValue: "Đã hoàn thành hành trình!",
-          }),
-          text2: t("planner.active.redirectToDetail", {
-            defaultValue: "Chuyển về trang chi tiết kế hoạch",
-          }),
-        });
-        navigation.replace("PlanDetailScreen", { planId: plan.id });
-      } catch (e: any) {
-        // Có thể backend đã tự complete → refresh lại plan
-        Toast.show({
-          type: "error",
-          text1: t("planner.active.cannotChangeStatus", {
-            defaultValue: "Không thể chuyển trạng thái",
-          }),
-          text2:
-            e?.message ||
-            t("common.retry", { defaultValue: "Vui lòng thử lại" }),
-        });
-        await refreshPlan();
-      } finally {
-        completingRef.current = false;
-      }
-    };
-    void completeJourney();
+    // NOTE: Không tự động gọi updatePlannerStatus("completed") ở đây.
+    // Việc hoàn thành hành trình CHỈ xảy ra khi owner chủ động chốt
+    // điểm cuối cùng qua MarkVisitedModal → useJourneyExecution.markVisited().
+    // Tránh race condition khi closePlannerDay + refreshPlan trigger
+    // allStopsHandled = true → 2 API call complete cùng lúc.
   }, [
     planStatus,
-    allStopsHandled,
-    hasVisitedStops,
-    isOwner,
     navigation,
     plan?.id,
-    refreshPlan,
     t,
   ]);
 

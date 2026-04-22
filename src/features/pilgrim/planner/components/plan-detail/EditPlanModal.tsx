@@ -1,8 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import React from "react";
 import {
   ActivityIndicator,
+  InteractionManager,
   Modal,
   Platform,
   ScrollView,
@@ -11,13 +14,22 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { BORDER_RADIUS, COLORS, SPACING } from "../../../../../constants/theme.constants";
+import {
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+} from "../../../../../constants/theme.constants";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface EditPlanModalProps {
   visible: boolean;
   onClose: () => void;
   onSave: () => void;
   saving: boolean;
+  /** Lỗi lưu — hiển thị trong modal (Toast nằm dưới layer Modal RN). */
+  saveError?: string | null;
+  onClearSaveError?: () => void;
   t: (key: string, options?: any) => string;
   editPlanName: string;
   setEditPlanName: (v: string) => void;
@@ -27,6 +39,8 @@ interface EditPlanModalProps {
   setEditPlanEndDate: (v: string) => void;
   editPlanPeople: number;
   setEditPlanPeople: (v: number) => void;
+  editPlanMinPeople: number;
+  setEditPlanMinPeople: (v: number) => void;
   editPlanTransportation: string;
   setEditPlanTransportation: (v: string) => void;
   editPlanDepositInput: string;
@@ -40,9 +54,7 @@ interface EditPlanModalProps {
   /** Thời gian edit lock hiện tại (ISO string hoặc null). */
   editLockAt?: string | null;
   setEditLockAt?: (v: string | null) => void;
-  /** Backend đã tính: có thể set edit_lock_at hay không */
-  canSetEditLockAt?: boolean;
-  /** Thời điểm sớm nhất có thể set edit lock (12h sau first invite) */
+  /** Thời điểm sớm nhất nên chọn (gợi ý, BE vẫn xác thực khi lưu) */
   editLockAvailableAt?: string | null;
   /** Planner lock at (tự động, 12h trước ngày đi) */
   plannerLockAt?: string | null;
@@ -56,6 +68,8 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     onClose,
     onSave,
     saving,
+    saveError,
+    onClearSaveError,
     t,
     editPlanName,
     setEditPlanName,
@@ -65,6 +79,8 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     setEditPlanEndDate,
     editPlanPeople,
     setEditPlanPeople,
+    editPlanMinPeople,
+    setEditPlanMinPeople,
     editPlanTransportation,
     setEditPlanTransportation,
     editPlanDepositInput,
@@ -77,16 +93,101 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     setShowEditEndDatePicker,
     editLockAt,
     setEditLockAt,
-    canSetEditLockAt,
     editLockAvailableAt,
     plannerLockAt,
     isLocked,
   } = props;
 
-  const [showEditLockPicker, setShowEditLockPicker] = React.useState(false);
+  const insets = useSafeAreaInsets();
+
+  const [showMinPeopleInfo, setShowMinPeopleInfo] = React.useState(false);
+  const [showEditLockInfo, setShowEditLockInfo] = React.useState(false);
+  const [showDepositInfoEdit, setShowDepositInfoEdit] = React.useState(false);
+  const [showPenaltyInfoEdit, setShowPenaltyInfoEdit] = React.useState(false);
   const isGroup = editPlanPeople > 1;
 
+  /** Tránh min > max (Android DateTimePicker lỗi) và tách picker khỏi ScrollView */
+  const editLockPickerBounds = React.useMemo(() => {
+    const min = editLockAvailableAt
+      ? new Date(editLockAvailableAt)
+      : new Date();
+    let max: Date | undefined;
+    if (plannerLockAt) {
+      max = new Date(plannerLockAt);
+    } else if (editPlanStartDate) {
+      max = new Date(editPlanStartDate);
+    }
+    if (max && !Number.isNaN(max.getTime()) && min.getTime() > max.getTime()) {
+      return { min, max: undefined as Date | undefined };
+    }
+    return { min, max };
+  }, [editLockAvailableAt, plannerLockAt, editPlanStartDate]);
+
+  const editLockPickerValue = React.useMemo(() => {
+    const { min, max } = editLockPickerBounds;
+    const base =
+      editLockAt != null
+        ? new Date(editLockAt)
+        : editLockAvailableAt
+          ? new Date(editLockAvailableAt)
+          : new Date();
+    let ts = base.getTime();
+    const tMin = min.getTime();
+    if (ts < tMin) ts = tMin;
+    if (max) {
+      const tMax = max.getTime();
+      if (!Number.isNaN(tMax) && ts > tMax) ts = tMax;
+    }
+    return new Date(ts);
+  }, [editLockAt, editLockAvailableAt, editLockPickerBounds]);
+
+  /** Chỉ Android: không dùng mode=datetime (lỗi dismiss). Mở date rồi time. iOS: không bật chọn từ app (theo cấu hình sản phẩm). */
+  const openEditLockOnAndroid = React.useCallback(() => {
+    if (Platform.OS !== "android" || !setEditLockAt) return;
+    onClearSaveError?.();
+    const { min, max } = editLockPickerBounds;
+    const base = editLockPickerValue;
+    const applyBounds = (d: Date) => {
+      let t = d.getTime();
+      const t0 = min.getTime();
+      if (t < t0) t = t0;
+      if (max) {
+        const t1 = max.getTime();
+        if (!Number.isNaN(t1) && t > t1) t = t1;
+      }
+      return new Date(t);
+    };
+    const pickTime = (dateOnly: Date) => {
+      const withTime = new Date(dateOnly);
+      withTime.setHours(base.getHours(), base.getMinutes(), 0, 0);
+      InteractionManager.runAfterInteractions(() => {
+        DateTimePickerAndroid.open({
+          value: withTime,
+          mode: "time",
+          is24Hour: true,
+          onChange: (ev, t) => {
+            if (ev.type === "dismissed" || !t) return;
+            const merged = new Date(dateOnly);
+            merged.setHours(t.getHours(), t.getMinutes(), 0, 0);
+            setEditLockAt(applyBounds(merged).toISOString());
+          },
+        });
+      });
+    };
+    DateTimePickerAndroid.open({
+      value: base,
+      mode: "date",
+      minimumDate: min,
+      maximumDate: max,
+      onChange: (ev, date) => {
+        if (ev.type === "dismissed" || !date) return;
+        pickTime(date);
+      },
+    });
+  }, [setEditLockAt, editLockPickerBounds, editLockPickerValue, onClearSaveError]);
+
   return (
+    <>
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View
         style={{
@@ -101,10 +202,11 @@ export default function EditPlanModal(props: EditPlanModalProps) {
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
             maxHeight: "90%",
+            overflow: "hidden",
           }}
         >
           <ScrollView
-            contentContainerStyle={{ padding: 24, paddingBottom: 40 }}
+            contentContainerStyle={{ padding: 24, paddingBottom: 20 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
@@ -153,7 +255,10 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 backgroundColor: "#FAFAFA",
               }}
               value={editPlanName}
-              onChangeText={setEditPlanName}
+              onChangeText={(v) => {
+                onClearSaveError?.();
+                setEditPlanName(v);
+              }}
               placeholder={t("planner.planNamePlaceholder")}
               placeholderTextColor={COLORS.textSecondary}
             />
@@ -164,7 +269,10 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                   {t("planner.startDate")}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowEditStartDatePicker(true)}
+                  onPress={() => {
+                    onClearSaveError?.();
+                    setShowEditStartDatePicker(true);
+                  }}
                   style={{
                     borderWidth: 1,
                     borderColor: COLORS.border,
@@ -214,7 +322,10 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                   {t("planner.endDate")}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowEditEndDatePicker(true)}
+                  onPress={() => {
+                    onClearSaveError?.();
+                    setShowEditEndDatePicker(true);
+                  }}
                   style={{
                     borderWidth: 1,
                     borderColor: COLORS.border,
@@ -256,46 +367,157 @@ export default function EditPlanModal(props: EditPlanModalProps) {
               </View>
             </View>
 
-            <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, marginBottom: 6 }}>
-              {t("planner.numberOfPeople")}
-            </Text>
             <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 16,
-                marginBottom: 24,
                 backgroundColor: "#F5F5F5",
                 borderRadius: 12,
-                padding: 8,
-                alignSelf: "flex-start",
+                padding: 12,
+                marginBottom: 20,
               }}
             >
-              <TouchableOpacity
-                onPress={() => setEditPlanPeople(Math.max(1, editPlanPeople - 1))}
-                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
               >
-                <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, minWidth: 28, textAlign: "center" }}>
-                {editPlanPeople}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setEditPlanPeople(Math.min(50, editPlanPeople + 1))}
-                style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
-              >
-                <Ionicons name="add" size={18} color={COLORS.textPrimary} />
-              </TouchableOpacity>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: COLORS.textPrimary,
+                    flex: 1,
+                    paddingRight: 8,
+                  }}
+                >
+                  {t("planner.numberOfPeople")}
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={() => {
+                      onClearSaveError?.();
+                      setEditPlanPeople(Math.max(1, editPlanPeople - 1));
+                    }}
+                    style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
+                  >
+                    <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, minWidth: 32, textAlign: "center" }}>
+                    {editPlanPeople}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      onClearSaveError?.();
+                      setEditPlanPeople(Math.min(50, editPlanPeople + 1));
+                    }}
+                    style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
+                  >
+                    <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              {isGroup ? (
+                <View
+                  style={{
+                    marginTop: 12,
+                    paddingTop: 12,
+                    borderTopWidth: 1,
+                    borderTopColor: COLORS.border,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      flex: 1,
+                      minWidth: 0,
+                      marginRight: 8,
+                      gap: 6,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: COLORS.textPrimary,
+                        flex: 1,
+                        flexShrink: 1,
+                      }}
+                    >
+                      {t("planner.minPeopleRequiredLabel", {
+                        defaultValue: "Minimum people to finalize",
+                      })}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setShowMinPeopleInfo(true)}
+                      style={{ padding: 2 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                    >
+                      <Ionicons name="information-circle-outline" size={20} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        onClearSaveError?.();
+                        setEditPlanMinPeople(Math.max(1, editPlanMinPeople - 1));
+                      }}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
+                    >
+                      <Ionicons name="remove" size={18} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <Text style={{ fontSize: 18, fontWeight: "700", color: COLORS.textPrimary, minWidth: 32, textAlign: "center" }}>
+                      {editPlanMinPeople}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        onClearSaveError?.();
+                        setEditPlanMinPeople(
+                          Math.min(editPlanPeople, editPlanMinPeople + 1),
+                        );
+                      }}
+                      style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
+                    >
+                      <Ionicons name="add" size={18} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : null}
             </View>
 
             {editPlanPeople > 1 ? (
               <View style={{ marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, marginBottom: 6 }}>
-                  {t("planner.depositAmountLabel")}
-                </Text>
-                <Text style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 8, lineHeight: 17 }}>
-                  {t("planner.groupDepositSectionHint")}
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 6,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, flex: 1 }}>
+                    {t("planner.depositAmountLabel")}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowDepositInfoEdit(true)}
+                    style={{ padding: 2 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={{
                     borderWidth: 1,
@@ -305,21 +527,38 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     paddingVertical: 12,
                     fontSize: 15,
                     color: COLORS.textPrimary,
-                    marginBottom: 8,
+                    marginBottom: 12,
                     backgroundColor: "#FAFAFA",
                   }}
                   value={editPlanDepositInput}
-                  onChangeText={setEditPlanDepositInput}
+                  onChangeText={(v) => {
+                    onClearSaveError?.();
+                    setEditPlanDepositInput(v);
+                  }}
                   placeholder={t("planner.depositPlaceholder")}
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="number-pad"
                 />
-                <Text style={{ fontSize: 11, color: COLORS.textSecondary, marginBottom: 14 }}>
-                  {t("planner.depositAmountHint")}
-                </Text>
-                <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, marginBottom: 6 }}>
-                  {t("planner.penaltyPercentageLabel")}
-                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 6,
+                    gap: 6,
+                  }}
+                >
+                  <Text style={{ fontSize: 13, fontWeight: "600", color: COLORS.textSecondary, flex: 1 }}>
+                    {t("planner.penaltyPercentageLabel")}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowPenaltyInfoEdit(true)}
+                    style={{ padding: 2 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityRole="button"
+                  >
+                    <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
                 <TextInput
                   style={{
                     borderWidth: 1,
@@ -333,31 +572,20 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     backgroundColor: "#FAFAFA",
                   }}
                   value={editPlanPenaltyInput}
-                  onChangeText={setEditPlanPenaltyInput}
+                  onChangeText={(v) => {
+                    onClearSaveError?.();
+                    setEditPlanPenaltyInput(v);
+                  }}
                   placeholder="0"
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="number-pad"
                 />
-                <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>
-                  {t("planner.penaltyPercentageHint")}
-                </Text>
               </View>
             ) : null}
 
             {/* Lock Schedule — Nhóm only */}
             {isGroup && (
               <View style={{ marginBottom: 20 }}>
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontWeight: "600",
-                    color: COLORS.textSecondary,
-                    marginBottom: 6,
-                  }}
-                >
-                  ⏱ Lịch khoá chỉnh sửa
-                </Text>
-
                 {isLocked ? (
                   <View
                     style={{
@@ -378,21 +606,38 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                       ✓ Chỉnh sửa đã được khoá
                     </Text>
                   </View>
-                ) : canSetEditLockAt && setEditLockAt ? (
+                ) : setEditLockAt ? (
                   <View>
-                    <Text
+                    <View
                       style={{
-                        fontSize: 12,
-                        color: COLORS.textSecondary,
+                        flexDirection: "row",
+                        alignItems: "center",
                         marginBottom: 8,
-                        lineHeight: 17,
+                        gap: 6,
                       }}
                     >
-                      Đặt thời gian khoá chỉnh sửa. Sau thời điểm này, không ai
-                      có thể thêm/xoá/sửa điểm viếng.
-                    </Text>
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontWeight: "600",
+                          color: COLORS.textSecondary,
+                          flex: 1,
+                        }}
+                      >
+                        ⏱ {t("planner.editLockSectionTitle", { defaultValue: "Edit lock schedule" })}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowEditLockInfo(true)}
+                        style={{ padding: 2 }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity
-                      onPress={() => setShowEditLockPicker(true)}
+                      onPress={openEditLockOnAndroid}
+                      disabled={Platform.OS !== "android"}
                       style={{
                         borderWidth: 1,
                         borderColor: COLORS.border,
@@ -403,6 +648,7 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 8,
+                        opacity: Platform.OS === "android" ? 1 : 0.75,
                       }}
                     >
                       <Ionicons
@@ -427,89 +673,13 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                               hour: "2-digit",
                               minute: "2-digit",
                             })
-                          : "Chọn thời gian khoá"}
+                          : t("planner.editLockChooseTime", {
+                              defaultValue: "Choose lock time",
+                            })}
                       </Text>
-                      {editLockAt && (
-                        <TouchableOpacity
-                          onPress={() => setEditLockAt(null)}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Ionicons
-                            name="close-circle"
-                            size={18}
-                            color="#EF4444"
-                          />
-                        </TouchableOpacity>
-                      )}
                     </TouchableOpacity>
-
-                    {showEditLockPicker && (
-                      <DateTimePicker
-                        value={
-                          editLockAt
-                            ? new Date(editLockAt)
-                            : editLockAvailableAt
-                              ? new Date(editLockAvailableAt)
-                              : new Date()
-                        }
-                        mode="datetime"
-                        display={
-                          Platform.OS === "ios" ? "spinner" : "default"
-                        }
-                        onChange={(_, selectedDate) => {
-                          setShowEditLockPicker(Platform.OS === "ios");
-                          if (selectedDate) {
-                            setEditLockAt(selectedDate.toISOString());
-                          }
-                        }}
-                        minimumDate={
-                          editLockAvailableAt
-                            ? new Date(editLockAvailableAt)
-                            : new Date()
-                        }
-                        maximumDate={
-                          plannerLockAt
-                            ? new Date(plannerLockAt)
-                            : editPlanStartDate
-                              ? new Date(editPlanStartDate)
-                              : undefined
-                        }
-                        locale="vi"
-                      />
-                    )}
-
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: COLORS.textSecondary,
-                        marginTop: 6,
-                      }}
-                    >
-                      Nếu không đặt, hệ thống sẽ tự khoá 24h trước ngày đi.
-                    </Text>
                   </View>
-                ) : (
-                  <View
-                    style={{
-                      backgroundColor: "#FFFBEB",
-                      padding: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: "#FDE68A",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: "#92400E",
-                        lineHeight: 17,
-                      }}
-                    >
-                      Cần mời ít nhất 1 thành viên và đợi 12h thảo luận trước
-                      khi có thể đặt lịch khoá chỉnh sửa.
-                    </Text>
-                  </View>
-                )}
+                ) : null}
               </View>
             )}
 
@@ -524,7 +694,10 @@ export default function EditPlanModal(props: EditPlanModalProps) {
               ].map((item) => (
                 <TouchableOpacity
                   key={item.value}
-                  onPress={() => setEditPlanTransportation(item.value)}
+                  onPress={() => {
+                    onClearSaveError?.();
+                    setEditPlanTransportation(item.value);
+                  }}
                   style={{
                     flex: 1,
                     paddingVertical: 10,
@@ -554,7 +727,29 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 </TouchableOpacity>
               ))}
             </View>
-
+          </ScrollView>
+          <View
+            style={{
+              borderTopWidth: 1,
+              borderTopColor: COLORS.border,
+              backgroundColor: COLORS.white,
+              paddingHorizontal: 24,
+              paddingTop: 12,
+              paddingBottom: Math.max(insets.bottom, 14) + 10,
+            }}
+          >
+            {!!saveError && (
+              <Text
+                style={{
+                  fontSize: 13,
+                  color: "#B91C1C",
+                  marginBottom: 10,
+                  lineHeight: 19,
+                }}
+              >
+                {saveError}
+              </Text>
+            )}
             <TouchableOpacity
               onPress={onSave}
               disabled={saving}
@@ -574,10 +769,260 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 </Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
+
+    <Modal
+      visible={showMinPeopleInfo}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowMinPeopleInfo(false)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: SPACING.lg,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            backgroundColor: COLORS.white,
+            borderRadius: BORDER_RADIUS.xl,
+            padding: SPACING.lg,
+            ...SHADOWS.medium,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "700",
+              color: COLORS.textPrimary,
+              marginBottom: 10,
+            }}
+          >
+            {t("planner.minPeopleRequiredLabel", {
+              defaultValue: "Minimum people to finalize",
+            })}
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              lineHeight: 22,
+              color: COLORS.textSecondary,
+            }}
+          >
+            {t("planner.minPeopleRequiredHint", {
+              defaultValue:
+                "The plan can only be finalized when this many people have joined (at most your planned group size).",
+            })}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: SPACING.md,
+              alignSelf: "flex-end",
+              backgroundColor: COLORS.accent,
+              borderRadius: BORDER_RADIUS.full,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+            }}
+            onPress={() => setShowMinPeopleInfo(false)}
+          >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "700" }}>
+              {t("planner.understood", { defaultValue: "OK" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
+      visible={showEditLockInfo}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowEditLockInfo(false)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: SPACING.lg,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            backgroundColor: COLORS.white,
+            borderRadius: BORDER_RADIUS.xl,
+            padding: SPACING.lg,
+            ...SHADOWS.medium,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "700",
+              color: COLORS.textPrimary,
+              marginBottom: 10,
+            }}
+          >
+            {t("planner.editLockSectionTitle", { defaultValue: "Edit lock schedule" })}
+          </Text>
+          <Text
+            style={{ fontSize: 14, lineHeight: 22, color: COLORS.textSecondary, marginBottom: 10 }}
+          >
+            {t("planner.editLockScheduleFormIntro", {
+              defaultValue:
+                "Set when editing will be locked. If the time is not allowed, you will see an error when saving.",
+            })}
+          </Text>
+          <Text style={{ fontSize: 14, lineHeight: 22, color: COLORS.textSecondary }}>
+            {t("planner.editLockAutoIfUnset", {
+              defaultValue:
+                "If not set, the system will lock 24 hours before the start day.",
+            })}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: SPACING.md,
+              alignSelf: "flex-end",
+              backgroundColor: COLORS.accent,
+              borderRadius: BORDER_RADIUS.full,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+            }}
+            onPress={() => setShowEditLockInfo(false)}
+          >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "700" }}>
+              {t("planner.understood", { defaultValue: "OK" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
+      visible={showDepositInfoEdit}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowDepositInfoEdit(false)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: SPACING.lg,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            backgroundColor: COLORS.white,
+            borderRadius: BORDER_RADIUS.xl,
+            padding: SPACING.lg,
+            ...SHADOWS.medium,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "700",
+              color: COLORS.textPrimary,
+              marginBottom: 10,
+            }}
+          >
+            {t("planner.depositAmountLabel")}
+          </Text>
+          <Text style={{ fontSize: 14, lineHeight: 22, color: COLORS.textSecondary, marginBottom: 8 }}>
+            {t("planner.groupDepositSectionHint")}
+          </Text>
+          <Text style={{ fontSize: 14, lineHeight: 22, color: COLORS.textSecondary }}>
+            {t("planner.depositAmountHint")}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: SPACING.md,
+              alignSelf: "flex-end",
+              backgroundColor: COLORS.accent,
+              borderRadius: BORDER_RADIUS.full,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+            }}
+            onPress={() => setShowDepositInfoEdit(false)}
+          >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "700" }}>
+              {t("planner.understood", { defaultValue: "OK" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+
+    <Modal
+      visible={showPenaltyInfoEdit}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowPenaltyInfoEdit(false)}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.35)",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingHorizontal: SPACING.lg,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            backgroundColor: COLORS.white,
+            borderRadius: BORDER_RADIUS.xl,
+            padding: SPACING.lg,
+            ...SHADOWS.medium,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "700",
+              color: COLORS.textPrimary,
+              marginBottom: 10,
+            }}
+          >
+            {t("planner.penaltyPercentageLabel")}
+          </Text>
+          <Text style={{ fontSize: 14, lineHeight: 22, color: COLORS.textSecondary }}>
+            {t("planner.penaltyPercentageHint")}
+          </Text>
+          <TouchableOpacity
+            style={{
+              marginTop: SPACING.md,
+              alignSelf: "flex-end",
+              backgroundColor: COLORS.accent,
+              borderRadius: BORDER_RADIUS.full,
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+            }}
+            onPress={() => setShowPenaltyInfoEdit(false)}
+          >
+            <Text style={{ color: COLORS.textPrimary, fontSize: 13, fontWeight: "700" }}>
+              {t("planner.understood", { defaultValue: "OK" })}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 

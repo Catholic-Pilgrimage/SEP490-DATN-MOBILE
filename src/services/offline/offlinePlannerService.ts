@@ -42,6 +42,7 @@ export interface OfflinePlannerData {
     updated_at?: string;
     deposit_amount?: number;
     penalty_percentage?: number;
+    min_people_required?: number;
   };
   items: OfflinePlannerItem[];
   sites: OfflinePlannerSite[];
@@ -341,6 +342,7 @@ const mapOfflineDataToPlanEntity = (
     is_public: data.planner.is_public || false,
     deposit_amount: data.planner.deposit_amount,
     penalty_percentage: data.planner.penalty_percentage,
+    min_people_required: data.planner.min_people_required,
     ...collections,
   };
 };

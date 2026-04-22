@@ -4,54 +4,54 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    AppState,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SPACING,
+    BORDER_RADIUS,
+    COLORS,
+    SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
-  CalendarSyncError,
-  useCalendarSync,
+    CalendarSyncError,
+    useCalendarSync,
 } from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
 import type {
-  PlannerCompositeNavigationProp,
-  PlannerRouteProp,
+    PlannerCompositeNavigationProp,
+    PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -60,16 +60,16 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-  createOfflinePlannerItemId,
-  offlinePlannerService,
+    createOfflinePlannerItemId,
+    offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
-import { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
+import type { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
 import {
-  AddPlanItemRequest,
-  PlanEntity,
-  PlanItem,
-  UpdatePlanRequest,
+    AddPlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
@@ -83,7 +83,6 @@ import { ItineraryDayCard } from "../components/plan-detail/ItineraryDayCard";
 import { LockScheduleCard } from "../components/plan-detail/LockScheduleCard";
 import { MenuDropdown } from "../components/plan-detail/MenuDropdown";
 import NearbyPlacesModal from "../components/plan-detail/NearbyPlacesModal";
-import SiteEventsModal from "../components/plan-detail/SiteEventsModal";
 import TimeInputModal from "../components/plan-detail/TimeInputModal";
 import { PlannerTransactionsModal } from "../components/shared/PlannerTransactionsModal";
 import { SharePlanModal } from "../components/shared/SharePlanModal";
@@ -93,44 +92,47 @@ import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
 import {
-  type PlannerItemPatch,
-  usePlannerDayPatching,
+    type PlannerItemPatch,
+    usePlannerDayPatching,
 } from "../hooks/usePlannerDayPatching";
 import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
-  MAX_DEPOSIT_VND,
-  parsePenaltyPercent,
-  parseVndInteger,
+    MAX_DEPOSIT_VND,
+    parsePenaltyPercent,
+    parseVndInteger,
 } from "../utils/depositInput.utils";
 import {
-  extractApiErrorMessage,
-  showErrorToast,
+    extractApiErrorMessage,
+    showErrorToast,
 } from "../utils/planDetailHelpers";
 import {
-  LocalSiteSnapshot,
-  applyLocalAddItem,
-  applyLocalClearAllItems,
-  applyLocalDeleteItem,
-  sortPlanDayItems,
+    LocalSiteSnapshot,
+    applyLocalAddItem,
+    applyLocalClearAllItems,
+    applyLocalDeleteItem,
+    sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
-  buildPlanMapPins,
-  getPlanMapCenter,
-  getPlannerRosterCount,
+    buildPlanMapPins,
+    getPlanMapCenter,
+    getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-  buildDurationString,
-  calculateEndTimeRaw,
-  getDateForDayRaw,
+    buildDurationString,
+    calculateEndTimeRaw,
+    getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
 import {
-  getGroupPatronConstraintFromPlan,
-  isGroupJourneyPlan,
+    getGroupPatronConstraintFromPlan,
+    isGroupJourneyPlan,
 } from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
 import styles from "./PlanDetailScreen.styles";
+
+/** Ổn định tham chiếu cho `useAddSiteFlow` (không dùng state siteEvents từ PlanDetail nữa). */
+const EMPTY_SITE_EVENTS_FOR_FLOW: SiteEvent[] = [];
 
 type PlanDetailScreenProps = {
   route: PlannerRouteProp<"PlanDetailScreen">;
@@ -292,9 +294,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   useEffect(() => {
     return () => {
-      Object.values(pendingNearbyRemovalTimersRef.current).forEach((timerId) => {
-        clearTimeout(timerId);
-      });
+      Object.values(pendingNearbyRemovalTimersRef.current).forEach(
+        (timerId) => {
+          clearTimeout(timerId);
+        },
+      );
       pendingNearbyRemovalTimersRef.current = {};
       pendingNearbyRemovalMetaRef.current = {};
     };
@@ -490,11 +494,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     "all",
   );
 
-  // Events tab state
-  const [showEventListModal, setShowEventListModal] = useState(false);
-  const [eventSite, setEventSite] = useState<SiteSummary | null>(null);
-  const [siteEvents, setSiteEvents] = useState<SiteEvent[]>([]);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  // Events tab: danh sách site có sự kiện (nạp lần đầu khi mở tab)
   const [eventSitesList, setEventSitesList] = useState<SiteSummary[]>([]);
   const [isLoadingEventSites, setIsLoadingEventSites] = useState(false);
   const [hasLoadedEventSites, setHasLoadedEventSites] = useState(false);
@@ -504,6 +504,86 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     null,
   );
   const [etaSyncFromDay, setEtaSyncFromDay] = useState<number | null>(null);
+  /**
+   * Ngày đã thử đồng bộ nhưng điểm đầu rơi ra ngoài khung mở cửa
+   * (di chuyển quá lâu hoặc đóng cửa trước khi đến) — trường hợp này
+   * không thể tự đồng bộ; phải xoá điểm hiện tại và chọn điểm khác.
+   */
+  const [blockedSyncInfo, setBlockedSyncInfo] = useState<{
+    dayNumber: number;
+    itemId?: string;
+    siteName?: string;
+    eta?: string;
+    closeTime?: string;
+    openingWindow?: string;
+    /**
+     * Vân tay các ngày trước (và item đầu ngày bị chặn) tại thời điểm chặn.
+     * Khi signature thay đổi → có điểm trước đó vừa đổi → huỷ cờ chặn để
+     * user có thể bấm "Đồng bộ" lại và đánh giá tình huống mới.
+     */
+    signature?: string;
+  } | null>(null);
+
+  /**
+   * Tạo signature phản ánh trạng thái ảnh hưởng tới ETA của ngày `dayNumber`:
+   * liệt kê tất cả item ở các ngày 1..dayNumber (id, order, giờ, rest) cùng
+   * id điểm đầu ngày bị chặn. Nếu có bất kỳ thay đổi → signature khác.
+   */
+  const buildBlockedSyncSignature = useCallback(
+    (sourcePlan: PlanEntity | null | undefined, dayNumber: number): string => {
+      if (!sourcePlan?.items_by_day || !Number.isFinite(dayNumber)) return "";
+      const parts: string[] = [];
+      for (let d = 1; d <= dayNumber; d += 1) {
+        const dayItems = sortPlanDayItems(
+          sourcePlan.items_by_day[String(d)] || [],
+        );
+        dayItems.forEach((it) => {
+          parts.push(
+            [
+              d,
+              it.id ?? "",
+              it.order_index ?? "",
+              it.estimated_time ?? it.arrival_time ?? "",
+              it.rest_duration ?? "",
+              it.travel_time_minutes ?? "",
+            ].join(":"),
+          );
+        });
+      }
+      return parts.join("|");
+    },
+    [],
+  );
+
+  // Gỡ cờ chặn khi:
+  //  a) điểm đầu ngày bị chặn đã đổi/ bị xoá, HOẶC
+  //  b) có thay đổi ở các ngày trước (vì ETA phụ thuộc các ngày đó).
+  useEffect(() => {
+    if (!blockedSyncInfo || !plan?.items_by_day) return;
+
+    const dayItems = sortPlanDayItems(
+      plan.items_by_day[String(blockedSyncInfo.dayNumber)] || [],
+    );
+    const firstId = dayItems[0]?.id;
+    if (!firstId) {
+      setBlockedSyncInfo(null);
+      return;
+    }
+    if (blockedSyncInfo.itemId && firstId !== blockedSyncInfo.itemId) {
+      setBlockedSyncInfo(null);
+      return;
+    }
+
+    if (blockedSyncInfo.signature) {
+      const currentSignature = buildBlockedSyncSignature(
+        plan,
+        blockedSyncInfo.dayNumber,
+      );
+      if (currentSignature !== blockedSyncInfo.signature) {
+        setBlockedSyncInfo(null);
+      }
+    }
+  }, [blockedSyncInfo, plan, buildBlockedSyncSignature]);
 
   // Time picker state (shared)
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -593,7 +673,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const effectiveLastClosedDayNumber = lastClosedDayNumber;
 
   // ── Add Site Flow (hook) ──
-  const addSiteFlow = useAddSiteFlow({ plan, selectedDay, siteEvents });
+  const addSiteFlow = useAddSiteFlow({
+    plan,
+    selectedDay,
+    siteEvents: EMPTY_SITE_EVENTS_FOR_FLOW,
+  });
 
   const [showShareModal, setShowShareModal] = useState(false);
   const [sharingToCommunity, setSharingToCommunity] = useState(false);
@@ -701,14 +785,24 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const [editPlanStartDate, setEditPlanStartDate] = useState("");
   const [editPlanEndDate, setEditPlanEndDate] = useState("");
   const [editPlanPeople, setEditPlanPeople] = useState(1);
+  const [editPlanMinPeople, setEditPlanMinPeople] = useState(2);
   const [editPlanTransportation, setEditPlanTransportation] = useState("bus");
   const [editPlanDepositInput, setEditPlanDepositInput] = useState("");
   const [editPlanPenaltyInput, setEditPlanPenaltyInput] = useState("0");
   const [savingPlan, setSavingPlan] = useState(false);
+  const [editPlanModalError, setEditPlanModalError] = useState<string | null>(
+    null,
+  );
   const [showEditStartDatePicker, setShowEditStartDatePicker] = useState(false);
   const [showEditEndDatePicker, setShowEditEndDatePicker] = useState(false);
   const [editLockAt, setEditLockAt] = useState<string | null>(null);
   const [isLockScheduleExpanded, setIsLockScheduleExpanded] = useState(true);
+
+  useEffect(() => {
+    if (editPlanPeople > 1) {
+      setEditPlanMinPeople((m) => Math.min(editPlanPeople, Math.max(1, m)));
+    }
+  }, [editPlanPeople]);
 
   // Menu Dropdown state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -808,10 +902,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   useEffect(() => {
     // Only poll for members (not owner) when plan is active
     if (isPlanOwner || !plan || isOffline) return;
-    
-    const planStatus = String(plan.status || '').toLowerCase();
-    const shouldPoll = planStatus === 'ongoing' || planStatus === 'locked';
-    
+
+    const planStatus = String(plan.status || "").toLowerCase();
+    const shouldPoll = planStatus === "ongoing" || planStatus === "locked";
+
     if (!shouldPoll) return;
 
     const interval = setInterval(() => {
@@ -876,9 +970,12 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       showConnectionRequiredAlert,
     });
 
-  const runGuardedUiAction = useCallback((key: string, action: () => void) => {
-    runWithActionGuard(`plan-detail:${planId}:${key}`, action);
-  }, [planId]);
+  const runGuardedUiAction = useCallback(
+    (key: string, action: () => void) => {
+      runWithActionGuard(`plan-detail:${planId}:${key}`, action);
+    },
+    [planId],
+  );
 
   const handleOpenChat = () => {
     if (isOffline) {
@@ -920,12 +1017,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const getKnownSiteSnapshot = (
     siteId: string,
   ): LocalSiteSnapshot | undefined => {
-    const knownSites = [
-      ...sites,
-      ...favorites,
-      ...eventSitesList,
-      ...(eventSite ? [eventSite] : []),
-    ];
+    const knownSites = [...sites, ...favorites, ...eventSitesList];
     const matchedSite = knownSites.find((site) => site.id === siteId);
 
     if (!matchedSite) {
@@ -1221,9 +1313,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   const handleOpenEditPlan = async () => {
     if (isReadOnlyPlannerView) return;
-    
+
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -1233,7 +1325,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       });
       return;
     }
-    
+
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -1243,7 +1335,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setEditPlanName(plan.name || "");
     setEditPlanStartDate(plan.start_date || "");
     setEditPlanEndDate(plan.end_date || "");
-    setEditPlanPeople(plan.number_of_people || 1);
+    const nPeople = plan.number_of_people || 1;
+    setEditPlanPeople(nPeople);
+    const rawMin = plan.min_people_required;
+    setEditPlanMinPeople(
+      rawMin != null && Number.isFinite(Number(rawMin))
+        ? Math.min(nPeople, Math.max(1, Math.round(Number(rawMin))))
+        : Math.min(2, nPeople),
+    );
     setEditPlanTransportation(plan.transportation || "bus");
     // Deposit: API may return number or string — normalise both
     const rawDeposit = (plan as any).deposit_amount ?? depositAmount;
@@ -1258,18 +1357,16 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       !isNaN(ppNum) && Number.isFinite(ppNum) ? String(Math.round(ppNum)) : "0",
     );
     setEditLockAt(plan.edit_lock_at || null);
+    setEditPlanModalError(null);
     runGuardedUiAction("open-edit-plan-modal", () => {
       setShowEditPlanModal(true);
     });
   };
 
   const handleSavePlan = async () => {
+    setEditPlanModalError(null);
     if (!editPlanName.trim()) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: t("planner.planNameRequired"),
-      });
+      setEditPlanModalError(t("planner.planNameRequired"));
       return;
     }
     try {
@@ -1283,30 +1380,31 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       let depositAmount = 0;
       let penaltyPct = 0;
       if (editPlanPeople > 1) {
+        if (
+          !Number.isInteger(editPlanMinPeople) ||
+          editPlanMinPeople < 1 ||
+          editPlanMinPeople > editPlanPeople
+        ) {
+          setEditPlanModalError(
+            t("planner.minPeopleInvalid", {
+              defaultValue:
+                "Minimum participants must be between 1 and the group size.",
+            }),
+          );
+          return;
+        }
         const dep = parseVndInteger(editPlanDepositInput);
         if (!Number.isFinite(dep) || dep <= 0) {
-          Toast.show({
-            type: "error",
-            text1: t("common.error"),
-            text2: t("planner.depositRequiredForGroup"),
-          });
+          setEditPlanModalError(t("planner.depositRequiredForGroup"));
           return;
         }
         if (dep > MAX_DEPOSIT_VND) {
-          Toast.show({
-            type: "error",
-            text1: t("common.error"),
-            text2: t("planner.depositInvalid"),
-          });
+          setEditPlanModalError(t("planner.depositInvalid"));
           return;
         }
         const pen = parsePenaltyPercent(editPlanPenaltyInput);
         if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
-          Toast.show({
-            type: "error",
-            text1: t("common.error"),
-            text2: t("planner.penaltyInvalid"),
-          });
+          setEditPlanModalError(t("planner.penaltyInvalid"));
           return;
         }
         depositAmount = dep;
@@ -1323,6 +1421,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           ? {
               deposit_amount: depositAmount,
               penalty_percentage: penaltyPct,
+              min_people_required: editPlanMinPeople,
               // Chỉ gửi edit_lock_at nếu giá trị thay đổi so với ban đầu
               ...(editLockAt !== (plan?.edit_lock_at || null)
                 ? { edit_lock_at: editLockAt }
@@ -1344,11 +1443,13 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               ? {
                   deposit_amount: depositAmount,
                   penalty_percentage: penaltyPct,
+                  min_people_required: editPlanMinPeople,
                 }
               : { deposit_amount: 0, penalty_percentage: 0 }),
           });
         }
 
+        setEditPlanModalError(null);
         setShowEditPlanModal(false);
         await loadPlan();
         Toast.show({
@@ -1357,18 +1458,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           text2: t("planner.planUpdated"),
         });
       } else {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2: response.message || t("planner.cannotUpdatePlan"),
-        });
+        setEditPlanModalError(
+          response.message || t("planner.cannotUpdatePlan"),
+        );
       }
     } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: error.message || t("planner.cannotUpdatePlan"),
-      });
+      setEditPlanModalError(
+        error.message || t("planner.cannotUpdatePlan"),
+      );
     } finally {
       setSavingPlan(false);
     }
@@ -1440,32 +1537,6 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         }),
       );
     });
-  };
-
-  const handleOpenEventSite = async (site: SiteSummary) => {
-    setEventSite(site);
-    runGuardedUiAction(`open-site-events:${site.id}`, () => {
-      setShowEventListModal(true);
-    });
-    setSiteEvents([]);
-    try {
-      setIsLoadingEvents(true);
-      const eventParams: any = { limit: 20 };
-      if (plan?.start_date && plan?.end_date) {
-        eventParams.start_date = plan.start_date.substring(0, 10);
-        eventParams.end_date = plan.end_date.substring(0, 10);
-      } else {
-        eventParams.upcoming = "true";
-      }
-      const res = await pilgrimSiteApi.getSiteEvents(site.id, eventParams);
-      if (res.success && res.data?.data) {
-        setSiteEvents(res.data.data);
-      }
-    } catch (e) {
-      console.log("Load site events error:", e);
-    } finally {
-      setIsLoadingEvents(false);
-    }
   };
 
   const handleOpenShareModal = () => {
@@ -1816,7 +1887,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setShowMenuDropdown(false);
 
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -1860,11 +1931,13 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         }
         Toast.show({
           type: "success",
-          text1: t("planner.deleteSuccess", { defaultValue: "Đã xóa kế hoạch" }),
+          text1: t("planner.deleteSuccess", {
+            defaultValue: "Đã xóa kế hoạch",
+          }),
         });
         // Navigate back and trigger refresh
-        navigation.navigate("PlannerMain", { 
-          refresh: Date.now() // Use timestamp to force refresh
+        navigation.navigate("PlannerMain", {
+          refresh: Date.now(), // Use timestamp to force refresh
         });
       } else {
         Toast.show({
@@ -1894,7 +1967,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setShowMenuDropdown(false);
 
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -1979,7 +2052,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setShowMenuDropdown(false);
 
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -2164,7 +2237,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     setShowMenuDropdown(false);
 
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -2245,9 +2318,12 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
   };
 
-  const handleDeleteItem = async (itemId: string) => {
+  const handleDeleteItem = async (
+    itemId: string,
+    options: { skipConfirm?: boolean } = {},
+  ) => {
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -2258,18 +2334,21 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       return;
     }
 
-    const confirmed = await confirm({
-      type: "danger",
-      iconName: "trash-outline",
-      title: t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
-      message: t("planner.removeItemConfirm", {
-        defaultValue: "Bạn có chắc chắn muốn xóa địa điểm này khỏi lịch trình?",
-      }),
-      confirmText: t("common.delete", { defaultValue: "Xóa" }),
-      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
-    });
+    if (!options.skipConfirm) {
+      const confirmed = await confirm({
+        type: "danger",
+        iconName: "trash-outline",
+        title: t("planner.removeItem", { defaultValue: "Xóa địa điểm" }),
+        message: t("planner.removeItemConfirm", {
+          defaultValue:
+            "Bạn có chắc chắn muốn xóa địa điểm này khỏi lịch trình?",
+        }),
+        confirmText: t("common.delete", { defaultValue: "Xóa" }),
+        cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+      });
 
-    if (!confirmed) return;
+      if (!confirmed) return;
+    }
 
     try {
       const currentPlan = plan;
@@ -2426,9 +2505,13 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           return;
         }
 
-        const response = await pilgrimPlannerApi.updatePlanItem(planId, itemId, {
-          nearby_amenity_ids: nextIds,
-        });
+        const response = await pilgrimPlannerApi.updatePlanItem(
+          planId,
+          itemId,
+          {
+            nearby_amenity_ids: nextIds,
+          },
+        );
 
         if (!response?.success) {
           throw new Error(
@@ -2582,6 +2665,66 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     [applyLocalNearbyAmenityIds, t],
   );
 
+  const handleReplaceBlockedItem = useCallback(
+    async (dayNumber: number) => {
+      if (!blockedSyncInfo || blockedSyncInfo.dayNumber !== dayNumber) return;
+      const { itemId, siteName, eta, closeTime, openingWindow } =
+        blockedSyncInfo;
+      if (!itemId) return;
+
+      const site =
+        siteName ||
+        t("planner.thisLocation", { defaultValue: "địa điểm này" });
+      const windowText =
+        openingWindow ||
+        t("planner.unknownOpeningWindow", {
+          defaultValue: "không xác định",
+        });
+
+      const message = eta
+        ? t("planner.blockedSyncMessageWithEta", {
+            defaultValue:
+              '"{{site}}" không thể nằm trong ngày {{day}}: theo thời gian di chuyển từ điểm trước, giờ đến dự kiến là {{eta}}{{closeSuffix}}, nằm ngoài khung mở cửa {{window}}. Hãy xoá điểm này và chọn điểm khác gần hơn hoặc mở cửa muộn hơn.',
+            site,
+            day: dayNumber,
+            eta,
+            closeSuffix: closeTime
+              ? t("planner.reloadEtaCloseSuffix", {
+                  defaultValue: " (đóng cửa lúc {{time}})",
+                  time: closeTime,
+                })
+              : "",
+            window: windowText,
+          })
+        : t("planner.blockedSyncMessageNoEta", {
+            defaultValue:
+              '"{{site}}" không thể nằm trong ngày {{day}}: theo thời gian di chuyển từ điểm trước, giờ đến sẽ rơi ngoài khung mở cửa {{window}}. Hãy xoá điểm này và chọn điểm khác gần hơn hoặc mở cửa muộn hơn.',
+            site,
+            day: dayNumber,
+            window: windowText,
+          });
+
+      const confirmed = await confirm({
+        type: "danger",
+        iconName: "trash-outline",
+        title: t("planner.blockedSyncTitle", {
+          defaultValue: "Không thể đưa vào ngày này",
+        }),
+        message,
+        confirmText: t("planner.deleteBlockingItem", {
+          defaultValue: "Xoá điểm",
+        }),
+        cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+      });
+
+      if (!confirmed) return;
+
+      setBlockedSyncInfo(null);
+      await handleDeleteItem(itemId, { skipConfirm: true });
+    },
+    [blockedSyncInfo, confirm, t, handleDeleteItem],
+  );
+
   async function handleReloadDayFromPreviousWithConfirm(dayNumber: number) {
     const shouldProceed = await confirm({
       type: "warning",
@@ -2682,9 +2825,13 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const getDateForDay = (startDateStr: string, dayNumber: number): string =>
     getDateForDayRaw(startDateStr, dayNumber);
 
-  const handleAddItem = async (siteId: string, eventId?: string) => {
+  const handleAddItem = async (
+    siteId: string,
+    eventId?: string,
+    startFlowOptions?: { autoBindFirstDayEvent?: boolean },
+  ) => {
     // Check if plan is completed
-    if (plan?.status === 'completed') {
+    if (plan?.status === "completed") {
       await confirm({
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
@@ -2696,7 +2843,15 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
 
     setAddFlowOriginDay(selectedDay);
-    await addSiteFlow.startFlow(siteId, eventId);
+    await addSiteFlow.startFlow(siteId, eventId, undefined, startFlowOptions);
+  };
+
+  /** Tab "Sự kiện": chạm site → bắt đầu luồng gắn sự kiện trong ngày (nếu có) ngay. */
+  const handleAddSiteFromEventsTab = (site: SiteSummary) => {
+    if (!site?.id) return;
+    void handleAddItem(String(site.id), undefined, {
+      autoBindFirstDayEvent: true,
+    });
   };
 
   const closeAddTimeModal = () => {
@@ -2725,7 +2880,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       if (!sourcePlan?.items_by_day || dayNumber <= 1) return 0;
       let cursor = dayNumber - 1;
       while (cursor >= 1) {
-        const items = sortPlanDayItems(sourcePlan.items_by_day?.[String(cursor)] || []);
+        const items = sortPlanDayItems(
+          sourcePlan.items_by_day?.[String(cursor)] || [],
+        );
         if (items.length > 0) return cursor;
         cursor -= 1;
       }
@@ -2749,7 +2906,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         );
         if (dayItems.length === 0) continue;
 
-        const previousNonEmptyDay = findPreviousNonEmptyDay(sourcePlan, dayNumber);
+        const previousNonEmptyDay = findPreviousNonEmptyDay(
+          sourcePlan,
+          dayNumber,
+        );
         if (previousNonEmptyDay < 1) continue;
 
         const previousItems = sortPlanDayItems(
@@ -2759,7 +2919,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         const firstOfDay = dayItems[0];
         if (!prevLast || !firstOfDay) continue;
 
-        const prevLastTime = toHHmm(prevLast.estimated_time || prevLast.arrival_time);
+        const prevLastTime = toHHmm(
+          prevLast.estimated_time || prevLast.arrival_time,
+        );
         const prevRest = parseDurationToMinutes(prevLast.rest_duration);
         const safePrevRest = prevRest > 0 ? prevRest : 120;
         const firstTravel = Math.max(
@@ -2860,6 +3022,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       addSiteFlow.selectedSiteId,
       addSiteFlow.selectedEventId || undefined,
       targetDay,
+      undefined,
     );
   };
 
@@ -2870,6 +3033,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       addSiteFlow.selectedSiteId,
       addSiteFlow.selectedEventId || undefined,
       targetDay,
+      undefined,
     );
   };
 
@@ -2880,6 +3044,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       addSiteFlow.selectedSiteId,
       addSiteFlow.selectedEventId || undefined,
       targetDay,
+      undefined,
     );
   };
 
@@ -2907,7 +3072,6 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     const id = String(rawId).trim();
     return id || undefined;
   };
-
 
   const computeFirstItemPatchFromPrevious = useCallback(
     async (
@@ -2985,7 +3149,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         travelMinutes = 30;
       }
 
-      const prevLastTime = toHHmm(prevLast.estimated_time || prevLast.arrival_time);
+      const prevLastTime = toHHmm(
+        prevLast.estimated_time || prevLast.arrival_time,
+      );
       const prevRest = parseDurationToMinutes(prevLast.rest_duration);
       const safePrevRest = prevRest > 0 ? prevRest : 120;
       const arrival = vietmapService.calculateArrivalTime(
@@ -3029,8 +3195,82 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     return filterMeaningfulPatches(basePlan, [firstItemPatch]);
   };
 
+  /**
+   * Tách thông tin xung đột (điểm rơi ngoài khung mở cửa) từ lỗi đồng bộ BE
+   * để phục vụ UI swap nút "Đồng bộ" → "Xoá điểm chặn".
+   */
+  const parseReloadEtaConflict = useCallback(
+    (
+      error: any,
+    ): {
+      blocked: boolean;
+      siteName?: string;
+      eta?: string;
+      closeTime?: string;
+      openingWindow?: string;
+    } => {
+      const fallback = extractApiErrorMessage(error, "");
+      const details = error?.response?.data?.error?.details;
+      const primaryDetail = Array.isArray(details) ? details[0] : undefined;
+      const detailRecord =
+        primaryDetail && typeof primaryDetail === "object"
+          ? (primaryDetail as Record<string, any>)
+          : null;
+
+      const normalizeClock = (value?: unknown): string | undefined => {
+        if (value == null) return undefined;
+        const m = String(value).trim().match(/(\d{1,2}:\d{2})/);
+        return m ? m[1] : undefined;
+      };
+
+      const eta =
+        normalizeClock(detailRecord?.estimated_time) ||
+        normalizeClock(detailRecord?.eta) ||
+        normalizeClock(detailRecord?.arrival_time);
+      const closeTime =
+        normalizeClock(detailRecord?.close_time) ||
+        normalizeClock(detailRecord?.closing_time) ||
+        normalizeClock(detailRecord?.site_close_time);
+      const openTime =
+        normalizeClock(detailRecord?.open_time) ||
+        normalizeClock(detailRecord?.opening_time);
+      const windowFromMessage = String(fallback).match(
+        /(\d{1,2}:\d{2})\s*[\-–]\s*(\d{1,2}:\d{2})/,
+      );
+      const openingWindow =
+        (typeof detailRecord?.opening_window === "string"
+          ? detailRecord.opening_window
+          : undefined) ||
+        (openTime && closeTime ? `${openTime}-${closeTime}` : undefined) ||
+        (windowFromMessage
+          ? `${windowFromMessage[1]}-${windowFromMessage[2]}`
+          : undefined);
+
+      const lowered = String(fallback).toLowerCase();
+      const hasWindowSignal =
+        /outside\s+(?:opening|hours)|khung\s*mở\s*cửa|not\s*open|after\s+closing|before\s+opening|closed|đóng\s*cửa|chưa\s*(?:đến|toi)\s*giờ\s*mở/i.test(
+          lowered,
+        );
+
+      const blocked = Boolean(
+        detailRecord?.outside_opening_window === true ||
+          (eta && (closeTime || openTime)) ||
+          hasWindowSignal,
+      );
+
+      const siteName =
+        detailRecord?.site_name ||
+        detailRecord?.siteName ||
+        detailRecord?.name ||
+        undefined;
+
+      return { blocked, siteName, eta, closeTime, openingWindow };
+    },
+    [],
+  );
+
   const buildReloadEtaErrorMessage = useCallback(
-    (error: any) => {
+    (error: any, contextItem?: PlanItem | null) => {
       const fallback = extractApiErrorMessage(
         error,
         t("planner.reloadEtaFailed", {
@@ -3058,55 +3298,56 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         if (Number.isFinite(numeric) && numeric > 0) {
           return Math.round(numeric);
         }
-        const m = String(value).match(/(\d+)/);
-        if (!m) return undefined;
-        const fromText = Number(m[1]);
-        return Number.isFinite(fromText) && fromText > 0 ? fromText : undefined;
+        return undefined;
       };
 
+      // Chỉ lấy siteName từ payload có cấu trúc hoặc từ context item của ngày
+      // đang đồng bộ — tuyệt đối KHÔNG suy ra từ plain text lỗi để tránh khớp
+      // nhầm (ví dụ khớp "đóng cửa lúc 23:19" thành tên điểm).
       const siteName =
         detailRecord?.site_name ||
         detailRecord?.siteName ||
         detailRecord?.name ||
-        String(fallback).match(/(?:site|địa điểm)\s*[:\-]?\s*"?([^".,\n]+)/i)?.[1];
+        contextItem?.site?.name ||
+        undefined;
 
       const travelMinutes =
         readTravelMinutes(detailRecord?.travel_time_minutes) ||
         readTravelMinutes(detailRecord?.travelMinutes) ||
         readTravelMinutes(detailRecord?.travel_minutes) ||
-        readTravelMinutes(String(fallback).match(/travel\s*(\d+)\s*(?:m|min|minutes)/i)?.[1]) ||
-        readTravelMinutes(String(fallback).match(/di chuyển\s*(\d+)\s*(?:phút|m)/i)?.[1]);
+        readTravelMinutes(contextItem?.travel_time_minutes);
 
       const eta =
         normalizeClock(detailRecord?.estimated_time) ||
         normalizeClock(detailRecord?.eta) ||
         normalizeClock(detailRecord?.arrival_time) ||
-        normalizeClock(detailRecord?.arrival) ||
-        normalizeClock(
-          String(fallback).match(/(?:estimated|arrival|đến dự kiến)\s*(?:time)?\s*[:\-]?\s*(\d{1,2}:\d{2})/i)?.[1],
-        ) ||
-        normalizeClock(String(fallback).match(/\b(\d{1,2}:\d{2})\b/)?.[1]);
+        normalizeClock(detailRecord?.arrival);
 
+      // Ưu tiên lấy giờ mở/đóng từ field có cấu trúc hoặc từ context site.
+      // KHÔNG match `/close\s*at\s*\d+:\d+/` trên fallback vì BE thường nhét
+      // chính ETA vào đó gây hiểu nhầm đó là giờ đóng cửa.
+      const contextSite = contextItem?.site as
+        | { open_time?: string; close_time?: string }
+        | undefined;
+      const openTime =
+        normalizeClock(detailRecord?.open_time) ||
+        normalizeClock(detailRecord?.opening_time) ||
+        normalizeClock(detailRecord?.site_open_time) ||
+        normalizeClock(contextSite?.open_time);
       const closeTime =
         normalizeClock(detailRecord?.close_time) ||
         normalizeClock(detailRecord?.closing_time) ||
         normalizeClock(detailRecord?.site_close_time) ||
-        normalizeClock(String(fallback).match(/(?:close|đóng cửa)\s*(?:at|lúc)?\s*(\d{1,2}:\d{2})/i)?.[1]);
-
-      const openTime =
-        normalizeClock(detailRecord?.open_time) ||
-        normalizeClock(detailRecord?.opening_time) ||
-        normalizeClock(detailRecord?.site_open_time);
+        normalizeClock(contextSite?.close_time);
 
       const windowFromDetail =
         detailRecord?.opening_window ||
         detailRecord?.openingWindow ||
         detailRecord?.open_hours ||
         detailRecord?.opening_hours;
-
-      const windowFromMessage =
-        String(fallback).match(/(\d{1,2}:\d{2})\s*[\-–]\s*(\d{1,2}:\d{2})/) ||
-        null;
+      const windowFromMessage = String(fallback).match(
+        /(\d{1,2}:\d{2})\s*[\-–]\s*(\d{1,2}:\d{2})/,
+      );
 
       const openingWindow =
         (typeof windowFromDetail === "string" && windowFromDetail.trim()) ||
@@ -3115,54 +3356,48 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           ? `${windowFromMessage[1]}-${windowFromMessage[2]}`
           : undefined);
 
+      // Nếu chưa biết giờ đóng cửa, suy ra từ khung mở cửa (phần sau dấu "-").
+      const closeTimeForDisplay =
+        closeTime ||
+        (openingWindow ? openingWindow.split(/[\-–]/)[1]?.trim() : undefined);
+
       const fallbackText = String(fallback || "").toLowerCase();
       const isBeforeOpening =
         /before\s+opening|not\s+open\s+yet|chưa\s*(đến|toi)\s*giờ\s*mở\s*cửa|sớm\s*hơn\s*giờ\s*mở\s*cửa/i.test(
           fallbackText,
         );
       const isAfterClosing =
-        /after\s+closing|closed|quá\s*giờ\s*đóng\s*cửa|trễ\s*hơn\s*giờ\s*đóng\s*cửa/i.test(
+        /after\s+closing|quá\s*giờ\s*đóng\s*cửa|trễ\s*hơn\s*giờ\s*đóng\s*cửa/i.test(
           fallbackText,
-        );
+        ) ||
+        (!!eta &&
+          !!closeTimeForDisplay &&
+          eta.localeCompare(closeTimeForDisplay) >= 0);
 
-      if (!siteName && !eta && !travelMinutes && !openingWindow && !closeTime) {
+      if (!siteName && !eta && !travelMinutes && !openingWindow) {
         return fallback;
       }
 
+      const reason = isBeforeOpening
+        ? t("planner.reloadEtaBeforeOpeningReason", {
+            defaultValue: "trước giờ mở cửa",
+          })
+        : isAfterClosing
+          ? t("planner.reloadEtaAfterClosingReason", {
+              defaultValue: "sau giờ đóng cửa",
+            })
+          : t("planner.reloadEtaOutsideWindowReason", {
+              defaultValue: "ngoài khung mở cửa",
+            });
+
       return t("planner.reloadEtaConflictDetailed", {
         defaultValue:
-          "Không thể đồng bộ {{site}}: thời gian di chuyển đến điểm này khoảng {{travel}}, giờ đến dự kiến {{eta}}{{closeSuffix}} {{reason}} (khung mở cửa {{window}}).",
+          "Không thể đồng bộ “{{site}}”: giờ đến dự kiến {{eta}} {{reason}} (khung {{window}}). Hãy xoá điểm này và chọn điểm khác gần hơn hoặc mở cửa muộn hơn.",
         site:
           siteName ||
           t("planner.thisLocation", { defaultValue: "địa điểm này" }),
-        travel:
-          travelMinutes && travelMinutes > 0
-            ? formatDurationLocalized(travelMinutes, t)
-            : t("planner.unknownTravelDuration", {
-                defaultValue: "không xác định",
-              }),
-        eta:
-          eta ||
-          t("planner.unknownEta", {
-            defaultValue: "không xác định",
-          }),
-        closeSuffix: closeTime
-          ? t("planner.reloadEtaCloseSuffix", {
-              defaultValue: " (đóng cửa lúc {{time}})",
-              time: closeTime,
-            })
-          : "",
-        reason: isBeforeOpening
-          ? t("planner.reloadEtaBeforeOpeningReason", {
-              defaultValue: "nên bị sớm hơn giờ mở cửa",
-            })
-          : isAfterClosing
-            ? t("planner.reloadEtaAfterClosingReason", {
-                defaultValue: "nên bị trễ hơn giờ đóng cửa",
-              })
-            : t("planner.reloadEtaOutsideWindowReason", {
-                defaultValue: "nên nằm ngoài khung mở cửa",
-              }),
+        eta: eta || t("planner.unknownEta", { defaultValue: "—" }),
+        reason,
         window:
           openingWindow ||
           t("planner.unknownOpeningWindow", {
@@ -3260,7 +3495,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           await applyPlanMutation(
             (currentPlan) => applyLocalItemPatches(currentPlan, patches),
             async () => {
-              let mirroredPlan = await offlinePlannerService.getPlannerEntity(planId);
+              let mirroredPlan =
+                await offlinePlannerService.getPlannerEntity(planId);
               for (const patch of patches) {
                 const next = await offlinePlannerService.updatePlannerItem(
                   planId,
@@ -3287,14 +3523,16 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         }
 
         const originalDayByItemId = new Map<string, number>();
-        Object.entries(plan.items_by_day || {}).forEach(([dayKey, dayItems]) => {
-          const normalizedDay = Number(dayKey);
-          if (!Number.isFinite(normalizedDay) || normalizedDay < 1) return;
-          (dayItems || []).forEach((item) => {
-            if (!item?.id) return;
-            originalDayByItemId.set(item.id, normalizedDay);
-          });
-        });
+        Object.entries(plan.items_by_day || {}).forEach(
+          ([dayKey, dayItems]) => {
+            const normalizedDay = Number(dayKey);
+            if (!Number.isFinite(normalizedDay) || normalizedDay < 1) return;
+            (dayItems || []).forEach((item) => {
+              if (!item?.id) return;
+              originalDayByItemId.set(item.id, normalizedDay);
+            });
+          },
+        );
 
         for (const patch of patches) {
           if (String(patch.id || "").startsWith("offline_")) {
@@ -3340,7 +3578,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 (movedData.day_number !== undefined ||
                   movedData.leg_number !== undefined);
               const movedDayNumber = Number(
-                movedData?.day_number ?? movedData?.leg_number ?? patch.day_number,
+                movedData?.day_number ??
+                  movedData?.leg_number ??
+                  patch.day_number,
               );
 
               if (!hasDayInfo || movedDayNumber === patch.day_number) {
@@ -3359,15 +3599,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               );
             }
 
-            const moveCreateResponse = await pilgrimPlannerApi.addPlanItem(planId, {
-              site_id: String(moveSiteId),
-              leg_number: patch.day_number,
-              event_id: originalItem?.event_id || undefined,
-              note: originalItem?.note || undefined,
-              estimated_time: patch.estimated_time,
-              rest_duration: originalItem?.rest_duration || undefined,
-              travel_time_minutes: patch.travel_time_minutes,
-            });
+            const moveCreateResponse = await pilgrimPlannerApi.addPlanItem(
+              planId,
+              {
+                site_id: String(moveSiteId),
+                leg_number: patch.day_number,
+                event_id: originalItem?.event_id || undefined,
+                note: originalItem?.note || undefined,
+                estimated_time: patch.estimated_time,
+                rest_duration: originalItem?.rest_duration || undefined,
+                travel_time_minutes: patch.travel_time_minutes,
+              },
+            );
 
             const movedItemId = extractCreatedItemId(moveCreateResponse);
 
@@ -3405,10 +3648,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               );
             }
 
-            const deleteMovedOldResponse = await pilgrimPlannerApi.deletePlanItem(
-              planId,
-              patch.id,
-            );
+            const deleteMovedOldResponse =
+              await pilgrimPlannerApi.deletePlanItem(planId, patch.id);
 
             if (!deleteMovedOldResponse?.success) {
               // Compensate partial success to avoid duplicate item (new + old).
@@ -3459,13 +3700,48 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           }),
         });
         setEtaSyncFromDay(nextEtaSyncDay);
+        setBlockedSyncInfo((prev) =>
+          prev && prev.dayNumber === dayNumber ? null : prev,
+        );
       } catch (error: any) {
+        const firstItem = sortPlanDayItems(
+          plan?.items_by_day?.[String(dayNumber)] || [],
+        )[0];
+
         Toast.show({
           type: "error",
           text1: t("common.error"),
-          text2: buildReloadEtaErrorMessage(error),
+          text2: buildReloadEtaErrorMessage(error, firstItem),
           visibilityTime: 5000,
         });
+
+        const conflict = parseReloadEtaConflict(error);
+        if (conflict.blocked) {
+          const siteMeta = firstItem?.site as
+            | { open_time?: string; close_time?: string }
+            | undefined;
+          const siteWindow =
+            siteMeta?.open_time && siteMeta?.close_time
+              ? `${siteMeta.open_time}-${siteMeta.close_time}`
+              : undefined;
+          const openingWindow = conflict.openingWindow || siteWindow;
+          const closeTime =
+            conflict.closeTime ||
+            siteMeta?.close_time ||
+            (openingWindow
+              ? openingWindow.split(/[\-–]/)[1]?.trim()
+              : undefined);
+
+          setBlockedSyncInfo({
+            dayNumber,
+            itemId: firstItem?.id,
+            siteName: conflict.siteName || firstItem?.site?.name || undefined,
+            eta: conflict.eta,
+            closeTime,
+            openingWindow,
+            signature: buildBlockedSyncSignature(plan, dayNumber),
+          });
+        }
       } finally {
         setReloadingDayNumber(null);
       }
@@ -3476,6 +3752,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       buildReloadEtaErrorMessage,
       computeReflowFromChangedDay,
       isPlanOwner,
+      parseReloadEtaConflict,
+      buildBlockedSyncSignature,
       plan,
       planId,
       reloadingDayNumber,
@@ -3495,9 +3773,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       Number.isFinite(previousSourceDay) &&
       previousSourceDay === selectedDay;
 
-    if (
-      isSameDayConsecutiveSite
-    ) {
+    if (isSameDayConsecutiveSite) {
       Toast.show({
         type: "error",
         text1: t("planner.sameSiteConsecutiveTitle", {
@@ -4007,14 +4283,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           pointerEvents="box-none"
         >
           <View style={styles.badgeContainer}>
-            <View style={[
-              styles.statusBadge,
-              plan.status === 'completed' && styles.statusBadgeCompleted
-            ]}>
-              <Text style={[
-                styles.statusText,
-                plan.status === 'completed' && styles.statusTextCompleted
-              ]}>
+            <View
+              style={[
+                styles.statusBadge,
+                plan.status === "completed" && styles.statusBadgeCompleted,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusText,
+                  plan.status === "completed" && styles.statusTextCompleted,
+                ]}
+              >
                 {translateStatus(plan.status)}
               </Text>
             </View>
@@ -4159,7 +4439,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               onPress={handleOpenChat}
               disabled={isOffline}
             >
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#FFF8E7" />
+              <Ionicons
+                name="chatbubble-ellipses-outline"
+                size={18}
+                color="#FFF8E7"
+              />
               <Text style={styles.quickActionText}>
                 {t("planner.groupChat", { defaultValue: "Chat nhóm" })}
               </Text>
@@ -4550,14 +4834,18 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             const items = sortPlanDayItems(plan.items_by_day?.[dayKey] || []);
             const dayNumber = Number(dayKey);
             const canShowDaySyncAction =
-              isPlanOwner &&
-              planStatusStr === "planning" &&
-              !plan?.is_locked;
+              isPlanOwner && planStatusStr === "planning" && !plan?.is_locked;
             const showEtaSyncWarning =
               canShowDaySyncAction &&
               etaSyncFromDay !== null &&
               Number.isFinite(dayNumber) &&
               dayNumber === etaSyncFromDay &&
+              items.length > 0;
+            const isSyncBlockedForDay =
+              canShowDaySyncAction &&
+              !!blockedSyncInfo &&
+              Number.isFinite(dayNumber) &&
+              blockedSyncInfo.dayNumber === dayNumber &&
               items.length > 0;
             return (
               <ItineraryDayCard
@@ -4580,6 +4868,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 }
                 reloadingDayNumber={reloadingDayNumber}
                 showEtaSyncWarning={showEtaSyncWarning}
+                isSyncBlocked={isSyncBlockedForDay}
+                onResolveBlockedSync={
+                  isSyncBlockedForDay ? handleReplaceBlockedItem : undefined
+                }
                 lastClosedDayNumber={effectiveLastClosedDayNumber}
                 openAddModal={openAddModal}
                 t={t}
@@ -4654,7 +4946,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         isLoadingFavorites={isLoadingFavorites}
         isLoadingEventSites={isLoadingEventSites}
         eventSitesList={eventSitesList}
-        onSelectEventSite={handleOpenEventSite}
+        onSelectEventSite={handleAddSiteFromEventsTab}
         sites={sites}
         favorites={favorites}
         onAddSite={isPlanOwner ? (siteId) => handleAddItem(siteId) : undefined}
@@ -4669,38 +4961,6 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           )
         }
         addedCount={Object.values(plan.items_by_day || {}).flat().length}
-      />
-
-      <SiteEventsModal
-        visible={showEventListModal}
-        onClose={() => setShowEventListModal(false)}
-        title={eventSite?.name || t("planner.events")}
-        t={t}
-        styles={styles}
-        isLoading={isLoadingEvents}
-        events={siteEvents}
-        onSelectEvent={(ev) => {
-          const dateStr = ev.start_date
-            ? new Date(ev.start_date).toLocaleDateString("vi-VN", {
-                day: "2-digit",
-                month: "2-digit",
-                year: "numeric",
-              })
-            : "";
-          const endStr =
-            ev.end_date && ev.end_date !== ev.start_date
-              ? ` – ${new Date(ev.end_date).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-              : "";
-          const timeStr = ev.start_time
-            ? t("planner.atTime", { time: ev.start_time })
-            : "";
-          const noteText = `${t("planner.eventSelectionPrefix")}${ev.name}\n📅 ${dateStr}${endStr}${timeStr}${ev.location ? `\n📍 ${ev.location}` : ""}${ev.description ? `\n${ev.description}` : ""}`;
-          addSiteFlow.setNote(noteText);
-          setShowEventListModal(false);
-          if (eventSite) {
-            handleAddItem(eventSite.id, ev.id);
-          }
-        }}
       />
 
       <TimeInputModal
@@ -4732,6 +4992,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         onMoveToPreviousDay={handleMoveAddToPreviousDay}
         onMoveToNextDay={handleMoveAddToNextDay}
         onMoveBackToOriginalDay={handleMoveAddBackToOriginDay}
+        isEventLocked={addSiteFlow.isEventLocked}
+        bufferMinutes={addSiteFlow.bufferMinutes}
+        eventDurationMinutes={addSiteFlow.eventDurationMinutes}
+        setBufferMinutes={addSiteFlow.setBufferMinutes}
+        onUnlockEvent={addSiteFlow.unlockEvent}
       />
 
       <TimeInputModal
@@ -4780,6 +5045,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         eventsForDay={editScheduleContext.eventsForDay}
         eventStartTime={editScheduleContext.eventStartTime}
         eventName={editScheduleContext.eventName}
+        eventEndTime={editScheduleContext.eventEndTime}
         insight={editInsight}
         suggestedTime={editSuggestedTime}
       />
@@ -4857,9 +5123,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       />
       <EditPlanModal
         visible={showEditPlanModal}
-        onClose={() => setShowEditPlanModal(false)}
+        onClose={() => {
+          setShowEditPlanModal(false);
+          setEditPlanModalError(null);
+        }}
         onSave={handleSavePlan}
         saving={savingPlan}
+        saveError={editPlanModalError}
+        onClearSaveError={() => setEditPlanModalError(null)}
         t={t}
         editPlanName={editPlanName}
         setEditPlanName={setEditPlanName}
@@ -4869,6 +5140,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         setEditPlanEndDate={setEditPlanEndDate}
         editPlanPeople={editPlanPeople}
         setEditPlanPeople={setEditPlanPeople}
+        editPlanMinPeople={editPlanMinPeople}
+        setEditPlanMinPeople={setEditPlanMinPeople}
         editPlanTransportation={editPlanTransportation}
         setEditPlanTransportation={setEditPlanTransportation}
         editPlanDepositInput={editPlanDepositInput}
@@ -4881,7 +5154,6 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         setShowEditEndDatePicker={setShowEditEndDatePicker}
         editLockAt={editLockAt}
         setEditLockAt={setEditLockAt}
-        canSetEditLockAt={plan?.can_set_edit_lock_at}
         editLockAvailableAt={plan?.edit_lock_available_at}
         plannerLockAt={plan?.planner_lock_at}
         isLocked={plan?.is_locked}

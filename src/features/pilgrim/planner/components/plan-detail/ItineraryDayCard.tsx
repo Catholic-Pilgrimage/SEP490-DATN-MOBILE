@@ -30,6 +30,10 @@ interface ItineraryDayCardProps {
   onReloadDayFromPrevious?: (dayNumber: number) => void;
   reloadingDayNumber?: number | null;
   showEtaSyncWarning?: boolean;
+  /** Ngày này đã thử đồng bộ nhưng bất khả thi (ngoài khung mở cửa). */
+  isSyncBlocked?: boolean;
+  /** Handler mở confirm xoá điểm đầu đang chặn đồng bộ. */
+  onResolveBlockedSync?: (dayNumber: number) => void;
   lastClosedDayNumber?: number;
   openAddModal: (day: number) => void;
   t: (key: string, opts?: any) => string;
@@ -95,6 +99,8 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   onReloadDayFromPrevious,
   reloadingDayNumber,
   showEtaSyncWarning,
+  isSyncBlocked = false,
+  onResolveBlockedSync,
   lastClosedDayNumber = 0,
   openAddModal,
   t,
@@ -188,7 +194,12 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
         const canReload =
           isPlanOwner &&
           !!showEtaSyncWarning &&
+          !isSyncBlocked &&
           typeof onReloadDayFromPrevious === "function";
+        const canResolveBlocked =
+          isPlanOwner &&
+          isSyncBlocked &&
+          typeof onResolveBlockedSync === "function";
 
         return (
       <View
@@ -233,7 +244,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
               </Text>
             </View>
           )}
-          {canReload && (
+          {canReload && onReloadDayFromPrevious && (
             <TouchableOpacity
               onPress={() => onReloadDayFromPrevious(dayNumber)}
               disabled={reloadingDayNumber === dayNumber}
@@ -255,6 +266,36 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                 {reloadingDayNumber === dayNumber
                   ? t("planner.syncingEtaShort", { defaultValue: "Đang đồng bộ" })
                   : t("planner.syncShort", { defaultValue: "Đồng bộ" })}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {canResolveBlocked && onResolveBlockedSync && (
+            <TouchableOpacity
+              onPress={() => onResolveBlockedSync(dayNumber)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#FCA5A5",
+                backgroundColor: "#FEF2F2",
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={t("planner.blockedSyncActionA11y", {
+                defaultValue:
+                  "Xoá điểm chặn để chọn điểm khác phù hợp với ngày này",
+              })}
+            >
+              <Ionicons name="trash-outline" size={14} color="#B91C1C" />
+              <Text
+                style={{ fontSize: 12, fontWeight: "700", color: "#B91C1C" }}
+              >
+                {t("planner.blockedSyncActionShort", {
+                  defaultValue: "Xoá điểm chặn",
+                })}
               </Text>
             </TouchableOpacity>
           )}
