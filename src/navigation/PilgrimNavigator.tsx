@@ -146,17 +146,140 @@ const ProfileStackNavigator = () => (
       animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
     }}
   >
-    <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
-    <ProfileStack.Screen name="FavoriteSites" component={FavoriteSitesScreen} />
-    <ProfileStack.Screen name="OfflineDownloads" component={OfflineDownloadsScreen} />
-    <ProfileStack.Screen name="EditProfile" component={EditProfileScreen} />
-    <ProfileStack.Screen name="Wallet" component={WalletScreen} />
-    <ProfileStack.Screen name="MyReports" component={MyReportsScreen} />
-    <ProfileStack.Screen name="ReportDetail" component={ReportDetailScreen} />
-    <ProfileStack.Screen name="History" component={HistoryScreen} />
+    <ProfileStack.Screen 
+      name="ProfileMain" 
+      component={ProfileScreen}
+      options={{
+        // ProfileMain hiện tab bar
+      }}
+    />
+    <ProfileStack.Screen 
+      name="FavoriteSites" 
+      component={FavoriteSitesScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="OfflineDownloads" 
+      component={OfflineDownloadsScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="EditProfile" 
+      component={EditProfileScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="Wallet" 
+      component={WalletScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="MyReports" 
+      component={MyReportsScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="ReportDetail" 
+      component={ReportDetailScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
+    <ProfileStack.Screen 
+      name="History" 
+      component={HistoryScreen}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
+    />
     <ProfileStack.Screen 
       name="PlanDetailScreen" 
-      component={PlanDetailScreen as any} 
+      component={PlanDetailScreen as any}
+      listeners={({ navigation }) => ({
+        focus: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: { display: 'none' }
+          });
+        },
+        beforeRemove: () => {
+          navigation.getParent()?.setOptions({
+            tabBarStyle: undefined
+          });
+        }
+      })}
     />
   </ProfileStack.Navigator>
 );
