@@ -126,8 +126,11 @@ const CreatePlanScreen = ({ navigation }: any) => {
   });
 
   const [peopleCount, setPeopleCount] = useState(1);
+  /** Nhóm: số người tối thiểu cần có (1 … number_of_people; mặc định 2 khi tạo nhóm) */
+  const [minPeopleRequired, setMinPeopleRequired] = useState(2);
   const [showGroupFlowInfo, setShowGroupFlowInfo] = useState(false);
   const [showDepositInfo, setShowDepositInfo] = useState(false);
+  const [showMinPeopleInfo, setShowMinPeopleInfo] = useState(false);
   /** BE: motorbike | car | bus */
   const [transportation, setTransportation] = useState<"bus" | "car" | "motorbike">(
     "bus",
@@ -139,6 +142,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
     name?: string;
     deposit?: string;
     penalty?: string;
+    minPeople?: string;
   }>({});
 
   const [loading, setLoading] = useState(false);
@@ -167,7 +171,14 @@ const CreatePlanScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     if (peopleCount <= 1) {
-      setFormErrors((prev) => ({ ...prev, deposit: undefined, penalty: undefined }));
+      setFormErrors((prev) => ({
+        ...prev,
+        deposit: undefined,
+        penalty: undefined,
+        minPeople: undefined,
+      }));
+    } else {
+      setMinPeopleRequired((m) => Math.min(peopleCount, Math.max(1, m)));
     }
   }, [peopleCount]);
 
@@ -239,6 +250,19 @@ const CreatePlanScreen = ({ navigation }: any) => {
         }));
         return;
       }
+      if (
+        !Number.isInteger(minPeopleRequired) ||
+        minPeopleRequired < 1 ||
+        minPeopleRequired > peopleCount
+      ) {
+        setFormErrors((prev) => ({
+          ...prev,
+          minPeople: t("planner.minPeopleInvalid", {
+            defaultValue: "Minimum participants must be between 1 and the group size.",
+          }),
+        }));
+        return;
+      }
       depositVnd = dep;
       penaltyPct = pen;
     }
@@ -253,7 +277,11 @@ const CreatePlanScreen = ({ navigation }: any) => {
         start_date: startDate,
         end_date: endDate,
         ...(peopleCount > 1 && depositVnd !== undefined && penaltyPct !== undefined
-          ? { deposit_amount: depositVnd, penalty_percentage: penaltyPct }
+          ? {
+              deposit_amount: depositVnd,
+              penalty_percentage: penaltyPct,
+              min_people_required: minPeopleRequired,
+            }
           : {}),
       };
 
@@ -751,6 +779,112 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   </TouchableOpacity>
                 </View>
               </View>
+              {peopleCount > 1 ? (
+                <View
+                  style={{
+                    marginTop: SPACING.md,
+                    paddingTop: SPACING.md,
+                    borderTopWidth: 1,
+                    borderTopColor: COLORS.border,
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.counterRow,
+                      { backgroundColor: "transparent", padding: 0 },
+                    ]}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        flex: 1,
+                        minWidth: 0,
+                        paddingRight: 8,
+                        gap: 6,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          flex: 1,
+                          flexShrink: 1,
+                          fontSize: 16,
+                          color: COLORS.textPrimary,
+                          fontWeight: "600",
+                        }}
+                      >
+                        {t("planner.minPeopleRequiredLabel", {
+                          defaultValue: "Minimum people to finalize",
+                        })}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowMinPeopleInfo(true)}
+                        style={styles.infoIconButton}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                      >
+                        <Ionicons
+                          name="information-circle-outline"
+                          size={20}
+                          color={COLORS.textSecondary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 16,
+                      }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          setMinPeopleRequired((m) => Math.max(1, m - 1));
+                          if (formErrors.minPeople) {
+                            setFormErrors((prev) => ({
+                              ...prev,
+                              minPeople: undefined,
+                            }));
+                          }
+                        }}
+                        style={styles.counterBtnOutline}
+                      >
+                        <Ionicons
+                          name="remove"
+                          size={18}
+                          color={COLORS.textPrimary}
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.counterValueBig}>{minPeopleRequired}</Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setMinPeopleRequired((m) =>
+                            Math.min(peopleCount, m + 1),
+                          );
+                          if (formErrors.minPeople) {
+                            setFormErrors((prev) => ({
+                              ...prev,
+                              minPeople: undefined,
+                            }));
+                          }
+                        }}
+                        style={styles.counterBtnOutline}
+                      >
+                        <Ionicons
+                          name="add"
+                          size={18}
+                          color={COLORS.textPrimary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  {!!formErrors.minPeople && (
+                    <Text style={[styles.fieldErrorText, { marginTop: 6 }]}>
+                      {formErrors.minPeople}
+                    </Text>
+                  )}
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -980,6 +1114,35 @@ const CreatePlanScreen = ({ navigation }: any) => {
               <TouchableOpacity
                 style={styles.infoModalBtn}
                 onPress={() => setShowDepositInfo(false)}
+              >
+                <Text style={styles.infoModalBtnText}>Đã hiểu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={showMinPeopleInfo}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowMinPeopleInfo(false)}
+        >
+          <View style={styles.infoModalOverlay}>
+            <View style={styles.infoModalCard}>
+              <Text style={styles.infoModalTitle}>
+                {t("planner.minPeopleRequiredLabel", {
+                  defaultValue: "Minimum people to finalize",
+                })}
+              </Text>
+              <Text style={styles.infoModalText}>
+                {t("planner.minPeopleRequiredHint", {
+                  defaultValue:
+                    "The plan can only be finalized when this many people have joined (at most your planned group size).",
+                })}
+              </Text>
+              <TouchableOpacity
+                style={styles.infoModalBtn}
+                onPress={() => setShowMinPeopleInfo(false)}
               >
                 <Text style={styles.infoModalBtnText}>Đã hiểu</Text>
               </TouchableOpacity>

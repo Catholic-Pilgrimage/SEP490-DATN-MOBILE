@@ -28,6 +28,14 @@ export function isGroupJourneyPlan(plan: {
   can_set_edit_lock_at?: boolean;
   members?: unknown[];
 }): boolean {
+  // Hạn mức khi tạo: 1 = cá nhân, >1 = nhóm (kể cả đoàn chỉ có 1 người tham gia).
+  const quota = plan.number_of_people;
+  if (typeof quota === "number" && Number.isFinite(quota)) {
+    return quota > 1;
+  }
+
+  // Payload cũ / thiếu number_of_people: heuristic tối thiểu (không dùng
+  // `typeof x === "boolean"` — mọi plan đều có is_locked: false → trước đây bị tính nhầm thành nhóm).
   const meta = plan as Record<string, unknown>;
 
   if (meta.is_group_plan === true || meta.group_plan === true) return true;
@@ -46,18 +54,17 @@ export function isGroupJourneyPlan(plan: {
 
   if (Array.isArray(plan.members) && plan.members.length > 0) return true;
 
-  // Group-only financial/lifecycle fields from backend payloads.
   if (plan.deposit_amount != null || plan.penalty_percentage != null) return true;
   if (
     plan.edit_lock_at != null ||
     plan.planner_lock_at != null ||
     plan.first_invite_at != null ||
-    plan.edit_lock_available_at != null ||
-    typeof plan.can_set_edit_lock_at === "boolean" ||
-    typeof plan.is_locked === "boolean"
+    plan.edit_lock_available_at != null
   ) {
     return true;
   }
+  if (plan.can_set_edit_lock_at === true) return true;
+  if (plan.is_locked === true) return true;
 
   return false;
 }

@@ -415,6 +415,13 @@
     "depositRequiredForGroup": "Group plans need a deposit greater than 0.",
     "depositInvalid": "Invalid deposit (1–50,000,000 VND).",
     "penaltyInvalid": "Penalty must be between 0 and 100.",
+    "minPeopleRequiredLabel": "Minimum people to finalize",
+    "minPeopleRequiredHint": "The plan can only be finalized when this many people have joined (at most your planned group size).",
+    "minPeopleInvalid": "Minimum participants must be between 1 and the group size.",
+    "editLockScheduleFormIntro": "Set when editing will be locked. After that, no one can add, remove, or change stops. If the time is not allowed, you will see an error when saving.",
+    "editLockAutoIfUnset": "If not set, the system will lock 24 hours before the start day.",
+    "editLockSectionTitle": "Edit lock schedule",
+    "editLockChooseTime": "Choose lock time",
     "cannotUpdatePlan": "Cannot update plan",
     "cannotUpdateItem": "Cannot update location",
     "cannotSavePlace": "Cannot save place",
@@ -761,6 +768,12 @@
     "journeyWarning": "Journey warning",
     "suggestedTimeCta": "Set suggested time: {{time}}",
     "estimatedTimeLabel": "Estimated time",
+    "eventWindowStart": "Starts",
+    "eventWindowEnd": "Event ends",
+    "eventLockedDesc": "\"{{name}}\" — arrival time is calculated automatically from the event time.",
+    "eventLockedDescInProgress": "Your visit is linked to “{{name}}”. Your current arrival is during or after the start; you can skip the event to set the time yourself.",
+    "bufferArrivalSummary": "→ Estimated arrival: {{arrival}} ({{buffer}} min before the event at {{start}}).",
+    "unlockEventCta": "Skip event",
     "restDurationLabel": "Rest duration at location",
     "selectAnotherTime": "Select another time to continue",
     "massToday": "Mass today: {{times}}",
@@ -795,7 +808,21 @@
       },
       "eventLate": {
         "title": "Later than {{name}} ({{time}})",
-        "message": "Your selected time ({{selected}}) is {{diff}} later than the event.\nPlease arrive earlier to participate!"
+        "message": "Your selected time ({{selected}}) is {{diff}} later than the event.\nPlease arrive earlier to participate!",
+        "messageNoEnd": "Arrival ({{selected}}) is {{diff}} after the event start. You can still save if you only need a visit — or pick an earlier time to attend from the beginning."
+      },
+      "eventUnreachable": {
+        "title": "Cannot make {{name}} at {{time}}",
+        "message": "Travel takes {{duration}}; earliest arrival is {{fastest}} — too late before the event start. You can add as a regular stop or cancel.",
+        "messageWithEnd": "Travel takes {{duration}}; earliest arrival is {{fastest}}, after the event ends ({{end}}). Add as a regular stop or change the day / previous stop."
+      },
+      "eventWithin": {
+        "title": "Arriving while the event is ongoing",
+        "message": "You arrive at {{selected}} — after the start ({{start}}) but still within the event window until {{end}}. About {{remain}} remains before it ends."
+      },
+      "eventMissed": {
+        "title": "Past the event window ({{end}})",
+        "message": "Arrival at {{selected}} is after the event ends ({{end}}). Adjust the time, pick a regular mass, or add as a regular stop."
       },
       "eventOk": {
         "title": "{{name}} takes place at {{time}}",

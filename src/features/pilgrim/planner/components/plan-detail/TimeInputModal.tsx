@@ -1,28 +1,38 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
-    ActivityIndicator,
+  ActivityIndicator,
   ImageBackground,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "../../../../../config/toast.config";
 import { COLORS } from "../../../../../constants/theme.constants";
 import type {
-    DayEvent,
-    ScheduleInsight,
-    SuggestedArrival,
+  DayEvent,
+  ScheduleInsight,
+  SuggestedArrival,
 } from "../../utils/siteScheduleHelper";
-import { formatDurationLocalized } from "../../utils/siteScheduleHelper";
+import {
+  formatDurationLocalized,
+  getEventPastHalfWindowWarning,
+} from "../../utils/siteScheduleHelper";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -42,7 +52,10 @@ interface TimeInputModalProps {
   estimatedTime: string;
   onApplySuggestedTime?: (
     time: string,
-    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+    source?: {
+      priority: "event" | "mass" | "opening" | "default";
+      eventId?: string;
+    },
   ) => void;
   restDuration: number;
   setRestDuration: (v: number) => void;
@@ -75,6 +88,7 @@ interface TimeInputModalProps {
   eventsForDay?: DayEvent[];
   eventStartTime?: string;
   eventName?: string;
+  eventEndTime?: string;
 
   // ── Smart insight (pre-computed) ──
   insight?: ScheduleInsight | null;
@@ -85,6 +99,17 @@ interface TimeInputModalProps {
 
   // ── Cross-day flag ──
   isCrossDayTravel?: boolean;
+
+  // ── Event-locking ──
+  /** true when item is bound to a specific event → time picker disabled */
+  isEventLocked?: boolean;
+  /** Pre-event buffer minutes (15/30/45/60) */
+  bufferMinutes?: number;
+  /** Duration of the selected event (minutes) — used as rest_duration floor */
+  eventDurationMinutes?: number | null;
+  setBufferMinutes?: (minutes: number) => void;
+  /** Remove event binding → switch to normal site mode */
+  onUnlockEvent?: () => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -133,17 +158,49 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     eventsForDay = [],
     eventStartTime,
     eventName,
+    eventEndTime,
     insight,
     suggestedTime,
     onMoveToPreviousDay,
     onMoveToNextDay,
     onMoveBackToOriginalDay,
+    isEventLocked,
+    bufferMinutes = 30,
+    eventDurationMinutes,
+    setBufferMinutes,
+    onUnlockEvent,
   } = props;
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const travelCardYRef = useRef(0);
   const previousEstimatedRef = useRef(estimatedTime);
-  const previousRestRef = useRef(restDuration);
+  const previousBufferRef = useRef(bufferMinutes);
+  const previousVisibleRef = useRef(visible);
+  const [pastHalfEventModal, setPastHalfEventModal] = useState(false);
+  const [pastHalfRemainMins, setPastHalfRemainMins] = useState(0);
+
+  const tryConfirmAdd = useCallback(() => {
+    if (!eventStartTime || !eventEndTime) {
+      onConfirmAdd();
+      return;
+    }
+    const warn = getEventPastHalfWindowWarning(
+      estimatedTime,
+      eventStartTime,
+      eventEndTime,
+    );
+    if (warn) {
+      setPastHalfRemainMins(warn.remainingMinutes);
+      setPastHalfEventModal(true);
+      return;
+    }
+    onConfirmAdd();
+  }, [estimatedTime, eventStartTime, eventEndTime, onConfirmAdd]);
+
+  const confirmAfterPastHalfWarning = useCallback(() => {
+    setPastHalfEventModal(false);
+    onConfirmAdd();
+  }, [onConfirmAdd]);
 
   const parseTimeToMinutes = (time: string | undefined): number | null => {
     if (!time) return null;
@@ -162,7 +219,9 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     travelMinutes > 0
   );
   const isPreviousStopSameDay =
-    typeof sourceDayNumber === "number" ? sourceDayNumber === selectedDay : true;
+    typeof sourceDayNumber === "number"
+      ? sourceDayNumber === selectedDay
+      : true;
   const isSameAsPreviousSite =
     !!selectedSiteId &&
     !!previousSiteId &&
@@ -222,7 +281,8 @@ export default function TimeInputModal(props: TimeInputModalProps) {
 
   const applyWindowConstraints = useMemo(() => {
     const hasEventOnSelectedDay =
-      !!eventStartTime || eventsForDay.some((eventItem) => !!eventItem.startTime);
+      !!eventStartTime ||
+      eventsForDay.some((eventItem) => !!eventItem.startTime);
 
     return (candidateMin: number): number | null => {
       let normalized = candidateMin;
@@ -259,11 +319,51 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     fastestArrival === "00:00" &&
     Number(fastestArrivalDayOffset || 0) <= 0;
 
-  const estimatedMinutes = parseTimeToMinutes(estimatedTime) ?? 0;
-  const remainingInDayMinutes = Math.max(0, 1440 - estimatedMinutes);
-  const minRestDuration = 60;
-  const maxRestDuration = Math.max(minRestDuration, remainingInDayMinutes);
-  const isRestOverflowDay = restDuration > remainingInDayMinutes;
+  /** Sàn 0: không giới hạn trên; gợi ý mặc định từ `suggestRestDurationForPlannedStop` (parent/hook) khi mới chọn. */
+  const minRestDuration = 0;
+  const REST_MAX_SOFT = 1_000_000;
+
+  /** Tăng/giảm 15 phút; chạm giữa để mở modal nhập giờ/phút. */
+  const REST_QUICK_STEP = 15;
+  const [restHmModalVisible, setRestHmModalVisible] = useState(false);
+  const [restDraftH, setRestDraftH] = useState("0");
+  const [restDraftM, setRestDraftM] = useState("0");
+
+  const openRestHmModal = useCallback(() => {
+    Keyboard.dismiss();
+    setRestDraftH(String(Math.floor(restDuration / 60)));
+    setRestDraftM(String(Math.min(59, restDuration % 60)));
+    setRestHmModalVisible(true);
+  }, [restDuration]);
+
+  const applyRestFromHmModal = useCallback(() => {
+    const rawH = restDraftH.replace(/[^\d]/g, "");
+    const rawM = restDraftM.replace(/[^\d]/g, "");
+    let h = Math.max(0, parseInt(rawH || "0", 10) || 0);
+    let m = Math.max(0, parseInt(rawM || "0", 10) || 0);
+    if (m > 59) {
+      h += Math.floor(m / 60);
+      m = m % 60;
+    }
+    const total = h * 60 + m;
+    setRestDuration(Math.max(minRestDuration, Math.min(REST_MAX_SOFT, total)));
+    setRestHmModalVisible(false);
+  }, [minRestDuration, restDraftH, restDraftM, setRestDuration]);
+
+  useEffect(() => {
+    if (!visible) {
+      setRestHmModalVisible(false);
+      setPastHalfEventModal(false);
+    }
+  }, [visible]);
+
+  const nudgeRest = (delta: number) => {
+    Keyboard.dismiss();
+    setRestDuration(
+      Math.max(minRestDuration, Math.min(REST_MAX_SOFT, restDuration + delta)),
+    );
+  };
+
   const smartSuggestions = useMemo(() => {
     const options: {
       key: string;
@@ -277,11 +377,19 @@ export default function TimeInputModal(props: TimeInputModalProps) {
       baseTime?: string;
     }[] = [];
 
-    const eventCandidates: { id: string; name?: string; start: string; end?: string }[] = [
+    const eventCandidates: {
+      id: string;
+      name?: string;
+      start: string;
+      end?: string;
+    }[] = [
       ...eventsForDay
         .filter((eventItem) => !!eventItem.startTime)
         .map((eventItem) => ({
-          id: String(eventItem.id || `${eventItem.name || "event"}-${eventItem.startTime}`),
+          id: String(
+            eventItem.id ||
+              `${eventItem.name || "event"}-${eventItem.startTime}`,
+          ),
           name: eventItem.name,
           start: eventItem.startTime!,
           end: eventItem.endTime,
@@ -327,8 +435,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
           start: string;
           end?: string;
           arrivalMin: number;
-        } =>
-          candidate !== null,
+        } => candidate !== null,
       )
       .sort((a, b) => a.arrivalMin - b.arrivalMin);
 
@@ -348,11 +455,14 @@ export default function TimeInputModal(props: TimeInputModalProps) {
         time: eventArrivalTime,
         sourceText: t("planner.suggestionSourceEventDetailed", {
           defaultValue: "Theo sự kiện {{name}} lúc {{time}} tại địa điểm.",
-          name: eventArrival.name || t("planner.event", { defaultValue: "Sự kiện" }),
+          name:
+            eventArrival.name ||
+            t("planner.event", { defaultValue: "Sự kiện" }),
           time: eventArrival.start,
         }),
         eventId: eventArrival.id,
-        eventTitle: eventArrival.name || t("planner.event", { defaultValue: "Sự kiện" }),
+        eventTitle:
+          eventArrival.name || t("planner.event", { defaultValue: "Sự kiện" }),
         eventStartTime: eventArrival.start,
         eventEndTime: eventArrival.end,
         baseTime: eventArrival.start,
@@ -367,7 +477,10 @@ export default function TimeInputModal(props: TimeInputModalProps) {
         if (arrivalMin === null) return null;
         return { massTime, arrivalMin };
       })
-      .filter((candidate): candidate is { massTime: string; arrivalMin: number } => !!candidate)
+      .filter(
+        (candidate): candidate is { massTime: string; arrivalMin: number } =>
+          !!candidate,
+      )
       .sort((a, b) => a.arrivalMin - b.arrivalMin);
 
     massCandidates.forEach((massCandidate, index) => {
@@ -429,7 +542,10 @@ export default function TimeInputModal(props: TimeInputModalProps) {
 
   const applySuggestedTime = (
     time: string,
-    source?: { priority: "event" | "mass" | "opening" | "default"; eventId?: string },
+    source?: {
+      priority: "event" | "mass" | "opening" | "default";
+      eventId?: string;
+    },
   ) => {
     onApplySuggestedTime?.(time, source);
     Toast.show({
@@ -447,13 +563,14 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   };
 
   const showSuggestButton = useMemo(() => {
+    if (isEventLocked) return false;
     if (smartSuggestions.length > 0) return true;
     if (!suggestedTime) return false;
     return (
       suggestedTime.time !== estimatedTime &&
       suggestedTime.priority !== "default"
     );
-  }, [estimatedTime, smartSuggestions.length, suggestedTime]);
+  }, [estimatedTime, isEventLocked, smartSuggestions, suggestedTime]);
 
   const groupedSuggestions = useMemo(() => {
     return {
@@ -502,27 +619,48 @@ export default function TimeInputModal(props: TimeInputModalProps) {
 
   // Only block on hard constraints; cross-day is treated as a soft warning.
   const isConfirmBlocked =
-    insight?.isBlocking === true ||
-    crossDaysAdded > 0 ||
-    isRestOverflowDay ||
-    isSameAsPreviousSite;
+    insight?.isBlocking === true || crossDaysAdded > 0 || isSameAsPreviousSite;
+
+  /** Chỉ dùng buffer "Đến trước" khi giờ đến sớm hơn lúc bắt đầu sự kiện (như ảnh 3) */
+  const showEventBufferChips = useMemo(() => {
+    if (!isEventLocked || !eventStartTime) return false;
+    const a = parseTimeToMinutes(estimatedTime);
+    const s = parseTimeToMinutes(eventStartTime);
+    if (a == null || s == null) return true;
+    return a < s;
+  }, [isEventLocked, eventStartTime, estimatedTime]);
+
+  /** Khi user đang chọn "Đến trước" theo sự kiện — ẩn gợi chuyển ngày để tập trung, tránh mâu thuẫn với lịch sự kiện. */
+  const hideCrossDayPromoForEventBuffer = isEventLocked && showEventBufferChips;
 
   const shouldRenderInsight = useMemo(() => {
     if (!insight) return false;
+    if (isEventLocked && !insight.isBlocking) {
+      return false;
+    }
 
     const hasEventSuggestion = smartSuggestions.some(
       (suggestion) => suggestion.priority === "event",
     );
-    if (insight.type === "event_ok" && hasEventSuggestion) {
+    if (
+      (insight.type === "event_ok" || insight.type === "event_within") &&
+      hasEventSuggestion
+    ) {
       return false;
     }
 
-    const positiveInsightTypes = new Set(["ideal", "buffer", "first_stop", "event_ok"]);
+    const positiveInsightTypes = new Set([
+      "ideal",
+      "buffer",
+      "first_stop",
+      "event_ok",
+      "event_within",
+    ]);
     if (crossDayWarning && positiveInsightTypes.has(insight.type)) {
       return false;
     }
     return true;
-  }, [crossDayWarning, insight, smartSuggestions]);
+  }, [crossDayWarning, insight, isEventLocked, smartSuggestions]);
 
   const insightMessageColor = useMemo(() => {
     if (!insight) return "#6B4E2E";
@@ -530,10 +668,17 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     if (
       insight.type === "error" ||
       insight.type === "error_closed" ||
-      insight.type === "event_late" ||
+      insight.type === "event_unreachable" ||
       insight.type === "early"
     ) {
       return "#7F1D1D";
+    }
+
+    if (insight.type === "event_late" && insight.isBlocking) {
+      return "#7F1D1D";
+    }
+    if (insight.type === "event_late" && !insight.isBlocking) {
+      return "#7C2D12";
     }
 
     if (insight.type === "late") {
@@ -554,6 +699,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
 
     if (
       insight.type === "event_ok" ||
+      insight.type === "event_within" ||
       insight.type === "buffer" ||
       insight.type === "first_stop" ||
       insight.type === "ideal"
@@ -580,15 +726,38 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     };
   }, [insight]);
 
+  // Mỗi lần mở lại modal: reset ref (chỉ khi visible vừa bật) để không gọi scroll ngay lượt sau.
+  useEffect(() => {
+    if (visible && !previousVisibleRef.current) {
+      previousEstimatedRef.current = estimatedTime;
+      previousBufferRef.current = bufferMinutes;
+    }
+    previousVisibleRef.current = visible;
+  }, [bufferMinutes, estimatedTime, visible]);
+
+  // Tự cuộn tới thẻ “Di chuyển & lịch trình” khi *giờ dự kiến* thay đổi theo cách hợp lý.
+  // Tuyệt đối không tự scroll khi đang chỉnh buffer 15/30/45/60 ở bảng xanh (tránh cảm giác “nhảy”/màn hắn).
   useEffect(() => {
     if (!visible) return;
+    if (isEventLocked && showEventBufferChips) {
+      previousEstimatedRef.current = estimatedTime;
+      previousBufferRef.current = bufferMinutes;
+      return;
+    }
 
     const estimatedChanged = previousEstimatedRef.current !== estimatedTime;
-    const restChanged = previousRestRef.current !== restDuration;
-    previousEstimatedRef.current = estimatedTime;
-    previousRestRef.current = restDuration;
+    const bufferChanged = previousBufferRef.current !== bufferMinutes;
+    const skipScrollForEventBufferRecalc =
+      isEventLocked &&
+      showEventBufferChips &&
+      bufferChanged &&
+      estimatedChanged;
 
-    if (!(estimatedChanged || restChanged)) return;
+    previousEstimatedRef.current = estimatedTime;
+    previousBufferRef.current = bufferMinutes;
+
+    if (!estimatedChanged) return;
+    if (skipScrollForEventBufferRecalc) return;
     if (!hasTravelInfo && !insight) return;
 
     const targetY = Math.max(0, travelCardYRef.current - 18);
@@ -597,7 +766,15 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({ y: targetY, animated: true });
     });
-  }, [estimatedTime, hasTravelInfo, insight, restDuration, visible]);
+  }, [
+    bufferMinutes,
+    estimatedTime,
+    hasTravelInfo,
+    insight,
+    isEventLocked,
+    showEventBufferChips,
+    visible,
+  ]);
 
   return (
     <Modal
@@ -631,7 +808,11 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             ref={scrollRef}
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+            removeClippedSubviews={false}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={
+              Platform.OS === "ios" ? "interactive" : "on-drag"
+            }
           >
             <SiteHeroCard
               dayLabel={heroDayLabel}
@@ -644,7 +825,122 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             />
 
             <View style={localStyles.timeSetupCard}>
-              <Text style={localStyles.timeSetupTitle}>
+              {/* Khoá theo sự kiện: đặt trên cùng để người dùng thấy cách điều chỉnh (buffer) trước phần còn lại */}
+              {isEventLocked && eventStartTime && (
+                <View style={localStyles.eventLockedBanner}>
+                  <View style={localStyles.eventLockedHeader}>
+                    <Ionicons name="lock-closed" size={16} color="#1D4ED8" />
+                    <Text style={localStyles.eventLockedTitle}>
+                      {t("planner.eventLockedTitle", {
+                        defaultValue: "Giờ khoá theo sự kiện",
+                      })}
+                    </Text>
+                  </View>
+                  <View style={localStyles.eventTimeRangeRow}>
+                    <View style={localStyles.eventTimeBlock}>
+                      <Text style={localStyles.eventTimeLabel}>
+                        {t("planner.eventWindowStart", {
+                          defaultValue: "Bắt đầu",
+                        })}
+                      </Text>
+                      <Text style={localStyles.eventTimeValue}>
+                        {eventStartTime}
+                      </Text>
+                    </View>
+                    <View style={localStyles.eventTimeBlock}>
+                      <Text style={localStyles.eventTimeLabel}>
+                        {t("planner.eventWindowEnd", {
+                          defaultValue: "Kết thúc sự kiện",
+                        })}
+                      </Text>
+                      <Text style={localStyles.eventTimeValue}>
+                        {eventEndTime || "—"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={localStyles.eventLockedDesc}>
+                    {showEventBufferChips
+                      ? t("planner.eventLockedDesc", {
+                          defaultValue:
+                            '"{{name}}" — giờ đến được tự động tính từ thời gian sự kiện.',
+                          name: eventName || t("planner.term.event"),
+                        })
+                      : t("planner.eventLockedDescInProgress", {
+                          defaultValue:
+                            'Bạn đã gắn lịch với sự kiện "{{name}}". Giờ dự kiến đang nằm trong hoặc sau lúc bắt đầu; có thể bỏ qua sự kiện để tự chọn giờ.',
+                          name: eventName || t("planner.term.event"),
+                        })}
+                  </Text>
+                  {setBufferMinutes && showEventBufferChips && (
+                    <>
+                      <View style={localStyles.bufferPickerRow}>
+                        <Text style={localStyles.bufferLabel}>
+                          {t("planner.bufferLabel", {
+                            defaultValue: "Đến trước:",
+                          })}
+                        </Text>
+                        <View style={localStyles.bufferChipRow}>
+                          {[15, 30, 45, 60].map((min) => (
+                            <TouchableOpacity
+                              key={min}
+                              style={[
+                                localStyles.bufferChip,
+                                bufferMinutes === min &&
+                                  localStyles.bufferChipActive,
+                              ]}
+                              onPress={() => setBufferMinutes(min)}
+                            >
+                              <Text
+                                style={[
+                                  localStyles.bufferChipText,
+                                  bufferMinutes === min &&
+                                    localStyles.bufferChipTextActive,
+                                ]}
+                              >
+                                {min}p
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                      <Text style={localStyles.bufferSummaryText}>
+                        {t("planner.bufferArrivalSummary", {
+                          defaultValue:
+                            "→ Giờ đến dự kiến: {{arrival}} (đến sớm {{buffer}} phút trước lúc bắt đầu sự kiện {{start}}).",
+                          arrival: estimatedTime,
+                          buffer: bufferMinutes,
+                          start: eventStartTime,
+                        })}
+                      </Text>
+                    </>
+                  )}
+                  {onUnlockEvent && (
+                    <TouchableOpacity
+                      style={localStyles.unlockEventBtn}
+                      onPress={onUnlockEvent}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="lock-open-outline"
+                        size={16}
+                        color="#1D4ED8"
+                      />
+                      <Text style={localStyles.unlockEventBtnText}>
+                        {t("planner.unlockEventCta", {
+                          defaultValue: "Bỏ qua sự kiện",
+                        })}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              <Text
+                style={[
+                  localStyles.timeSetupTitle,
+                  isEventLocked && eventStartTime ? { marginTop: 4 } : null,
+                ]}
+              >
                 {t("planner.timeSetupSection", {
                   defaultValue: "Thiết lập thời gian tại địa điểm",
                 })}
@@ -656,103 +952,95 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                   {t("planner.estimatedTimeLabel")}
                 </Text>
                 <TouchableOpacity
-                  style={localStyles.compactTimePickerBtn}
+                  style={[
+                    localStyles.compactTimePickerBtn,
+                    isEventLocked && localStyles.compactTimePickerBtnLocked,
+                  ]}
                   onPress={openTimePicker}
+                  disabled={!!isEventLocked}
                 >
                   <Ionicons
-                    name="time-outline"
+                    name={isEventLocked ? "lock-closed" : "time-outline"}
                     size={18}
-                    color={COLORS.primary}
+                    color={isEventLocked ? "#9CA3AF" : COLORS.primary}
                   />
-                  <Text style={localStyles.compactTimeText}>{estimatedTime}</Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={COLORS.textSecondary}
-                  />
+                  <Text
+                    style={[
+                      localStyles.compactTimeText,
+                      isEventLocked && { color: "#6B7280" },
+                    ]}
+                  >
+                    {estimatedTime}
+                  </Text>
+                  {!isEventLocked && (
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={COLORS.textSecondary}
+                    />
+                  )}
                 </TouchableOpacity>
               </View>
 
-              {/* ── REST DURATION ── */}
-              <View style={[styles.timeInputContainer, { marginBottom: 20 }]}> 
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
+              {/* ── REST DURATION: ±15p; chạm giữa để nhập giờ/phút ── */}
+              <View style={[styles.timeInputContainer, { marginBottom: 20 }]}>
+                <Text
+                  style={[
+                    styles.timeInputFieldLabel,
+                    localStyles.restSectionLabel,
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.88}
                 >
-                  <Text
+                  {t("planner.restDurationLabel")}
+                </Text>
+                <View style={localStyles.restStepperRow}>
+                  <TouchableOpacity
+                    onPress={() => nudgeRest(-REST_QUICK_STEP)}
+                    disabled={restDuration <= minRestDuration}
                     style={[
-                      styles.timeInputFieldLabel,
-                      { marginBottom: 0, flex: 1, marginRight: 8 },
+                      localStyles.stepperBtn,
+                      restDuration <= minRestDuration && { opacity: 0.4 },
                     ]}
-                    numberOfLines={2}
+                    accessibilityLabel={t("planner.decreaseRest", {
+                      defaultValue: "Giảm 15 phút thời gian nghỉ",
+                    })}
                   >
-                    {t("planner.restDurationLabel")}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 12,
-                    }}
+                    <Ionicons name="remove" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={localStyles.restValueTap}
+                    onPress={openRestHmModal}
+                    activeOpacity={0.8}
+                    accessibilityLabel={t("planner.restEditHoursMinutesA11y", {
+                      defaultValue: "Chỉnh thời gian nghỉ (giờ và phút)",
+                    })}
+                    accessibilityRole="button"
                   >
-                    <TouchableOpacity
-                      onPress={() =>
-                        setRestDuration(
-                          Math.max(minRestDuration, restDuration - 15),
-                        )
-                      }
-                      disabled={restDuration <= minRestDuration}
-                      style={[
-                        localStyles.stepperBtn,
-                        restDuration <= minRestDuration && { opacity: 0.4 },
-                      ]}
-                    >
-                      <Ionicons name="remove" size={20} color={COLORS.primary} />
-                    </TouchableOpacity>
                     <Text
-                      style={{
-                        fontSize: 16,
-                        fontWeight: "700",
-                        color: COLORS.primary,
-                        minWidth: 65,
-                        textAlign: "center",
-                      }}
+                      style={localStyles.restValueTapText}
+                      numberOfLines={1}
                     >
                       {formatDuration(restDuration)}
                     </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        setRestDuration(
-                          Math.min(maxRestDuration, restDuration + 15),
-                        )
-                      }
-                      disabled={restDuration >= maxRestDuration}
-                      style={[
-                        localStyles.stepperBtn,
-                        restDuration >= maxRestDuration && { opacity: 0.4 },
-                      ]}
-                    >
-                      <Ionicons name="add" size={20} color={COLORS.primary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <Text style={localStyles.restLimitText}>
-                  {t("planner.restLimitByDay", {
-                    defaultValue: "Tối đa hôm nay: {{value}}",
-                    value: formatDuration(maxRestDuration),
-                  })}
-                </Text>
-                {isRestOverflowDay && (
-                  <Text style={localStyles.restLimitWarning}>
-                    {t("planner.restLimitWarning", {
-                      defaultValue:
-                        "Thời gian nghỉ đang vượt quá cuối ngày. Hãy giảm thời gian nghỉ hoặc chọn giờ dự kiến sớm hơn.",
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => nudgeRest(REST_QUICK_STEP)}
+                    disabled={restDuration >= REST_MAX_SOFT - REST_QUICK_STEP}
+                    style={[
+                      localStyles.stepperBtn,
+                      restDuration >= REST_MAX_SOFT - REST_QUICK_STEP && {
+                        opacity: 0.4,
+                      },
+                    ]}
+                    accessibilityLabel={t("planner.increaseRest", {
+                      defaultValue: "Tăng 15 phút thời gian nghỉ",
                     })}
-                  </Text>
-                )}
+                  >
+                    <Ionicons name="add" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* ── NOTE ── */}
@@ -819,11 +1107,14 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                       t={t}
                     />
 
-                    {showMoveToPreviousDayButton && (
+                    {showMoveToPreviousDayButton &&
+                      !hideCrossDayPromoForEventBuffer && (
                       <View style={localStyles.crossDayActionRow}>
                         <TouchableOpacity
                           style={localStyles.movePrevDayButton}
-                          onPress={() => onMoveToPreviousDay?.(sourceDayNumber!)}
+                          onPress={() =>
+                            onMoveToPreviousDay?.(sourceDayNumber!)
+                          }
                           activeOpacity={0.9}
                         >
                           <Ionicons
@@ -864,28 +1155,30 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                             })}
                           </Text>
                         </TouchableOpacity>
-                        {fastestArrival && (fastestArrivalDayOffset || 0) > 0 && (
-                          <Text style={localStyles.nextDayInlineHint}>
-                            {(fastestArrivalDayOffset || 0) === 1
-                              ? t("planner.earliestArrivalTomorrowHint", {
-                                  defaultValue:
-                                    "Giờ nhanh nhất: {{time}} (ngày mai)",
-                                  time: fastestArrival,
-                                })
-                              : t("planner.earliestArrivalOffsetHint", {
-                                  defaultValue:
-                                    "Giờ nhanh nhất: {{time}} (+{{days}} ngày)",
-                                  time: fastestArrival,
-                                  days: fastestArrivalDayOffset,
-                                })}
-                          </Text>
-                        )}
+                        {fastestArrival &&
+                          (fastestArrivalDayOffset || 0) > 0 && (
+                            <Text style={localStyles.nextDayInlineHint}>
+                              {(fastestArrivalDayOffset || 0) === 1
+                                ? t("planner.earliestArrivalTomorrowHint", {
+                                    defaultValue:
+                                      "Giờ nhanh nhất: {{time}} (ngày mai)",
+                                    time: fastestArrival,
+                                  })
+                                : t("planner.earliestArrivalOffsetHint", {
+                                    defaultValue:
+                                      "Giờ nhanh nhất: {{time}} (+{{days}} ngày)",
+                                    time: fastestArrival,
+                                    days: fastestArrivalDayOffset,
+                                  })}
+                            </Text>
+                          )}
                       </View>
                     )}
                   </>
                 )}
 
-                {showArriveFromPreviousDayNotice && (
+                {showArriveFromPreviousDayNotice &&
+                  !hideCrossDayPromoForEventBuffer && (
                   <View style={localStyles.arrivePrevDayNotice}>
                     <View style={localStyles.insightHeader}>
                       <Ionicons
@@ -893,13 +1186,17 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                         size={16}
                         color="#A8793D"
                       />
-                      <Text style={[localStyles.insightTitle, { color: "#8A5A2B" }]}>
+                      <Text
+                        style={[localStyles.insightTitle, { color: "#8A5A2B" }]}
+                      >
                         {t("planner.arrivePrevDayTitle", {
                           defaultValue: "Có thể đến từ ngày hôm trước",
                         })}
                       </Text>
                     </View>
-                    <Text style={[localStyles.insightMessage, { color: "#6B4E2E" }]}>
+                    <Text
+                      style={[localStyles.insightMessage, { color: "#6B4E2E" }]}
+                    >
                       {t("planner.arrivePrevDayMessage", {
                         defaultValue:
                           "Bạn đã có thể đến địa điểm này từ ngày trước. Nếu vẫn thêm ở ngày hiện tại, hãy chọn giờ phù hợp với tiến trình trong ngày.",
@@ -1072,11 +1369,19 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                         </View>
                         <View style={localStyles.suggestButtonDetailBox}>
                           {groupedSuggestions.event.map((suggestion) => (
-                            <View key={suggestion.key} style={localStyles.suggestOptionBlock}>
+                            <View
+                              key={suggestion.key}
+                              style={localStyles.suggestOptionBlock}
+                            >
                               <View style={localStyles.suggestItemHeader}>
-                                <Text style={localStyles.suggestEventNameOneLine} numberOfLines={1}>
+                                <Text
+                                  style={localStyles.suggestEventNameOneLine}
+                                  numberOfLines={1}
+                                >
                                   {suggestion.eventTitle ||
-                                    t("planner.event", { defaultValue: "Sự kiện" })}
+                                    t("planner.event", {
+                                      defaultValue: "Sự kiện",
+                                    })}
                                 </Text>
                                 <Text style={localStyles.suggestItemMetaText}>
                                   {suggestion.eventStartTime
@@ -1096,8 +1401,14 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                                   })
                                 }
                               >
-                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
-                                <Text style={localStyles.applySuggestionBtnText}>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={16}
+                                  color="#92400E"
+                                />
+                                <Text
+                                  style={localStyles.applySuggestionBtnText}
+                                >
                                   {t("planner.applySuggestedTimeCta", {
                                     defaultValue: "Áp dụng {{time}}",
                                     time: suggestion.time,
@@ -1113,7 +1424,11 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                     {groupedSuggestions.mass.length > 0 && (
                       <View style={localStyles.suggestButton}>
                         <View style={localStyles.suggestButtonHeaderLeft}>
-                          <Ionicons name="book-outline" size={16} color="#A8793D" />
+                          <Ionicons
+                            name="book-outline"
+                            size={16}
+                            color="#A8793D"
+                          />
                           <View style={{ flex: 1 }}>
                             <Text style={localStyles.suggestButtonText}>
                               {t("planner.suggestedMassTimeLabel", {
@@ -1131,31 +1446,40 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                         </View>
                         <View style={localStyles.suggestButtonDetailBox}>
                           <View style={localStyles.suggestOptionBlock}>
-                            <Text style={localStyles.suggestItemTitleOneLine} numberOfLines={1}>
+                            <Text
+                              style={localStyles.suggestItemTitleOneLine}
+                              numberOfLines={1}
+                            >
                               {t("planner.regularMassDaily", {
                                 defaultValue: "Giờ lễ thường ngày",
                               })}
                             </Text>
                             <View style={localStyles.massApplyList}>
                               {groupedSuggestions.mass.map((suggestion) => (
-                              <TouchableOpacity
-                                key={suggestion.key}
-                                style={localStyles.applySuggestionBtn}
-                                activeOpacity={0.85}
-                                onPress={() =>
-                                  applySuggestedTime(suggestion.time, {
-                                    priority: suggestion.priority,
-                                  })
-                                }
-                              >
-                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
-                                <Text style={localStyles.applySuggestionBtnText}>
-                                  {t("planner.applySuggestedTimeCta", {
-                                    defaultValue: "Áp dụng {{time}}",
-                                    time: suggestion.time,
-                                  })}
-                                </Text>
-                              </TouchableOpacity>
+                                <TouchableOpacity
+                                  key={suggestion.key}
+                                  style={localStyles.applySuggestionBtn}
+                                  activeOpacity={0.85}
+                                  onPress={() =>
+                                    applySuggestedTime(suggestion.time, {
+                                      priority: suggestion.priority,
+                                    })
+                                  }
+                                >
+                                  <Ionicons
+                                    name="checkmark-circle-outline"
+                                    size={16}
+                                    color="#92400E"
+                                  />
+                                  <Text
+                                    style={localStyles.applySuggestionBtnText}
+                                  >
+                                    {t("planner.applySuggestedTimeCta", {
+                                      defaultValue: "Áp dụng {{time}}",
+                                      time: suggestion.time,
+                                    })}
+                                  </Text>
+                                </TouchableOpacity>
                               ))}
                             </View>
                           </View>
@@ -1166,7 +1490,11 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                     {groupedSuggestions.opening.length > 0 && (
                       <View style={localStyles.suggestButton}>
                         <View style={localStyles.suggestButtonHeaderLeft}>
-                          <Ionicons name="time-outline" size={16} color="#A8793D" />
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color="#A8793D"
+                          />
                           <View style={{ flex: 1 }}>
                             <Text style={localStyles.suggestButtonText}>
                               {t("planner.suggestedOpeningTimeLabel", {
@@ -1184,10 +1512,18 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                         </View>
                         <View style={localStyles.suggestButtonDetailBox}>
                           {groupedSuggestions.opening.map((suggestion) => (
-                            <View key={suggestion.key} style={localStyles.suggestOptionBlock}>
+                            <View
+                              key={suggestion.key}
+                              style={localStyles.suggestOptionBlock}
+                            >
                               <View style={localStyles.suggestItemHeader}>
-                                <Text style={localStyles.suggestItemTitleOneLine} numberOfLines={1}>
-                                  {t("planner.openingHours", { defaultValue: "Giờ mở cửa" })}
+                                <Text
+                                  style={localStyles.suggestItemTitleOneLine}
+                                  numberOfLines={1}
+                                >
+                                  {t("planner.openingHours", {
+                                    defaultValue: "Giờ mở cửa",
+                                  })}
                                 </Text>
                                 <Text style={localStyles.suggestItemMetaText}>
                                   {suggestion.baseTime || "--:--"}
@@ -1202,8 +1538,14 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                                   })
                                 }
                               >
-                                <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
-                                <Text style={localStyles.applySuggestionBtnText}>
+                                <Ionicons
+                                  name="checkmark-circle-outline"
+                                  size={16}
+                                  color="#92400E"
+                                />
+                                <Text
+                                  style={localStyles.applySuggestionBtnText}
+                                >
                                   {t("planner.applySuggestedTimeCta", {
                                     defaultValue: "Áp dụng {{time}}",
                                     time: suggestion.time,
@@ -1237,7 +1579,11 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                             })
                           }
                         >
-                          <Ionicons name="checkmark-circle-outline" size={16} color="#92400E" />
+                          <Ionicons
+                            name="checkmark-circle-outline"
+                            size={16}
+                            color="#92400E"
+                          />
                           <Text style={localStyles.applySuggestionBtnText}>
                             {t("planner.applySuggestedTimeCta", {
                               defaultValue: "Áp dụng {{time}}",
@@ -1252,7 +1598,6 @@ export default function TimeInputModal(props: TimeInputModalProps) {
               </View>
             )}
           </ScrollView>
-
         </KeyboardAvoidingView>
 
         {/* ── CONFIRM BUTTON (STICKY BOTTOM) ── */}
@@ -1269,37 +1614,34 @@ export default function TimeInputModal(props: TimeInputModalProps) {
               isConfirmBlocked && { opacity: 0.5 },
               { marginTop: 0 },
             ]}
-            onPress={onConfirmAdd}
+            onPress={tryConfirmAdd}
             disabled={addingItem || !selectedSiteId || isConfirmBlocked}
           >
             {addingItem ? (
               <ActivityIndicator color={COLORS.white} />
             ) : isConfirmBlocked ? (
-              <Text
-                style={[
-                  styles.confirmButtonText,
-                  { color: "#8A6F40" },
-                ]}
-              >
+              <Text style={[styles.confirmButtonText, { color: "#8A6F40" }]}>
                 {crossDaysAdded > 0
                   ? t("planner.selectAnotherDay", {
                       defaultValue: "Cần chọn ngày khác",
                     })
-                  : insight?.type === "early"
-                    ? t("planner.arrivalOutsideOperatingHoursShort", {
-                        defaultValue:
-                          "Không thể thêm: giờ đến ngoài khung giờ hoạt động",
+                  : insight?.type === "event_unreachable"
+                    ? t("planner.eventUnreachableShort", {
+                        defaultValue: "Không thể đến kịp sự kiện",
                       })
-                  : isRestOverflowDay
-                    ? t("planner.adjustRestOrTime", {
-                        defaultValue: "Cần chỉnh giờ nghỉ/đến",
-                      })
-                    : t("planner.selectAnotherTime")}
+                    : insight?.type === "event_late" && insight?.isBlocking
+                      ? t("planner.eventMissedShort", {
+                          defaultValue: "Đã qua khung sự kiện",
+                        })
+                      : insight?.type === "early"
+                        ? t("planner.arrivalOutsideOperatingHoursShort", {
+                            defaultValue:
+                              "Không thể thêm: giờ đến ngoài khung giờ hoạt động",
+                          })
+                        : t("planner.selectAnotherTime")}
               </Text>
             ) : (
-              <Text
-                style={[styles.confirmButtonText, { color: COLORS.white }]}
-              >
+              <Text style={[styles.confirmButtonText, { color: COLORS.white }]}>
                 {confirmButtonLabel || t("planner.addToItinerary")}
               </Text>
             )}
@@ -1321,6 +1663,158 @@ export default function TimeInputModal(props: TimeInputModalProps) {
             <Toast config={toastConfig} />
           </View>
         ) : null}
+
+        <Modal
+          visible={pastHalfEventModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPastHalfEventModal(false)}
+        >
+          <View style={localStyles.halfEventOverlay}>
+            <View style={localStyles.halfEventCard}>
+              <Text style={localStyles.halfEventTitle}>
+                {t("planner.halfEventWarningTitle", {
+                  defaultValue: "Sự kiện đã diễn ra quá nửa thời lượng",
+                })}
+              </Text>
+              <Text style={localStyles.halfEventBody}>
+                {t("planner.halfEventWarningBody", {
+                  defaultValue:
+                    "Giờ đến dự kiến của bạn nằm sau hơn một nửa thời lượng sự kiện. Còn khoảng {{remain}} nữa là kết thúc. Bạn vẫn muốn thêm điểm này vào lịch?",
+                  remain: formatDurationLocalized(pastHalfRemainMins, t),
+                })}
+              </Text>
+              <View style={localStyles.halfEventActions}>
+                <TouchableOpacity
+                  style={localStyles.halfEventCancelBtn}
+                  onPress={() => setPastHalfEventModal(false)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={localStyles.halfEventCancelText}>
+                    {t("planner.halfEventWarningBack", {
+                      defaultValue: "Xem lại",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={localStyles.halfEventConfirmBtn}
+                  onPress={confirmAfterPastHalfWarning}
+                  activeOpacity={0.9}
+                >
+                  <Text style={localStyles.halfEventConfirmText}>
+                    {t("planner.halfEventWarningConfirm", {
+                      defaultValue: "Vẫn thêm",
+                    })}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal
+          visible={restHmModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setRestHmModalVisible(false)}
+        >
+          <View style={localStyles.halfEventOverlay}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+              style={localStyles.restHmKb}
+            >
+              <View style={localStyles.halfEventCard}>
+                <Text style={localStyles.halfEventTitle}>
+                  {t("planner.restHmModalTitle", {
+                    defaultValue: "Thời gian nghỉ tại điểm",
+                  })}
+                </Text>
+                <Text style={localStyles.restHmModalHint}>
+                  {t("planner.restHmModalHint", {
+                    defaultValue:
+                      "Có thể nghỉ nhiều ngày nếu có lưu trú, ăn uống hoặc nhu cầu y tế tại nơi. Bạn tự chọn tổng thời gian.",
+                  })}
+                </Text>
+                <View style={localStyles.restHmInputsRow}>
+                  <View style={localStyles.restHmFieldCol}>
+                    <Text style={localStyles.restHmFieldLabel}>
+                      {t("planner.restHoursShort", { defaultValue: "Giờ" })}
+                    </Text>
+                    <TextInput
+                      value={restDraftH}
+                      onChangeText={(txt) => {
+                        const d = txt.replace(/[^\d]/g, "");
+                        if (d.length > 4) {
+                          setRestDraftH(d.slice(0, 4));
+                        } else {
+                          setRestDraftH(d);
+                        }
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={4}
+                      returnKeyType="next"
+                      style={localStyles.restHmFieldInput}
+                      placeholder="0"
+                      placeholderTextColor={COLORS.textTertiary}
+                    />
+                  </View>
+                  <View style={localStyles.restHmFieldCol}>
+                    <Text style={localStyles.restHmFieldLabel}>
+                      {t("planner.restMinutesShort", { defaultValue: "Phút" })}
+                    </Text>
+                    <TextInput
+                      value={restDraftM}
+                      onChangeText={(txt) => {
+                        const d = txt.replace(/[^\d]/g, "");
+                        if (d === "") {
+                          setRestDraftM("");
+                          return;
+                        }
+                        const n = parseInt(d, 10);
+                        if (Number.isFinite(n) && n > 59) {
+                          setRestDraftM("59");
+                        } else {
+                          setRestDraftM(d);
+                        }
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      returnKeyType="done"
+                      onSubmitEditing={applyRestFromHmModal}
+                      style={localStyles.restHmFieldInput}
+                      placeholder="0"
+                      placeholderTextColor={COLORS.textTertiary}
+                    />
+                  </View>
+                </View>
+                <View style={localStyles.halfEventActions}>
+                  <TouchableOpacity
+                    style={localStyles.halfEventCancelBtn}
+                    onPress={() => setRestHmModalVisible(false)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={localStyles.halfEventCancelText}>
+                      {t("planner.restHmModalCancel", {
+                        defaultValue: "Hủy",
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={localStyles.halfEventConfirmBtn}
+                    onPress={applyRestFromHmModal}
+                    activeOpacity={0.9}
+                  >
+                    <Text style={localStyles.halfEventConfirmText}>
+                      {t("planner.restHmModalApply", {
+                        defaultValue: "Áp dụng",
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -1351,47 +1845,47 @@ function SiteHeroCard(props: {
     <>
       <View style={localStyles.heroOverlay} />
       <View style={localStyles.heroContent}>
-          <Text style={localStyles.heroDayLabel}>{dayLabel}</Text>
+        <Text style={localStyles.heroDayLabel}>{dayLabel}</Text>
+        <Text
+          style={localStyles.heroSiteName}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {siteName || t("planner.typeLocation")}
+        </Text>
+
+        {patronSaint ? (
+          <View style={localStyles.heroChip}>
+            <Ionicons name="sparkles-outline" size={12} color="#FDE68A" />
+            <Text style={localStyles.heroChipText} numberOfLines={1}>
+              {t("planner.patronSaintInline", {
+                defaultValue: "Bổn mạng: {{value}}",
+                value: patronSaint,
+              })}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={localStyles.heroMetaRow}>
+          <Ionicons name="location-outline" size={14} color="#E5E7EB" />
           <Text
-            style={localStyles.heroSiteName}
+            style={localStyles.heroMetaText}
             numberOfLines={1}
             ellipsizeMode="tail"
           >
-            {siteName || t("planner.typeLocation")}
+            {address ||
+              t("planner.addressUnavailable", {
+                defaultValue: "Chưa có địa chỉ",
+              })}
           </Text>
+        </View>
 
-          {patronSaint ? (
-            <View style={localStyles.heroChip}>
-              <Ionicons name="sparkles-outline" size={12} color="#FDE68A" />
-              <Text style={localStyles.heroChipText} numberOfLines={1}>
-                {t("planner.patronSaintInline", {
-                  defaultValue: "Bổn mạng: {{value}}",
-                  value: patronSaint,
-                })}
-              </Text>
-            </View>
-          ) : null}
-
-          <View style={localStyles.heroMetaRow}>
-            <Ionicons name="location-outline" size={14} color="#E5E7EB" />
-            <Text
-              style={localStyles.heroMetaText}
-              numberOfLines={1}
-              ellipsizeMode="tail"
-            >
-              {address ||
-                t("planner.addressUnavailable", {
-                  defaultValue: "Chưa có địa chỉ",
-                })}
-            </Text>
-          </View>
-
-          <View style={localStyles.heroMetaRow}>
-            <Ionicons name="time-outline" size={14} color="#E5E7EB" />
-            <Text style={localStyles.heroMetaText}>
-              {t("planner.openingHours")}: {openingHoursLine}
-            </Text>
-          </View>
+        <View style={localStyles.heroMetaRow}>
+          <Ionicons name="time-outline" size={14} color="#E5E7EB" />
+          <Text style={localStyles.heroMetaText}>
+            {t("planner.openingHours")}: {openingHoursLine}
+          </Text>
+        </View>
       </View>
     </>
   );
@@ -1407,7 +1901,9 @@ function SiteHeroCard(props: {
           {content}
         </ImageBackground>
       ) : (
-        <View style={[localStyles.heroImageContainer, localStyles.heroFallback]}>
+        <View
+          style={[localStyles.heroImageContainer, localStyles.heroFallback]}
+        >
           {content}
         </View>
       )}
@@ -1786,6 +2282,72 @@ const localStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#D7C3A2",
   },
+  restSectionLabel: {
+    marginBottom: 8,
+    width: "100%",
+  },
+  restStepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  restValueTap: {
+    minWidth: 120,
+    maxWidth: "56%",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#FFFBF5",
+    borderWidth: 1,
+    borderColor: "#D7C3A2",
+  },
+  restValueTapText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.primary,
+    textAlign: "center",
+  },
+  restHmKb: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+  },
+  restHmModalHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#6B5A45",
+    marginBottom: 14,
+  },
+  restHmInputsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 6,
+  },
+  restHmFieldCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  restHmFieldLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6B4E2E",
+    marginBottom: 4,
+  },
+  restHmFieldInput: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+    color: "#3D2E1E",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: "#FFFBF5",
+    borderWidth: 1,
+    borderColor: "#D7C3A2",
+  },
   stickyFooter: {
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -1865,17 +2427,6 @@ const localStyles = StyleSheet.create({
     lineHeight: 16,
     color: "#A04B22",
   },
-  restLimitText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#6B7280",
-  },
-  restLimitWarning: {
-    marginTop: 4,
-    fontSize: 12,
-    lineHeight: 17,
-    color: "#B45309",
-  },
   moveNextDayButton: {
     alignSelf: "stretch",
     flexDirection: "row",
@@ -1898,5 +2449,175 @@ const localStyles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#5B3E1F",
+  },
+  // ── Event-locked styles ──
+  eventLockedBanner: {
+    backgroundColor: "rgba(29, 78, 216, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(29, 78, 216, 0.2)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    gap: 8,
+  },
+  eventLockedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  eventLockedTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  eventTimeRangeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 2,
+  },
+  eventTimeBlock: {
+    flex: 1,
+  },
+  eventTimeLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(30, 64, 175, 0.75)",
+    marginBottom: 2,
+  },
+  eventTimeValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1D4ED8",
+  },
+  eventLockedDesc: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#1E40AF",
+  },
+  bufferPickerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  bufferLabel: {
+    fontSize: 13,
+    color: "#1E40AF",
+    fontWeight: "600",
+  },
+  bufferChipRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  bufferChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(29, 78, 216, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(29, 78, 216, 0.15)",
+  },
+  bufferChipActive: {
+    backgroundColor: "#1D4ED8",
+    borderColor: "#1D4ED8",
+  },
+  bufferChipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#1E40AF",
+  },
+  bufferChipTextActive: {
+    color: "#FFFFFF",
+  },
+  bufferSummaryText: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#1E3A8A",
+    marginTop: 6,
+  },
+  unlockEventBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    alignSelf: "stretch",
+    marginTop: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "rgba(29, 78, 216, 0.35)",
+  },
+  unlockEventBtnText: {
+    fontSize: 14,
+    color: "#1D4ED8",
+    fontWeight: "700",
+  },
+  compactTimePickerBtnLocked: {
+    opacity: 0.65,
+    backgroundColor: "rgba(0, 0, 0, 0.03)",
+  },
+  restFloorWarning: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#D97706",
+  },
+  halfEventOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  halfEventCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: "#FFFCF6",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#E8D4B4",
+  },
+  halfEventTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#5B3E1F",
+    marginBottom: 10,
+  },
+  halfEventBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: "#4B3623",
+    marginBottom: 18,
+  },
+  halfEventActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  halfEventCancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  halfEventCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#6B5A45",
+  },
+  halfEventConfirmBtn: {
+    backgroundColor: "#F3C04E",
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#E7BC6E",
+  },
+  halfEventConfirmText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#4A3419",
   },
 });

@@ -220,6 +220,76 @@ export const applyLocalItemUpdate = (
   return buildPlanFromItemsByDay(currentPlan, itemsByDay);
 };
 
+/**
+ * Bỏ item khỏi ngày cũ, thêm vào `targetDay` ở đầu (first) hoặc cuối (last), renumber.
+ */
+export const applyLocalMoveItemToDay = (
+  currentPlan: PlanEntity,
+  itemId: string,
+  targetDay: number,
+  position: "first" | "last" = "first",
+): PlanEntity => {
+  if (!itemId || targetDay < 1) return currentPlan;
+  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
+  let moved: PlanItem | null = null;
+
+  Object.keys(itemsByDay).forEach((dayKey) => {
+    const dayItems = itemsByDay[dayKey] || [];
+    const idx = dayItems.findIndex((i) => i.id === itemId);
+    if (idx < 0) return;
+    moved = { ...dayItems[idx] };
+    const next = dayItems.filter((i) => i.id !== itemId);
+    if (next.length === 0) {
+      delete itemsByDay[dayKey];
+    } else {
+      itemsByDay[dayKey] = next;
+    }
+  });
+
+  if (!moved) return currentPlan;
+
+  const key = String(targetDay);
+  const existing = sortPlanDayItems(itemsByDay[key] || []);
+  const withNew =
+    position === "first" ? [moved, ...existing] : [...existing, moved];
+  withNew.forEach((item, idx) => {
+    item.order_index = idx + 1;
+    item.day_number = targetDay;
+    item.leg_number = targetDay;
+  });
+  itemsByDay[key] = withNew;
+
+  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
+};
+
+/**
+ * Cập nhật giờ / travel (sau khi chuyển ngày hoặc sync).
+ */
+export const applyLocalItemTimeAndTravel = (
+  currentPlan: PlanEntity,
+  itemId: string,
+  changes: { estimated_time: string; travel_time_minutes?: number },
+): PlanEntity => {
+  const itemsByDay = cloneItemsByDay(currentPlan.items_by_day);
+  let found = false;
+  Object.keys(itemsByDay).forEach((dayKey) => {
+    itemsByDay[dayKey] = (itemsByDay[dayKey] || []).map((item) => {
+      if (item.id !== itemId) return item;
+      found = true;
+      return {
+        ...item,
+        estimated_time: changes.estimated_time,
+        travel_time_minutes:
+          changes.travel_time_minutes !== undefined
+            ? changes.travel_time_minutes
+            : item.travel_time_minutes,
+      };
+    });
+  });
+  if (!found) return currentPlan;
+  return buildPlanFromItemsByDay(currentPlan, itemsByDay);
+};
+
 export const applyLocalSwapDayItems = (
   currentPlan: PlanEntity,
   dayKey: string,

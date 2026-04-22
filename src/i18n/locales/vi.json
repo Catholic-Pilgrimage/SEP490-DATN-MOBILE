@@ -416,6 +416,13 @@
     "depositRequiredForGroup": "Kế hoạch nhóm cần số tiền cọc lớn hơn 0.",
     "depositInvalid": "Số tiền cọc không hợp lệ (1–50.000.000 VND).",
     "penaltyInvalid": "Tỷ lệ phạt phải từ 0 đến 100.",
+    "minPeopleRequiredLabel": "Số người tối thiểu để chốt",
+    "minPeopleRequiredHint": "Kế hoạch chỉ được chốt khi đủ số người tham gia tối thiểu này (không lớn hơn tổng số bạn dự kiến).",
+    "minPeopleInvalid": "Số người tối thiểu phải từ 1 đến tổng số người trong nhóm.",
+    "editLockScheduleFormIntro": "Đặt thời gian khoá chỉnh sửa. Sau thời điểm này, không ai có thể thêm/xoá/sửa điểm viếng. Nếu thời gian không hợp lệ, hệ thống sẽ báo lỗi khi lưu.",
+    "editLockAutoIfUnset": "Nếu không đặt, hệ thống sẽ tự khoá 24h trước ngày đi.",
+    "editLockSectionTitle": "Lịch khoá chỉnh sửa",
+    "editLockChooseTime": "Chọn thời gian khoá",
     "cannotUpdatePlan": "Không thể cập nhật kế hoạch",
     "cannotUpdateItem": "Không thể cập nhật địa điểm",
     "cannotSavePlace": "Không thể lưu địa điểm",
@@ -762,6 +769,12 @@
     "journeyWarning": "Cảnh báo hành trình",
     "suggestedTimeCta": "Đặt giờ gợi ý: {{time}}",
     "estimatedTimeLabel": "Giờ dự kiến",
+    "eventWindowStart": "Bắt đầu",
+    "eventWindowEnd": "Kết thúc sự kiện",
+    "eventLockedDesc": "\"{{name}}\" — giờ đến được tự động tính từ thời gian sự kiện.",
+    "eventLockedDescInProgress": "Bạn đã gắn lịch với sự kiện \"{{name}}\". Giờ dự kiến đang nằm trong hoặc sau lúc bắt đầu; có thể bỏ qua sự kiện để tự chọn giờ.",
+    "bufferArrivalSummary": "→ Giờ đến dự kiến: {{arrival}} (đến sớm {{buffer}} phút trước lúc bắt đầu sự kiện {{start}}).",
+    "unlockEventCta": "Bỏ qua sự kiện",
     "restDurationLabel": "Thời gian nghỉ tại điểm",
     "selectAnotherTime": "Chọn giờ khác để tiếp tục",
     "massToday": "Giờ Lễ hôm nay: {{times}}",
@@ -796,7 +809,21 @@
       },
       "eventLate": {
         "title": "Trễ hơn {{name}} ({{time}})",
-        "message": "Giờ bạn chọn ({{selected}}) muộn hơn sự kiện {{diff}}.\nHãy đi sớm hơn để kịp tham dự!"
+        "message": "Giờ bạn chọn ({{selected}}) muộn hơn sự kiện {{diff}}.\nHãy đi sớm hơn để kịp tham dự!",
+        "messageNoEnd": "Giờ đến ({{selected}}) muộn hơn lúc bắt đầu sự kiện {{diff}}. Vẫn có thể lưu nếu bạn chỉ cần tham quan — hoặc chỉnh sớm hơn để tham dự từ đầu."
+      },
+      "eventUnreachable": {
+        "title": "Không thể đến kịp {{name}} lúc {{time}}",
+        "message": "Thời gian di chuyển cần {{duration}}, sớm nhất đến lúc {{fastest}} — không kịp trước giờ bắt đầu sự kiện. Bạn có thể thêm như địa điểm thường hoặc hủy.",
+        "messageWithEnd": "Di chuyển mất {{duration}}; sớm nhất đến lúc {{fastest}}, sau khi sự kiện đã kết thúc ({{end}}). Bạn có thể thêm như địa điểm thường hoặc đổi ngày / điểm trước."
+      },
+      "eventWithin": {
+        "title": "Đến trong lúc diễn ra sự kiện",
+        "message": "Bạn đến lúc {{selected}} — sau giờ bắt đầu ({{start}}) nhưng vẫn trong khung sự kiện đến {{end}}. Còn khoảng {{remain}} trước khi sự kiện kết thúc."
+      },
+      "eventMissed": {
+        "title": "Đã qua khung sự kiện ({{end}})",
+        "message": "Giờ đến {{selected}} nằm sau lúc kết thúc sự kiện ({{end}}). Hãy chỉnh giờ, chọn lễ thường, hoặc thêm như địa điểm thường."
       },
       "eventOk": {
         "title": "{{name}} diễn ra lúc {{time}}",

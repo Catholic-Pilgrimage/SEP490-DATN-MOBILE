@@ -288,6 +288,8 @@ export interface PlanEntity {
   /** Kế hoạch nhóm: cọc thành viên (VND) */
   deposit_amount?: number;
   penalty_percentage?: number;
+  /** Số người tối thiểu cần có để chốt kế hoạch (nhóm). ≤ number_of_people */
+  min_people_required?: number;
   /** Khớp cột `is_locked` trên BE (nhóm, giai đoạn lập kế hoạch) */
   is_locked?: boolean;
   /** Thời điểm khoá chỉnh sửa (edit lock). Nhóm only. */
@@ -368,6 +370,7 @@ export interface CreatePlanRequest {
   end_date?: string;
   deposit_amount?: number;
   penalty_percentage?: number;
+  min_people_required?: number;
 }
 
 export interface UpdatePlanRequest {
@@ -379,6 +382,7 @@ export interface UpdatePlanRequest {
   status?: string;
   deposit_amount?: number;
   penalty_percentage?: number;
+  min_people_required?: number;
   /** Thời điểm khoá chỉnh sửa (nhóm). null = huỷ, ISO string = đặt trước. */
   edit_lock_at?: string | null;
 }
@@ -396,6 +400,7 @@ export interface AddPlanItemRequest {
 
 export interface UpdatePlanItemRequest {
   day_number?: number;
+  leg_number?: number;
   order_index?: number;
   note?: string;
   nearby_amenity_ids?: string[]; // UUIDs of nearby places to associate with this item
