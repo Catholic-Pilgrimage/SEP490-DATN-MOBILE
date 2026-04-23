@@ -83,7 +83,9 @@ export type PilgrimTabParamList = {
 export type PilgrimMainStackParamList = {
   MainTabs: undefined;
   PlanChatScreen: { planId: string; planName?: string; ownerId?: string };
-  PlannerMembersScreen: { planId?: string; planName?: string } | undefined;
+  PlannerMembersScreen:
+    | { planId?: string; planName?: string; readOnlyFormerMember?: boolean }
+    | undefined;
   SiteDetail: { siteId: string };
   AllSites: undefined;
   FriendList: undefined;

@@ -488,6 +488,11 @@ const styles = StyleSheet.create({
     gap: 6,
     position: "relative",
   },
+  /** Người đã rời nhóm: cùng CTA tài chính/chốt kế hoạch nhưng chỉ mở xem thành viên & tiến độ (read-only) */
+  quickActionButtonReadOnly: {
+    borderWidth: 1,
+    borderColor: "rgba(255, 248, 231, 0.4)",
+  },
   quickActionText: {
     fontSize: 14,
     fontWeight: "600",

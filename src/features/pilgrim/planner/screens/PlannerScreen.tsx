@@ -60,6 +60,7 @@ import type {
 } from "../../../../navigation/pilgrimNavigation.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
 import { getApiErrorMessage } from "../../../../utils/apiError";
+import { shouldOpenActiveJourneyFromPlannerList } from "../utils/plannerNavigation.utils";
 import { emailsMatch } from "../utils/planShare.utils";
 
 // ─── Tab enum ────────────────────────────────────────────────
@@ -323,6 +324,7 @@ const mapPlanEntityToUI = (entity: PlanEntity): PlanUI => {
     isLocked: !!entity.is_locked,
     sharedToCommunity: !!entity.shared_to_community,
     transportation: [normalizePlannerTransport(entity.transportation)],
+    viewerJoinStatus: entity.viewer_join_status,
   };
 };
 
@@ -573,17 +575,21 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
 
   const navigateToPlanByStatus = useCallback(
     (planId: string, status?: string, extraParams?: Record<string, any>) => {
-      const normalized = String(status || "").toLowerCase();
-      if (normalized === "ongoing") {
+      const { viewerJoinStatus, isOwnerPlanInMyTab, ...rest } = extraParams || {};
+      if (
+        shouldOpenActiveJourneyFromPlannerList(status, viewerJoinStatus, {
+          isOwnerPlanInMyTab: !!isOwnerPlanInMyTab,
+        })
+      ) {
         guardedNavigatePlanner("active-journey", "ActiveJourneyScreen", {
           planId,
-          ...(extraParams || {}),
+          ...rest,
         });
         return;
       }
       guardedNavigatePlanner("plan-detail", "PlanDetailScreen", {
         planId,
-        ...(extraParams || {}),
+        ...rest,
       });
     },
     [guardedNavigatePlanner],
@@ -1039,6 +1045,8 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
 
       navigateToPlanByStatus(plan.id, plan.status, {
         planPrefill: buildPlanPrefill(plan),
+        viewerJoinStatus: plan.viewerJoinStatus,
+        isOwnerPlanInMyTab: true,
       });
     },
     [navigateToPlanByStatus, t],
@@ -1100,6 +1108,8 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
         onPress={() =>
           navigateToPlanByStatus(plan.id, plan.status, {
             planPrefill: buildPlanPrefill(plan),
+            viewerJoinStatus: plan.viewerJoinStatus,
+            isOwnerPlanInMyTab: true,
           })
         }
         onShare={
@@ -1145,7 +1155,11 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
               invitedView: true,
             });
           } else {
-            navigateToPlanByStatus(plan.id, plan.status);
+            navigateToPlanByStatus(plan.id, plan.status, {
+              planPrefill: buildPlanPrefill(plan),
+              viewerJoinStatus: plan.viewerJoinStatus,
+              isOwnerPlanInMyTab: false,
+            });
           }
         }}
         onJoin={() => {

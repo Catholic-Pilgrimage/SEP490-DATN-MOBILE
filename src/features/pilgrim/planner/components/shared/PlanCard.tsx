@@ -16,7 +16,8 @@ import {
   TYPOGRAPHY
 } from "../../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../../services/api/pilgrim/plannerApi";
-import {
+import type {
+  PlanEntity,
   PlanSummary,
   TransportationType
 } from "../../../../../types/pilgrim/planner.types";
@@ -26,6 +27,8 @@ export interface PlanUI extends PlanSummary {
   transportation?: TransportationType[];
   isLocked?: boolean;
   sharedToCommunity?: boolean;
+  /** Từ GET /planners: phân tuyến list → detail vs ActiveJourney (người đã rời vẫn ở PlanDetail) */
+  viewerJoinStatus?: PlanEntity["viewer_join_status"];
 }
 
 interface PlanCardProps {

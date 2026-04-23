@@ -88,9 +88,15 @@ export function getPlanMapCenter(mapPins: MapPin[]) {
   return { latitude: centerLat, longitude: centerLng, zoom };
 }
 
+type MemberRosterRow = {
+  id?: string;
+  user_id?: string;
+  join_status?: string;
+};
+
 /**
  * Số người đã trong đoàn (thực tế), không phải `number_of_people` (quota khi tạo kế hoạch).
- * Ưu tiên danh sách `plan.members` (id user); nếu chưa có thì dùng `companion_count` nếu BE gửi.
+ * Ưu tiên danh sách `plan.members` (id user), **loại `dropped_out`**; nếu chưa có thì dùng `companion_count` nếu BE gửi.
  */
 export function getPlannerRosterCount(plan: PlanEntity | null): number {
   if (!plan) return 1;
@@ -99,11 +105,14 @@ export function getPlannerRosterCount(plan: PlanEntity | null): number {
   if (ownerId) ids.add(ownerId);
 
   const rows = Array.isArray((plan as { members?: unknown }).members)
-    ? ((plan as { members?: Array<{ id?: string; user_id?: string }> })
-        .members ?? [])
+    ? ((plan as { members?: MemberRosterRow[] }).members ?? [])
     : [];
 
-  for (const m of rows) {
+  const activeRows = rows.filter(
+    (m) => String(m?.join_status || "").toLowerCase() !== "dropped_out",
+  );
+
+  for (const m of activeRows) {
     const id = String(m?.id ?? m?.user_id ?? "").trim();
     if (id) ids.add(id);
   }

@@ -27,6 +27,7 @@ import { useConfirm } from "../../../../hooks/useConfirm";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
+import { resetToLichTrinhPlannerHome } from "../utils/plannerNavigation.utils";
 import type {
   PlannerMemberApiRow,
   PlannerProgressMember,
@@ -40,6 +41,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const planId = route.params?.planId || "";
+  const readOnlyFormerMember = route.params?.readOnlyFormerMember === true;
   const planName =
     route.params?.planName ||
     t("planner.members.title", { defaultValue: "Thành viên" });
@@ -131,7 +133,11 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       }
 
       if (membersRes.success && membersRes.data?.members) {
-        setMembers(membersRes.data.members);
+        setMembers(
+          membersRes.data.members.filter(
+            (m) => String(m.join_status || "").toLowerCase() !== "dropped_out",
+          ),
+        );
         setSummary({
           total_slots: membersRes.data.total_slots,
           current_members: membersRes.data.current_members,
@@ -158,12 +164,22 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
   const confirmLeavePlan = async () => {
     if (!currentUser?.id) return;
 
+    const meRow = members.find((m) => m.id === currentUser.id);
+    const isFriendPath =
+      meRow?.invite_type === "friend" ||
+      (!!ownerId && friends.some((f) => f.user.id === ownerId));
+
     // Backend: penalty only applies when planner is 'locked'
     // During 'planning': always clean exit with 100% refund
     const hasFinancialPenalty =
       planStatus === "locked" &&
       planDetail?.deposit_amount > 0 &&
       planDetail?.penalty_percentage > 0;
+
+    const showDepositRefundLine =
+      planDetail?.deposit_amount > 0 &&
+      !hasFinancialPenalty &&
+      !isFriendPath;
 
     const penaltyHint = hasFinancialPenalty
       ? `\n${t("planner.members.leavePenaltyHint", {
@@ -174,7 +190,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
             (planDetail.deposit_amount * planDetail.penalty_percentage) / 100,
           ).toLocaleString(i18n.language === "vi" ? "vi-VN" : "en-US"),
         })}`
-      : planDetail?.deposit_amount > 0
+      : showDepositRefundLine
         ? `\n${t("planner.members.leaveDepositRefundHint", {
             defaultValue: "Tiền cọc sẽ được hoàn 100% vào ví.",
           })}`
@@ -187,7 +203,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       }),
       message:
         t("planner.members.leaveMessage", {
-          defaultValue: "Bạn có chắc chắn muốn rời khỏi đoàn này không?",
+          defaultValue: "Bạn có chắc chắn muốn rời đoàn này không?",
         }) + penaltyHint,
       confirmText: t("planner.members.leaveConfirm", {
         defaultValue: "Rời nhóm",
@@ -212,7 +228,14 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                 defaultValue: "Đã rời khỏi nhóm",
               }),
           });
-          navigation.goBack();
+          const st = String(planStatus || "").toLowerCase();
+          // Lúc planning: BE không còn cho xem kế hoạch — reset về tab Lịch trình, tránh 403 trên PlanDetail.
+          if (st === "planning" || st === "draft") {
+            navigation.dispatch(resetToLichTrinhPlannerHome("my"));
+          } else {
+            // locked (và giai đoạn có cọc/phí) / các trạng thái rời còn xem lại qua BE
+            navigation.goBack();
+          }
         } else {
           Toast.show({
             type: "error",
@@ -555,6 +578,7 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
       )}
 
       {!loading &&
+        !readOnlyFormerMember &&
         currentUser?.id !== ownerId &&
         ["planning", "locked"].includes(planStatus) && (
           <View

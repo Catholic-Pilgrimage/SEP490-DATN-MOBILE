@@ -1,65 +1,65 @@
-import { Ionicons, MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    Keyboard,
-    KeyboardAvoidingView,
-    Linking,
-    Modal,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { ModelViewerWebView } from "../../../../components/media/ModelViewerWebView";
 import { SiteModelJournalOverlay } from "../../../../components/media/SiteModelJournalOverlay";
 import { SiteModelNarrativePanel } from "../../../../components/media/SiteModelNarrativePanel";
 import { GuestLoginModal } from "../../../../components/ui/GuestLoginModal";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
-    SPACING,
-    TYPOGRAPHY,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
+  SPACING,
+  TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useFavorites } from "../../../../hooks/useFavorites";
 import { useI18n } from "../../../../hooks/useI18n";
 import {
-    useSiteDetail,
-    useSiteEvents,
-    useSiteMassSchedules,
-    useSiteMedia,
-    useSiteNearbyPlaces,
-    useSiteReviews,
+  useSiteDetail,
+  useSiteEvents,
+  useSiteMassSchedules,
+  useSiteMedia,
+  useSiteNearbyPlaces,
+  useSiteReviews,
 } from "../../../../hooks/useSites";
 import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import { DayOfWeek } from "../../../../types";
 import { SiteReview } from "../../../../types/pilgrim";
 import { getApiErrorMessage } from "../../../../utils/apiError";
 import {
-    AddToPlanModal,
-    NearbyPlaceCard,
-    QuickActionButton,
-    SOSModal,
+  AddToPlanModal,
+  NearbyPlaceCard,
+  QuickActionButton,
+  SOSModal,
 } from "../components";
 
 // ============================================
@@ -264,10 +264,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     refetch: refetchEvents,
   } = useSiteEvents(siteId, {
     autoFetch: true,
-    params: { 
-      limit: 1000,
-      time_state: "upcoming" // Chỉ lấy sự kiện sắp tới
-    },
+    params: { limit: 1000 },
   });
 
   const {
@@ -2036,14 +2033,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 <View style={styles.premiumHeaderCenter}>
                   <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
                   <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
-                  <Text
-                    style={styles.premiumHeaderTitle}
-                    numberOfLines={2}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.7}
-                  >
-                    {site?.name?.toUpperCase()}
-                  </Text>
+                  <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
                   <View style={styles.premiumDividerRow}>
                     <View style={styles.premiumDividerLine} />
                     <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
@@ -3166,9 +3156,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   premiumHeaderCenter: {
-    flex: 1,
     alignItems: 'center',
-    marginHorizontal: 12,
     gap: 4,
     marginTop: 4,
   },
@@ -3179,12 +3167,11 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
   },
   premiumHeaderTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
     color: '#fff',
     letterSpacing: 0.5,
     textAlign: 'center',
-    lineHeight: 28,
   },
   premiumDividerRow: {
     flexDirection: 'row',

@@ -1,7 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { StackActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
     ActivityIndicator,
@@ -45,6 +51,7 @@ import { useCheckinPhoto } from "../hooks/useCheckinPhoto";
 import { useJourneyExecution } from "../hooks/useJourneyExecution";
 import { usePlanData } from "../hooks/usePlanData";
 import { isGroupJourneyPlan } from "../utils/planPatronScope.utils";
+import { isViewerStatusBlockedFromActiveJourney } from "../utils/plannerNavigation.utils";
 
 type Props = {
   route: PlannerRouteProp<"ActiveJourneyScreen">;
@@ -113,6 +120,21 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     mapCenter,
     refreshPlan,
   } = usePlanData(planId);
+
+  /** Người đã rời nhóm không dùng màn hành trình; replace về PlanDetail (có Tiến độ đoàn). */
+  const droppedOutRedirectedRef = useRef(false);
+  useEffect(() => {
+    droppedOutRedirectedRef.current = false;
+  }, [planId]);
+  useLayoutEffect(() => {
+    if (loading) return;
+    if (!plan?.id) return;
+    if (droppedOutRedirectedRef.current) return;
+    if (!isViewerStatusBlockedFromActiveJourney(plan.viewer_join_status))
+      return;
+    droppedOutRedirectedRef.current = true;
+    navigation.replace("PlanDetailScreen", { planId: plan.id });
+  }, [loading, plan?.id, plan?.viewer_join_status, navigation]);
 
   const todayIdx = useMemo(() => {
     if (!plan?.start_date || !sortedDays.length) return -1;
@@ -714,6 +736,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             {t("common.back", { defaultValue: "Quay lại" })}
           </Text>
         </TouchableOpacity>
+      </View>
+    );
+  }
+
+  /** Cực tuyến: dropped / kicked không thấy UI hành trình (chuyển về PlanDetail). */
+  if (isViewerStatusBlockedFromActiveJourney(plan.viewer_join_status)) {
+    return (
+      <View style={[styles.center, { backgroundColor: COLORS.background }]}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
       </View>
     );
   }

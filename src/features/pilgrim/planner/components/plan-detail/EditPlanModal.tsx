@@ -21,6 +21,12 @@ import {
   SPACING,
 } from "../../../../../constants/theme.constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  MAX_GROUP_PENALTY_PERCENT,
+  MIN_DEPOSIT_VND,
+  MIN_GROUP_PENALTY_PERCENT,
+} from "../../utils/depositInput.utils";
+import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../../utils/groupMinPeople.utils";
 
 interface EditPlanModalProps {
   visible: boolean;
@@ -29,7 +35,6 @@ interface EditPlanModalProps {
   saving: boolean;
   /** Lỗi lưu — hiển thị trong modal (Toast nằm dưới layer Modal RN). */
   saveError?: string | null;
-  onClearSaveError?: () => void;
   t: (key: string, options?: any) => string;
   editPlanName: string;
   setEditPlanName: (v: string) => void;
@@ -58,8 +63,8 @@ interface EditPlanModalProps {
   editLockAvailableAt?: string | null;
   /** Planner lock at (tự động, 12h trước ngày đi) */
   plannerLockAt?: string | null;
-  /** Có đang khoá edit hay không */
-  isLocked?: boolean;
+  /** Đã mời / share lần đầu (first_invite_at) — không sửa cọc & % phạt */
+  depositPenaltyLockedByShare?: boolean;
 }
 
 export default function EditPlanModal(props: EditPlanModalProps) {
@@ -69,7 +74,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     onSave,
     saving,
     saveError,
-    onClearSaveError,
     t,
     editPlanName,
     setEditPlanName,
@@ -95,7 +99,7 @@ export default function EditPlanModal(props: EditPlanModalProps) {
     setEditLockAt,
     editLockAvailableAt,
     plannerLockAt,
-    isLocked,
+    depositPenaltyLockedByShare = false,
   } = props;
 
   const insets = useSafeAreaInsets();
@@ -144,7 +148,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
   /** Chỉ Android: không dùng mode=datetime (lỗi dismiss). Mở date rồi time. iOS: không bật chọn từ app (theo cấu hình sản phẩm). */
   const openEditLockOnAndroid = React.useCallback(() => {
     if (Platform.OS !== "android" || !setEditLockAt) return;
-    onClearSaveError?.();
     const { min, max } = editLockPickerBounds;
     const base = editLockPickerValue;
     const applyBounds = (d: Date) => {
@@ -184,7 +187,7 @@ export default function EditPlanModal(props: EditPlanModalProps) {
         pickTime(date);
       },
     });
-  }, [setEditLockAt, editLockPickerBounds, editLockPickerValue, onClearSaveError]);
+  }, [setEditLockAt, editLockPickerBounds, editLockPickerValue]);
 
   return (
     <>
@@ -256,7 +259,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
               }}
               value={editPlanName}
               onChangeText={(v) => {
-                onClearSaveError?.();
                 setEditPlanName(v);
               }}
               placeholder={t("planner.planNamePlaceholder")}
@@ -270,7 +272,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
-                    onClearSaveError?.();
                     setShowEditStartDatePicker(true);
                   }}
                   style={{
@@ -323,7 +324,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
-                    onClearSaveError?.();
                     setShowEditEndDatePicker(true);
                   }}
                   style={{
@@ -402,7 +402,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 >
                   <TouchableOpacity
                     onPress={() => {
-                      onClearSaveError?.();
                       setEditPlanPeople(Math.max(1, editPlanPeople - 1));
                     }}
                     style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
@@ -414,7 +413,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                   </Text>
                   <TouchableOpacity
                     onPress={() => {
-                      onClearSaveError?.();
                       setEditPlanPeople(Math.min(50, editPlanPeople + 1));
                     }}
                     style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
@@ -470,8 +468,12 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <TouchableOpacity
                       onPress={() => {
-                        onClearSaveError?.();
-                        setEditPlanMinPeople(Math.max(1, editPlanMinPeople - 1));
+                        setEditPlanMinPeople(
+                          Math.max(
+                            MIN_GROUP_MIN_PEOPLE_REQUIRED,
+                            editPlanMinPeople - 1,
+                          ),
+                        );
                       }}
                       style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", justifyContent: "center", alignItems: "center" }}
                     >
@@ -482,7 +484,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     </Text>
                     <TouchableOpacity
                       onPress={() => {
-                        onClearSaveError?.();
                         setEditPlanMinPeople(
                           Math.min(editPlanPeople, editPlanMinPeople + 1),
                         );
@@ -518,6 +519,37 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
                   </TouchableOpacity>
                 </View>
+                {depositPenaltyLockedByShare ? (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: COLORS.textSecondary,
+                      marginBottom: 8,
+                      lineHeight: 18,
+                    }}
+                  >
+                    {t("planner.depositPenaltyLockedAfterShare", {
+                      defaultValue:
+                        "Đã gửi lời mời lần đầu — không thể đổi tiền cọc và tỷ lệ phạt.",
+                    })}
+                  </Text>
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: COLORS.textTertiary,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {t("planner.depositAndPenaltyRuleHint", {
+                      minVnd: MIN_DEPOSIT_VND,
+                      minPen: MIN_GROUP_PENALTY_PERCENT,
+                      maxPen: MAX_GROUP_PENALTY_PERCENT,
+                      defaultValue:
+                        "Cọc tối thiểu {{minVnd}} VNĐ. Phạt: {{minPen}}%–{{maxPen}}%.",
+                    })}
+                  </Text>
+                )}
                 <TextInput
                   style={{
                     borderWidth: 1,
@@ -528,16 +560,17 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     fontSize: 15,
                     color: COLORS.textPrimary,
                     marginBottom: 12,
-                    backgroundColor: "#FAFAFA",
+                    backgroundColor: depositPenaltyLockedByShare ? "#F3F4F6" : "#FAFAFA",
+                    opacity: depositPenaltyLockedByShare ? 0.85 : 1,
                   }}
                   value={editPlanDepositInput}
                   onChangeText={(v) => {
-                    onClearSaveError?.();
                     setEditPlanDepositInput(v);
                   }}
                   placeholder={t("planner.depositPlaceholder")}
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="number-pad"
+                  editable={!depositPenaltyLockedByShare}
                 />
                 <View
                   style={{
@@ -569,117 +602,106 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                     fontSize: 15,
                     color: COLORS.textPrimary,
                     marginBottom: 6,
-                    backgroundColor: "#FAFAFA",
+                    backgroundColor: depositPenaltyLockedByShare ? "#F3F4F6" : "#FAFAFA",
+                    opacity: depositPenaltyLockedByShare ? 0.85 : 1,
                   }}
                   value={editPlanPenaltyInput}
                   onChangeText={(v) => {
-                    onClearSaveError?.();
-                    setEditPlanPenaltyInput(v);
+                    const digits = v.replace(/[^0-9]/g, "");
+                    if (!digits) {
+                      setEditPlanPenaltyInput("");
+                      return;
+                    }
+                    const num = Math.min(
+                      MAX_GROUP_PENALTY_PERCENT,
+                      Math.max(0, parseInt(digits, 10) || 0),
+                    );
+                    setEditPlanPenaltyInput(String(num));
                   }}
-                  placeholder="0"
+                  placeholder="10"
                   placeholderTextColor={COLORS.textSecondary}
                   keyboardType="number-pad"
+                  maxLength={2}
+                  editable={!depositPenaltyLockedByShare}
                 />
               </View>
             ) : null}
 
-            {/* Lock Schedule — Nhóm only */}
-            {isGroup && (
+            {/* Lock Schedule — Nhóm */}
+            {isGroup && setEditLockAt && (
               <View style={{ marginBottom: 20 }}>
-                {(false && isLocked) ? (
+                <View>
                   <View
                     style={{
-                      backgroundColor: "#F0FDF4",
-                      padding: 12,
-                      borderRadius: 12,
-                      borderWidth: 1,
-                      borderColor: "#BBF7D0",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      marginBottom: 8,
+                      gap: 6,
                     }}
                   >
                     <Text
                       style={{
                         fontSize: 13,
-                        color: "#166534",
                         fontWeight: "600",
+                        color: COLORS.textSecondary,
+                        flex: 1,
                       }}
                     >
-                      ✓ Chỉnh sửa đã được khoá
+                      ⏱ {t("planner.editLockSectionTitle", { defaultValue: "Edit lock schedule" })}
                     </Text>
-                  </View>
-                ) : setEditLockAt ? (
-                  <View>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: 8,
-                        gap: 6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: "600",
-                          color: COLORS.textSecondary,
-                          flex: 1,
-                        }}
-                      >
-                        ⏱ {t("planner.editLockSectionTitle", { defaultValue: "Edit lock schedule" })}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() => setShowEditLockInfo(true)}
-                        style={{ padding: 2 }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                      >
-                        <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
-                      </TouchableOpacity>
-                    </View>
                     <TouchableOpacity
-                      onPress={openEditLockOnAndroid}
-                      disabled={Platform.OS !== "android"}
-                      style={{
-                        borderWidth: 1,
-                        borderColor: COLORS.border,
-                        borderRadius: 12,
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        backgroundColor: "#FAFAFA",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                        opacity: Platform.OS === "android" ? 1 : 0.75,
-                      }}
+                      onPress={() => setShowEditLockInfo(true)}
+                      style={{ padding: 2 }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
                     >
-                      <Ionicons
-                        name="lock-closed-outline"
-                        size={16}
-                        color="#2563EB"
-                      />
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          color: editLockAt
-                            ? COLORS.textPrimary
-                            : COLORS.textSecondary,
-                          flex: 1,
-                        }}
-                      >
-                        {editLockAt
-                          ? new Date(editLockAt).toLocaleString("vi-VN", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : t("planner.editLockChooseTime", {
-                              defaultValue: "Choose lock time",
-                            })}
-                      </Text>
+                      <Ionicons name="information-circle-outline" size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
                   </View>
-                ) : null}
+                  <TouchableOpacity
+                    onPress={openEditLockOnAndroid}
+                    disabled={Platform.OS !== "android"}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: COLORS.border,
+                      borderRadius: 12,
+                      paddingHorizontal: 14,
+                      paddingVertical: 12,
+                      backgroundColor: "#FAFAFA",
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      opacity: Platform.OS === "android" ? 1 : 0.75,
+                    }}
+                  >
+                    <Ionicons
+                      name="lock-closed-outline"
+                      size={16}
+                      color="#2563EB"
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        color: editLockAt
+                          ? COLORS.textPrimary
+                          : COLORS.textSecondary,
+                        flex: 1,
+                      }}
+                    >
+                      {editLockAt
+                        ? new Date(editLockAt).toLocaleString("vi-VN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : t("planner.editLockChooseTime", {
+                            defaultValue: "Choose lock time",
+                          })}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
 
@@ -695,7 +717,6 @@ export default function EditPlanModal(props: EditPlanModalProps) {
                 <TouchableOpacity
                   key={item.value}
                   onPress={() => {
-                    onClearSaveError?.();
                     setEditPlanTransportation(item.value);
                   }}
                   style={{
@@ -818,8 +839,9 @@ export default function EditPlanModal(props: EditPlanModalProps) {
             }}
           >
             {t("planner.minPeopleRequiredHint", {
+              min: MIN_GROUP_MIN_PEOPLE_REQUIRED,
               defaultValue:
-                "The plan can only be finalized when this many people have joined (at most your planned group size).",
+                "For group trips: at least {{min}} people (not just the owner). Up to your planned size.",
             })}
           </Text>
           <TouchableOpacity

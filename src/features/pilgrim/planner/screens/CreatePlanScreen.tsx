@@ -26,10 +26,16 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import Toast from "react-native-toast-message";
 import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
 import {
+  isValidGroupDepositVnd,
+  isValidGroupPenaltyPercent,
   MAX_DEPOSIT_VND,
+  MAX_GROUP_PENALTY_PERCENT,
+  MIN_DEPOSIT_VND,
+  MIN_GROUP_PENALTY_PERCENT,
   parsePenaltyPercent,
   parseVndInteger,
 } from "../utils/depositInput.utils";
+import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../utils/groupMinPeople.utils";
 
 // Helper functions for calendar
 const getDaysInMonth = (year: number, month: number) => {
@@ -126,7 +132,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
   });
 
   const [peopleCount, setPeopleCount] = useState(1);
-  /** Nhóm: số người tối thiểu cần có (1 … number_of_people; mặc định 2 khi tạo nhóm) */
+  /** Nhóm: số người tối thiểu cần có (2 … number_of_people) */
   const [minPeopleRequired, setMinPeopleRequired] = useState(2);
   const [showGroupFlowInfo, setShowGroupFlowInfo] = useState(false);
   const [showDepositInfo, setShowDepositInfo] = useState(false);
@@ -137,7 +143,7 @@ const CreatePlanScreen = ({ navigation }: any) => {
   );
 
   const [depositAmountInput, setDepositAmountInput] = useState("");
-  const [penaltyPercentInput, setPenaltyPercentInput] = useState("0");
+  const [penaltyPercentInput, setPenaltyPercentInput] = useState("10");
   const [formErrors, setFormErrors] = useState<{
     name?: string;
     deposit?: string;
@@ -178,7 +184,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
         minPeople: undefined,
       }));
     } else {
-      setMinPeopleRequired((m) => Math.min(peopleCount, Math.max(1, m)));
+      setMinPeopleRequired((m) =>
+        Math.min(peopleCount, Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m)),
+      );
     }
   }, [peopleCount]);
 
@@ -228,37 +236,40 @@ const CreatePlanScreen = ({ navigation }: any) => {
     let penaltyPct: number | undefined;
     if (peopleCount > 1) {
       const dep = parseVndInteger(depositAmountInput);
-      if (!Number.isFinite(dep) || dep <= 0) {
+      if (!isValidGroupDepositVnd(dep)) {
         setFormErrors((prev) => ({
           ...prev,
-          deposit: t("planner.depositRequiredForGroup"),
-        }));
-        return;
-      }
-      if (dep > MAX_DEPOSIT_VND) {
-        setFormErrors((prev) => ({
-          ...prev,
-          deposit: t("planner.depositInvalid"),
+          deposit: t("planner.depositOutOfRange", {
+            min: MIN_DEPOSIT_VND,
+            max: MAX_DEPOSIT_VND,
+            defaultValue:
+              "Cọc từ {{min}} đến {{max}} VNĐ (bội số 1.000, theo quy định).",
+          }),
         }));
         return;
       }
       const pen = parsePenaltyPercent(penaltyPercentInput);
-      if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
+      if (!isValidGroupPenaltyPercent(pen)) {
         setFormErrors((prev) => ({
           ...prev,
-          penalty: t("planner.penaltyInvalid"),
+          penalty: t("planner.penaltyOutOfGroupRange", {
+            min: MIN_GROUP_PENALTY_PERCENT,
+            max: MAX_GROUP_PENALTY_PERCENT,
+            defaultValue: "Tỷ lệ phạt từ {{min}}% đến {{max}}%.",
+          }),
         }));
         return;
       }
       if (
         !Number.isInteger(minPeopleRequired) ||
-        minPeopleRequired < 1 ||
+        minPeopleRequired < MIN_GROUP_MIN_PEOPLE_REQUIRED ||
         minPeopleRequired > peopleCount
       ) {
         setFormErrors((prev) => ({
           ...prev,
           minPeople: t("planner.minPeopleInvalid", {
-            defaultValue: "Minimum participants must be between 1 and the group size.",
+            min: MIN_GROUP_MIN_PEOPLE_REQUIRED,
+            defaultValue: "Minimum must be at least 2 and at most the group size.",
           }),
         }));
         return;
@@ -839,7 +850,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
                     >
                       <TouchableOpacity
                         onPress={() => {
-                          setMinPeopleRequired((m) => Math.max(1, m - 1));
+                          setMinPeopleRequired((m) =>
+                            Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m - 1),
+                          );
                           if (formErrors.minPeople) {
                             setFormErrors((prev) => ({
                               ...prev,
@@ -920,6 +933,21 @@ const CreatePlanScreen = ({ navigation }: any) => {
                 >
                   {t("planner.depositAmountLabel")}
                 </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: COLORS.textTertiary,
+                    marginBottom: 6,
+                  }}
+                >
+                  {t("planner.depositAndPenaltyRuleHint", {
+                    minVnd: MIN_DEPOSIT_VND,
+                    minPen: MIN_GROUP_PENALTY_PERCENT,
+                    maxPen: MAX_GROUP_PENALTY_PERCENT,
+                    defaultValue:
+                      "Cọc tối thiểu {{minVnd}} VNĐ. Phạt: {{minPen}}%–{{maxPen}}%.",
+                  })}
+                </Text>
                 <TextInput
                   style={[styles.input, !!formErrors.deposit && styles.inputError]}
                   value={depositAmountInput}
@@ -957,7 +985,10 @@ const CreatePlanScreen = ({ navigation }: any) => {
                         setPenaltyPercentInput("");
                         return;
                       }
-                      const num = Math.min(100, parseInt(digits, 10) || 0);
+                      const num = Math.min(
+                        MAX_GROUP_PENALTY_PERCENT,
+                        Math.max(0, parseInt(digits, 10) || 0),
+                      );
                       setPenaltyPercentInput(String(num));
                       if (formErrors.penalty) {
                         setFormErrors((prev) => ({ ...prev, penalty: undefined }));
@@ -974,7 +1005,16 @@ const CreatePlanScreen = ({ navigation }: any) => {
                   <Text style={styles.fieldErrorText}>{formErrors.penalty}</Text>
                 )}
                 <Text style={styles.penaltyPreviewText}>
-                  Mức phạt hiện tại: {Math.max(0, Math.min(100, parseInt(penaltyPercentInput || "0", 10) || 0))}% tiền cọc
+                  {t("planner.penaltyPreview", {
+                    percent: Math.max(
+                      MIN_GROUP_PENALTY_PERCENT,
+                      Math.min(
+                        MAX_GROUP_PENALTY_PERCENT,
+                        parseInt(penaltyPercentInput || "0", 10) || 0,
+                      ),
+                    ),
+                    defaultValue: "Mức phạt hiện tại: {{percent}}% tiền cọc",
+                  })}
                 </Text>
               </View>
             </View>
@@ -1136,8 +1176,9 @@ const CreatePlanScreen = ({ navigation }: any) => {
               </Text>
               <Text style={styles.infoModalText}>
                 {t("planner.minPeopleRequiredHint", {
+                  min: MIN_GROUP_MIN_PEOPLE_REQUIRED,
                   defaultValue:
-                    "The plan can only be finalized when this many people have joined (at most your planned group size).",
+                    "For group trips: at least {{min}} people (not just the owner). Up to your planned size.",
                 })}
               </Text>
               <TouchableOpacity

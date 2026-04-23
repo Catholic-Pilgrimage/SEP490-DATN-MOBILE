@@ -98,14 +98,21 @@ import {
 import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
+    isValidGroupDepositVnd,
+    isValidGroupPenaltyPercent,
     MAX_DEPOSIT_VND,
+    MAX_GROUP_PENALTY_PERCENT,
+    MIN_DEPOSIT_VND,
+    MIN_GROUP_PENALTY_PERCENT,
     parsePenaltyPercent,
     parseVndInteger,
 } from "../utils/depositInput.utils";
+import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../utils/groupMinPeople.utils";
 import {
     extractApiErrorMessage,
     showErrorToast,
 } from "../utils/planDetailHelpers";
+import { isPlanAccessForbiddenError } from "../utils/plannerNavigation.utils";
 import {
     LocalSiteSnapshot,
     applyLocalAddItem,
@@ -246,6 +253,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   const mapRef = useRef<VietmapViewRef>(null);
   const autoRedirectedToActiveRef = useRef(false);
+  /** True một khi user được xác nhận dropped_out — không bao giờ reset về false dù API omit field sau đó. */
+  const wasDroppedOutRef = useRef(false);
   const [plannerUserLocation, setPlannerUserLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -800,7 +809,12 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   useEffect(() => {
     if (editPlanPeople > 1) {
-      setEditPlanMinPeople((m) => Math.min(editPlanPeople, Math.max(1, m)));
+      setEditPlanMinPeople((m) =>
+        Math.min(
+          editPlanPeople,
+          Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m),
+        ),
+      );
     }
   }, [editPlanPeople]);
 
@@ -900,8 +914,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
   // Auto-reload for members when plan is ongoing (polling every 30 seconds)
   useEffect(() => {
-    // Only poll for members (not owner) when plan is active
-    if (isPlanOwner || !plan || isOffline) return;
+    // Only poll for members (not owner) when plan is active; former members (read-only) do not need fast refresh
+    if (isPlanOwner || !plan || isOffline || isDroppedOut) return;
 
     const planStatus = String(plan.status || "").toLowerCase();
     const shouldPoll = planStatus === "ongoing" || planStatus === "locked";
@@ -913,9 +927,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }, 8000); // Keep members in sync quickly for auto-transition UX
 
     return () => clearInterval(interval);
-  }, [isPlanOwner, plan?.status, planId, isOffline]);
+  }, [isPlanOwner, isDroppedOut, plan?.status, planId, isOffline]);
 
-  // Member auto-transition: when owner starts pilgrimage, move members to ActiveJourney immediately.
+  // Member auto-transition: khi owner đã bắt đầu chuyến, chỉ thành viên `joined` tự theo lên ActiveJourney.
   useEffect(() => {
     const status = String(plan?.status || "").toLowerCase();
 
@@ -927,7 +941,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     if (!plan?.id) return;
     if (isPlanOwner) return;
     if (isInvitePendingView) return;
-    if (isDroppedOut) return;
+    // Double-guard: cả isDroppedOut (reactive) lẫn wasDroppedOutRef (ổn định, không bị reset khi API omit field).
+    if (isDroppedOut || wasDroppedOutRef.current) return;
+    if (String(plan?.viewer_join_status || "") !== "joined") return;
     if (autoRedirectedToActiveRef.current) return;
 
     autoRedirectedToActiveRef.current = true;
@@ -939,6 +955,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     navigation,
     plan?.id,
     plan?.status,
+    plan?.viewer_join_status,
   ]);
 
   async function checkOfflineAvailability() {
@@ -1006,6 +1023,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           params: {
             planId,
             planName: plan?.name,
+            readOnlyFormerMember: isDroppedOut,
           },
         }),
       );
@@ -1228,8 +1246,30 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       }
 
       const response = await pilgrimPlannerApi.getPlanDetail(planId);
+      if (
+        !isInvitePendingView &&
+        response &&
+        response.success === false &&
+        isPlanAccessForbiddenError(response.message || "")
+      ) {
+        Toast.show({
+          type: "info",
+          text1: t("planner.planAccessRevokedTitle", {
+            defaultValue: "Không còn quyền xem",
+          }),
+          text2: t("planner.planAccessRevokedBody", {
+            defaultValue: "Đang quay về danh sách kế hoạch.",
+          }),
+        });
+        navigation.navigate("PlannerMain", { refresh: Date.now() });
+        return;
+      }
       if (response?.success && response.data) {
         const nextPlan = response.data;
+        // Ghi nhận dropped_out vào ref ngay khi API trả về
+        if (nextPlan.viewer_join_status === "dropped_out") {
+          wasDroppedOutRef.current = true;
+        }
         setPlan((prev) => {
           const incomingDays = Math.max(
             Number(nextPlan.number_of_days || 0),
@@ -1237,19 +1277,33 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             1,
           );
           const previousDays = Math.max(Number(prev?.number_of_days || 0), 1);
+          // Bảo toàn viewer_join_status: nếu API mới không trả "dropped_out"
+          // nhưng trước đó đã từng là dropped_out, giữ lại để isDroppedOut không flip.
+          const prevJoinStatus = prev?.viewer_join_status;
+          const safeJoinStatus =
+            nextPlan.viewer_join_status != null
+              ? nextPlan.viewer_join_status
+              : wasDroppedOutRef.current
+                ? ("dropped_out" as const)
+                : prevJoinStatus;
           return {
             ...nextPlan,
             number_of_days: Math.max(previousDays, incomingDays),
+            viewer_join_status: safeJoinStatus,
           };
         });
         try {
           const memRes = await pilgrimPlannerApi.getPlanMembers(planId);
-          if (memRes.success && memRes.data?.members?.length) {
+          if (memRes.success && memRes.data?.members) {
+            const membersActive = memRes.data.members.filter(
+              (m) =>
+                String(m.join_status || "").toLowerCase() !== "dropped_out",
+            );
             setPlan((prev) =>
               prev && prev.id === nextPlan.id
                 ? {
                     ...prev,
-                    members: memRes.data!.members as unknown[],
+                    members: membersActive as unknown[],
                   }
                 : prev,
             );
@@ -1282,6 +1336,22 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         // In invite preview mode, we expect the protected detail endpoint is not used.
         // Keep logs quiet and just fallback to offline / toast.
       } else {
+        const errMsg = extractApiErrorMessage(error, "");
+        const httpStatus = (error as { response?: { status?: number } })
+          ?.response?.status;
+        if (isPlanAccessForbiddenError(errMsg, httpStatus)) {
+          Toast.show({
+            type: "info",
+            text1: t("planner.planAccessRevokedTitle", {
+              defaultValue: "Không còn quyền xem",
+            }),
+            text2: t("planner.planAccessRevokedBody", {
+              defaultValue: "Đang quay về danh sách kế hoạch.",
+            }),
+          });
+          navigation.navigate("PlannerMain", { refresh: Date.now() });
+          return;
+        }
         console.log("Load plan detail error:", error);
         if (inviteToken) {
           try {
@@ -1338,10 +1408,17 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     const nPeople = plan.number_of_people || 1;
     setEditPlanPeople(nPeople);
     const rawMin = plan.min_people_required;
-    setEditPlanMinPeople(
+    const parsedMin =
       rawMin != null && Number.isFinite(Number(rawMin))
-        ? Math.min(nPeople, Math.max(1, Math.round(Number(rawMin))))
-        : Math.min(2, nPeople),
+        ? Math.round(Number(rawMin))
+        : null;
+    const lower = nPeople > 1 ? MIN_GROUP_MIN_PEOPLE_REQUIRED : 1;
+    setEditPlanMinPeople(
+      parsedMin != null
+        ? Math.min(nPeople, Math.max(lower, parsedMin))
+        : nPeople > 1
+          ? Math.min(MIN_GROUP_MIN_PEOPLE_REQUIRED, nPeople)
+          : 1,
     );
     setEditPlanTransportation(plan.transportation || "bus");
     // Deposit: API may return number or string — normalise both
@@ -1379,40 +1456,67 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
       let depositAmount = 0;
       let penaltyPct = 0;
+      const shareLocked = !!plan?.first_invite_at;
+      const editLockedOnly = !!plan?.is_locked;
+      const depositPenaltyFromPlan = () => ({
+        dep: Math.round(
+          Number((plan as PlanEntity)?.deposit_amount ?? 0),
+        ),
+        pen: Math.round(
+          Number((plan as PlanEntity)?.penalty_percentage ?? 0),
+        ),
+      });
+
       if (editPlanPeople > 1) {
         if (
           !Number.isInteger(editPlanMinPeople) ||
-          editPlanMinPeople < 1 ||
+          editPlanMinPeople < MIN_GROUP_MIN_PEOPLE_REQUIRED ||
           editPlanMinPeople > editPlanPeople
         ) {
           setEditPlanModalError(
             t("planner.minPeopleInvalid", {
+              min: MIN_GROUP_MIN_PEOPLE_REQUIRED,
               defaultValue:
-                "Minimum participants must be between 1 and the group size.",
+                "Minimum must be at least 2 and at most the group size.",
             }),
           );
           return;
         }
-        const dep = parseVndInteger(editPlanDepositInput);
-        if (!Number.isFinite(dep) || dep <= 0) {
-          setEditPlanModalError(t("planner.depositRequiredForGroup"));
-          return;
+        if (editLockedOnly || shareLocked) {
+          const { dep, pen } = depositPenaltyFromPlan();
+          depositAmount = dep;
+          penaltyPct = pen;
+        } else {
+          const dep = parseVndInteger(editPlanDepositInput);
+          if (!isValidGroupDepositVnd(dep)) {
+            setEditPlanModalError(
+              t("planner.depositOutOfRange", {
+                min: MIN_DEPOSIT_VND,
+                max: MAX_DEPOSIT_VND,
+                defaultValue:
+                  "Cọc từ {{min}} đến {{max}} VNĐ (theo quy định).",
+              }),
+            );
+            return;
+          }
+          const pen = parsePenaltyPercent(editPlanPenaltyInput);
+          if (!isValidGroupPenaltyPercent(pen)) {
+            setEditPlanModalError(
+              t("planner.penaltyOutOfGroupRange", {
+                min: MIN_GROUP_PENALTY_PERCENT,
+                max: MAX_GROUP_PENALTY_PERCENT,
+                defaultValue: "Tỷ lệ phạt từ {{min}}% đến {{max}}%.",
+              }),
+            );
+            return;
+          }
+          depositAmount = dep;
+          penaltyPct = pen;
         }
-        if (dep > MAX_DEPOSIT_VND) {
-          setEditPlanModalError(t("planner.depositInvalid"));
-          return;
-        }
-        const pen = parsePenaltyPercent(editPlanPenaltyInput);
-        if (!Number.isFinite(pen) || pen < 0 || pen > 100) {
-          setEditPlanModalError(t("planner.penaltyInvalid"));
-          return;
-        }
-        depositAmount = dep;
-        penaltyPct = pen;
       }
 
       let updateBody: UpdatePlanRequest;
-      
+
       if (plan?.is_locked) {
         // If plan is already edit-locked, only allow updating the lock schedule
         updateBody = {
@@ -1472,9 +1576,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         );
       }
     } catch (error: any) {
-      setEditPlanModalError(
-        error.message || t("planner.cannotUpdatePlan"),
-      );
+      setEditPlanModalError(error.message || t("planner.cannotUpdatePlan"));
     } finally {
       setSavingPlan(false);
     }
@@ -2682,8 +2784,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       if (!itemId) return;
 
       const site =
-        siteName ||
-        t("planner.thisLocation", { defaultValue: "địa điểm này" });
+        siteName || t("planner.thisLocation", { defaultValue: "địa điểm này" });
       const windowText =
         openingWindow ||
         t("planner.unknownOpeningWindow", {
@@ -3228,7 +3329,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
       const normalizeClock = (value?: unknown): string | undefined => {
         if (value == null) return undefined;
-        const m = String(value).trim().match(/(\d{1,2}:\d{2})/);
+        const m = String(value)
+          .trim()
+          .match(/(\d{1,2}:\d{2})/);
         return m ? m[1] : undefined;
       };
 
@@ -3263,8 +3366,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
       const blocked = Boolean(
         detailRecord?.outside_opening_window === true ||
-          (eta && (closeTime || openTime)) ||
-          hasWindowSignal,
+        (eta && (closeTime || openTime)) ||
+        hasWindowSignal,
       );
 
       const siteName =
@@ -4084,6 +4187,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
 
     const fromApi = Array.isArray((plan as any)?.members)
       ? (plan as any).members
+          .filter(
+            (m: any) =>
+              String(m?.join_status || "").toLowerCase() !== "dropped_out",
+          )
           .map((m: any) => ({
             id: String(m?.id ?? m?.user_id ?? ""),
             name: String(m?.full_name || m?.user?.full_name || ""),
@@ -4185,6 +4292,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const isOngoingPlan = planStatusStr === "ongoing";
   const isSoloPlan = !isGroupJourneyPlan(plan || {});
   const isGroupPlan = !isSoloPlan;
+  /** Đã rời nhóm: vẫn xem tiến độ/thành viên từ Plan Detail (không qua ActiveJourney). */
+  const canFormerMemberViewCrewProgress =
+    isDroppedOut &&
+    isGroupPlan &&
+    (isOngoingPlan || planStatusStr === "locked" || isCompletedPlan);
   const canDeleteItems =
     isPlanOwner &&
     !plan?.is_locked &&
@@ -4466,31 +4578,48 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             </TouchableOpacity>
           )}
 
-          {/* Tiến độ (solo) / Thành viên (nhóm) — hiện khi ongoing hoặc completed */}
-          {!isDroppedOut &&
-            !isInvitePendingView &&
-            (!isPlanOwner || isOngoingPlan || isCompletedPlan) && (
+          {/* Tiến độ (solo) / Thành viên (nhóm) — thành viên hiện tại; hoặc người đã rời: chỉ xem (không mở ActiveJourney) */}
+          {!isInvitePendingView &&
+            ((!isDroppedOut &&
+              (!isPlanOwner || isOngoingPlan || isCompletedPlan)) ||
+              canFormerMemberViewCrewProgress) && (
               <TouchableOpacity
                 style={[
                   styles.quickActionButton,
-                  isOffline && styles.disabledAction,
+                  (isOffline && !canFormerMemberViewCrewProgress) && styles.disabledAction,
+                  canFormerMemberViewCrewProgress && styles.quickActionButtonReadOnly,
                 ]}
                 onPress={handleOpenMembers}
-                disabled={isOffline}
+                disabled={isOffline && !canFormerMemberViewCrewProgress}
+                accessibilityLabel={
+                  canFormerMemberViewCrewProgress
+                    ? t("planner.droppedOutProgressA11y", {
+                        defaultValue: "Xem tiến độ và thành viên (chỉ xem)",
+                      })
+                    : undefined
+                }
               >
                 <Ionicons
-                  name={isSoloPlan ? "pulse-outline" : "people-circle-outline"}
+                  name={
+                    isSoloPlan && !isDroppedOut
+                      ? "pulse-outline"
+                      : "people-circle-outline"
+                  }
                   size={18}
                   color="#FFF8E7"
                 />
                 <Text style={styles.quickActionText}>
-                  {isSoloPlan
-                    ? t("planner.progress", {
-                        defaultValue: "Tiến độ",
+                  {canFormerMemberViewCrewProgress
+                    ? t("planner.droppedOutProgressCta", {
+                        defaultValue: "Tiến độ đoàn",
                       })
-                    : t("planner.crewTitle", {
-                        defaultValue: "Thành viên",
-                      })}
+                    : isSoloPlan
+                      ? t("planner.progress", {
+                          defaultValue: "Tiến độ",
+                        })
+                      : t("planner.crewTitle", {
+                          defaultValue: "Thành viên",
+                        })}
                 </Text>
               </TouchableOpacity>
             )}
@@ -5139,7 +5268,6 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         onSave={handleSavePlan}
         saving={savingPlan}
         saveError={editPlanModalError}
-        onClearSaveError={() => setEditPlanModalError(null)}
         t={t}
         editPlanName={editPlanName}
         setEditPlanName={setEditPlanName}
@@ -5165,7 +5293,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         setEditLockAt={setEditLockAt}
         editLockAvailableAt={plan?.edit_lock_available_at}
         plannerLockAt={plan?.planner_lock_at}
-        isLocked={plan?.is_locked}
+        depositPenaltyLockedByShare={
+          !!plan?.first_invite_at && isGroupJourneyPlan(plan || {})
+        }
       />
 
       {/* Full Map Modal */}

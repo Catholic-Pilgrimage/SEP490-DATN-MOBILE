@@ -23,6 +23,7 @@ import { getApiErrorMessage } from "../../../../utils/apiError";
 import { ConfigurationStep } from "../components/ai-route/ConfigurationStep";
 import { ResultStep } from "../components/ai-route/ResultStep";
 import { SiteSelectionStep } from "../components/ai-route/SiteSelectionStep";
+import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../utils/groupMinPeople.utils";
 import { styles } from "./AIRouteSuggestionScreen.styles";
 
 const AI_SUGGESTION_SLOW_THRESHOLD_MS = 10000; // 10 seconds
@@ -324,7 +325,10 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
       if (numberOfPeople > 1) {
         createPayload.deposit_amount = 2000; // Default 2,000 VND
         createPayload.penalty_percentage = 10; // Default 10%
-        createPayload.min_people_required = Math.min(2, numberOfPeople);
+        createPayload.min_people_required = Math.min(
+          MIN_GROUP_MIN_PEOPLE_REQUIRED,
+          numberOfPeople,
+        );
       }
 
       const createResponse = await pilgrimPlannerApi.createPlan(createPayload);

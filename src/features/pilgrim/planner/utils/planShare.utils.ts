@@ -25,6 +25,7 @@ export function mapMembersToParticipants(
 ): PlanParticipant[] {
   const ownerId = plan?.user_id ?? plan?.owner?.id;
   return members
+    .filter((m) => String(m.join_status || "").toLowerCase() !== "dropped_out")
     .filter((m) => (ownerId ? String(m.id) !== String(ownerId) : true))
     .map((m) => ({
       id: m.id,

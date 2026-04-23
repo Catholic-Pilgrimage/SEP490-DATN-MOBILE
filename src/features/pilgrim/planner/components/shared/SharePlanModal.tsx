@@ -9,7 +9,6 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -55,7 +54,7 @@ export interface SharePlanModalProps {
   isPlanOwner: boolean;
   isOffline: boolean;
   onOfflineRequired: () => void;
-  /** Sau khi PATCH lock / cần đồng bộ lại chi tiết kế hoạch */
+  /** Sau khi mời / xóa thành viên — đồng bộ lại chi tiết kế hoạch (khóa chỉnh sửa xử lý ở màn planner) */
   onPlanRefresh?: () => void;
 }
 
@@ -82,9 +81,6 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   const [progressByUserId, setProgressByUserId] = useState<
     Record<string, PlannerProgressMember>
   >({});
-  const [lockSaving, setLockSaving] = useState(false);
-  const [lockPlanSaving, setLockPlanSaving] = useState(false);
-  const [manualLock, setManualLock] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [checklistGuideVisible, setChecklistGuideVisible] = useState(false);
   const [showFriendPicker, setShowFriendPicker] = useState(false);
@@ -97,10 +93,6 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
       fetchFriends();
     }
   }, [visible, currentUser]);
-
-  useEffect(() => {
-    setManualLock(!!plan?.is_locked);
-  }, [plan?.is_locked, plan?.id]);
 
   useEffect(() => {
     if (!visible) setChecklistGuideVisible(false);
@@ -169,138 +161,6 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
       setLoading(false);
     }
   }, [planId, plan, isPlanOwner]);
-
-  const handleManualLockToggle = async (locked: boolean) => {
-    if (isOffline) {
-      onOfflineRequired();
-      return;
-    }
-    try {
-      setLockSaving(true);
-
-      const res = await pilgrimPlannerApi.updatePlannerLock(planId, {
-        locked,
-      });
-      if (res.success) {
-        const next =
-          res.data?.is_locked !== undefined ? !!res.data.is_locked : locked;
-
-        setManualLock(next);
-        onPlanRefresh?.();
-        Toast.show({
-          type: "success",
-          text1: t("common.success", { defaultValue: "Thành công" }),
-          text2: locked
-            ? t("planner.journeyLocked", {
-                defaultValue: "Đã khóa hành trình.",
-              })
-            : t("planner.journeyUnlocked", {
-                defaultValue: "Đã mở khóa hành trình.",
-              }),
-        });
-      } else {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2: res.message || t("planner.lockUpdateFailed"),
-        });
-      }
-    } catch (e) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: getApiErrorMessage(
-          e,
-          t("planner.lockUpdateFailed", {
-            defaultValue: "Không thể cập nhật khóa hành trình.",
-          }),
-        ),
-      });
-    } finally {
-      setLockSaving(false);
-    }
-  };
-
-  const handleLockPlan = async () => {
-    if (isOffline) {
-      onOfflineRequired();
-      return;
-    }
-    if (!plan) return;
-
-    const currentStatus = String(plan.status || "").toLowerCase();
-    if (currentStatus === "locked") return;
-
-    // BE yêu cầu group phải edit-lock trước khi lock plan.
-    const people = plan.number_of_people ?? 1;
-    if (people > 1 && !plan.is_locked) {
-      Toast.show({
-        type: "info",
-        text1: t("common.info", { defaultValue: "Thông tin" }),
-        text2:
-          t("planner.lockPlanRequiresEditLock", {
-            defaultValue: "Vui lòng khóa chỉnh sửa trước khi chốt hành trình.",
-          }) || "Vui lòng khóa chỉnh sửa trước khi chốt hành trình.",
-      });
-      return;
-    }
-
-    const confirmed = await confirm({
-      type: "info",
-      title: t("planner.lockPlanTitle", { defaultValue: "Chốt hành trình" }),
-      message: t("planner.lockPlanConfirm", {
-        defaultValue:
-          "Sau khi chốt, app sẽ chuyển sang màn hành trình thực tế (đang hành hương) và server sẽ chặn chỉnh sửa theo quy tắc.",
-      }),
-      confirmText: t("planner.lockPlanConfirmBtn", { defaultValue: "Chốt" }),
-      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
-    });
-
-    if (confirmed) {
-      setLockPlanSaving(true);
-      try {
-        const statusRes = await pilgrimPlannerApi.updatePlannerStatus(
-          planId,
-          { status: "locked" },
-        );
-
-        if (statusRes.success) {
-          onPlanRefresh?.();
-          setManualLock(!!statusRes.data?.is_locked);
-          Toast.show({
-            type: "success",
-            text1: t("common.success", { defaultValue: "Thành công" }),
-            text2: t("planner.journeyLocked", {
-              defaultValue: "Đã khóa hành trình.",
-            }),
-          });
-        } else {
-          Toast.show({
-            type: "error",
-            text1: t("common.error"),
-            text2:
-              statusRes.message ||
-              t("planner.lockUpdateFailed", {
-                defaultValue: "Không thể chốt hành trình.",
-              }),
-          });
-        }
-      } catch (e) {
-        Toast.show({
-          type: "error",
-          text1: t("common.error"),
-          text2: getApiErrorMessage(
-            e,
-            t("planner.lockUpdateFailed", {
-              defaultValue: "Không thể chốt hành trình.",
-            }),
-          ),
-        });
-      } finally {
-        setLockPlanSaving(false);
-      }
-    }
-  };
 
   const formatProgressLine = (row?: PlannerProgressMember) => {
     if (!row) return null;
@@ -683,19 +543,15 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
         </View>
         <View style={styles.checklistRow}>
           <Ionicons
-            name={
-              manualLock || plan.is_locked
-                ? "checkmark-circle"
-                : "ellipse-outline"
-            }
+            name={plan.is_locked ? "checkmark-circle" : "ellipse-outline"}
             size={20}
-            color={manualLock || plan.is_locked ? "#10B981" : "#9CA3AF"}
+            color={plan.is_locked ? "#10B981" : "#9CA3AF"}
             style={styles.checklistIcon}
           />
           <Text style={styles.checklistText}>
             {t("planner.shareCheckLock", {
               defaultValue:
-                "Khóa chỉnh sửa khi đoàn đã chốt — sau đó server chặn chỉnh sửa theo quy tắc.",
+                "Khóa chỉnh sửa khi đoàn đã chốt — dùng màn chi tiết kế hoạch. Sau đó server chặn chỉnh sửa theo quy tắc.",
             })}
           </Text>
         </View>
@@ -704,10 +560,6 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
   };
 
   const isGroupPlan = isGroupJourneyPlan(plan || {});
-  const planPeople = plan?.number_of_people ?? 1;
-  const isPlanLocked = String(plan?.status || "").toLowerCase() === "locked";
-  const lockEditDisabled = !isGroupPlan;
-  const canLockPlan = !isGroupPlan ? true : manualLock || !!plan?.is_locked;
 
   return (
     <Modal
@@ -871,114 +723,6 @@ export const SharePlanModal: React.FC<SharePlanModalProps> = ({
               ...pendingInvites.map((i) => (i.email || "").toLowerCase()),
             ]}
           />
-
-          {isPlanOwner && (
-            <View
-              style={[
-                styles.crewBlock,
-                styles.lockSection,
-                manualLock && styles.lockSectionActive,
-              ]}
-            >
-              <View style={styles.lockRow}>
-                <View style={styles.lockTextCol}>
-                  <View style={styles.lockTitleRow}>
-                    {manualLock ? (
-                      <Ionicons
-                        name="lock-closed"
-                        size={18}
-                        color="#B45309"
-                        style={{ marginRight: 8 }}
-                      />
-                    ) : null}
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        styles.lockSectionTitleNoMargin,
-                        manualLock && styles.lockTitleLocked,
-                      ]}
-                    >
-                      {t("planner.manualLockTitle", {
-                        defaultValue: "Khóa chỉnh sửa",
-                      })}
-                    </Text>
-                  </View>
-                  <Text style={styles.lockMicrocopy}>
-                    {t("planner.manualLockMicrocopy", {
-                      defaultValue:
-                        "Chốt danh sách và lịch trình để không thể thêm điểm hoặc người mới sau khi khóa chỉnh sửa.",
-                    })}
-                  </Text>
-                </View>
-                {lockSaving ? (
-                  <ActivityIndicator color={COLORS.primary} />
-                ) : (
-                  <Switch
-                    value={manualLock}
-                    onValueChange={(v) => {
-                      if (manualLock && !v) {
-                        Toast.show({
-                          type: "info",
-                          text1: t("planner.lockCannotUnlockTitle", {
-                            defaultValue: "Không thể mở khóa",
-                          }),
-                          text2: t("planner.lockCannotUnlockBody", {
-                            defaultValue:
-                              "Sau khi khóa, server không cho mở lại theo cấu hình hiện tại.",
-                          }),
-                        });
-                        return;
-                      }
-                      void handleManualLockToggle(v);
-                    }}
-                    disabled={isOffline || lockEditDisabled}
-                    trackColor={{
-                      false: COLORS.border,
-                      true: COLORS.primary,
-                    }}
-                  />
-                )}
-              </View>
-
-              <View style={{ marginTop: 12, gap: 10 }}>
-                <TouchableOpacity
-                  onPress={handleLockPlan}
-                  disabled={isOffline || lockPlanSaving || !canLockPlan || isPlanLocked}
-                  activeOpacity={0.85}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    backgroundColor: isPlanLocked
-                      ? "#94A3B8"
-                      : "#1E4D6B",
-                    paddingVertical: 14,
-                    borderRadius: BORDER_RADIUS.lg,
-                    opacity:
-                      isOffline || lockPlanSaving || !canLockPlan
-                        ? 0.7
-                        : 1,
-                  }}
-                >
-                  {lockPlanSaving ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color="#fff"
-                      style={{ marginRight: 8 }}
-                    />
-                  )}
-                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
-                    {t("planner.lockPlanCta", {
-                      defaultValue: "Khóa hành trình (chốt)",
-                    })}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
 
           <View style={styles.crewBlock}>
             <Text style={styles.sectionTitle}>
@@ -1478,45 +1222,6 @@ const styles = StyleSheet.create({
   role: {
     fontSize: 13,
     color: COLORS.textSecondary,
-  },
-  lockSection: {
-    marginBottom: SPACING.sm,
-  },
-  lockSectionActive: {
-    backgroundColor: "rgba(217, 119, 6, 0.1)",
-    borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(217, 119, 6, 0.25)",
-  },
-  lockTextCol: {
-    flex: 1,
-    paddingRight: SPACING.md,
-  },
-  lockTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  lockSectionTitleNoMargin: {
-    marginBottom: 0,
-    flexShrink: 1,
-  },
-  lockTitleLocked: {
-    color: "#B45309",
-  },
-  lockMicrocopy: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: COLORS.textSecondary,
-    marginTop: 6,
-  },
-  lockRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: SPACING.sm,
   },
   progressHint: {
     fontSize: 12,

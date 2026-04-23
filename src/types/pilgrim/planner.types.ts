@@ -192,6 +192,8 @@ export interface PlannerMemberApiRow {
   joined_at?: string;
   deposit_status?: string;
   join_status?: string;
+  /** Lời mời bạn bè: không cọc; dùng khi rời nhóm / copy hoàn cọc */
+  invite_type?: PlannerInviteType;
 }
 
 export interface GetMembersResponse {
@@ -305,7 +307,7 @@ export interface PlanEntity {
   /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
   shared_to_community?: boolean;
 
-  viewer_join_status?: "owner" | "joined" | "dropped_out" | null;
+  viewer_join_status?: "owner" | "joined" | "dropped_out" | "kicked" | null;
   viewer_deposit_status?: string | null;
   is_read_only?: boolean;
 }

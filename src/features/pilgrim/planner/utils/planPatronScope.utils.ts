@@ -1,4 +1,7 @@
-import type { PlanEntity, PlanItem } from "../../../../types/pilgrim/planner.types";
+import type {
+    PlanEntity,
+    PlanItem,
+} from "../../../../types/pilgrim/planner.types";
 
 /** Chuẩn hóa bổn mạng để so khớp với backend (NFD, đ/Đ, gộp khoảng trắng). */
 export function normalizePatronSaint(value: string | undefined | null): string {
@@ -54,7 +57,8 @@ export function isGroupJourneyPlan(plan: {
 
   if (Array.isArray(plan.members) && plan.members.length > 0) return true;
 
-  if (plan.deposit_amount != null || plan.penalty_percentage != null) return true;
+  if (plan.deposit_amount != null || plan.penalty_percentage != null)
+    return true;
   if (
     plan.edit_lock_at != null ||
     plan.planner_lock_at != null ||
@@ -104,8 +108,8 @@ export function getGroupPatronConstraintFromPlan(
   const ordered = getOrderedPlanItems(plan.items_by_day);
   if (!ordered.length) return null;
   const first = ordered[0];
-  const patron =
-    (first.site as { patron_saint?: string } | undefined)?.patron_saint;
+  const patron = (first.site as { patron_saint?: string } | undefined)
+    ?.patron_saint;
   if (!patron || !String(patron).trim()) return null;
   const displayPatron = String(patron).trim();
   return {
