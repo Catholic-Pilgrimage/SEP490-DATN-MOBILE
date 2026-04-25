@@ -1,16 +1,19 @@
+import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
+  Alert,
   Clipboard,
   FlatList,
   Image,
   ImageBackground,
   Keyboard,
+  Modal,
   Platform,
   RefreshControl,
   Animated as RNAnimated,
@@ -20,6 +23,7 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
+import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   BORDER_RADIUS,
@@ -34,6 +38,7 @@ import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNa
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import { parseNotificationMessage } from "../../../../services/api/shared/notificationApi";
 import { PlannerMessage } from "../../../../types/pilgrim/planner.types";
+import { shouldOpenActiveJourneyFromPlannerList } from "../utils/plannerNavigation.utils";
 
 const POLL_INTERVAL = 8000;
 const PAGE_SIZE = 30;
@@ -74,6 +79,53 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const [isNameModalVisible, setIsNameModalVisible] = useState(false);
+  const [newJourneyName, setNewJourneyName] = useState("");
+  const [apiContinuationId, setApiContinuationId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchContinuationInfo = async () => {
+      try {
+        const res = await pilgrimPlannerApi.getPlanDetail(planId);
+        if (res.success && res.data?.continuation_id) {
+          setApiContinuationId(res.data.continuation_id);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    fetchContinuationInfo();
+  }, [planId]);
+
+  const continuationPlanId = useMemo(() => {
+    if (apiContinuationId) return apiContinuationId;
+    for (const m of messages) {
+      try {
+        const raw = typeof m.content === 'string' ? JSON.parse(m.content) : m.content;
+        const id = raw?.data?.plannerId || raw?.plannerId;
+        if (id) return id;
+        
+        const contentStr = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        const uuidMatch = contentStr.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        if (uuidMatch) return uuidMatch[0];
+      } catch (e) { /* ignore */ }
+    }
+    return null;
+  }, [messages, apiContinuationId]);
+
+  const hasContinuationInHistory = useMemo(() => {
+    if (continuationPlanId) return true;
+    return messages.some(m => {
+      const parsed = parseNotificationMessage(m.content, i18n.language).toLowerCase();
+      return (
+        parsed.includes('hành trình tiếp nối đã được tạo') || 
+        parsed.includes('khởi tạo hành trình tiếp nối') ||
+        parsed.includes('initiated a continuation journey') ||
+        parsed.includes('continuation journey has been created')
+      );
+    });
+  }, [messages, continuationPlanId, i18n.language]);
 
   const flatListRef = useRef<FlatList>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -301,7 +353,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       });
       setText(content);
     }
-  }, [text, sending, planId, t, user]);
+  }, [text, sending, planId, t, user, confirm]);
 
   // --- Helper: Upload & Send Image ---
   const uploadAndSendImage = async (uri: string) => {
@@ -428,15 +480,11 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
   }, [sending, planId, t, user, confirm]);
 
   // --- Helpers ---
-  const isOwn = (msg: PlannerMessage) => {
+  const isOwn = useCallback((msg: PlannerMessage) => {
     if (!user?.id) return false;
-    const uid = String(user.id);
-    return (
-      String(msg.user_id) === uid ||
-      String(msg.sender?.id) === uid ||
-      String(msg.user?.id) === uid
-    );
-  };
+    const mid = msg.user_id || msg.sender?.id || msg.user?.id;
+    return String(mid) === String(user.id);
+  }, [user?.id]);
 
   const handleDelete = useCallback(
     async (messageId: string) => {
@@ -461,6 +509,131 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     },
     [planId, t, confirm],
   );
+  
+  const findIdInAnywhere = (obj: any): string | null => {
+    if (!obj) return null;
+    if (typeof obj === 'string') {
+      const match = obj.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      return match ? match[0] : null;
+    }
+    const possibleKeys = ['continuation_id', 'continued_from_id', 'next_plan_id', 'successor_id', 'new_planner_id', 'plannerId', 'target_id'];
+    for (const key of possibleKeys) {
+      if (obj[key]) return String(obj[key]);
+    }
+    if (obj.data) return findIdInAnywhere(obj.data);
+    if (obj.metadata) return findIdInAnywhere(obj.metadata);
+    return null;
+  };
+
+  const handleJoinContinuation = async (targetId?: string | null) => {
+    setIsContinuing(true);
+    try {
+      // If we already have a targetId (from system message), use it.
+      // Otherwise, call the API to find/join the continuation.
+      let finalId = targetId;
+      
+      if (!finalId) {
+        const res = await pilgrimPlannerApi.continuePlanner(planId);
+        if (res.success && res.data?.id) {
+          finalId = res.data.id;
+        } else {
+          Alert.alert("Thông báo", res.message || "Không thể tham gia hành trình tiếp nối.");
+          return;
+        }
+      }
+      
+      navigation.navigate("MainTabs", {
+        screen: "Lich trinh",
+        params: {
+          screen: "PlanDetailScreen",
+          params: { planId: finalId }
+        }
+      } as any);
+    } catch (e) {
+      Alert.alert("Lỗi", "Không thể tham gia hành trình.");
+    } finally {
+      setIsContinuing(false);
+    }
+  };
+
+  const handleContinueJourney = useCallback(async (customName?: string) => {
+    // If we're creating a new continuation and no name was provided yet, show the modal
+    if (!hasContinuationInHistory && !customName) {
+      setNewJourneyName(`${planName} - Phần 2`);
+      setIsNameModalVisible(true);
+      return;
+    }
+
+    try {
+      setIsContinuing(true);
+      const res = await pilgrimPlannerApi.continuePlanner(planId, {
+        name: customName || newJourneyName || `${planName} - Phần 2`
+      });
+
+      if (res.success && res.data) {
+        setIsNameModalVisible(false);
+        Toast.show({
+          type: "success",
+          text1: t("planner.continuePlannerSuccess", { 
+            defaultValue: "Thành công!",
+          }),
+          text2: t("planner.redirectingToNewPlan", {
+            defaultValue: "Đang chuyển hướng đến hành trình mới...",
+          }),
+        });
+
+        // Creator is always owner in continuation
+        const viewerStatus = "owner"; 
+        const status = (res.data.status || "").toLowerCase();
+        
+        const targetScreen = shouldOpenActiveJourneyFromPlannerList(
+          status,
+          viewerStatus,
+          { isOwnerPlanInMyTab: true }
+        ) ? "ActiveJourneyScreen" : "PlanDetailScreen";
+
+        // Dispatch a reset action within the nested navigator to ensure a clean state
+        // This makes sure PlannerMain is at the bottom of the stack
+        navigation.dispatch(
+          CommonActions.navigate({
+            name: "MainTabs",
+            params: {
+              screen: "Lich trinh",
+              params: {
+                screen: targetScreen,
+                params: { 
+                  planId: res.data.id,
+                  planName: res.data.name,
+                  planPrefill: {
+                    id: res.data.id,
+                    name: res.data.name,
+                    status: res.data.status,
+                    start_date: res.data.start_date,
+                    end_date: res.data.end_date,
+                    number_of_days: res.data.number_of_days,
+                    number_of_people: res.data.number_of_people,
+                    transportation: res.data.transportation,
+                  }
+                }
+              }
+            }
+          })
+        );
+      } else {
+        throw new Error(res.message || "Failed to continue planner");
+      }
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: t("common.error"),
+        text2: error.message || t("planner.continuePlannerFailed", {
+          defaultValue: "Không thể tiếp nối hành trình"
+        }),
+      });
+    } finally {
+      setIsContinuing(false);
+    }
+  }, [planId, planName, navigation, t, hasContinuationInHistory, newJourneyName]);
 
   // --- Actions Menu ---
   const showMessageMenu = useCallback(
@@ -636,25 +809,84 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     const isSystemMsg = item.message_type === 'system' || (!item.user_id && !item.sender && !item.user);
 
     if (isSystemMsg) {
-      // Parse system message content (may be JSON object with translations)
       const parsedContent = parseNotificationMessage(item.content, i18n.language);
       
-      // Determine message type based on emoji/content for styling
+      const isEmergencyStop = parsedContent.includes('🚨') || parsedContent.toLowerCase().includes('dừng khẩn cấp') || parsedContent.toLowerCase().includes('emergency stop');
+      const isContinuationCreated = parsedContent.toLowerCase().includes('khởi tạo hành trình tiếp nối') || 
+                                     parsedContent.toLowerCase().includes('hành trình tiếp nối đã được tạo') || 
+                                     parsedContent.toLowerCase().includes('initiated a continuation journey') ||
+                                     parsedContent.toLowerCase().includes('continuation journey has been created');
+      const isSosOrAlert = isEmergencyStop || parsedContent.toLowerCase().includes('sos') || parsedContent.toLowerCase().includes('khẩn cấp');
+
+      let newPlanId = null;
+      try {
+        const raw = typeof item.content === 'string' ? JSON.parse(item.content) : item.content;
+        newPlanId = raw?.data?.plannerId || raw?.plannerId;
+        
+        const contentStr = typeof item.content === 'string' ? item.content : JSON.stringify(item.content);
+        const uuidMatch = contentStr.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+        if (uuidMatch) newPlanId = uuidMatch[0];
+      } catch (e) {}
+
       const getSystemMessageStyle = (content: string) => {
-        if (content.includes('🚨') || content.toLowerCase().includes('sos') || content.toLowerCase().includes('khẩn cấp')) {
-          return { backgroundColor: 'rgba(244, 67, 54, 0.3)', borderColor: 'rgba(244, 67, 54, 0.5)' }; // Red for SOS - more visible
+        if (isSosOrAlert) {
+          return { backgroundColor: 'rgba(244, 67, 54, 0.1)', borderColor: 'rgba(244, 67, 54, 0.3)' }; 
         }
         if (content.includes('✅') || content.toLowerCase().includes('đã được hủy') || content.toLowerCase().includes('cancelled')) {
-          return { backgroundColor: 'rgba(76, 175, 80, 0.3)', borderColor: 'rgba(76, 175, 80, 0.5)' }; // Green for success - more visible
+          return { backgroundColor: 'rgba(76, 175, 80, 0.1)', borderColor: 'rgba(76, 175, 80, 0.3)' }; 
         }
-        return { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: 'rgba(0, 0, 0, 0.15)' }; // White with higher opacity
+        return { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderColor: 'rgba(150, 150, 150, 0.1)' }; 
       };
 
       const messageStyle = getSystemMessageStyle(parsedContent);
+      const containerStyle = [
+        styles.systemMessageContainer, 
+        messageStyle, 
+        (isEmergencyStop || isContinuationCreated) ? styles.systemMessageActionContainer : null
+      ];
 
       return (
-        <View style={[styles.systemMessageContainer, messageStyle]}>
+        <View style={containerStyle}>
           <Text style={styles.systemMessageText}>{parsedContent}</Text>
+          
+          {isEmergencyStop && !hasContinuationInHistory && (
+             <TouchableOpacity 
+               style={styles.systemActionButton} 
+               onPress={() => handleContinueJourney()}
+               disabled={isContinuing}
+             >
+               {isContinuing ? (
+                 <ActivityIndicator size="small" color="#fff" />
+               ) : (
+                 <Text style={styles.systemActionButtonText}>
+                   {t("planner.continueJourney", { defaultValue: "Tiếp nối hành trình" })}
+                 </Text>
+               )}
+             </TouchableOpacity>
+          )}
+
+          {isEmergencyStop && hasContinuationInHistory && (
+            <TouchableOpacity 
+              style={[styles.systemActionButton, { backgroundColor: COLORS.primary }]} 
+              onPress={() => handleJoinContinuation()}
+            >
+              <Text style={styles.systemActionButtonText}>
+                {t("planner.joinJourney", { defaultValue: "Tham gia" })}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {isContinuationCreated && (
+            <TouchableOpacity 
+              style={[styles.systemActionButton, { backgroundColor: COLORS.primary }]} 
+              onPress={() => handleJoinContinuation(newPlanId)}
+            >
+              <Text style={styles.systemActionButtonText}>
+                {t("planner.joinJourney", { defaultValue: "Tham gia" })}
+              </Text>
+            </TouchableOpacity>
+          )}
+
         </View>
       );
     }
@@ -824,6 +1056,62 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
           </Text>
         </View>
       ) : (
+        <>
+        {/* Modal for naming the continuation journey */}
+        <Modal
+          visible={isNameModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsNameModalVisible(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1} 
+            onPress={() => setIsNameModalVisible(false)}
+          >
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {t("planner.newJourneyName", { defaultValue: "Tên hành trình mới" })}
+              </Text>
+              <Text style={styles.modalSubtitle}>
+                {t("planner.newJourneyNameDesc", { defaultValue: "Nhập tên cho phần tiếp theo của hành trình" })}
+              </Text>
+              
+              <TextInput
+                style={styles.modalInput}
+                value={newJourneyName}
+                onChangeText={setNewJourneyName}
+                placeholder={t("planner.enterJourneyName", { defaultValue: "Nhập tên hành trình..." })}
+                autoFocus
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonCancel]} 
+                  onPress={() => setIsNameModalVisible(false)}
+                >
+                  <Text style={styles.modalButtonTextCancel}>
+                    {t("common.cancel")}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.modalButton, styles.modalButtonConfirm]} 
+                  onPress={() => handleContinueJourney(newJourneyName)}
+                  disabled={!newJourneyName.trim() || isContinuing}
+                >
+                  {isContinuing ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.modalButtonTextConfirm}>
+                      {t("common.confirm")}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -857,6 +1145,7 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
             />
           }
         />
+        </>
       )}
 
       {/* Input */}
@@ -1164,5 +1453,89 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     backgroundColor: COLORS.textTertiary,
+  },
+  systemMessageActionContainer: {
+    paddingVertical: SPACING.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    ...SHADOWS.medium,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  systemActionButton: {
+    marginTop: SPACING.md,
+    backgroundColor: '#DC2626',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    ...SHADOWS.subtle,
+  },
+  systemActionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    ...SHADOWS.large,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalButtonConfirm: {
+    backgroundColor: COLORS.accent,
+  },
+  modalButtonTextCancel: {
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  modalButtonTextConfirm: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
 });

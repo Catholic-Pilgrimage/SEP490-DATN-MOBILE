@@ -799,7 +799,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             <View style={styles.topBar}>
               <TouchableOpacity
                 style={styles.topBtn}
-                onPress={() => navigation.goBack()}
+                onPress={() => navigation.navigate("PlannerMain" as any)}
               >
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
