@@ -247,7 +247,19 @@ export const emergencyStopPlanner = async (
 ): Promise<ApiResponse<PlanEntity>> => {
   const response = await apiClient.post<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.EMERGENCY_STOP(planId),
-    data,
+    data
+  );
+  return response.data;
+};
+
+/** POST /api/planners/:id/continue — [Thành viên] tiếp nối hành trình sau khi dừng khẩn cấp */
+export const continuePlanner = async (
+  planId: string,
+  data?: { name: string }
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.post<ApiResponse<PlanEntity>>(
+    PILGRIM_ENDPOINTS.PLANNER.CONTINUE(planId),
+    data
   );
   return response.data;
 };
@@ -673,6 +685,7 @@ const pilgrimPlannerApi = {
   checkInPlanItem,
   getOfflineData,
   syncOfflineActions,
+  continuePlanner,
 };
 
 export default pilgrimPlannerApi;

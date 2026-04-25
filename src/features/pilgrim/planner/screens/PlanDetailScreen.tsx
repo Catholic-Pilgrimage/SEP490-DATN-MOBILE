@@ -939,7 +939,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
 
     if (!plan?.id) return;
-    if (isPlanOwner) return;
+    // Allow both owners and joined members to auto-redirect to ActiveJourney when ongoing
     if (isInvitePendingView) return;
     // Double-guard: cả isDroppedOut (reactive) lẫn wasDroppedOutRef (ổn định, không bị reset khi API omit field).
     if (isDroppedOut || wasDroppedOutRef.current) return;
@@ -4343,7 +4343,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         >
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => navigation.navigate("PlannerMain" as any)}
           >
             <Ionicons name="arrow-back" size={26} color="#fff" />
           </TouchableOpacity>
@@ -4694,11 +4694,19 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         {isCancelledPlan && (
           <View style={styles.cancelledReasonBanner}>
             <View style={styles.cancelledReasonHeader}>
-              <Ionicons name="stop-circle" size={16} color="#DC2626" />
+              <Ionicons
+                name={plan.cancelled_reason ? "warning-outline" : "close-circle-outline"}
+                size={20}
+                color="#DC2626"
+              />
               <Text style={styles.cancelledReasonTitle}>
-                {t("planner.cancelledReasonTitle", {
-                  defaultValue: "Hành trình đã dừng khẩn cấp",
-                })}
+                {plan.cancelled_reason
+                  ? t("planner.emergencyStopTitle", {
+                      defaultValue: "Hành trình đã dừng khẩn cấp",
+                    })
+                  : t("planner.cancelledTitle", {
+                      defaultValue: "Kế hoạch đã bị hủy",
+                    })}
               </Text>
             </View>
             {!!plan.cancelled_reason && (

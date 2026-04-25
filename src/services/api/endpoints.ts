@@ -146,6 +146,7 @@ export const PILGRIM_ENDPOINTS = {
     CLONE: (id: string) => `${API_BASE}/planners/${id}/clone`,
     TRANSACTIONS: (id: string) => `${API_BASE}/planners/${id}/transactions`,
     CANCEL_DEPOSIT: (id: string) => `${API_BASE}/planners/${id}/cancel-deposit`,
+    CONTINUE: (id: string) => `${API_BASE}/planners/${id}/continue`,
     CALENDAR_SYNC: (id: string) => `${API_BASE}/planners/${id}/calendar-sync`,
     OFFLINE_DATA: (id: string) => `${API_BASE}/planners/${id}/offline-data`,
     SYNC_OFFLINE_ACTIONS: `${API_BASE}/planners/sync/offline-actions`,

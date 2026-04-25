@@ -298,6 +298,10 @@ export interface PlanEntity {
   edit_lock_at?: string | null;
   /** Thời điểm hệ thống tự chốt kế hoạch (status lock). */
   planner_lock_at?: string | null;
+  /** ID của hành trình tiếp nối (nếu đã tạo từ hành trình này) */
+  continuation_id?: string;
+  /** ID của hành trình gốc (nếu hành trình này là tiếp nối của hành trình khác) */
+  continued_from_id?: string;
   /** Thời điểm lần mời đầu tiên (dùng để tính thời gian thảo luận). */
   first_invite_at?: string | null;
   /** Thời điểm sớm nhất có thể đặt edit_lock_at (sau 12h thảo luận). */
