@@ -22,6 +22,7 @@ import {
   CheckInItemResponse,
   ClosePlannerDayResponse,
   CreatePlanRequest,
+  EmergencyStopRequest,
   GetInvitesResponse,
   GetMembersResponse,
   GetPlanMessagesResponse,
@@ -234,6 +235,18 @@ export const updatePlannerStatus = async (
 ): Promise<ApiResponse<PlanEntity>> => {
   const response = await apiClient.patch<ApiResponse<PlanEntity>>(
     PILGRIM_ENDPOINTS.PLANNER.PLANNER_STATUS(planId),
+    data,
+  );
+  return response.data;
+};
+
+/** POST /api/planners/:id/emergency-stop — [Trưởng đoàn] dừng khẩn cấp hành trình ongoing */
+export const emergencyStopPlanner = async (
+  planId: string,
+  data: EmergencyStopRequest,
+): Promise<ApiResponse<PlanEntity>> => {
+  const response = await apiClient.post<ApiResponse<PlanEntity>>(
+    PILGRIM_ENDPOINTS.PLANNER.EMERGENCY_STOP(planId),
     data,
   );
   return response.data;
@@ -630,6 +643,7 @@ const pilgrimPlannerApi = {
   createPlan,
   updatePlan,
   updatePlannerStatus,
+  emergencyStopPlanner,
   updatePlannerLock,
   closePlannerDay,
   sharePlannerToCommunity,

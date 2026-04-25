@@ -4289,6 +4289,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const safeTopInset = Math.max(insets.top, StatusBar.currentHeight ?? 0);
   const planStatusStr = (plan?.status || "").toLowerCase();
   const isCompletedPlan = planStatusStr === "completed";
+  const isCancelledPlan = planStatusStr === "cancelled";
   const isOngoingPlan = planStatusStr === "ongoing";
   const isSoloPlan = !isGroupJourneyPlan(plan || {});
   const isGroupPlan = !isSoloPlan;
@@ -4296,7 +4297,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const canFormerMemberViewCrewProgress =
     isDroppedOut &&
     isGroupPlan &&
-    (isOngoingPlan || planStatusStr === "locked" || isCompletedPlan);
+    (isOngoingPlan || planStatusStr === "locked" || isCompletedPlan || isCancelledPlan);
   const canDeleteItems =
     isPlanOwner &&
     !plan?.is_locked &&
@@ -4408,12 +4409,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               style={[
                 styles.statusBadge,
                 plan.status === "completed" && styles.statusBadgeCompleted,
+                plan.status === "cancelled" && styles.statusBadgeCancelled,
               ]}
             >
               <Text
                 style={[
                   styles.statusText,
                   plan.status === "completed" && styles.statusTextCompleted,
+                  plan.status === "cancelled" && styles.statusTextCancelled,
                 ]}
               >
                 {translateStatus(plan.status)}
@@ -4581,7 +4584,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           {/* Tiến độ (solo) / Thành viên (nhóm) — thành viên hiện tại; hoặc người đã rời: chỉ xem (không mở ActiveJourney) */}
           {!isInvitePendingView &&
             ((!isDroppedOut &&
-              (!isPlanOwner || isOngoingPlan || isCompletedPlan)) ||
+              (!isPlanOwner || isOngoingPlan || isCompletedPlan || isCancelledPlan)) ||
               canFormerMemberViewCrewProgress) && (
               <TouchableOpacity
                 style={[
@@ -4624,10 +4627,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               </TouchableOpacity>
             )}
 
-          {/* Mời bạn bè (nhóm, planning/locked) / Chia sẻ cộng đồng (completed) */}
+          {/* Mời bạn bè (nhóm, planning/locked) / Chia sẻ cộng đồng (completed only, không bao gồm cancelled) */}
           {!isDroppedOut &&
             isPlanOwner &&
             !isOngoingPlan &&
+            !isCancelledPlan &&
             (!isSoloPlan || isCompletedPlan) && (
               <TouchableOpacity
                 style={[
@@ -4683,6 +4687,25 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             >
               {t("planner.droppedOutBanner")}
             </Text>
+          </View>
+        )}
+
+        {/* Cancelled Reason Banner */}
+        {isCancelledPlan && (
+          <View style={styles.cancelledReasonBanner}>
+            <View style={styles.cancelledReasonHeader}>
+              <Ionicons name="stop-circle" size={16} color="#DC2626" />
+              <Text style={styles.cancelledReasonTitle}>
+                {t("planner.cancelledReasonTitle", {
+                  defaultValue: "Hành trình đã dừng khẩn cấp",
+                })}
+              </Text>
+            </View>
+            {!!plan.cancelled_reason && (
+              <Text style={styles.cancelledReasonText}>
+                {plan.cancelled_reason}
+              </Text>
+            )}
           </View>
         )}
 

@@ -9,6 +9,13 @@ import {
   PlanItem,
 } from "../../../../types/pilgrim/planner.types";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface EmergencyStopResult {
+  success: boolean;
+  message?: string;
+}
+
 export const useJourneyExecution = (
   planId: string,
   refreshPlan: () => Promise<void>,
@@ -19,6 +26,7 @@ export const useJourneyExecution = (
   const [markingVisitedItemId, setMarkingVisitedItemId] = useState<
     string | null
   >(null);
+  const [isEmergencyStopping, setIsEmergencyStopping] = useState(false);
   const { confirm } = useConfirm();
 
   const checkIn = useCallback(
@@ -234,12 +242,55 @@ export const useJourneyExecution = (
     [planId, refreshPlan, onCompleted],
   );
 
+  /**
+   * [Trưởng đoàn] POST /api/planners/:id/emergency-stop
+   * Dừng khẩn cấp hành trình đang ongoing → cancelled.
+   * Gọi `onCompleted` sau khi API thành công để navigate ra khỏi màn hành trình.
+   */
+  const emergencyStop = useCallback(
+    async (cancelledReason: string): Promise<EmergencyStopResult> => {
+      if (!cancelledReason.trim()) {
+        return { success: false, message: "Vui lòng nhập lý do dừng khẩn cấp." };
+      }
+      try {
+        setIsEmergencyStopping(true);
+        const response = await pilgrimPlannerApi.emergencyStopPlanner(planId, {
+          cancelled_reason: cancelledReason.trim(),
+        });
+        if (!response.success) {
+          throw new Error(response.message || "Không thể dừng hành trình");
+        }
+        Toast.show({
+          type: "info",
+          text1: "Hành trình đã dừng khẩn cấp",
+          text2: "Toàn bộ thành viên đã được thông báo.",
+          visibilityTime: 4000,
+        });
+        onCompleted?.();
+        return { success: true };
+      } catch (e: any) {
+        const msg = e?.message || "Vui lòng thử lại";
+        Toast.show({
+          type: "error",
+          text1: "Không thể dừng khẩn cấp",
+          text2: msg,
+        });
+        return { success: false, message: msg };
+      } finally {
+        setIsEmergencyStopping(false);
+      }
+    },
+    [planId, onCompleted],
+  );
+
   return {
     checkingInItemId,
     skippingItemId,
     markingVisitedItemId,
+    isEmergencyStopping,
     checkIn,
     skipItem,
     markVisited,
+    emergencyStop,
   };
 };

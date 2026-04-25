@@ -42,6 +42,7 @@ import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
 import CheckinPhotoSheet from "../components/active-journey/CheckinPhotoSheet";
+import EmergencyStopModal from "../components/active-journey/EmergencyStopModal";
 import ItemActionSheet from "../components/active-journey/ItemActionSheet";
 import MarkVisitedModal from "../components/active-journey/MarkVisitedModal";
 import PlanHeader from "../components/active-journey/PlanHeader";
@@ -153,6 +154,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     new Set(),
   );
   const [sosModalVisible, setSosModalVisible] = React.useState(false);
+  const [emergencyStopModalVisible, setEmergencyStopModalVisible] =
+    React.useState(false);
   const [photoSheetVisible, setPhotoSheetVisible] = React.useState(false);
   const [skipReasonModalVisible, setSkipReasonModalVisible] =
     React.useState(false);
@@ -572,8 +575,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     navigation.replace("PlanDetailScreen", { planId });
   }, [navigation, planId]);
 
-  const { checkingInItemId, skippingItemId, checkIn, skipItem, markVisited } =
-    useJourneyExecution(planId, refreshPlan, onCompleted);
+  const {
+    checkingInItemId,
+    skippingItemId,
+    isEmergencyStopping,
+    checkIn,
+    skipItem,
+    markVisited,
+    emergencyStop,
+  } = useJourneyExecution(planId, refreshPlan, onCompleted);
   const { takePhoto, pickFromGallery } = useCheckinPhoto();
 
   const handleOpenSkipReasonModal = useCallback((item: PlanItem) => {
@@ -909,6 +919,25 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         </View>
 
+        {/* EMERGENCY STOP — Trưởng đoàn only, chỉ khi ongoing */}
+        {isOwner && planStatus === "ongoing" && (
+          <TouchableOpacity
+            style={styles.emergencyStopBanner}
+            onPress={() =>
+              runGuardedUiAction("open-emergency-stop", () =>
+                setEmergencyStopModalVisible(true),
+              )
+            }
+            activeOpacity={0.8}
+          >
+            <Ionicons name="stop-circle" size={18} color="#DC2626" />
+            <Text style={styles.emergencyStopBannerText}>
+              Dừng khẩn cấp hành trình
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#DC2626" />
+          </TouchableOpacity>
+        )}
+
         {/* TIMELINE SECTION */}
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
@@ -1237,6 +1266,19 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         siteId={nextPendingItem?.site?.id}
         siteName={nextPendingItem?.site?.name}
       />
+
+      <EmergencyStopModal
+        visible={emergencyStopModalVisible}
+        planName={plan?.name}
+        isLoading={isEmergencyStopping}
+        onClose={() => setEmergencyStopModalVisible(false)}
+        onConfirm={async (reason) => {
+          const result = await emergencyStop(reason);
+          if (result.success) {
+            setEmergencyStopModalVisible(false);
+          }
+        }}
+      />
     </View>
   );
 }
@@ -1343,6 +1385,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: COLORS.textSecondary,
+  },
+
+  // EMERGENCY STOP BANNER (owner + ongoing only)
+  emergencyStopBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 10,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(220, 38, 38, 0.22)",
+  },
+  emergencyStopBannerText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DC2626",
   },
 
   // TIMELINE SECTION

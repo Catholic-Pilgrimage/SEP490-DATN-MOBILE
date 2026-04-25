@@ -441,7 +441,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   const [activeTab, setActiveTab] = useState<PlannerTab>("my");
 
   // ── Status filter state ──
-  type StatusFilter = "all" | "planning" | "locked" | "ongoing";
+  type StatusFilter = "all" | "planning" | "locked" | "ongoing" | "completed" | "cancelled";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
 
@@ -494,6 +494,26 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       icon: "navigation",
       description: t("planner.filterOngoingDesc", {
         defaultValue: "Kế hoạch đang được thực hiện",
+      }),
+    },
+    {
+      key: "completed",
+      label: t("planner.filterCompleted", { defaultValue: "Hoàn thành" }),
+      color: "#15803D",
+      bgColor: "rgba(21, 128, 61, 0.1)",
+      icon: "check-circle",
+      description: t("planner.filterCompletedDesc", {
+        defaultValue: "Hành trình đã hoàn thành",
+      }),
+    },
+    {
+      key: "cancelled",
+      label: t("planner.filterCancelled", { defaultValue: "Đã hủy" }),
+      color: "#DC2626",
+      bgColor: "rgba(220, 38, 38, 0.08)",
+      icon: "cancel",
+      description: t("planner.filterCancelledDesc", {
+        defaultValue: "Hành trình đã bị dừng hoặc hủy",
       }),
     },
   ];
@@ -728,7 +748,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
         setLoading(true);
         setInvitedLoading(true);
       }
-      const [planningRes, lockedRes, ongoingRes, invitesRes] =
+      const [planningRes, lockedRes, ongoingRes, completedRes, cancelledRes, invitesRes] =
         await Promise.all([
           pilgrimPlannerApi.getPlans({
             page: 1,
@@ -741,6 +761,16 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
             limit: 100,
             status: "ongoing",
           }),
+          pilgrimPlannerApi.getPlans({
+            page: 1,
+            limit: 50,
+            status: "completed",
+          }),
+          pilgrimPlannerApi.getPlans({
+            page: 1,
+            limit: 50,
+            status: "cancelled",
+          }),
           pilgrimPlannerApi.getMyInvites(),
         ]);
 
@@ -748,6 +778,8 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
         ...(planningRes?.data?.planners || []),
         ...(lockedRes?.data?.planners || []),
         ...(ongoingRes?.data?.planners || []),
+        ...(completedRes?.data?.planners || []),
+        ...(cancelledRes?.data?.planners || []),
       ];
 
       const dedupedActivePlanners = Array.from(

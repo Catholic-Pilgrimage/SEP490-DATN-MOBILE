@@ -307,6 +307,9 @@ export interface PlanEntity {
   /** Sau POST /planners/:id/share — BE có thể trả để ẩn CTA chia sẻ lại */
   shared_to_community?: boolean;
 
+  /** Lý do hủy — BE trả khi status = cancelled (emergency-stop) */
+  cancelled_reason?: string | null;
+
   viewer_join_status?: "owner" | "joined" | "dropped_out" | "kicked" | null;
   viewer_deposit_status?: string | null;
   is_read_only?: boolean;
@@ -483,6 +486,11 @@ export interface CheckInItemResponse {
 /** PATCH /planners/:id/status — khớp SEP490-DATN-BACKEND PlannerService.updatePlannerStatus */
 export interface UpdatePlannerStatusRequest {
   status: "locked" | "ongoing" | "completed" | "cancelled";
+}
+
+/** POST /planners/:id/emergency-stop — [Trưởng đoàn] dừng khẩn cấp hành trình đang ongoing */
+export interface EmergencyStopRequest {
+  cancelled_reason: string;
 }
 
 /** PATCH /api/planners/:id/lock */

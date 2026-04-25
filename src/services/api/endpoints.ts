@@ -134,6 +134,8 @@ export const PILGRIM_ENDPOINTS = {
     CLOSE_DAY: (id: string, dayNumber: number) =>
       `${API_BASE}/planners/${id}/days/${dayNumber}/close`,
     PLANNER_STATUS: (id: string) => `${API_BASE}/planners/${id}/status`,
+    /** POST — [Trưởng đoàn] Dừng khẩn cấp hành trình đang diễn ra (ongoing → cancelled) */
+    EMERGENCY_STOP: (id: string) => `${API_BASE}/planners/${id}/emergency-stop`,
     /** PATCH — chốt / mở khóa lịch (trưởng đoàn, nhóm) */
     PLANNER_LOCK: (id: string) => `${API_BASE}/planners/${id}/lock`,
     ITEM_STATUS: (planId: string, itemId: string) =>
