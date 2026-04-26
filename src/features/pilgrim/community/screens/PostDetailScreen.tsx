@@ -2603,13 +2603,13 @@ export default function PostDetailScreen() {
 
     if (confirmed) {
       deletePostMutation.mutate(targetPost.id, {
-        onSuccess: () => {
+        onSuccess: (response) => {
           clearTranslatedPost(targetPost.id);
           Toast.show({
             type: "success",
-            text1: t("common.success", { defaultValue: "Success" }),
-            text2: t("postDetail.deletePostSuccess", {
-              defaultValue: "Post deleted.",
+            text1: t("common.success", { defaultValue: "Thành công" }),
+            text2: response?.message || t("postDetail.deletePostSuccess", {
+              defaultValue: "Đã xóa bài viết.",
             }),
           });
           navigation.goBack();
@@ -2617,11 +2617,11 @@ export default function PostDetailScreen() {
         onError: (error: any) => {
           Toast.show({
             type: "error",
-            text1: t("common.error", { defaultValue: "Error" }),
+            text1: t("common.error", { defaultValue: "Lỗi" }),
             text2:
-              t("postDetail.deletePostError", {
-                defaultValue: "Unable to delete post.",
-              }) + (error?.message ? ` ${error.message}` : ""),
+              error?.message || t("postDetail.deletePostError", {
+                defaultValue: "Không thể xóa bài viết.",
+              }),
           });
         },
       });
