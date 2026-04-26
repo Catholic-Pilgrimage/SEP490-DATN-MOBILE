@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -24,6 +25,7 @@ import {
 } from "../../../../constants/theme.constants";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import Toast from "react-native-toast-message";
+import type { PlannerStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import { CreatePlanRequest } from "../../../../types/pilgrim/planner.types";
 import {
   isValidGroupDepositVnd,
@@ -96,7 +98,9 @@ function inclusiveTripDays(startYMD: string, endYMD: string): number {
   return Math.ceil((b - a) / (1000 * 60 * 60 * 24)) + 1;
 }
 
-const CreatePlanScreen = ({ navigation }: any) => {
+type CreatePlanProps = NativeStackScreenProps<PlannerStackParamList, "CreatePlanScreen">;
+
+const CreatePlanScreen = ({ navigation, route }: CreatePlanProps) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
@@ -152,6 +156,41 @@ const CreatePlanScreen = ({ navigation }: any) => {
   }>({});
 
   const [loading, setLoading] = useState(false);
+
+  /** Clone từ bài cộng đồng: điền form giống flow modal cũ. */
+  useEffect(() => {
+    const p = route.params;
+    if (!p?.cloneSourcePlanId) return;
+
+    setName(p.prefillName);
+    setStartDate(p.prefillStartDate);
+    setEndDate(p.prefillEndDate);
+    setPeopleCount(Math.max(1, p.prefillPeople));
+    const tr = p.prefillTransportation;
+    if (tr === "bus" || tr === "car" || tr === "motorbike") {
+      setTransportation(tr);
+    }
+    if (p.prefillPeople > 1) {
+      setDepositAmountInput(String(Math.max(0, Math.round(p.prefillDeposit))));
+      setPenaltyPercentInput(String(Math.max(0, Math.round(p.prefillPenalty))));
+    } else {
+      setDepositAmountInput("");
+      setPenaltyPercentInput("10");
+    }
+    setMinPeopleRequired((m) =>
+      p.prefillPeople > 1
+        ? Math.min(
+            p.prefillPeople,
+            Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m),
+          )
+        : m,
+    );
+
+    const ds = parseYMDLocal(p.prefillStartDate);
+    setStartCalendarDate(new Date(ds.getFullYear(), ds.getMonth(), 1));
+    const de = parseYMDLocal(p.prefillEndDate);
+    setEndCalendarDate(new Date(de.getFullYear(), de.getMonth(), 1));
+  }, [route.params]);
 
   const showErrorToast = (message: string) => {
     Toast.show({
@@ -296,21 +335,33 @@ const CreatePlanScreen = ({ navigation }: any) => {
           : {}),
       };
 
-      const response = await pilgrimPlannerApi.createPlan(payload);
+      const cloneId = route.params?.cloneSourcePlanId;
+      const response = cloneId
+        ? await pilgrimPlannerApi.clonePlanner(cloneId, payload)
+        : await pilgrimPlannerApi.createPlan(payload);
 
       if (response && response.success) {
-        showSuccessToast(
-          t("planner.createSuccess", {
-            defaultValue: "Đã tạo kế hoạch thành công!",
-          }),
-        );
-        navigation.goBack();
+        if (cloneId) {
+          showSuccessToast(
+            t("planner.cloneSuccess", { defaultValue: "Đã tạo bản sao hành trình!" }),
+          );
+          navigation.navigate("PlannerMain");
+        } else {
+          showSuccessToast(
+            t("planner.createSuccess", {
+              defaultValue: "Đã tạo kế hoạch thành công!",
+            }),
+          );
+          navigation.goBack();
+        }
       } else {
         showErrorToast(
           response?.message ||
-            t("planner.createFailed", {
-              defaultValue: "Tạo kế hoạch thất bại",
-            }),
+            (cloneId
+              ? t("planner.cloneError", { defaultValue: "Không thể sao chép hành trình." })
+              : t("planner.createFailed", {
+                  defaultValue: "Tạo kế hoạch thất bại",
+                })),
         );
         return;
       }

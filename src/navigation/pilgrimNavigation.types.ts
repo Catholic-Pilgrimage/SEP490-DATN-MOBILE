@@ -20,6 +20,18 @@ export type PlannerPlanPrefill = {
   transportation?: TransportationType | string;
 };
 
+/** Tham số tùy chọn màn tạo kế hoạch — từ bài cộng đồng (clone) hoặc không truyền (tạo mới). */
+export type CreatePlanScreenParams = {
+  cloneSourcePlanId: string;
+  prefillName: string;
+  prefillStartDate: string;
+  prefillEndDate: string;
+  prefillPeople: number;
+  prefillTransportation: string;
+  prefillDeposit: number;
+  prefillPenalty: number;
+};
+
 export type PlannerStackParamList = {
   PlannerMain: { initialTab?: PlannerInitialTab; token?: string; refresh?: number } | undefined;
   PlanDetailScreen: {
@@ -52,7 +64,7 @@ export type PlannerStackParamList = {
     longitude?: number;
     itemsByDay?: Record<string, PlanItem[]>;
   };
-  CreatePlanScreen: undefined;
+  CreatePlanScreen: CreatePlanScreenParams | undefined;
   AIRouteSuggestionScreen: undefined;
 };
 

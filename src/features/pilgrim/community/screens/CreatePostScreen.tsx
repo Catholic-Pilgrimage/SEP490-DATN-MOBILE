@@ -115,6 +115,11 @@ export default function CreatePostScreen() {
   const isEditing = Boolean(postId);
 
   const [content, setContent] = useState("");
+  const [title, setTitle] = useState(() => {
+    const p = initialPost;
+    if (!p) return "";
+    return String(p.title || p.sourceJournal?.title || "").trim();
+  });
   const [images, setImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [selectedVideo, setSelectedVideo] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
@@ -148,6 +153,9 @@ export default function CreatePostScreen() {
   );
   const { confirm } = useConfirm();
   const sourcePost = editingPost || initialPost;
+  const isJournalEntry =
+    isEditing &&
+    Boolean(sourcePost?.journal_id || sourcePost?.sourceJournal);
   const sourcePostImages = sourcePost?.image_urls || [];
   const sourcePostVideoUrl =
     sourcePost?.video_url || sourcePost?.sourceJournal?.video_url || null;
@@ -195,6 +203,9 @@ export default function CreatePostScreen() {
       sourcePost.audio_url || sourcePost.sourceJournal?.audio_url || null;
 
     setContent(sourcePost.content || "");
+    setTitle(
+      String(sourcePost.title || sourcePost.sourceJournal?.title || "").trim(),
+    );
     setRetainedExistingImages(nextSourcePostImages);
     setRetainedExistingVideoUrl(nextSourcePostVideoUrl);
     setRetainedExistingAudioUrl(nextSourcePostAudioUrl);
@@ -555,6 +566,7 @@ export default function CreatePostScreen() {
 
     const payload = {
       content: content.trim(),
+      ...(isJournalEntry ? { title: title.trim() } : {}),
       ...(formattedImages.length > 0 ? { images: formattedImages as any } : {}),
       ...(formattedVideo ? { video: formattedVideo as any } : {}),
       ...(formattedAudio ? { audio: formattedAudio as any } : {}),
@@ -752,6 +764,27 @@ export default function CreatePostScreen() {
               </Text>
             </View>
 
+            {isJournalEntry ? (
+              <View style={styles.titleFieldWrap}>
+                <Text style={styles.titleFieldLabel}>
+                  {t("createPost.diaryTitle", {
+                    defaultValue: "Tiêu đề nhật ký",
+                  })}
+                </Text>
+                <TextInput
+                  style={styles.titleInput}
+                  placeholder={t("createPost.diaryTitlePlaceholder", {
+                    defaultValue: "Ví dụ: Biết ơn",
+                  })}
+                  placeholderTextColor={COLORS.textTertiary}
+                  value={title}
+                  onChangeText={setTitle}
+                  autoFocus
+                  returnKeyType="next"
+                />
+              </View>
+            ) : null}
+
             <TextInput
               style={styles.textInput}
               placeholder={t("createPost.placeholder", {
@@ -759,7 +792,7 @@ export default function CreatePostScreen() {
               })}
               placeholderTextColor={COLORS.textTertiary}
               multiline
-              autoFocus
+              autoFocus={!isJournalEntry}
               value={content}
               onChangeText={setContent}
             />
@@ -1153,6 +1186,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: TYPOGRAPHY.fontFamily.bold,
     color: COLORS.textPrimary,
+  },
+  titleFieldWrap: {
+    marginBottom: SPACING.md,
+  },
+  titleFieldLabel: {
+    fontSize: 14,
+    fontWeight: TYPOGRAPHY.fontWeight.semibold,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  titleInput: {
+    fontSize: 20,
+    fontFamily: TYPOGRAPHY.fontFamily.bold,
+    color: COLORS.textPrimary,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.08)",
+    paddingBottom: SPACING.sm,
   },
   textInput: {
     fontSize: 18,

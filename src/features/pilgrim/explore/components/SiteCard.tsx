@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
 import { Image, ImageSourcePropType, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BORDER_RADIUS, COLORS, SHADOWS, SPACING, TYPOGRAPHY } from '../../../../constants/theme.constants';
+import { useI18n } from '../../../../hooks/useI18n';
 import { getSpacing, moderateScale, responsive, SCREEN } from '../../../../utils/responsive';
 
 interface SiteCardProps {
@@ -22,6 +23,7 @@ export const SiteCard: React.FC<SiteCardProps> = ({
   onPress,
   onFavoritePress,
 }) => {
+  const { t } = useI18n();
   return (
     <TouchableOpacity style={styles.sacredCard} onPress={onPress} activeOpacity={0.95}>
       {/* Image Container */}
@@ -66,7 +68,9 @@ export const SiteCard: React.FC<SiteCardProps> = ({
           </View>
           
           <TouchableOpacity style={styles.visitButton} activeOpacity={0.8}>
-            <Text style={styles.visitText}>Viếng thăm</Text>
+            <Text style={styles.visitText}>
+              {t("explore.visit", { defaultValue: "Viếng thăm" })}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

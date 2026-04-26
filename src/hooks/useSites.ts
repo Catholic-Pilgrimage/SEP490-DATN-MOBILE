@@ -21,33 +21,7 @@ import {
   SiteReviewSummary,
   SiteSummary,
 } from "../types/pilgrim";
-
-// Helper: Map snake_case API response to camelCase SiteSummary
-const mapSiteResponse = (site: any): SiteSummary => ({
-  id: site.id,
-  name: site.name,
-  address: site.address,
-  coverImage: site.cover_image || site.coverImage || "",
-  rating: site.rating || 0,
-  reviewCount: site.review_count || site.reviewCount || 0,
-  distance: site.distance,
-  isFavorite: site.is_favorite || site.isFavorite || false,
-  type: site.type,
-  region: site.region,
-  latitude: site.latitude || 0,
-  longitude: site.longitude || 0,
-  patronSaint: site.patron_saint || site.patronSaint || undefined,
-  openingHours: site.opening_hours || site.openingHours || undefined,
-  hasEvents:
-    site.has_events === true ||
-    site.has_events === "true" ||
-    site.hasEvents === true ||
-    site.hasEvents === "true" ||
-    Number(site.event_count || site.eventCount || site.events_count || 0) > 0,
-  eventCount: Number(
-    site.event_count || site.eventCount || site.events_count || 0,
-  ),
-});
+import { mapSiteSummaryFromApi } from "../utils/pilgrim/siteSummaryMap";
 
 // ===== useSites =====
 
@@ -112,7 +86,7 @@ export function useSites(options: UseSitesOptions = {}) {
           const rawData =
             (response.data as any).data || response.data.items || [];
           const pagination = (response.data as any).pagination;
-          const siteData = rawData.map(mapSiteResponse);
+          const siteData = rawData.map(mapSiteSummaryFromApi);
 
           setSites(siteData);
           if (pagination) {
@@ -148,7 +122,7 @@ export function useSites(options: UseSitesOptions = {}) {
         const rawData =
           (response.data as any).data || response.data.items || [];
         const pagination = (response.data as any).pagination;
-        const siteData = rawData.map(mapSiteResponse);
+        const siteData = rawData.map(mapSiteSummaryFromApi);
 
         setSites((prev) => [...prev, ...siteData]);
         if (pagination) {

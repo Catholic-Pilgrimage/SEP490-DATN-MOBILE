@@ -1000,6 +1000,45 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       showConnectionRequiredAlert,
     });
 
+  /** Route params từ deep link đôi khi thiếu field; sau GET invite preview, `plan` có đủ — merge để thẻ lời mời khớp mở từ danh sách. */
+  const invitePreviewOwnerName = useMemo(() => {
+    const fromRoute = String(ownerName || "").trim();
+    if (fromRoute) return fromRoute;
+    return String(plan?.owner?.full_name || "").trim() || undefined;
+  }, [ownerName, plan?.owner?.full_name]);
+
+  const invitePreviewOwnerEmail = useMemo(() => {
+    const fromRoute = String(ownerEmail || "").trim();
+    if (fromRoute) return fromRoute;
+    return String(plan?.owner?.email || "").trim() || undefined;
+  }, [ownerEmail, plan?.owner?.email]);
+
+  const invitePreviewDepositAmount = useMemo(() => {
+    if (
+      depositAmount != null &&
+      String(depositAmount).trim() !== "" &&
+      !Number.isNaN(Number(depositAmount))
+    ) {
+      return Number(depositAmount);
+    }
+    const p = plan?.deposit_amount;
+    if (p != null && !Number.isNaN(Number(p))) return Number(p);
+    return undefined;
+  }, [depositAmount, plan?.deposit_amount]);
+
+  const invitePreviewPenaltyPercentage = useMemo(() => {
+    if (
+      penaltyPercentage != null &&
+      String(penaltyPercentage).trim() !== "" &&
+      !Number.isNaN(Number(penaltyPercentage))
+    ) {
+      return Number(penaltyPercentage);
+    }
+    const p = plan?.penalty_percentage;
+    if (p != null && !Number.isNaN(Number(p))) return Number(p);
+    return undefined;
+  }, [penaltyPercentage, plan?.penalty_percentage]);
+
   const runGuardedUiAction = useCallback(
     (key: string, action: () => void) => {
       runWithActionGuard(`plan-detail:${planId}:${key}`, action);
@@ -4792,18 +4831,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         {/* 1. Thẻ Lời mời (Đọc thông tin trước khi quyết định) */}
         {isInvitePendingView && (
           <InvitePreviewCard
-            ownerName={ownerName}
-            ownerEmail={ownerEmail}
-            depositAmount={
-              typeof depositAmount === "number"
-                ? depositAmount
-                : Number(depositAmount || 0) || undefined
-            }
-            penaltyPercentage={
-              typeof penaltyPercentage === "number"
-                ? penaltyPercentage
-                : Number(penaltyPercentage || 0) || undefined
-            }
+            ownerName={invitePreviewOwnerName}
+            ownerEmail={invitePreviewOwnerEmail}
+            depositAmount={invitePreviewDepositAmount}
+            penaltyPercentage={invitePreviewPenaltyPercentage}
             joinedCount={previewJoinedCount}
             estimatedJoinedCount={Math.max(
               (plan?.number_of_people || 1) - 1,
@@ -4821,7 +4852,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         {/* 2. Cụm nút Quyết định (Ra quyết định sau khu đọc) */}
         {isInvitePendingView && (
           <InviteDecisionButtons
-            depositAmount={depositAmount as number | null}
+            depositAmount={invitePreviewDepositAmount as number | null}
             respondingInvite={respondingInvite}
             isOffline={isOffline}
             handleRejectInvite={handleRejectInvite}

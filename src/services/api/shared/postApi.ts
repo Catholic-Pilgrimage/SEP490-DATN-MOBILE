@@ -219,6 +219,9 @@ export const createPost = async (
 ): Promise<ApiResponse<FeedPost>> => {
     const formData = new FormData();
     formData.append("content", data.content);
+    if (data.title != null && String(data.title).trim() !== "") {
+        formData.append("title", String(data.title).trim());
+    }
 
     if (data.images && data.images.length > 0) {
         data.images.forEach((image: any) => {
@@ -271,6 +274,10 @@ export const updatePost = async (
 
     if (data.content !== undefined) {
         formData.append("content", data.content);
+    }
+
+    if (data.title !== undefined) {
+        formData.append("title", String(data.title).trim());
     }
 
     if (data.image_urls !== undefined) {

@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import dayjs from "dayjs";
+import "dayjs/locale/en";
 import "dayjs/locale/vi";
 import isToday from "dayjs/plugin/isToday";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -25,6 +26,7 @@ import {
 } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS, SPACING } from "../../../../constants/theme.constants";
+import { LANGUAGES } from "../../../../i18n";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import useI18n from "../../../../hooks/useI18n";
 import { useNotifications } from "../../../../hooks/useNotifications";
@@ -57,7 +59,6 @@ dayjs.updateLocale("vi", {
     yy: "%d năm",
   },
 });
-dayjs.locale("vi");
 
 interface Props {
   visible: boolean;
@@ -70,7 +71,7 @@ type FilterTab = "all" | "schedule" | "system";
 
 export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
   const insets = useSafeAreaInsets();
-  const { t } = useI18n();
+  const { t, currentLanguage } = useI18n();
   const { confirmChoice } = useConfirm();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   // Animation refs
@@ -92,6 +93,10 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
     deleteReadNotifications,
     error,
   } = useNotifications();
+
+  useEffect(() => {
+    dayjs.locale(currentLanguage === LANGUAGES.EN ? "en" : "vi");
+  }, [currentLanguage]);
 
   useEffect(() => {
     if (visible) {
@@ -221,7 +226,7 @@ export const NotificationModal: React.FC<Props> = ({ visible, onClose }) => {
         data: earlierItems,
       });
     return result;
-  }, [filteredNotifications]);
+  }, [filteredNotifications, t]);
 
   const getIconInfo = (type: NotificationType) => {
     const category = getNotificationCategory(type);

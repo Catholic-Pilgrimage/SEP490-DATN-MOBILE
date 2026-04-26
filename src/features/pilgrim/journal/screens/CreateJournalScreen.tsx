@@ -1277,7 +1277,10 @@ export default function CreateJournalScreen() {
         const plannerName = data.planner?.name;
         const fallbackLocation = data.site?.name || "";
 
-        setTitle(data.title);
+        const resolvedTitle = data.title?.trim()
+          ? data.title
+          : t("journal.defaultTitle");
+        setTitle(resolvedTitle);
         setContent(data.content);
         setSelectedPlannerItemIds(plannerItemIds);
         setJournalPrivacy(data.privacy || "private");

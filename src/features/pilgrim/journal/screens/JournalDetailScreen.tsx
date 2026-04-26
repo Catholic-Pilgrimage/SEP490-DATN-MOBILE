@@ -547,6 +547,9 @@ export default function JournalDetailScreen() {
 
   const images = normalizeImageUrls(journal.image_url);
   const coverUri = images[0] || resolvedCoverUri;
+  const displayTitle = journal.title?.trim()
+    ? journal.title
+    : t("journal.defaultTitle");
   const authorName =
     journal.author?.full_name || user?.fullName || t("journal.pilgrimRole");
   const avatarUri = journal.author?.avatar_url || user?.avatar;
@@ -772,7 +775,7 @@ export default function JournalDetailScreen() {
                     end={{ x: 1, y: 0.5 }}
                     style={s.titleBrush}
                   />
-                  <Text style={s.title}>{`"${journal.title}"`}</Text>
+                  <Text style={s.title}>{`"${displayTitle}"`}</Text>
                 </View>
 
                 {/* Divider with ornament */}
@@ -1000,12 +1003,10 @@ export default function JournalDetailScreen() {
             <View style={s.sheetHandle} />
             <View style={s.sheetHeader}>
               <Text style={s.sheetTitle}>{t("journal.menuTitle")}</Text>
-              {journal?.title && (
-                <Text
-                  style={s.sheetSubtitle}
-                  numberOfLines={2}
-                >{`"${journal.title}"`}</Text>
-              )}
+              <Text
+                style={s.sheetSubtitle}
+                numberOfLines={2}
+              >{`"${displayTitle}"`}</Text>
             </View>
             <View style={s.sheetDivider} />
             <TouchableOpacity

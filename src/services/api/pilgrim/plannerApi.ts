@@ -79,20 +79,27 @@ function coerceInviteStatus(raw: unknown): PlanInvite["status"] {
   return "pending";
 }
 
+function mapPlanOwnerFromUnknown(
+  raw: unknown,
+): PlanOwner | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const or = raw as Record<string, unknown>;
+  return {
+    id: String(or.id ?? ""),
+    full_name: String(or.full_name ?? ""),
+    email: String(or.email ?? ""),
+    avatar_url:
+      or.avatar_url != null && or.avatar_url !== ""
+        ? String(or.avatar_url)
+        : "",
+  };
+}
+
 function mapPlannerFromInvitePreview(
   pl: Record<string, unknown>,
 ): NonNullable<PlanInvite["planner"]> {
-  const ownerRaw = pl.owner;
-  let owner: PlanOwner | undefined;
-  if (typeof ownerRaw === "object" && ownerRaw !== null) {
-    const or = ownerRaw as Record<string, unknown>;
-    owner = {
-      id: String(or.id ?? ""),
-      full_name: String(or.full_name ?? ""),
-      email: String(or.email ?? ""),
-      avatar_url: String(or.avatar_url ?? ""),
-    };
-  }
+  const ownerRaw = pl.owner ?? pl.inviter;
+  let owner = mapPlanOwnerFromUnknown(ownerRaw);
   const itemsRaw = pl.items_by_day;
   let items_by_day: Record<string, PlanItem[]> | undefined;
   if (
@@ -102,6 +109,29 @@ function mapPlannerFromInvitePreview(
   ) {
     items_by_day = itemsRaw as Record<string, PlanItem[]>;
   }
+
+  const depositRaw = pl.deposit_amount ?? pl.depositAmount;
+  const penaltyRaw = pl.penalty_percentage ?? pl.penaltyPercentage;
+  const depNum =
+    typeof depositRaw === "number"
+      ? depositRaw
+      : depositRaw != null && depositRaw !== ""
+        ? Number(depositRaw)
+        : NaN;
+  const penNum =
+    typeof penaltyRaw === "number"
+      ? penaltyRaw
+      : penaltyRaw != null && penaltyRaw !== ""
+        ? Number(penaltyRaw)
+        : NaN;
+
+  const itemCountRaw = pl.item_count ?? pl.itemCount;
+  const itemCount =
+    typeof itemCountRaw === "number"
+      ? itemCountRaw
+      : itemCountRaw != null
+        ? Number(itemCountRaw)
+        : undefined;
 
   return {
     id: String(pl.id ?? ""),
@@ -117,6 +147,9 @@ function mapPlannerFromInvitePreview(
     status: typeof pl.status === "string" ? pl.status : undefined,
     start_date: typeof pl.start_date === "string" ? pl.start_date : undefined,
     end_date: typeof pl.end_date === "string" ? pl.end_date : undefined,
+    deposit_amount: !Number.isNaN(depNum) ? depNum : undefined,
+    penalty_percentage: !Number.isNaN(penNum) ? penNum : undefined,
+    item_count: !Number.isNaN(Number(itemCount)) ? Number(itemCount) : undefined,
     owner,
     items_by_day,
   };
@@ -129,10 +162,26 @@ function normalizeInvitePreviewPayload(
   if (isNestedInvitePreview(d)) {
     const inv = d.invite;
     const plRaw = d.planner;
-    const planner =
+    let planner =
       plRaw && typeof plRaw === "object" && !Array.isArray(plRaw)
         ? mapPlannerFromInvitePreview(plRaw as Record<string, unknown>)
         : undefined;
+    const inviterFromInvite = inv.inviter;
+    if (
+      planner &&
+      inviterFromInvite &&
+      typeof inviterFromInvite === "object" &&
+      !Array.isArray(inviterFromInvite)
+    ) {
+      const o = mapPlanOwnerFromUnknown(inviterFromInvite);
+      const hasOwner =
+        planner.owner &&
+        (String(planner.owner.full_name || "").trim() !== "" ||
+          String(planner.owner.email || "").trim() !== "");
+      if (o && !hasOwner) {
+        planner = { ...planner, owner: o };
+      }
+    }
     return {
       id: String(inv.id ?? ""),
       planner_id: String(planner?.id ?? inv["planner_id"] ?? ""),

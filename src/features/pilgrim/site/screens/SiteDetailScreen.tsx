@@ -2020,38 +2020,57 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                 style={styles.premiumBackgroundGlow}
               />
 
-              {/* Floating Controls */}
-              <View style={styles.premiumTopControls}>
-                <TouchableOpacity
-                  style={styles.premiumCloseBtn}
-                  onPress={() => setIs3dModalVisible(false)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={24} color="#fff" />
-                </TouchableOpacity>
+              {/* Floating Controls — paddingTop cộng insets tránh sát thanh trạng thái */}
+              <View
+                style={[
+                  styles.premiumTopControls,
+                  { paddingTop: insets.top + 8 },
+                ]}
+              >
+                <View style={styles.premiumTopSideSlot}>
+                  <TouchableOpacity
+                    style={styles.premiumCloseBtn}
+                    onPress={() => setIs3dModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="close" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
 
                 <View style={styles.premiumHeaderCenter}>
-                  <MaterialCommunityIcons name="church" size={24} color="#D4AF37" />
+                  <MaterialCommunityIcons
+                    name="church"
+                    size={24}
+                    color="#D4AF37"
+                  />
                   <Text style={styles.premiumHeaderLabel}>ĐỊA ĐIỂM</Text>
-                  <Text style={styles.premiumHeaderTitle}>{site?.name?.toUpperCase()}</Text>
+                  <Text style={styles.premiumHeaderTitle}>
+                    {site?.name?.toUpperCase()}
+                  </Text>
                   <View style={styles.premiumDividerRow}>
                     <View style={styles.premiumDividerLine} />
-                    <MaterialCommunityIcons name="rhombus-medium" size={14} color="#D4AF37" />
+                    <MaterialCommunityIcons
+                      name="rhombus-medium"
+                      size={14}
+                      color="#D4AF37"
+                    />
                     <View style={styles.premiumDividerLine} />
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.premiumBookmarkBtn}
-                  onPress={handleBookmark}
-                  activeOpacity={0.7}
-                >
-                  <MaterialCommunityIcons
-                    name={isFavorite ? "bookmark" : "bookmark-outline"}
-                    size={26}
-                    color="#D4AF37"
-                  />
-                </TouchableOpacity>
+                <View style={styles.premiumTopSideSlot}>
+                  <TouchableOpacity
+                    style={styles.premiumBookmarkBtn}
+                    onPress={handleBookmark}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons
+                      name={isFavorite(siteId) ? "bookmark" : "bookmark-outline"}
+                      size={26}
+                      color="#D4AF37"
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {models3d && models3d.length > 1 && (
@@ -3135,28 +3154,36 @@ const styles = StyleSheet.create({
   },
   premiumTopControls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 10 : 20,
+    paddingHorizontal: 10,
     zIndex: 100,
   },
+  /** Cùng bề ngang với cột dấu trang để cột giữa (flex:1) nằm đúng tâm màn. */
+  premiumTopSideSlot: {
+    width: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   premiumCloseBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   premiumBookmarkBtn: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   premiumHeaderCenter: {
+    flex: 1,
+    minWidth: 0,
     alignItems: 'center',
+    alignSelf: 'stretch',
     gap: 4,
     marginTop: 4,
   },
@@ -3165,6 +3192,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#D4AF37',
     letterSpacing: 4,
+    textAlign: 'center',
+    width: '100%',
   },
   premiumHeaderTitle: {
     fontSize: 24,
@@ -3172,12 +3201,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: 0.5,
     textAlign: 'center',
+    width: '100%',
   },
   premiumDividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
     marginTop: 4,
+    width: '100%',
   },
   premiumDividerLine: {
     height: 1,
@@ -3193,6 +3225,19 @@ const styles = StyleSheet.create({
   modelPickerRowPremium: {
     paddingVertical: 12,
     zIndex: 10,
+  },
+  modelPickerContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 4,
+    gap: 8,
+    alignItems: "center",
+  },
+  narrativePanelOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
   },
   modelChipPremium: {
     paddingVertical: 8,
