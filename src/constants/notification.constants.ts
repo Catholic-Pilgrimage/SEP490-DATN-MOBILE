@@ -36,6 +36,8 @@ export const NOTIFICATION_TITLES: Record<NotificationType, string> = {
   planner_item_skipped: "Điểm đến bị bỏ qua",
   planner_item_skipped_last: "Điểm cuối bị bỏ qua",
   planner_item_added: "Lịch trình cập nhật",
+  planner_emergency_stopped: "Kế hoạch dừng khẩn cấp",
+  planner_continuation_available: "Có thể tiếp tục hành trình",
   planner_schedule_changed: "Lịch trình thay đổi",
   favorite_site_update: "Cập nhật mới",
 
@@ -70,6 +72,8 @@ export const NOTIFICATION_MESSAGES: Record<NotificationType, string> = {
   // ========== PILGRIM NOTIFICATIONS ==========
   planner_invite: "Bạn được mời tham gia một kế hoạch hành hương.",
   planner_joined: "Có người vừa tham gia kế hoạch của bạn.",
+  planner_emergency_stopped: "Kế hoạch hành hương đã dừng khẩn cấp do sự cố.",
+  planner_continuation_available: "Kế hoạch hành hương có thể tiếp tục được thực hiện.",
   favorite_site_update: "Địa điểm yêu thích của bạn có cập nhật mới.",
 
   // SOS
@@ -101,6 +105,8 @@ export const NOTIFICATION_ROUTES: Partial<Record<NotificationType, string>> = {
   planner_item_skipped: "PlannerDetail",
   planner_item_skipped_last: "PlannerDetail",
   planner_item_added: "PlannerDetail",
+  planner_emergency_stopped: "PlannerDetail",
+  planner_continuation_available: "PlannerDetail",
   planner_schedule_changed: "PlannerDetail",
   favorite_site_update: "SiteDetail",
   sos_assigned: "SOSDetail",
@@ -124,6 +130,8 @@ export const NOTIFICATION_PRIORITY = {
     "planner_item_skipped",
     "planner_item_skipped_last",
     "planner_item_added",
+    "planner_emergency_stopped",
+    "planner_continuation_available",
     "planner_schedule_changed",
     "planner_item_missed",
     "sos_resolved",

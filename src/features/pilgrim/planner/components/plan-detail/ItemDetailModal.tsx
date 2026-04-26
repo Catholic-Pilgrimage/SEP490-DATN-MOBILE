@@ -120,6 +120,19 @@ export default function ItemDetailModal(props: ItemDetailModalProps) {
                         });
                         return;
                       }
+                      // Check if plan is cancelled
+                      if (planStatus === 'cancelled') {
+                        await confirm({
+                          iconName: "close-circle",
+                          title: t("planner.cancelledPlanTitle"),
+                          message: t("planner.cancelledPlanCannotEditItem", {
+                            defaultValue: "Kế hoạch đã bị hủy không thể chỉnh sửa địa điểm."
+                          }),
+                          confirmText: t("planner.understood"),
+                          showCancel: false,
+                        });
+                        return;
+                      }
                       onClose();
                       handleOpenEditItem(selectedItem);
                     }}

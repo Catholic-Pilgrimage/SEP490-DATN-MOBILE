@@ -10,33 +10,33 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-    SafeAreaView,
-    useSafeAreaInsets,
+  SafeAreaView,
+  useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SHADOWS,
+  BORDER_RADIUS,
+  COLORS,
+  SHADOWS,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import type {
-    PlannerCompositeNavigationProp,
-    PlannerRouteProp,
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
 import type { PlanItem } from "../../../../types/pilgrim/planner.types";
@@ -153,6 +153,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   const [checkedInIds, setCheckedInIds] = React.useState<Set<string>>(
     new Set(),
   );
+  const [sosOptionsVisible, setSosOptionsVisible] = React.useState(false);
   const [sosModalVisible, setSosModalVisible] = React.useState(false);
   const [emergencyStopModalVisible, setEmergencyStopModalVisible] =
     React.useState(false);
@@ -815,10 +816,10 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                   style={styles.topBtn}
                   onPress={() =>
                     runGuardedUiAction("open-chat", () => {
-                      navigation.navigate("PlanChatScreen" as never, {
+                      navigation.navigate("PlanChatScreen" as any, {
                         planId: plan.id,
                         planName: plan.name,
-                      } as never);
+                      });
                     })
                   }
                 >
@@ -882,9 +883,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             style={styles.toolbarBtn}
             onPress={() =>
               runGuardedUiAction("open-members", () => {
-                navigation.navigate("PlannerMembersScreen" as never, {
+                navigation.navigate("PlannerMembersScreen" as any, {
                   planId: plan.id,
-                } as never);
+                });
               })
             }
             activeOpacity={0.7}
@@ -907,7 +908,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
 
           <TouchableOpacity
             style={styles.toolbarBtn}
-            onPress={() => setSosModalVisible(true)}
+            onPress={() => setSosOptionsVisible(true)}
             activeOpacity={0.7}
           >
             <View style={[styles.toolbarIconBox, styles.sosIconBox]}>
@@ -918,25 +919,6 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* EMERGENCY STOP — Trưởng đoàn only, chỉ khi ongoing */}
-        {isOwner && planStatus === "ongoing" && (
-          <TouchableOpacity
-            style={styles.emergencyStopBanner}
-            onPress={() =>
-              runGuardedUiAction("open-emergency-stop", () =>
-                setEmergencyStopModalVisible(true),
-              )
-            }
-            activeOpacity={0.8}
-          >
-            <Ionicons name="stop-circle" size={18} color="#DC2626" />
-            <Text style={styles.emergencyStopBannerText}>
-              Dừng khẩn cấp hành trình
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#DC2626" />
-          </TouchableOpacity>
-        )}
 
         {/* TIMELINE SECTION */}
         <View style={styles.timelineSection}>
@@ -1258,6 +1240,77 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
         onCompleted={onCompleted}
         refreshPlan={refreshPlan}
       />
+
+      {/* SOS Options Bottom Sheet */}
+      <Modal
+        visible={sosOptionsVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSosOptionsVisible(false)}
+      >
+        <Pressable
+          style={styles.sosOptionsOverlay}
+          onPress={() => setSosOptionsVisible(false)}
+        />
+        <SafeAreaView edges={["bottom"]} style={styles.sosOptionsSafeArea}>
+          <View style={styles.sosOptionsSheet}>
+            <View style={styles.sosOptionsHandle} />
+            <Text style={styles.sosOptionsTitle}>Trợ giúp khẩn cấp</Text>
+
+            <TouchableOpacity
+              style={styles.sosOptionItem}
+              onPress={() => {
+                setSosOptionsVisible(false);
+                setSosModalVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.sosOptionIconBox}>
+                <Ionicons name="warning-outline" size={24} color="#DC2626" />
+              </View>
+              <View style={styles.sosOptionContent}>
+                <Text style={styles.sosOptionTitle}>Gửi yêu cầu SOS</Text>
+                <Text style={styles.sosOptionDesc}>
+                  Yêu cầu hỗ trợ từ hướng dẫn viên địa phương
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textTertiary} />
+            </TouchableOpacity>
+
+            {isOwner && planStatus === "ongoing" && (
+              <TouchableOpacity
+                style={[styles.sosOptionItem, styles.emergencyOptionItem]}
+                onPress={() => {
+                  setSosOptionsVisible(false);
+                  setEmergencyStopModalVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.sosOptionIconBox, styles.emergencyIconBox]}>
+                  <Ionicons name="stop-circle-outline" size={24} color="#DC2626" />
+                </View>
+                <View style={styles.sosOptionContent}>
+                  <Text style={[styles.sosOptionTitle, styles.emergencyOptionTitle]}>
+                    Dừng khẩn cấp hành trình
+                  </Text>
+                  <Text style={styles.sosOptionDesc}>
+                    Hủy hành trình do sự cố nghiêm trọng
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#DC2626" />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={styles.sosOptionsCancelBtn}
+              onPress={() => setSosOptionsVisible(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sosOptionsCancelText}>Đóng</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       <SOSRequestModal
         visible={sosModalVisible}
@@ -1598,5 +1651,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: "#fff",
+  },
+
+  // SOS OPTIONS BOTTOM SHEET
+  sosOptionsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  sosOptionsSafeArea: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  sosOptionsSheet: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+    ...SHADOWS.large,
+  },
+  sosOptionsHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.borderMedium,
+    borderRadius: 2,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  sosOptionsTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  sosOptionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.surface0,
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  emergencyOptionItem: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "rgba(220, 38, 38, 0.2)",
+  },
+  sosOptionIconBox: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emergencyIconBox: {
+    backgroundColor: "#FEE2E2",
+  },
+  sosOptionContent: {
+    flex: 1,
+  },
+  sosOptionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  emergencyOptionTitle: {
+    color: "#DC2626",
+  },
+  sosOptionDesc: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  sosOptionsCancelBtn: {
+    marginTop: 6,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.surface0,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.borderLight,
+  },
+  sosOptionsCancelText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
   },
 });

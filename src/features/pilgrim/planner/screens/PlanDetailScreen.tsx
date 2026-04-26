@@ -4,54 +4,54 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ActivityIndicator,
-    AppState,
-    Image,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  AppState,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-    MapPin,
-    VietmapView,
-    VietmapViewRef,
+  MapPin,
+  VietmapView,
+  VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-    BORDER_RADIUS,
-    COLORS,
-    SPACING,
+  BORDER_RADIUS,
+  COLORS,
+  SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
-    CalendarSyncError,
-    useCalendarSync,
+  CalendarSyncError,
+  useCalendarSync,
 } from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
 import type {
-    PlannerCompositeNavigationProp,
-    PlannerRouteProp,
+  PlannerCompositeNavigationProp,
+  PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -60,16 +60,16 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-    createOfflinePlannerItemId,
-    offlinePlannerService,
+  createOfflinePlannerItemId,
+  offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import type { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
 import {
-    AddPlanItemRequest,
-    PlanEntity,
-    PlanItem,
-    UpdatePlanRequest,
+  AddPlanItemRequest,
+  PlanEntity,
+  PlanItem,
+  UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
@@ -92,47 +92,47 @@ import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
 import {
-    type PlannerItemPatch,
-    usePlannerDayPatching,
+  type PlannerItemPatch,
+  usePlannerDayPatching,
 } from "../hooks/usePlannerDayPatching";
 import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
-    isValidGroupDepositVnd,
-    isValidGroupPenaltyPercent,
-    MAX_DEPOSIT_VND,
-    MAX_GROUP_PENALTY_PERCENT,
-    MIN_DEPOSIT_VND,
-    MIN_GROUP_PENALTY_PERCENT,
-    parsePenaltyPercent,
-    parseVndInteger,
+  isValidGroupDepositVnd,
+  isValidGroupPenaltyPercent,
+  MAX_DEPOSIT_VND,
+  MAX_GROUP_PENALTY_PERCENT,
+  MIN_DEPOSIT_VND,
+  MIN_GROUP_PENALTY_PERCENT,
+  parsePenaltyPercent,
+  parseVndInteger,
 } from "../utils/depositInput.utils";
 import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../utils/groupMinPeople.utils";
 import {
-    extractApiErrorMessage,
-    showErrorToast,
+  extractApiErrorMessage,
+  showErrorToast,
 } from "../utils/planDetailHelpers";
-import { isPlanAccessForbiddenError } from "../utils/plannerNavigation.utils";
 import {
-    LocalSiteSnapshot,
-    applyLocalAddItem,
-    applyLocalClearAllItems,
-    applyLocalDeleteItem,
-    sortPlanDayItems,
+  applyLocalAddItem,
+  applyLocalClearAllItems,
+  applyLocalDeleteItem,
+  LocalSiteSnapshot,
+  sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
-    buildPlanMapPins,
-    getPlanMapCenter,
-    getPlannerRosterCount,
+  buildPlanMapPins,
+  getPlanMapCenter,
+  getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-    buildDurationString,
-    calculateEndTimeRaw,
-    getDateForDayRaw,
+  buildDurationString,
+  calculateEndTimeRaw,
+  getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
+import { isPlanAccessForbiddenError } from "../utils/plannerNavigation.utils";
 import {
-    getGroupPatronConstraintFromPlan,
-    isGroupJourneyPlan,
+  getGroupPatronConstraintFromPlan,
+  isGroupJourneyPlan,
 } from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
@@ -201,8 +201,21 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const formatTimeValue = (value: any): string => {
     if (!value) return "";
     if (typeof value === "string") {
+      // Check for HH:MM:SS format
       if (value.match(/^\d{2}:\d{2}:\d{2}$/)) {
         return value.substring(0, 5);
+      }
+      // Check for HH:MM format
+      if (value.match(/^\d{2}:\d{2}$/)) {
+        return value;
+      }
+      // Parse duration strings like "2 hours", "30 minutes", "1 hour 30 minutes"
+      const hourMatch = value.match(/(\d+)\s*(?:hour|giờ)/i);
+      const minMatch = value.match(/(\d+)\s*(?:minute|phút)/i);
+      if (hourMatch || minMatch) {
+        const hours = hourMatch ? parseInt(hourMatch[1], 10) : 0;
+        const minutes = minMatch ? parseInt(minMatch[1], 10) : 0;
+        return formatDurationLocalized(hours * 60 + minutes, t);
       }
       return value;
     }
@@ -1396,6 +1409,20 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       return;
     }
 
+    // Check if plan is cancelled
+    if (plan?.status === "cancelled") {
+      await confirm({
+        iconName: "close-circle",
+        title: t("planner.cancelledPlanTitle", { defaultValue: "Kế hoạch đã bị hủy" }),
+        message: t("planner.cancelledPlanCannotEdit", { 
+          defaultValue: "Kế hoạch đã bị hủy không thể chỉnh sửa. Bạn có thể xem lại thông tin nhưng không thể thay đổi." 
+        }),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -2009,6 +2036,20 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       return;
     }
 
+    // Check if plan is cancelled
+    if (plan?.status === "cancelled") {
+      await confirm({
+        iconName: "close-circle",
+        title: t("planner.cancelledPlanTitle"),
+        message: t("planner.cancelledPlanCannotDelete", {
+          defaultValue: "Kế hoạch đã bị hủy không thể xóa. Bạn có thể xem lại thông tin để tham khảo."
+        }),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
     if (isOffline) {
       showConnectionRequiredAlert();
       return;
@@ -2168,6 +2209,20 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
         message: t("planner.completedPlanCannotSyncCalendar"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
+    // Check if plan is cancelled
+    if (plan?.status === "cancelled") {
+      await confirm({
+        iconName: "close-circle",
+        title: t("planner.cancelledPlanTitle"),
+        message: t("planner.cancelledPlanCannotSyncCalendar", {
+          defaultValue: "Kế hoạch đã bị hủy không cần đồng bộ lịch nữa."
+        }),
         confirmText: t("planner.understood"),
         showCancel: false,
       });
@@ -2353,6 +2408,20 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         iconName: "checkmark-circle",
         title: t("planner.completedPlanTitle"),
         message: t("planner.completedPlanCannotSyncEta"),
+        confirmText: t("planner.understood"),
+        showCancel: false,
+      });
+      return;
+    }
+
+    // Check if plan is cancelled
+    if (plan?.status === "cancelled") {
+      await confirm({
+        iconName: "close-circle",
+        title: t("planner.cancelledPlanTitle"),
+        message: t("planner.cancelledPlanCannotSyncEta", {
+          defaultValue: "Kế hoạch đã bị hủy không thể đồng bộ lịch trình."
+        }),
         confirmText: t("planner.understood"),
         showCancel: false,
       });
@@ -4711,7 +4780,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             </View>
             {!!plan.cancelled_reason && (
               <Text style={styles.cancelledReasonText}>
-                {plan.cancelled_reason}
+                <Text style={{ fontWeight: '600' }}>
+                  {t("planner.cancelledReason", { defaultValue: "Lý do" })}: 
+                </Text>
+                {' '}{plan.cancelled_reason}
               </Text>
             )}
           </View>

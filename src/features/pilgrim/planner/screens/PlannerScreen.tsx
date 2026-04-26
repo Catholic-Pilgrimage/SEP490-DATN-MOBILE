@@ -441,7 +441,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
   const [activeTab, setActiveTab] = useState<PlannerTab>("my");
 
   // ── Status filter state ──
-  type StatusFilter = "all" | "planning" | "locked" | "ongoing" | "completed" | "cancelled";
+  type StatusFilter = "all" | "planning" | "locked" | "ongoing" | "cancelled";
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
 
@@ -494,16 +494,6 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
       icon: "navigation",
       description: t("planner.filterOngoingDesc", {
         defaultValue: "Kế hoạch đang được thực hiện",
-      }),
-    },
-    {
-      key: "completed",
-      label: t("planner.filterCompleted", { defaultValue: "Hoàn thành" }),
-      color: "#15803D",
-      bgColor: "rgba(21, 128, 61, 0.1)",
-      icon: "check-circle",
-      description: t("planner.filterCompletedDesc", {
-        defaultValue: "Hành trình đã hoàn thành",
       }),
     },
     {
@@ -748,7 +738,7 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
         setLoading(true);
         setInvitedLoading(true);
       }
-      const [planningRes, lockedRes, ongoingRes, completedRes, cancelledRes, invitesRes] =
+      const [planningRes, lockedRes, ongoingRes, cancelledRes, invitesRes] =
         await Promise.all([
           pilgrimPlannerApi.getPlans({
             page: 1,
@@ -764,11 +754,6 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
           pilgrimPlannerApi.getPlans({
             page: 1,
             limit: 50,
-            status: "completed",
-          }),
-          pilgrimPlannerApi.getPlans({
-            page: 1,
-            limit: 50,
             status: "cancelled",
           }),
           pilgrimPlannerApi.getMyInvites(),
@@ -778,7 +763,6 @@ export const PlannerScreen = ({ navigation, route }: PlannerMainProps) => {
         ...(planningRes?.data?.planners || []),
         ...(lockedRes?.data?.planners || []),
         ...(ongoingRes?.data?.planners || []),
-        ...(completedRes?.data?.planners || []),
         ...(cancelledRes?.data?.planners || []),
       ];
 

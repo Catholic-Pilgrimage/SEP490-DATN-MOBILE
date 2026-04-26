@@ -749,6 +749,20 @@ export function usePlannerSwapActions({
         });
         return;
       }
+
+      // Check if plan is cancelled
+      if (plan.status === 'cancelled') {
+        void confirm({
+          iconName: "close-circle",
+          title: t("planner.cancelledPlanTitle"),
+          message: t("planner.cancelledPlanCannotSwap", {
+            defaultValue: "Kế hoạch đã bị hủy không thể đổi thứ tự địa điểm."
+          }),
+          confirmText: t("planner.understood"),
+          showCancel: false,
+        });
+        return;
+      }
       
       const id = item.id;
       if (!id) return;

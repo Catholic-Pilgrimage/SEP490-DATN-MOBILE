@@ -79,6 +79,8 @@ export type NotificationType =
   | "planner_item_skipped_last" // Điểm cuối bị bỏ qua
   | "planner_item_added" // Thêm địa điểm vào lịch
   | "planner_started" // Kế hoạch bắt đầu
+  | "planner_emergency_stopped" // Kế hoạch dừng khẩn cấp
+  | "planner_continuation_available" // Kế hoạch có thể tiếp tục
   | "planner_schedule_changed" // Thay đổi lịch / điểm tiếp theo
   | "favorite_site_update" // Site yêu thích có cập nhật
   | "friend_request" // Nhận lời mời kết bạn
@@ -345,6 +347,8 @@ export const isPilgrimNotification = (type: string): boolean => {
     "planner_item_skipped_last",
     "planner_item_added",
     "planner_started",
+    "planner_emergency_stopped",
+    "planner_continuation_available",
     "planner_schedule_changed",
     "favorite_site_update",
     "friend_request",
@@ -464,6 +468,8 @@ export const getNotificationCategory = (
       "planner_item_skipped_last",
       "planner_item_added",
       "planner_started",
+      "planner_emergency_stopped", 
+      "planner_continuation_available",
       "planner_schedule_changed",
       "favorite_site_update",
     ].includes(type)
