@@ -5,18 +5,18 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Animated,
-  ImageBackground,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -24,11 +24,11 @@ import { SHADOWS } from "../../../constants/theme.constants";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useI18n } from "../../../hooks/useI18n";
 import {
-  RegisterFormErrors,
-  formatDateForApi,
-  formatDateForDisplay,
-  formatPhoneForApi,
-  validateRegisterForm,
+    RegisterFormErrors,
+    formatDateForApi,
+    formatDateForDisplay,
+    formatPhoneForApi,
+    validateRegisterForm,
 } from "../../../utils/validation";
 
 // Background image
@@ -167,8 +167,14 @@ const RegisterScreen = () => {
         text2: t("register.successMessage"),
       });
       navigation.navigate("Login", { email: email.trim().toLowerCase() });
-    } catch {
-      // Error is handled by AuthContext and displayed in error banner
+    } catch (err: any) {
+      // Show toast with error message (already formatted by API client)
+      const errorMessage = err?.message || error || "Đăng ký thất bại";
+      Toast.show({
+        type: "error",
+        text1: "Lỗi đăng ký",
+        text2: errorMessage,
+      });
     } finally {
       setIsSubmitting(false);
     }
