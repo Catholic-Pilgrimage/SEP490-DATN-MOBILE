@@ -1,5 +1,5 @@
-import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import { CommonActions } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
@@ -7,12 +7,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Alert,
   Clipboard,
   FlatList,
   Image,
   ImageBackground,
   Keyboard,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
@@ -23,8 +23,8 @@ import {
   TouchableOpacity,
   View
 } from "react-native";
-import Toast from "react-native-toast-message";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -537,7 +537,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
         if (res.success && res.data?.id) {
           finalId = res.data.id;
         } else {
-          Alert.alert("Thông báo", res.message || "Không thể tham gia hành trình tiếp nối.");
+          await confirm({
+            iconName: "alert-circle-outline",
+            title: "Thông báo",
+            message: res.message || "Không thể tham gia hành trình tiếp nối.",
+            confirmText: "Đóng",
+            showCancel: false,
+            type: "danger",
+          });
           return;
         }
       }
@@ -549,8 +556,22 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
           params: { planId: finalId }
         }
       } as any);
-    } catch (e) {
-      Alert.alert("Lỗi", "Không thể tham gia hành trình.");
+    } catch (e: any) {
+      // Extract error message from API response
+      const errorMessage = 
+        e?.response?.data?.error?.message ||
+        e?.response?.data?.message ||
+        e?.message ||
+        "Không thể tham gia hành trình.";
+      
+      await confirm({
+        iconName: "alert-circle-outline",
+        title: "Lỗi",
+        message: errorMessage,
+        confirmText: "Đóng",
+        showCancel: false,
+        type: "danger",
+      });
     } finally {
       setIsContinuing(false);
     }
@@ -571,16 +592,21 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
       });
 
       if (res.success && res.data) {
+        // Close modal first
         setIsNameModalVisible(false);
-        Toast.show({
-          type: "success",
-          text1: t("planner.continuePlannerSuccess", { 
-            defaultValue: "Thành công!",
-          }),
-          text2: t("planner.redirectingToNewPlan", {
-            defaultValue: "Đang chuyển hướng đến hành trình mới...",
-          }),
-        });
+        
+        // Small delay to ensure modal closes before showing toast
+        setTimeout(() => {
+          Toast.show({
+            type: "success",
+            text1: t("planner.continuePlannerSuccess", { 
+              defaultValue: "Thành công!",
+            }),
+            text2: t("planner.redirectingToNewPlan", {
+              defaultValue: "Đang chuyển hướng đến hành trình mới...",
+            }),
+          });
+        }, 100);
 
         // Creator is always owner in continuation
         const viewerStatus = "owner"; 
@@ -623,13 +649,18 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
         throw new Error(res.message || "Failed to continue planner");
       }
     } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: t("common.error"),
-        text2: error.message || t("planner.continuePlannerFailed", {
-          defaultValue: "Không thể tiếp nối hành trình"
-        }),
-      });
+      // Close modal first before showing error toast
+      setIsNameModalVisible(false);
+      
+      setTimeout(() => {
+        Toast.show({
+          type: "error",
+          text1: t("common.error"),
+          text2: error.message || t("planner.continuePlannerFailed", {
+            defaultValue: "Không thể tiếp nối hành trình"
+          }),
+        });
+      }, 100);
     } finally {
       setIsContinuing(false);
     }
@@ -1064,52 +1095,59 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
           animationType="fade"
           onRequestClose={() => setIsNameModalVisible(false)}
         >
-          <TouchableOpacity 
-            style={styles.modalOverlay} 
-            activeOpacity={1} 
-            onPress={() => setIsNameModalVisible(false)}
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
           >
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>
-                {t("planner.newJourneyName", { defaultValue: "Tên hành trình mới" })}
-              </Text>
-              <Text style={styles.modalSubtitle}>
-                {t("planner.newJourneyNameDesc", { defaultValue: "Nhập tên cho phần tiếp theo của hành trình" })}
-              </Text>
-              
-              <TextInput
-                style={styles.modalInput}
-                value={newJourneyName}
-                onChangeText={setNewJourneyName}
-                placeholder={t("planner.enterJourneyName", { defaultValue: "Nhập tên hành trình..." })}
-                autoFocus
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={[styles.modalButton, styles.modalButtonCancel]} 
-                  onPress={() => setIsNameModalVisible(false)}
-                >
-                  <Text style={styles.modalButtonTextCancel}>
-                    {t("common.cancel")}
+            <TouchableOpacity 
+              style={styles.modalOverlay} 
+              activeOpacity={1} 
+              onPress={() => setIsNameModalVisible(false)}
+            >
+              <TouchableOpacity activeOpacity={1}>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>
+                    {t("planner.newJourneyName", { defaultValue: "Tên hành trình mới" })}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.modalButton, styles.modalButtonConfirm]} 
-                  onPress={() => handleContinueJourney(newJourneyName)}
-                  disabled={!newJourneyName.trim() || isContinuing}
-                >
-                  {isContinuing ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.modalButtonTextConfirm}>
-                      {t("common.confirm")}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </TouchableOpacity>
+                  <Text style={styles.modalSubtitle}>
+                    {t("planner.newJourneyNameDesc", { defaultValue: "Nhập tên cho phần tiếp theo của hành trình" })}
+                  </Text>
+                  
+                  <TextInput
+                    style={styles.modalInput}
+                    value={newJourneyName}
+                    onChangeText={setNewJourneyName}
+                    placeholder={t("planner.enterJourneyName", { defaultValue: "Nhập tên hành trình..." })}
+                    autoFocus
+                  />
+
+                  <View style={styles.modalButtons}>
+                    <TouchableOpacity 
+                      style={[styles.modalButton, styles.modalButtonCancel]} 
+                      onPress={() => setIsNameModalVisible(false)}
+                    >
+                      <Text style={styles.modalButtonTextCancel}>
+                        {t("common.cancel")}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.modalButton, styles.modalButtonConfirm]} 
+                      onPress={() => handleContinueJourney(newJourneyName)}
+                      disabled={!newJourneyName.trim() || isContinuing}
+                    >
+                      {isContinuing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.modalButtonTextConfirm}>
+                          {t("common.confirm")}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
         </Modal>
 
         <FlatList

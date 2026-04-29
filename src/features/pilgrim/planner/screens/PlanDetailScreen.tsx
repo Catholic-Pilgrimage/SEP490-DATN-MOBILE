@@ -4230,18 +4230,24 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         markEtaSyncFromDay(selectedDay + 1);
         void loadPlan({ silent: true });
       } else {
-        Toast.show({
-          type: "error",
-          text1: t("planner.addItemFailedTitle", {
-            defaultValue: "Không thể thêm địa điểm",
-          }),
-          text2:
-            response.message ||
-            t("planner.addItemUnexpectedError", {
-              defaultValue: "Đã xảy ra lỗi",
+        // Close modal before showing error toast
+        closeAddTimeModal();
+        setIsAddModalVisible(false);
+        
+        setTimeout(() => {
+          Toast.show({
+            type: "error",
+            text1: t("planner.addItemFailedTitle", {
+              defaultValue: "Không thể thêm địa điểm",
             }),
-          visibilityTime: 4000,
-        });
+            text2:
+              response.message ||
+              t("planner.addItemUnexpectedError", {
+                defaultValue: "Đã xảy ra lỗi",
+              }),
+            visibilityTime: 4000,
+          });
+        }, 200);
       }
     } catch (error: any) {
       const respData = error?.response?.data;
@@ -4268,18 +4274,25 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       const patronErr =
         typeof errMsg === "string" &&
         (errMsg.includes("bổn mạng") || errMsg.includes("Bổn mạng"));
-      Toast.show({
-        type: "error",
-        text1: patronErr
-          ? t("planner.patronConstraintToastTitle", {
-              defaultValue: "Không cùng bổn mạng đoàn",
-            })
-          : t("planner.addItemFailedTitle", {
-              defaultValue: "Không thể thêm địa điểm",
-            }),
-        text2: errMsg,
-        visibilityTime: patronErr ? 6500 : 4000,
-      });
+      
+      // Close modal before showing error toast
+      closeAddTimeModal();
+      setIsAddModalVisible(false);
+      
+      setTimeout(() => {
+        Toast.show({
+          type: "error",
+          text1: patronErr
+            ? t("planner.patronConstraintToastTitle", {
+                defaultValue: "Không cùng bổn mạng đoàn",
+              })
+            : t("planner.addItemFailedTitle", {
+                defaultValue: "Không thể thêm địa điểm",
+              }),
+          text2: errMsg,
+          visibilityTime: patronErr ? 6500 : 4000,
+        });
+      }, 200);
     } finally {
       setAddingItem(false);
       addItemInFlightRef.current = false;
