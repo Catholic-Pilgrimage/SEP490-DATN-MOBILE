@@ -1,39 +1,39 @@
 import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
-import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { PilgrimMainStackParamList } from "../../../../navigation/pilgrimNavigation.types";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
-import { resetToLichTrinhPlannerHome } from "../utils/plannerNavigation.utils";
 import type {
-  PlannerMemberApiRow,
-  PlannerProgressMember,
+    PlannerMemberApiRow,
+    PlannerProgressMember,
 } from "../../../../types/pilgrim/planner.types";
 import { useFriendship } from "../../profile/hooks/useFriendship";
 import MemberHistoryList from "../components/shared/MemberHistoryList";
+import { resetToLichTrinhPlannerHome } from "../utils/plannerNavigation.utils";
 
 type Props = NativeStackScreenProps<PilgrimMainStackParamList, "PlannerMembersScreen">;
 
@@ -304,7 +304,8 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
     return members.filter((m) => {
       const nameMatch = m.full_name?.toLowerCase().includes(lowerQuery);
       const emailMatch = m.email?.toLowerCase().includes(lowerQuery);
-      return nameMatch || emailMatch;
+      const phoneMatch = m.phone?.includes(searchQuery.trim());
+      return nameMatch || emailMatch || phoneMatch;
     });
   }, [members, searchQuery]);
 
@@ -480,6 +481,14 @@ export default function PlannerMembersScreen({ route, navigation }: Props) {
                           <Text style={styles.memberEmail} numberOfLines={1}>
                             {m.email}
                           </Text>
+                        ) : null}
+                        {m.phone ? (
+                          <View style={styles.memberPhoneRow}>
+                            <Ionicons name="call" size={13} color={COLORS.primary} />
+                            <Text style={styles.memberPhone} numberOfLines={1}>
+                              {m.phone}
+                            </Text>
+                          </View>
                         ) : null}
                       </View>
 
@@ -754,6 +763,13 @@ const styles = StyleSheet.create({
   },
   memberName: { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary },
   memberEmail: { fontSize: 13, color: COLORS.textSecondary, marginTop: 1 },
+  memberPhoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 1,
+  },
+  memberPhone: { fontSize: 13, color: COLORS.textSecondary },
   progressSection: {
     marginTop: 12,
     paddingTop: 12,

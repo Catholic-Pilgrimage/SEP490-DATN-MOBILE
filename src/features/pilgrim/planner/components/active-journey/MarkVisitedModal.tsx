@@ -5,6 +5,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
+import { toastConfig } from "../../../../../config/toast.config";
 import {
   BORDER_RADIUS,
   COLORS,
@@ -258,15 +260,15 @@ export default function MarkVisitedModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <KeyboardAvoidingView
-          behavior="padding"
-          style={{ width: "100%" }}
-          keyboardVerticalOffset={-50}
-        >
-          <Pressable
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={-50}
+      >
+        <Pressable style={styles.overlay} onPress={onClose} />
+        <View style={styles.safeAreaWrapper} pointerEvents="box-none">
+          <View
             style={[styles.modal, { paddingBottom: insets.bottom + 16 }]}
-            onPress={(e) => e.stopPropagation()}
           >
             {/* Handle */}
             <View style={styles.handleBar} />
@@ -352,6 +354,7 @@ export default function MarkVisitedModal({
                   />
                 </View>
               )}
+
             </ScrollView>
           )}
 
@@ -387,9 +390,10 @@ export default function MarkVisitedModal({
               )}
             </TouchableOpacity>
           </View>
-        </Pressable>
-        </KeyboardAvoidingView>
-      </Pressable>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+      <Toast config={toastConfig} />
     </Modal>
   );
 }
@@ -421,8 +425,11 @@ function MemberRow({ member }: { member: MemberStatus }) {
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.45)",
+  },
+  safeAreaWrapper: {
+    flex: 1,
     justifyContent: "flex-end",
   },
   modal: {
@@ -475,6 +482,7 @@ const styles = StyleSheet.create({
   // Scroll content
   scrollContent: {
     flexGrow: 0,
+    flexShrink: 1,
     marginBottom: 12,
   },
 

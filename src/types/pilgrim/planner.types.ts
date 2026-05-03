@@ -188,6 +188,7 @@ export interface PlannerMemberApiRow {
   id: string;
   full_name: string;
   email?: string;
+  phone?: string;
   avatar_url?: string;
   joined_at?: string;
   deposit_status?: string;
@@ -575,6 +576,7 @@ export interface PlannerProgressMember {
     planner_item_id: string;
     status: string;
     checkin_date?: string;
+    photo_url?: string;
     skipped_at?: string;
     skip_reason?: string;
   }>;
