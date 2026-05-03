@@ -6,31 +6,31 @@ import * as ImagePicker from "expo-image-picker";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Clipboard,
-  FlatList,
-  Image,
-  ImageBackground,
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  RefreshControl,
-  Animated as RNAnimated,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Clipboard,
+    FlatList,
+    Image,
+    ImageBackground,
+    Keyboard,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    RefreshControl,
+    Animated as RNAnimated,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SHADOWS,
-  SPACING,
-  TYPOGRAPHY,
+    BORDER_RADIUS,
+    COLORS,
+    SHADOWS,
+    SPACING,
+    TYPOGRAPHY,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import { useConfirm } from "../../../../hooks/useConfirm";
@@ -842,12 +842,14 @@ const PlanChatScreen = ({ route, navigation }: Props) => {
     if (isSystemMsg) {
       const parsedContent = parseNotificationMessage(item.content, i18n.language);
       
-      const isEmergencyStop = parsedContent.includes('🚨') || parsedContent.toLowerCase().includes('dừng khẩn cấp') || parsedContent.toLowerCase().includes('emergency stop');
+      const isEmergencyStop = (parsedContent.toLowerCase().includes('hành trình đã dừng khẩn cấp') || 
+                               parsedContent.toLowerCase().includes('journey has been emergency stopped') ||
+                               parsedContent.toLowerCase().includes('hành trình đã bị dừng khẩn cấp'));
       const isContinuationCreated = parsedContent.toLowerCase().includes('khởi tạo hành trình tiếp nối') || 
                                      parsedContent.toLowerCase().includes('hành trình tiếp nối đã được tạo') || 
                                      parsedContent.toLowerCase().includes('initiated a continuation journey') ||
                                      parsedContent.toLowerCase().includes('continuation journey has been created');
-      const isSosOrAlert = isEmergencyStop || parsedContent.toLowerCase().includes('sos') || parsedContent.toLowerCase().includes('khẩn cấp');
+      const isSosOrAlert = parsedContent.includes('🚨') || parsedContent.toLowerCase().includes('sos') || parsedContent.toLowerCase().includes('khẩn cấp');
 
       let newPlanId = null;
       try {

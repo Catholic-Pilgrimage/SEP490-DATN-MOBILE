@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { COLORS } from "../../../../../constants/theme.constants";
 import type { PlannerProgressMember } from "../../../../../types/pilgrim/planner.types";
 
@@ -62,8 +62,39 @@ export default function MemberHistoryList({
   history,
 }: MemberHistoryListProps) {
   const { t } = useTranslation();
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  
   return (
     <>
+      <Modal
+        visible={!!selectedPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedPhoto(null)}
+      >
+        <TouchableOpacity 
+          style={styles.photoModalOverlay} 
+          activeOpacity={1}
+          onPress={() => setSelectedPhoto(null)}
+        >
+          <View style={styles.photoModalContent}>
+            <TouchableOpacity 
+              style={styles.photoModalClose}
+              onPress={() => setSelectedPhoto(null)}
+            >
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+            {selectedPhoto && (
+              <Image 
+                source={{ uri: selectedPhoto }} 
+                style={styles.photoModalImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+      
       {allItems.map((item) => {
         const hist = history.find(
           (h) => String(h.planner_item_id) === String(item.id),
@@ -96,6 +127,7 @@ export default function MemberHistoryList({
 
         const imgUri =
           item.site?.cover_image || "https://via.placeholder.com/100";
+        const checkinPhotoUri = hist?.photo_url || (hist as any)?.photoUrl;
         const itemMeta = buildItemMeta(item, t);
         const skipReason = (
           hist?.skip_reason ||
@@ -126,7 +158,18 @@ export default function MemberHistoryList({
 
         return (
           <View key={item.id} style={styles.historyItem}>
-            <Image source={{ uri: imgUri }} style={styles.historyImg} />
+            <View style={styles.historyImgContainer}>
+              <Image source={{ uri: imgUri }} style={styles.historyImg} />
+              {hist?.status === "checked_in" && checkinPhotoUri && (
+                <TouchableOpacity 
+                  style={styles.checkinBadge}
+                  onPress={() => setSelectedPhoto(checkinPhotoUri)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="camera" size={10} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={styles.historyBody}>
               <Text style={styles.historySiteName} numberOfLines={1}>
                 {item.site?.name || t("planner.members.siteNameDefault")}
@@ -169,6 +212,34 @@ export default function MemberHistoryList({
 }
 
 const styles = StyleSheet.create({
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalImage: {
+    width: '90%',
+    height: '80%',
+  },
   historyItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -176,11 +247,27 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 8,
   },
+  historyImgContainer: {
+    position: "relative",
+  },
   historyImg: {
     width: 44,
     height: 44,
     borderRadius: 6,
     backgroundColor: "#E0E0E0",
+  },
+  checkinBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: COLORS.success,
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#F8F9FA",
   },
   historyBody: {
     flex: 1,
