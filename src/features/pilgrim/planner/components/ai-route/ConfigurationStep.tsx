@@ -24,18 +24,7 @@ interface ConfigurationStepProps {
   onChange: (config: Partial<AIRouteConfig>) => void;
 }
 
-const TRANSPORT_OPTIONS = [
-  { value: "car", icon: "car", label: "Ô tô" },
-  { value: "motorbike", icon: "bicycle", label: "Xe máy" },
-  { value: "bus", icon: "bus", label: "Xe buýt" },
-] as const;
 
-const PRIORITY_OPTIONS = [
-  { value: "time", icon: "time", label: "Tiết kiệm thời gian", desc: "Ưu tiên lộ trình nhanh nhất" },
-  { value: "distance", icon: "navigate", label: "Tiết kiệm quãng đường", desc: "Ưu tiên lộ trình ngắn nhất" },
-  { value: "balanced", icon: "scale", label: "Cân bằng", desc: "Cân bằng thời gian và quãng đường" },
-  { value: "spiritual", icon: "heart", label: "Tâm linh", desc: "Ưu tiên ý nghĩa tâm linh" },
-] as const;
 
 export const ConfigurationStep = ({ config, onChange }: ConfigurationStepProps) => {
   const { t } = useTranslation();

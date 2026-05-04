@@ -27,6 +27,27 @@ export const ResultStep = ({ result }: ResultStepProps) => {
     );
   };
 
+  // Helper function to get transport label
+  const getTransportLabel = (mode: string) => {
+    const labels: Record<string, string> = {
+      car: t("aiRoute.configuration.transportCar", { defaultValue: "Ô tô" }),
+      motorbike: t("aiRoute.configuration.transportMotorbike", { defaultValue: "Xe máy" }),
+      bus: t("aiRoute.configuration.transportBus", { defaultValue: "Xe buýt" }),
+    };
+    return labels[mode] || mode;
+  };
+
+  // Helper function to get priority label
+  const getPriorityLabel = (priority: string) => {
+    const labels: Record<string, string> = {
+      time: t("aiRoute.configuration.priorityTime", { defaultValue: "Tiết kiệm thời gian" }),
+      distance: t("aiRoute.configuration.priorityDistance", { defaultValue: "Tiết kiệm quãng đường" }),
+      balanced: t("aiRoute.configuration.priorityBalanced", { defaultValue: "Cân bằng" }),
+      spiritual: t("aiRoute.configuration.prioritySpiritual", { defaultValue: "Tâm linh" }),
+    };
+    return labels[priority] || priority;
+  };
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Route Summary */}
@@ -157,11 +178,11 @@ export const ResultStep = ({ result }: ResultStepProps) => {
         <Text style={styles.metadataTitle}>{t("aiRoute.result.metadataTitle")}</Text>
         <View style={styles.metadataRow}>
           <Text style={styles.metadataLabel}>{t("aiRoute.result.transport")}:</Text>
-          <Text style={styles.metadataValue}>{result.data.metadata.transport_mode}</Text>
+          <Text style={styles.metadataValue}>{getTransportLabel(result.data.metadata.transport_mode)}</Text>
         </View>
         <View style={styles.metadataRow}>
           <Text style={styles.metadataLabel}>{t("aiRoute.result.priority")}:</Text>
-          <Text style={styles.metadataValue}>{result.data.metadata.priority}</Text>
+          <Text style={styles.metadataValue}>{getPriorityLabel(result.data.metadata.priority)}</Text>
         </View>
         <View style={styles.metadataRow}>
           <Text style={styles.metadataLabel}>{t("aiRoute.result.sitesCount")}:</Text>
