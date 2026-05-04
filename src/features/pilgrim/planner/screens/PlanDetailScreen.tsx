@@ -1313,7 +1313,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             defaultValue: "Đang quay về danh sách kế hoạch.",
           }),
         });
-        navigation.navigate("PlannerMain", { refresh: Date.now() });
+        navigation.navigate("Lich trinh", {
+          screen: "PlannerMain",
+          params: { refresh: Date.now() },
+        });
         return;
       }
       if (response?.success && response.data) {
@@ -1401,7 +1404,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               defaultValue: "Đang quay về danh sách kế hoạch.",
             }),
           });
-          navigation.navigate("PlannerMain", { refresh: Date.now() });
+          navigation.navigate("Lich trinh", {
+            screen: "PlannerMain",
+            params: { refresh: Date.now() },
+          });
           return;
         }
         console.log("Load plan detail error:", error);
@@ -1740,6 +1746,24 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     ) {
       return;
     }
+
+    // Show confirmation dialog
+    const confirmed = await confirm({
+      title: t("planner.shareCommunityConfirmTitle", {
+        defaultValue: "Chia sẻ lên cộng đồng?",
+      }),
+      message: t("planner.shareCommunityConfirmMessage", {
+        defaultValue:
+          "Hành trình hoàn thành của bạn sẽ được chia sẻ công khai lên cộng đồng. Bạn có chắc chắn muốn tiếp tục?",
+      }),
+      confirmText: t("common.share", { defaultValue: "Chia sẻ" }),
+      cancelText: t("common.cancel", { defaultValue: "Hủy" }),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setSharingToCommunity(true);
     try {
       const response = await pilgrimPlannerApi.sharePlannerToCommunity(planId);
@@ -2127,8 +2151,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           }),
         });
         // Navigate back and trigger refresh
-        navigation.navigate("PlannerMain", {
-          refresh: Date.now(), // Use timestamp to force refresh
+        navigation.navigate("Lich trinh", {
+          screen: "PlannerMain",
+          params: { refresh: Date.now() },
         });
       } else {
         Toast.show({
@@ -4464,7 +4489,16 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         >
           <TouchableOpacity
             style={styles.navButton}
-            onPress={() => navigation.navigate("PlannerMain" as any)}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                navigation.navigate("Lich trinh", {
+                  screen: "PlannerMain",
+                  params: undefined,
+                });
+              }
+            }}
           >
             <Ionicons name="arrow-back" size={26} color="#fff" />
           </TouchableOpacity>
