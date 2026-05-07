@@ -10,8 +10,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -81,10 +79,7 @@ const SiteModels3dScreen: React.FC = () => {
   const canNext = models.length > 1 && selectedIndex < models.length - 1;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#000" translucent />
 
       <View style={[styles.header, { paddingTop: insets.top + GUIDE_SPACING.sm }]}>
@@ -242,7 +237,7 @@ const SiteModels3dScreen: React.FC = () => {
           onRefreshModels={() => refetchModels()}
         />
       ) : null}
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

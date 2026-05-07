@@ -1831,55 +1831,58 @@ export const EventDetailScreen: React.FC = () => {
             </TouchableOpacity>
           )}
           {isCreateMode ? renderStepContent : renderFullForm()}
-
-          {/* Step Navigation Buttons (create mode) */}
-          {isCreateMode && (
-            <View style={styles.stepNavigation}>
-              {!isFirstStep && (
-                <TouchableOpacity
-                  style={styles.stepNavButtonSecondary}
-                  onPress={handlePrevStep}
-                  activeOpacity={0.8}
-                >
-                  <MaterialIcons
-                    name="arrow-back"
-                    size={20}
-                    color={GUIDE_COLORS.textSecondary}
-                  />
-                  <Text style={styles.stepNavButtonSecondaryText}>{t("eventDetail.backButton")}</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[
-                  styles.stepNavButtonPrimary,
-                  isFirstStep && styles.stepNavButtonFull,
-                  saving && styles.buttonDisabled,
-                ]}
-                onPress={isLastStep ? handleSave : handleNextStep}
-                disabled={saving}
-                activeOpacity={0.8}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#3D2000" />
-                ) : (
-                  <>
-                    <MaterialIcons
-                      name={isLastStep ? "check" : "arrow-forward"}
-                      size={20}
-                      color="#3D2000"
-                    />
-                    <Text style={styles.stepNavButtonPrimaryText}>
-                      {isLastStep ? t("eventDetail.createButton") : t("eventDetail.nextButton")}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Step Navigation Buttons — sticky footer outside scroll */}
+      {isCreateMode && (
+        <View
+          style={[
+            styles.stepNavigation,
+            { paddingBottom: Math.max(insets.bottom + GUIDE_SPACING.md, GUIDE_SPACING.xl) },
+          ]}
+        >
+          {!isFirstStep && (
+            <TouchableOpacity
+              style={styles.stepNavButtonSecondary}
+              onPress={handlePrevStep}
+              activeOpacity={0.8}
+            >
+              <MaterialIcons
+                name="arrow-back"
+                size={20}
+                color={GUIDE_COLORS.textSecondary}
+              />
+              <Text style={styles.stepNavButtonSecondaryText}>{t("eventDetail.backButton")}</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[
+              styles.stepNavButtonPrimary,
+              isFirstStep && styles.stepNavButtonFull,
+              saving && styles.buttonDisabled,
+            ]}
+            onPress={isLastStep ? handleSave : handleNextStep}
+            disabled={saving}
+            activeOpacity={0.8}
+          >
+            {saving ? (
+              <ActivityIndicator color="#3D2000" />
+            ) : (
+              <>
+                <MaterialIcons
+                  name={isLastStep ? "check" : "arrow-forward"}
+                  size={20}
+                  color="#3D2000"
+                />
+                <Text style={styles.stepNavButtonPrimaryText}>
+                  {isLastStep ? t("eventDetail.createButton") : t("eventDetail.nextButton")}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* AI Assist Bottom Sheet */}
       <Modal

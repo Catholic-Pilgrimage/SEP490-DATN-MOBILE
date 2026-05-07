@@ -24,6 +24,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { GUIDE_SPACING } from "../../../../constants/guide.constants";
 import { GUIDE_KEYS } from "../../../../constants/queryKeys";
@@ -94,6 +95,7 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
   const { t, i18n } = useTranslation();
   const { confirm, ConfirmModal } = useConfirm();
   const { height: windowH } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
 
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -646,35 +648,6 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
             </View>
           ) : null}
 
-          {false && narrativeStatus !== "pending" &&
-          (narrativeReviewerName || narrativeReviewerEmail || narrativeReviewedAtLabel) ? (
-            <View style={styles.reviewMetaBox}>
-              <View style={styles.reviewMetaHeader}>
-                <MaterialIcons
-                  name="verified-user"
-                  size={15}
-                  color={PREMIUM_COLORS.gold}
-                />
-                <Text style={styles.reviewMetaTitle}>Thông tin kiểm duyệt</Text>
-              </View>
-              {narrativeReviewerName ? (
-                <Text style={styles.reviewMetaText}>
-                  <Text style={styles.reviewMetaLabel}>Người kiểm duyệt: </Text>
-                  {narrativeReviewerName}
-                </Text>
-              ) : null}
-              {narrativeReviewerEmail ? (
-                <Text style={styles.reviewMetaHint}>{narrativeReviewerEmail}</Text>
-              ) : null}
-              {narrativeReviewedAtLabel ? (
-                <Text style={styles.reviewMetaText}>
-                  <Text style={styles.reviewMetaLabel}>Thời gian xử lý: </Text>
-                  {narrativeReviewedAtLabel}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-
           {!canEdit && narrativeStatus === "approved" && media.narration_text ? (
             <Text style={styles.readOnlyScript}>{media.narration_text}</Text>
           ) : null}
@@ -827,7 +800,13 @@ export const SiteModelNarrativePanel: React.FC<SiteModelNarrativePanelProps> = (
         onRequestClose={() => setVoiceModalVisible(false)}
       >
         <Pressable
-          style={styles.modalOverlay}
+          style={[
+            styles.modalOverlay,
+            {
+              paddingTop: Math.max(insets.top, 24),
+              paddingBottom: Math.max(insets.bottom, 24),
+            },
+          ]}
           onPress={() => setVoiceModalVisible(false)}
         >
           <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
@@ -1131,7 +1110,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.65)",
     justifyContent: "center",
-    padding: 24,
+    paddingHorizontal: 24,
   },
   modalCard: {
     backgroundColor: "#1a1a1a",
@@ -1186,11 +1165,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#fff",
-  },
-  voiceRowMeta: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 2,
   },
   demoBtn: {
     padding: 2,

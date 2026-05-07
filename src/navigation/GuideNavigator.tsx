@@ -132,6 +132,7 @@ export const GuideNavigator = () => {
           const routeName =
             getFocusedRouteNameFromRoute(route) ?? "MySiteHome";
           const isHidden =
+            routeName === "EventDetail" ||
             routeName === "MediaDetail" ||
             routeName === "MediaUpload" ||
             routeName === "SiteModels3d";

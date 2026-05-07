@@ -619,10 +619,7 @@ const JourneyAttachment = ({ journey }: { journey: any }) => {
   const handleCloneJourney = () => {
     if (!journey.id) return;
     const params = buildCreatePlanCloneParamsFromJourney(journey, t);
-    navigation.navigate("Lich trinh" as never, {
-      screen: "CreatePlanScreen",
-      params,
-    } as never);
+    navigation.navigate("CreatePlanScreen" as never, params as never);
   };
 
   return (

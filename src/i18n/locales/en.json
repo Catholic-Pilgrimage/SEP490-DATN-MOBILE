@@ -1308,7 +1308,7 @@
       "transitionReason": "Transition reason",
       "transitionReasonPlaceholder": "Why do you need to replace the current manager?",
       "unassignedClaimReason": "Request to manage site without Manager",
-      "introduction": "Introduction / About the site",
+      "introduction": "Introduction",
       "introductionPlaceholder": "Brief description about yourself or the site...",
       "certificate": "Certificate"
     },

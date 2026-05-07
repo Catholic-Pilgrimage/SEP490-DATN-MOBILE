@@ -153,7 +153,7 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: GUIDE_SPACING.lg,
     paddingTop: GUIDE_SPACING.md,
-    paddingBottom: GUIDE_SPACING.xxl,
+    paddingBottom: GUIDE_SPACING.lg,
   },
 
   // ============================================
@@ -838,7 +838,11 @@ export const styles = StyleSheet.create({
   stepNavigation: {
     flexDirection: "row",
     gap: GUIDE_SPACING.md,
-    marginTop: GUIDE_SPACING.xl,
+    paddingHorizontal: GUIDE_SPACING.lg,
+    paddingTop: GUIDE_SPACING.md,
+    backgroundColor: GUIDE_COLORS.creamBg,
+    borderTopWidth: 1,
+    borderTopColor: GUIDE_COLORS.creamBorder,
   },
   stepNavButtonPrimary: {
     flex: 1,

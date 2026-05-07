@@ -138,7 +138,6 @@ const SettingsScreen = () => {
   // State for toggles
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const notificationsEnabled = false;
-  const biometricsEnabled = false;
 
   const showInfoDialog = async ({
     title,
@@ -336,24 +335,6 @@ const SettingsScreen = () => {
             }
           />
           <View style={styles.divider} />
-          <SettingToggle
-            icon="finger-print-outline"
-            label={t("settings.biometrics")}
-            value={biometricsEnabled}
-            onValueChange={() =>
-              void handleUnavailableToggle({
-                title: t("settings.biometrics"),
-                iconName: "finger-print-outline",
-              })
-            }
-            onPress={() =>
-              void handleUnavailableToggle({
-                title: t("settings.biometrics"),
-                iconName: "finger-print-outline",
-              })
-            }
-          />
-          <View style={styles.divider} />
           <SettingItem
             icon="language-outline"
             label={t("settings.language")}
@@ -390,28 +371,6 @@ const SettingsScreen = () => {
                 title: t("settings.thankYou"),
                 message: t("settings.thankYouMessage"),
                 iconName: "star-outline",
-              })
-            }
-          />
-          <SettingItem
-            icon="document-text-outline"
-            label={t("settings.terms")}
-            onPress={() =>
-              void showInfoDialog({
-                title: t("settings.terms"),
-                message: t("settings.showTerms"),
-                iconName: "document-text-outline",
-              })
-            }
-          />
-          <SettingItem
-            icon="shield-checkmark-outline"
-            label={t("settings.privacy")}
-            onPress={() =>
-              void showInfoDialog({
-                title: t("settings.privacy"),
-                message: t("settings.showPrivacy"),
-                iconName: "shield-checkmark-outline",
               })
             }
             isLast

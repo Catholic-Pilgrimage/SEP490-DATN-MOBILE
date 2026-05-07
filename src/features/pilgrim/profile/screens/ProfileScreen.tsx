@@ -300,6 +300,12 @@ const ProfileScreen = () => {
           : undefined,
     },
     {
+      icon: "time-outline",
+      label: t("profile.menu.history"),
+      requireAuth: true,
+      route: "History",
+    },
+    {
       icon: "hand-left-outline",
       label: t("profile.menu.sosHistory"),
       requireAuth: true,
@@ -332,12 +338,6 @@ const ProfileScreen = () => {
         offlineStats.totalPlanners > 0
           ? offlineStats.totalPlanners.toString()
           : undefined,
-    },
-    {
-      icon: "time-outline",
-      label: t("profile.menu.history"),
-      requireAuth: true,
-      route: "History",
     },
     {
       icon: "settings-outline",
@@ -376,9 +376,10 @@ const ProfileScreen = () => {
     }
   };
 
-  // Nhóm: tài khoản + ví + SOS + Báo cáo + offline → cài đặt & lịch sử
-  const accountItems = menuItems.slice(0, 8);
-  const settingsItems = menuItems.slice(8);
+  // Account: favorites, wallet, friends, history, sos, reports, offline
+  // Settings: settings (cuối)
+  const accountItems = menuItems.slice(0, 7);
+  const settingsItems = menuItems.slice(7);
 
   return (
     <ImageBackground
@@ -575,7 +576,6 @@ const ProfileScreen = () => {
           ))}
         </View>
 
-        {/* Login or Logout Button */}
         {/* Login or Logout Button */}
         <TouchableOpacity
           style={[

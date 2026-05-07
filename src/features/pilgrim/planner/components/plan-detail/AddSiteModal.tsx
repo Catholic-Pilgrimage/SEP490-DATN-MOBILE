@@ -40,6 +40,8 @@ interface AddSiteModalProps {
   onSelectEventSite: (site: SiteSummary) => void;
   sites: SiteSummary[];
   favorites: SiteSummary[];
+  onFetchMoreSites?: () => void;
+  isFetchingMoreSites?: boolean;
   onAddSite?: (siteId: string) => void;
   onOpenNearbyAmenities?: (site: SiteSummary) => void;
   /** Chạm vào ảnh/tên địa điểm — mở trang chi tiết site (nút + vẫn chỉ thêm vào lịch). */
@@ -64,6 +66,8 @@ export default function AddSiteModal({
   onSelectEventSite,
   sites,
   favorites,
+  onFetchMoreSites,
+  isFetchingMoreSites,
   onAddSite,
   onOpenNearbyAmenities,
   onOpenSiteDetail,
@@ -751,6 +755,17 @@ export default function AddSiteModal({
             data={listData}
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ padding: 16, paddingBottom: bottomPad }}
+            onEndReached={activeTab === "all" ? onFetchMoreSites : undefined}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={
+              activeTab === "all" && isFetchingMoreSites ? (
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.accent}
+                  style={{ marginVertical: 12 }}
+                />
+              ) : null
+            }
             ListHeaderComponent={
               activeTab === "all" && featuredSites.length > 0 ? (
                 <View style={localStyles.sectionWrap}>

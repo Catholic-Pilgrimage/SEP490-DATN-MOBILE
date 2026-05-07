@@ -4,54 +4,54 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  AppState,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    AppState,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 import { OfflineBanner } from "../../../../components/common/OfflineBanner";
 import { FullMapModal } from "../../../../components/map/FullMapModal";
 import {
-  MapPin,
-  VietmapView,
-  VietmapViewRef,
+    MapPin,
+    VietmapView,
+    VietmapViewRef,
 } from "../../../../components/map/VietmapView";
 import { CalendarSyncModal } from "../../../../components/ui/CalendarSyncModal";
 import { OfflineDownloadModal } from "../../../../components/ui/OfflineDownloadModal";
 import {
-  BORDER_RADIUS,
-  COLORS,
-  SPACING,
+    BORDER_RADIUS,
+    COLORS,
+    SPACING,
 } from "../../../../constants/theme.constants";
 import { useAuth } from "../../../../hooks/useAuth";
 import {
-  CalendarSyncError,
-  useCalendarSync,
+    CalendarSyncError,
+    useCalendarSync,
 } from "../../../../hooks/useCalendarSync";
 import { useConfirm } from "../../../../hooks/useConfirm";
 import { useOffline } from "../../../../hooks/useOffline";
 import { useOfflineDownload } from "../../../../hooks/useOfflineDownload";
 import { useSites } from "../../../../hooks/useSites";
 import type {
-  PlannerCompositeNavigationProp,
-  PlannerRouteProp,
+    PlannerCompositeNavigationProp,
+    PlannerRouteProp,
 } from "../../../../navigation/pilgrimNavigation.types";
 import { PILGRIM_ENDPOINTS } from "../../../../services/api/endpoints";
 import pilgrimPlannerApi from "../../../../services/api/pilgrim/plannerApi";
@@ -60,16 +60,16 @@ import { PlannerCalendarSyncResult } from "../../../../services/calendar/calenda
 import vietmapService from "../../../../services/map/vietmapService";
 import networkService from "../../../../services/network/networkService";
 import {
-  createOfflinePlannerItemId,
-  offlinePlannerService,
+    createOfflinePlannerItemId,
+    offlinePlannerService,
 } from "../../../../services/offline/offlinePlannerService";
 import offlineSyncService from "../../../../services/offline/offlineSyncService";
 import type { SiteEvent, SiteSummary } from "../../../../types/pilgrim";
 import {
-  AddPlanItemRequest,
-  PlanEntity,
-  PlanItem,
-  UpdatePlanRequest,
+    AddPlanItemRequest,
+    PlanEntity,
+    PlanItem,
+    UpdatePlanRequest,
 } from "../../../../types/pilgrim/planner.types";
 import type { SiteNearbyPlace } from "../../../../types/pilgrim/site.types";
 import { runWithActionGuard } from "../../../../utils/actionGuard";
@@ -92,47 +92,47 @@ import { useEditItemForm } from "../hooks/useEditItemForm";
 import { useInvitePlanActions } from "../hooks/useInvitePlanActions";
 import { useNearbyPlaces } from "../hooks/useNearbyPlaces";
 import {
-  type PlannerItemPatch,
-  usePlannerDayPatching,
+    type PlannerItemPatch,
+    usePlannerDayPatching,
 } from "../hooks/usePlannerDayPatching";
 import { usePlannerSwapActions } from "../hooks/usePlannerSwapActions";
 import { usePlanRoute } from "../hooks/usePlanRoute";
 import {
-  isValidGroupDepositVnd,
-  isValidGroupPenaltyPercent,
-  MAX_DEPOSIT_VND,
-  MAX_GROUP_PENALTY_PERCENT,
-  MIN_DEPOSIT_VND,
-  MIN_GROUP_PENALTY_PERCENT,
-  parsePenaltyPercent,
-  parseVndInteger,
+    isValidGroupDepositVnd,
+    isValidGroupPenaltyPercent,
+    MAX_DEPOSIT_VND,
+    MAX_GROUP_PENALTY_PERCENT,
+    MIN_DEPOSIT_VND,
+    MIN_GROUP_PENALTY_PERCENT,
+    parsePenaltyPercent,
+    parseVndInteger,
 } from "../utils/depositInput.utils";
 import { MIN_GROUP_MIN_PEOPLE_REQUIRED } from "../utils/groupMinPeople.utils";
 import {
-  extractApiErrorMessage,
-  showErrorToast,
+    extractApiErrorMessage,
+    showErrorToast,
 } from "../utils/planDetailHelpers";
 import {
-  applyLocalAddItem,
-  applyLocalClearAllItems,
-  applyLocalDeleteItem,
-  LocalSiteSnapshot,
-  sortPlanDayItems,
+    applyLocalAddItem,
+    applyLocalClearAllItems,
+    applyLocalDeleteItem,
+    LocalSiteSnapshot,
+    sortPlanDayItems,
 } from "../utils/planDetailLocalPlan.utils";
 import {
-  buildPlanMapPins,
-  getPlanMapCenter,
-  getPlannerRosterCount,
+    buildPlanMapPins,
+    getPlanMapCenter,
+    getPlannerRosterCount,
 } from "../utils/planDetailMap.utils";
 import {
-  buildDurationString,
-  calculateEndTimeRaw,
-  getDateForDayRaw,
+    buildDurationString,
+    calculateEndTimeRaw,
+    getDateForDayRaw,
 } from "../utils/planDetailTime.utils";
 import { isPlanAccessForbiddenError } from "../utils/plannerNavigation.utils";
 import {
-  getGroupPatronConstraintFromPlan,
-  isGroupJourneyPlan,
+    getGroupPatronConstraintFromPlan,
+    isGroupJourneyPlan,
 } from "../utils/planPatronScope.utils";
 import { formatDurationLocalized } from "../utils/siteScheduleHelper";
 import { parseDurationToMinutes } from "../utils/time";
@@ -509,7 +509,14 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [addFlowOriginDay, setAddFlowOriginDay] = useState<number | null>(null);
-  const { sites, isLoading: isLoadingSites, fetchSites } = useSites();
+  const {
+    sites,
+    isLoading: isLoadingSites,
+    isFetchingMore: isFetchingMoreSites,
+    hasMore: hasMoreSites,
+    fetchSites,
+    fetchMore: fetchMoreSites,
+  } = useSites();
   const [favorites, setFavorites] = useState<SiteSummary[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [activeTab, setActiveTab] = useState<"all" | "favorites" | "events">(
@@ -823,10 +830,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   useEffect(() => {
     if (editPlanPeople > 1) {
       setEditPlanMinPeople((m) =>
-        Math.min(
-          editPlanPeople,
-          Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m),
-        ),
+        Math.min(editPlanPeople, Math.max(MIN_GROUP_MIN_PEOPLE_REQUIRED, m)),
       );
     }
   }, [editPlanPeople]);
@@ -1154,18 +1158,33 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
   }, [autoAddSiteId, plan, loading]);
 
+  // Reset event sites cache khi plan dates thay đổi
   useEffect(() => {
-    if (isAddModalVisible) {
-      if (activeTab === "all") {
-        fetchSites({ limit: 20 });
-        if (!hasLoadedEventSites) {
-          void loadEventSites();
-        }
-      } else {
-        fetchFavorites();
-      }
+    setHasLoadedEventSites(false);
+    setEventSitesList([]);
+  }, [plan?.start_date, plan?.end_date]);
+
+  // Load sites & favorites khi modal mở
+  useEffect(() => {
+    if (!isAddModalVisible) return;
+    if (activeTab === "all") {
+      fetchSites({ limit: 100 });
+    } else if (activeTab === "favorites") {
+      fetchFavorites();
     }
-  }, [isAddModalVisible, activeTab, hasLoadedEventSites]);
+  }, [isAddModalVisible, activeTab]);
+
+  // Sau khi sites load, check từng site xem có event trong khoảng ngày plan không
+  useEffect(() => {
+    if (!isAddModalVisible || activeTab !== "all") return;
+    if (hasLoadedEventSites) return;
+    if (!sites.length) return;
+    if (!plan?.start_date || !plan?.end_date) return;
+
+    setHasLoadedEventSites(true);
+    void loadEventSites();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddModalVisible, activeTab, hasLoadedEventSites, sites.length, plan?.start_date, plan?.end_date]);
 
   const fetchFavorites = async () => {
     try {
@@ -1458,9 +1477,12 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     if (plan?.status === "cancelled") {
       await confirm({
         iconName: "close-circle",
-        title: t("planner.cancelledPlanTitle", { defaultValue: "Kế hoạch đã bị hủy" }),
-        message: t("planner.cancelledPlanCannotEdit", { 
-          defaultValue: "Kế hoạch đã bị hủy không thể chỉnh sửa. Bạn có thể xem lại thông tin nhưng không thể thay đổi." 
+        title: t("planner.cancelledPlanTitle", {
+          defaultValue: "Kế hoạch đã bị hủy",
+        }),
+        message: t("planner.cancelledPlanCannotEdit", {
+          defaultValue:
+            "Kế hoạch đã bị hủy không thể chỉnh sửa. Bạn có thể xem lại thông tin nhưng không thể thay đổi.",
         }),
         confirmText: t("planner.understood"),
         showCancel: false,
@@ -1531,12 +1553,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       const shareLocked = !!plan?.first_invite_at;
       const editLockedOnly = !!plan?.is_locked;
       const depositPenaltyFromPlan = () => ({
-        dep: Math.round(
-          Number((plan as PlanEntity)?.deposit_amount ?? 0),
-        ),
-        pen: Math.round(
-          Number((plan as PlanEntity)?.penalty_percentage ?? 0),
-        ),
+        dep: Math.round(Number((plan as PlanEntity)?.deposit_amount ?? 0)),
+        pen: Math.round(Number((plan as PlanEntity)?.penalty_percentage ?? 0)),
       });
 
       if (editPlanPeople > 1) {
@@ -1565,8 +1583,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               t("planner.depositOutOfRange", {
                 min: MIN_DEPOSIT_VND,
                 max: MAX_DEPOSIT_VND,
-                defaultValue:
-                  "Cọc từ {{min}} đến {{max}} VNĐ (theo quy định).",
+                defaultValue: "Cọc từ {{min}} đến {{max}} VNĐ (theo quy định).",
               }),
             );
             return;
@@ -1654,37 +1671,41 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     }
   };
 
+  /**
+   * Kiểm tra từng site (trong All list) xem có event nào nằm trong khoảng ngày plan không.
+   * Dùng getSiteEvents per-site thay vì filter has_events trên sites endpoint
+   * vì backend có thể không cập nhật flag has_events tự động khi tạo event mới.
+   */
   const loadEventSites = async () => {
-    if (hasLoadedEventSites) return;
+    if (isLoadingEventSites) return;
+    if (!plan?.start_date || !plan?.end_date || !sites.length) return;
     try {
       setIsLoadingEventSites(true);
-      const params: any = { has_events: "true", limit: 100 };
-      if (plan?.start_date && plan?.end_date) {
-        params.start_date = plan.start_date.substring(0, 10);
-        params.end_date = plan.end_date.substring(0, 10);
-      }
+      const startDate = plan.start_date.substring(0, 10);
+      const endDate = plan.end_date.substring(0, 10);
 
-      const res = await pilgrimSiteApi.getSites(params);
-      if (res && res.success && res.data) {
-        const rawData = (res.data as any).data || (res.data as any).items || [];
-        const siteData = rawData.map((site: any) => ({
-          id: site.id,
-          name: site.name,
-          address: site.address || "",
-          coverImage: site.cover_image || site.coverImage || "",
-          rating: site.rating || 0,
-          reviewCount: site.review_count || site.reviewCount || 0,
-          isFavorite: site.is_favorite || site.isFavorite || false,
-          type: site.type,
-          latitude: site.latitude || 0,
-          longitude: site.longitude || 0,
-          patronSaint: site.patron_saint || site.patronSaint || undefined,
-        }));
-        setEventSitesList(siteData);
-      }
-      setHasLoadedEventSites(true);
+      // Parallel check tối đa 60 sites — đủ cho All list hiện tại (limit 100 nhưng thực tế ít hơn)
+      const sitesToCheck = sites.slice(0, 60);
+      const checks = await Promise.allSettled(
+        sitesToCheck.map((site) =>
+          pilgrimSiteApi.getSiteEvents(site.id, {
+            start_date: startDate,
+            end_date: endDate,
+            limit: 1,
+          }),
+        ),
+      );
+
+      const sitesWithEvents = sitesToCheck.filter((_, i) => {
+        const result = checks[i];
+        if (result.status !== "fulfilled") return false;
+        const evList = (result.value?.data as any)?.data;
+        return Array.isArray(evList) && evList.length > 0;
+      });
+
+      setEventSitesList(sitesWithEvents);
     } catch (e) {
-      console.log("Fetch event sites error:", e);
+      console.log("Event sites check error:", e);
     } finally {
       setIsLoadingEventSites(false);
     }
@@ -2105,7 +2126,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         iconName: "close-circle",
         title: t("planner.cancelledPlanTitle"),
         message: t("planner.cancelledPlanCannotDelete", {
-          defaultValue: "Kế hoạch đã bị hủy không thể xóa. Bạn có thể xem lại thông tin để tham khảo."
+          defaultValue:
+            "Kế hoạch đã bị hủy không thể xóa. Bạn có thể xem lại thông tin để tham khảo.",
         }),
         confirmText: t("planner.understood"),
         showCancel: false,
@@ -2285,7 +2307,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         iconName: "close-circle",
         title: t("planner.cancelledPlanTitle"),
         message: t("planner.cancelledPlanCannotSyncCalendar", {
-          defaultValue: "Kế hoạch đã bị hủy không cần đồng bộ lịch nữa."
+          defaultValue: "Kế hoạch đã bị hủy không cần đồng bộ lịch nữa.",
         }),
         confirmText: t("planner.understood"),
         showCancel: false,
@@ -2484,7 +2506,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         iconName: "close-circle",
         title: t("planner.cancelledPlanTitle"),
         message: t("planner.cancelledPlanCannotSyncEta", {
-          defaultValue: "Kế hoạch đã bị hủy không thể đồng bộ lịch trình."
+          defaultValue: "Kế hoạch đã bị hủy không thể đồng bộ lịch trình.",
         }),
         confirmText: t("planner.understood"),
         showCancel: false,
@@ -4258,7 +4280,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         // Close modal before showing error toast
         closeAddTimeModal();
         setIsAddModalVisible(false);
-        
+
         setTimeout(() => {
           Toast.show({
             type: "error",
@@ -4299,11 +4321,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
       const patronErr =
         typeof errMsg === "string" &&
         (errMsg.includes("bổn mạng") || errMsg.includes("Bổn mạng"));
-      
+
       // Close modal before showing error toast
       closeAddTimeModal();
       setIsAddModalVisible(false);
-      
+
       setTimeout(() => {
         Toast.show({
           type: "error",
@@ -4443,7 +4465,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   const canFormerMemberViewCrewProgress =
     isDroppedOut &&
     isGroupPlan &&
-    (isOngoingPlan || planStatusStr === "locked" || isCompletedPlan || isCancelledPlan);
+    (isOngoingPlan ||
+      planStatusStr === "locked" ||
+      isCompletedPlan ||
+      isCancelledPlan);
   const canDeleteItems =
     isPlanOwner &&
     !plan?.is_locked &&
@@ -4739,13 +4764,19 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           {/* Tiến độ (solo) / Thành viên (nhóm) — thành viên hiện tại; hoặc người đã rời: chỉ xem (không mở ActiveJourney) */}
           {!isInvitePendingView &&
             ((!isDroppedOut &&
-              (!isPlanOwner || isOngoingPlan || isCompletedPlan || isCancelledPlan)) ||
+              (!isPlanOwner ||
+                isOngoingPlan ||
+                isCompletedPlan ||
+                isCancelledPlan)) ||
               canFormerMemberViewCrewProgress) && (
               <TouchableOpacity
                 style={[
                   styles.quickActionButton,
-                  (isOffline && !canFormerMemberViewCrewProgress) && styles.disabledAction,
-                  canFormerMemberViewCrewProgress && styles.quickActionButtonReadOnly,
+                  isOffline &&
+                    !canFormerMemberViewCrewProgress &&
+                    styles.disabledAction,
+                  canFormerMemberViewCrewProgress &&
+                    styles.quickActionButtonReadOnly,
                 ]}
                 onPress={handleOpenMembers}
                 disabled={isOffline && !canFormerMemberViewCrewProgress}
@@ -4850,7 +4881,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
           <View style={styles.cancelledReasonBanner}>
             <View style={styles.cancelledReasonHeader}>
               <Ionicons
-                name={plan.cancelled_reason ? "warning-outline" : "close-circle-outline"}
+                name={
+                  plan.cancelled_reason
+                    ? "warning-outline"
+                    : "close-circle-outline"
+                }
                 size={20}
                 color="#DC2626"
               />
@@ -4866,10 +4901,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
             </View>
             {!!plan.cancelled_reason && (
               <Text style={styles.cancelledReasonText}>
-                <Text style={{ fontWeight: '600' }}>
-                  {t("planner.cancelledReason", { defaultValue: "Lý do" })}: 
-                </Text>
-                {' '}{plan.cancelled_reason}
+                <Text style={{ fontWeight: "600" }}>
+                  {t("planner.cancelledReason", { defaultValue: "Lý do" })}:
+                </Text>{" "}
+                {plan.cancelled_reason}
               </Text>
             )}
           </View>
@@ -5259,7 +5294,9 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         setActiveTab={setActiveTab}
         onOpenEventsTab={() => {
           setActiveTab("events");
-          loadEventSites();
+          if (!hasLoadedEventSites && !isLoadingEventSites) {
+            void loadEventSites();
+          }
         }}
         isLoadingSites={isLoadingSites}
         isLoadingFavorites={isLoadingFavorites}
@@ -5268,6 +5305,8 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         onSelectEventSite={handleAddSiteFromEventsTab}
         sites={sites}
         favorites={favorites}
+        onFetchMoreSites={hasMoreSites ? fetchMoreSites : undefined}
+        isFetchingMoreSites={isFetchingMoreSites}
         onAddSite={isPlanOwner ? (siteId) => handleAddItem(siteId) : undefined}
         onOpenNearbyAmenities={handleOpenNearbyAmenitiesFromAddModal}
         onOpenSiteDetail={handleOpenSiteDetailFromAddModal}

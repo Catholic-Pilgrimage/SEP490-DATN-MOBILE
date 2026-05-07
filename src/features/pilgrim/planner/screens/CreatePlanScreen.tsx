@@ -345,7 +345,9 @@ const CreatePlanScreen = ({ navigation, route }: CreatePlanProps) => {
           showSuccessToast(
             t("planner.cloneSuccess", { defaultValue: "Đã tạo bản sao hành trình!" }),
           );
-          navigation.navigate("PlannerMain");
+          // Navigate đến tab Lịch trình sau khi clone — hoạt động đúng dù
+          // CreatePlanScreen được mở từ PlannerStack hay CommunityStack.
+          navigation.navigate("Lich trinh" as never, { screen: "PlannerMain" } as never);
         } else {
           showSuccessToast(
             t("planner.createSuccess", {

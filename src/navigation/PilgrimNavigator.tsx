@@ -302,6 +302,12 @@ const CommunityStackNavigator = () => (
       name="PostDetail"
       component={PostDetailScreen}
     />
+    {/* CreatePlanScreen được thêm vào CommunityStack để giữ nguyên back stack khi clone từ cộng đồng */}
+    <CommunityStack.Screen
+      name="CreatePlanScreen"
+      component={CreatePlanScreen as any}
+      options={{ presentation: 'modal' }}
+    />
   </CommunityStack.Navigator>
 );
 

@@ -98,27 +98,26 @@ export const ExploreScreen: React.FC<Props> = ({ navigation }) => {
         filterSiteType,
       ),
       page: 1,
-      limit: 10,
+      limit: 100,
     },
     autoFetch: true,
   });
 
-  // Pool lớn hơn để tính top 5 nổi bật cục bộ (cùng cách cũ trước khi tách API explore)
+  // Pool để tính top 5 nổi bật: lấy nhiều site, lọc rating ≥ 4, sort theo số lượng đánh giá
   const { sites: featuredCandidateSites, refetch: refetchFeaturedSites } =
     useSites({
-      filters: { page: 1, limit: 50 },
+      filters: { page: 1, limit: 100 },
       autoFetch: true,
     });
 
   const featuredSites = useMemo(() => {
     if (!featuredCandidateSites?.length) return [];
-    return [...featuredCandidateSites]
-      .sort((a, b) => {
-        const scoreA = (a.rating || 0) * Math.log10((a.reviewCount || 0) + 1);
-        const scoreB = (b.rating || 0) * Math.log10((b.reviewCount || 0) + 1);
-        return scoreB - scoreA;
-      })
-      .slice(0, 5);
+    const sorted = [...featuredCandidateSites].sort(
+      (a, b) => (b.reviewCount || 0) - (a.reviewCount || 0),
+    );
+    // Ưu tiên site có rating >= 4 (4-5 sao), nếu đủ 5 thì dùng; không thì fallback toàn bộ
+    const highRated = sorted.filter((s) => (s.rating || 0) >= 4);
+    return (highRated.length >= 5 ? highRated : sorted).slice(0, 5);
   }, [featuredCandidateSites]);
 
   const handlePullRefresh = useCallback(async () => {

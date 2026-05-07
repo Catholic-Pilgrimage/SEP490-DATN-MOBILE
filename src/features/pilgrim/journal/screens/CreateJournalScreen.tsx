@@ -1661,26 +1661,6 @@ export default function CreateJournalScreen() {
         </View>
       ) : null}
 
-      <TouchableOpacity
-        style={[
-          styles.aiPrayerGenerateButton,
-          prayerLoading && styles.aiPrayerGenerateButtonDisabled,
-        ]}
-        onPress={handleSuggestPrayer}
-        disabled={prayerLoading}
-        activeOpacity={0.9}
-      >
-        {prayerLoading ? (
-          <ActivityIndicator size="small" color={COLORS.textPrimary} />
-        ) : (
-          <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
-        )}
-        <Text style={styles.aiPrayerGenerateButtonText}>
-          {generatedPrayerText
-            ? t("journal.aiPrayerRegenerate")
-            : t("journal.aiPrayerGenerate")}
-        </Text>
-      </TouchableOpacity>
     </>
   );
 
@@ -3282,7 +3262,7 @@ export default function CreateJournalScreen() {
 
             <SafeAreaView edges={["bottom"]} style={styles.aiModalSafeArea}>
               <View
-                style={[styles.aiBottomSheet, { paddingBottom: SPACING.lg }]}
+                style={[styles.aiBottomSheet, { paddingBottom: insets.bottom + SPACING.lg }]}
               >
                 <View style={styles.aiModalHandleWrap}>
                   <View style={styles.aiModalHandle} />
@@ -3321,14 +3301,31 @@ export default function CreateJournalScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <ScrollView
-                  style={styles.aiSheetScrollView}
-                  contentContainerStyle={styles.aiSheetScrollContent}
-                  showsVerticalScrollIndicator={false}
-                  keyboardShouldPersistTaps="handled"
-                >
+                <View style={styles.aiSheetScrollView}>
                   {renderAIPrayerSheetBody()}
-                </ScrollView>
+                </View>
+
+                {/* Nút luôn hiện — nằm ngoài ScrollView */}
+                <TouchableOpacity
+                  style={[
+                    styles.aiPrayerGenerateButton,
+                    prayerLoading && styles.aiPrayerGenerateButtonDisabled,
+                  ]}
+                  onPress={handleSuggestPrayer}
+                  disabled={prayerLoading}
+                  activeOpacity={0.9}
+                >
+                  {prayerLoading ? (
+                    <ActivityIndicator size="small" color={COLORS.textPrimary} />
+                  ) : (
+                    <AISparkles size={18} color={COLORS.textPrimary} isAnimating={true} />
+                  )}
+                  <Text style={styles.aiPrayerGenerateButtonText}>
+                    {generatedPrayerText
+                      ? t("journal.aiPrayerRegenerate")
+                      : t("journal.aiPrayerGenerate")}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </SafeAreaView>
           </View>
@@ -3988,10 +3985,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   aiSheetScrollView: {
-    flexGrow: 0,
-  },
-  aiSheetScrollContent: {
-    paddingBottom: SPACING.xs,
+    gap: SPACING.xs,
   },
   writerFooter: {
     marginTop: 0,
