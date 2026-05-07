@@ -18,6 +18,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -53,7 +54,7 @@ import {
 } from "../../../../hooks/useSites";
 import { pilgrimSiteApi } from "../../../../services/api/pilgrim";
 import { DayOfWeek } from "../../../../types";
-import { SiteReview } from "../../../../types/pilgrim";
+import { SiteEvent, SiteReview } from "../../../../types/pilgrim";
 import { getApiErrorMessage } from "../../../../utils/apiError";
 import {
   AddToPlanModal,
@@ -88,6 +89,9 @@ const CATEGORY_GRADIENTS: Record<string, GradientTheme> = {
 };
 
 const DEFAULT_EVENT_GRADIENT: GradientTheme = { colors: ["#3D2000", "#C7A94E"], icon: "event" };
+
+/** Chiều cao banner trong modal chi tiết sự kiện — dùng tính vùng scroll còn lại */
+const EVENT_MODAL_BANNER_HEIGHT = 220;
 
 const getEventGradient = (description?: string): GradientTheme => {
   if (!description) return DEFAULT_EVENT_GRADIENT;
@@ -211,6 +215,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   } = route.params || {};
   const hideAddToPlan = hideAddToPlanParam || fromActiveJourneyReview;
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const { user, isAuthenticated, isGuest } = useAuth();
   const { t } = useI18n();
   const { confirm, ConfirmModal } = useConfirm();
@@ -228,6 +233,9 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
   const [reviewKeyboardHeight, setReviewKeyboardHeight] = useState(0);
   const [is3dModalVisible, setIs3dModalVisible] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState<SiteEvent | null>(null);
+  const [isEventDescExpanded, setIsEventDescExpanded] = useState(false);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const reviewSectionYRef = useRef(0);
   const hasAutoScrolledToReviewRef = useRef(false);
@@ -298,6 +306,16 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
     isLoadingPlaces ||
     isLoadingReviews ||
     isLoadingModels;
+
+  const eventModalSheetMaxHeight = Math.round(windowHeight * 0.9);
+  const eventModalScrollMaxHeight = Math.max(
+    220,
+    eventModalSheetMaxHeight - EVENT_MODAL_BANNER_HEIGHT - insets.bottom - SPACING.sm,
+  );
+
+  useEffect(() => {
+    setIsEventDescExpanded(false);
+  }, [selectedEvent?.id]);
 
   const handleRefresh = () => {
     refetchDetail();
@@ -1116,7 +1134,29 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           {site.history && site.history !== site.description && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t('siteDetail.history', { defaultValue: 'Lịch sử hình thành' })}</Text>
-              <Text style={styles.descriptionText}>{site.history}</Text>
+              <Text
+                style={styles.descriptionText}
+                numberOfLines={isHistoryExpanded ? undefined : 6}
+              >
+                {site.history}
+              </Text>
+              {site.history.length > 250 && (
+                <TouchableOpacity
+                  style={styles.readMoreButton}
+                  onPress={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                >
+                  <Text style={styles.readMoreText}>
+                    {isHistoryExpanded
+                      ? t('siteDetail.collapse', { defaultValue: 'Thu gọn' })
+                      : t('siteDetail.readMore', { defaultValue: 'Đọc thêm' })}
+                  </Text>
+                  <Ionicons
+                    name={isHistoryExpanded ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color={COLORS.accent}
+                  />
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -1225,16 +1265,6 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                   </View>
                 )}
 
-                <TouchableOpacity style={styles.viewFullScheduleButton}>
-                  <Text style={styles.viewFullScheduleText}>
-                    {t('siteDetail.viewFullSchedule', { defaultValue: 'XEM CHI TIẾT LỊCH LỄ' })}
-                  </Text>
-                  <Ionicons
-                    name="arrow-forward"
-                    size={16}
-                    color={COLORS.accent}
-                  />
-                </TouchableOpacity>
               </View>
             ) : (
               <View style={styles.emptyContainer}>
@@ -1278,6 +1308,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
                       key={event.id}
                       style={styles.largeEventCard}
                       activeOpacity={0.9}
+                      onPress={() => setSelectedEvent(event)}
                     >
                       {/* Banner or Gradient Fallback */}
                       {event.banner_url ? (
@@ -1561,7 +1592,7 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
 
           {/* Around the Sanctuary */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('siteDetail.aroundSite', { defaultValue: 'Xung quanh nhà thờ' })}</Text>
+            <Text style={styles.sectionTitle}>{t('siteDetail.aroundSite', { defaultValue: 'Khu vực lân cận' })}</Text>
             <View style={styles.mapCard}>
               {/* Vietmap */}
               {site.latitude && site.longitude ? (
@@ -2141,6 +2172,162 @@ export const SiteDetailScreen = ({ navigation, route }: any) => {
           )}
         </>
       )}
+
+      {/* Event Detail Modal */}
+      <Modal
+        visible={selectedEvent !== null}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setSelectedEvent(null)}
+      >
+        <View style={styles.eventModalOverlay}>
+          <TouchableOpacity
+            style={styles.eventModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setSelectedEvent(null)}
+          />
+          <SafeAreaView
+            edges={["bottom"]}
+            style={[styles.eventModalSheet, { maxHeight: eventModalSheetMaxHeight }]}
+          >
+            {selectedEvent && (() => {
+              const locale = t('siteDetail.monthLocale', { defaultValue: 'vi-VN' });
+              const dateBadge = buildDateBadgeLabel(selectedEvent.start_date, selectedEvent.end_date, locale);
+              const gradient = getEventGradient(selectedEvent.description);
+              const categoryMatch = selectedEvent.description?.match(/^\[(.+?)\]/);
+              const categoryLabel = categoryMatch ? categoryMatch[1] : null;
+              const cleanDescription = selectedEvent.description
+                ? selectedEvent.description.replace(/^\[.+?\]\s*/, "").trim()
+                : "";
+
+              return (
+                <>
+                  {/* ── Banner ── */}
+                  <View style={styles.eventModalBanner}>
+                    {selectedEvent.banner_url ? (
+                      <Image
+                        source={{ uri: selectedEvent.banner_url }}
+                        style={StyleSheet.absoluteFill}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={gradient.colors}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={StyleSheet.absoluteFill}
+                      >
+                        <MaterialIcons
+                          name={gradient.icon}
+                          size={72}
+                          color="rgba(255,255,255,0.12)"
+                          style={{ alignSelf: "center", marginTop: 40 }}
+                        />
+                      </LinearGradient>
+                    )}
+                    {/* Dark gradient for text readability */}
+                    <LinearGradient
+                      colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.72)"]}
+                      style={StyleSheet.absoluteFill}
+                    />
+
+                    {/* Close button */}
+                    <TouchableOpacity
+                      style={styles.eventModalClose}
+                      onPress={() => setSelectedEvent(null)}
+                      hitSlop={12}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('common.close', { defaultValue: 'Đóng' })}
+                    >
+                      <Ionicons name="close" size={20} color="#fff" />
+                    </TouchableOpacity>
+
+                    {/* Bottom-left: date badge + category chip */}
+                    <View style={styles.eventModalBannerBottom}>
+                      <View style={styles.eventModalDateBadge}>
+                        <Text style={styles.eventModalDateDay}>{dateBadge.dayText}</Text>
+                        <Text style={styles.eventModalDateMonth}>{dateBadge.monthText}</Text>
+                      </View>
+                      {categoryLabel && (
+                        <View style={styles.eventModalCategoryChip}>
+                          <Text style={styles.eventModalCategoryText} numberOfLines={1}>
+                            {categoryLabel}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* ── Content ── */}
+                  <ScrollView
+                    style={[styles.eventModalContent, { maxHeight: eventModalScrollMaxHeight }]}
+                    contentContainerStyle={styles.eventModalContentInner}
+                    showsVerticalScrollIndicator
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled
+                  >
+                    <Text style={styles.eventModalTitle}>{selectedEvent.name}</Text>
+
+                    {/* Meta info chips */}
+                    <View style={styles.eventModalMeta}>
+                      {(selectedEvent.start_time || selectedEvent.end_time) && (
+                        <View style={styles.eventModalMetaChip}>
+                          <Ionicons name="time-outline" size={14} color={COLORS.accent} />
+                          <Text style={styles.eventModalMetaText}>
+                            {[selectedEvent.start_time, selectedEvent.end_time]
+                              .filter(Boolean)
+                              .join(" – ")}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={styles.eventModalMetaChip}>
+                        <Ionicons name="location-outline" size={14} color={COLORS.accent} />
+                        <Text style={styles.eventModalMetaText} numberOfLines={1}>
+                          {selectedEvent.location || site?.name}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Divider */}
+                    {cleanDescription ? (
+                      <>
+                        <View style={styles.eventModalDivider} />
+                        <Text style={styles.eventModalDescLabel}>
+                          {t('siteDetail.eventDescription', { defaultValue: 'Mô tả' })}
+                        </Text>
+                        <Text
+                          style={styles.eventModalDesc}
+                          numberOfLines={isEventDescExpanded ? undefined : 8}
+                        >
+                          {cleanDescription}
+                        </Text>
+                        {cleanDescription.length > 280 && (
+                          <TouchableOpacity
+                            style={styles.readMoreButton}
+                            onPress={() => setIsEventDescExpanded((v) => !v)}
+                          >
+                            <Text style={styles.readMoreText}>
+                              {isEventDescExpanded
+                                ? t('siteDetail.collapse', { defaultValue: 'Thu gọn' })
+                                : t('siteDetail.readMore', { defaultValue: 'Đọc thêm' })}
+                            </Text>
+                            <Ionicons
+                              name={isEventDescExpanded ? "chevron-up" : "chevron-down"}
+                              size={14}
+                              color={COLORS.accent}
+                            />
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    ) : null}
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </SafeAreaView>
+        </View>
+      </Modal>
 
       <ConfirmModal />
     </View>
@@ -3258,6 +3445,136 @@ const styles = StyleSheet.create({
   },
   modelChipTextActivePremium: {
     color: "#1c1408",
+  },
+
+  // ── Event Detail Modal ──────────────────────────────────
+  eventModalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.55)",
+  },
+  eventModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  eventModalSheet: {
+    backgroundColor: COLORS.background,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: "hidden",
+    width: "100%",
+    flexDirection: "column",
+    ...SHADOWS.lg,
+  },
+  eventModalBanner: {
+    height: 220,
+    backgroundColor: "#1a1a1a",
+    justifyContent: "flex-end",
+  },
+  eventModalClose: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  eventModalBannerBottom: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    padding: 16,
+    paddingTop: 0,
+  },
+  eventModalDateBadge: {
+    backgroundColor: COLORS.accent,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: "center",
+    minWidth: 52,
+    ...SHADOWS.sm,
+  },
+  eventModalDateDay: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#fff",
+    lineHeight: 22,
+  },
+  eventModalDateMonth: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.9)",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  eventModalCategoryChip: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-end",
+  },
+  eventModalCategoryText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.92)",
+  },
+  eventModalContent: {
+    flexShrink: 1,
+  },
+  eventModalContentInner: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xxl,
+  },
+  eventModalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+    lineHeight: 30,
+  },
+  eventModalMeta: {
+    gap: SPACING.xs,
+    marginBottom: SPACING.sm,
+  },
+  eventModalMetaChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 8,
+  },
+  eventModalMetaText: {
+    flex: 1,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+  },
+  eventModalDivider: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginVertical: SPACING.md,
+  },
+  eventModalDescLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+  },
+  eventModalDesc: {
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    lineHeight: 24,
   },
 });
 

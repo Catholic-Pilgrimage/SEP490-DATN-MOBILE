@@ -35,6 +35,8 @@ interface ItineraryDayCardProps {
   /** Handler mở confirm xoá điểm đầu đang chặn đồng bộ. */
   onResolveBlockedSync?: (dayNumber: number) => void;
   lastClosedDayNumber?: number;
+  /** Kế hoạch nhóm đã khoá lộ trình (owner bấm khoá) — ẩn thêm/xoá/đổi chỗ tiện ích lân cận. */
+  routeEditLocked?: boolean;
   openAddModal: (day: number) => void;
   t: (key: string, opts?: any) => string;
   getDateForDayCalc: (startDate: string, day: number) => string;
@@ -102,6 +104,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   isSyncBlocked = false,
   onResolveBlockedSync,
   lastClosedDayNumber = 0,
+  routeEditLocked = false,
   openAddModal,
   t,
   getDateForDayCalc,
@@ -181,6 +184,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
     });
   const canAddStopToDay =
     isPlanOwner &&
+    !routeEditLocked &&
     (planStatus === "planning" || (planStatus === "ongoing" && !isDayClosed));
   const canSwipeDeleteItem =
     isPlanOwner &&
@@ -590,7 +594,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                       )}
                     </View>
                   </TouchableOpacity>
-                {isPlanOwner ? (
+                {isPlanOwner && !routeEditLocked ? (
                   <TouchableOpacity
                     onPress={() => handleReorderIconPress(dayKey, item)}
                     hitSlop={{
@@ -698,7 +702,9 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                           >
                             {amenity.name}
                           </Text>
-                          {isPlanOwner && onRemoveNearbyAmenity && (
+                          {isPlanOwner &&
+                            !routeEditLocked &&
+                            onRemoveNearbyAmenity && (
                             <TouchableOpacity
                               onPress={() => onRemoveNearbyAmenity(item.id, amenity.id)}
                               disabled={isRemoving}
@@ -755,7 +761,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                             name: pendingItem.amenityName,
                           })}
                         </Text>
-                        {onUndoRemoveNearbyAmenity && (
+                        {onUndoRemoveNearbyAmenity && !routeEditLocked && (
                           <TouchableOpacity
                             onPress={() =>
                               onUndoRemoveNearbyAmenity(

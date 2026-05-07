@@ -1148,7 +1148,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   // Auto-open time setup when navigated from AddToPlanModal (Explore flow)
   const autoAddHandled = useRef(false);
   useEffect(() => {
-    if (autoAddSiteId && plan && !loading && !autoAddHandled.current) {
+    if (autoAddSiteId && plan && !plan.is_locked && !loading && !autoAddHandled.current) {
       autoAddHandled.current = true;
       setSelectedDay(autoAddDay || 1);
       // Small delay to ensure state is ready
@@ -2201,6 +2201,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   };
 
   const handleClearAllItems = async () => {
+    if (plan?.is_locked) return;
     if (isReadOnlyPlannerView || !plan) return;
     setShowMenuDropdown(false);
 
@@ -2588,6 +2589,17 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     itemId: string,
     options: { skipConfirm?: boolean } = {},
   ) => {
+    if (plan?.is_locked) {
+      Toast.show({
+        type: "info",
+        text1: t("common.info", { defaultValue: "Thông báo" }),
+        text2: t("planner.lockedCannotEdit", {
+          defaultValue: "Kế hoạch đã khoá, không thể chỉnh sửa.",
+        }),
+      });
+      return;
+    }
+
     // Check if plan is completed
     if (plan?.status === "completed") {
       await confirm({
@@ -3015,10 +3027,10 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     plan?.transportation,
   );
 
-  const { handleReorderIconPress } = usePlannerSwapActions({
+  const { handleReorderIconPress } =   usePlannerSwapActions({
     plan,
     planId,
-    isReadOnlyPlannerView,
+    isReadOnlyPlannerView: !isPlanOwner || !!plan?.is_locked,
     swapPick,
     setSwapPick,
     t,
@@ -3030,6 +3042,17 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
   });
 
   const openAddModal = (day: number) => {
+    if (plan?.is_locked && isPlanOwner) {
+      Toast.show({
+        type: "info",
+        text1: t("common.info", { defaultValue: "Thông báo" }),
+        text2: t("planner.lockedCannotEdit", {
+          defaultValue: "Kế hoạch đã khoá, không thể chỉnh sửa.",
+        }),
+      });
+      return;
+    }
+
     if (
       String(plan?.status || "").toLowerCase() === "ongoing" &&
       day <= effectiveLastClosedDayNumber
@@ -3095,6 +3118,17 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
     eventId?: string,
     startFlowOptions?: { autoBindFirstDayEvent?: boolean },
   ) => {
+    if (plan?.is_locked) {
+      Toast.show({
+        type: "info",
+        text1: t("common.info", { defaultValue: "Thông báo" }),
+        text2: t("planner.lockedCannotEdit", {
+          defaultValue: "Kế hoạch đã khoá, không thể chỉnh sửa.",
+        }),
+      });
+      return;
+    }
+
     // Check if plan is completed
     if (plan?.status === "completed") {
       await confirm({
@@ -5209,6 +5243,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 startDate={plan.start_date}
                 planStatus={planStatusStr}
                 isPlanOwner={isPlanOwner}
+                routeEditLocked={!!plan?.is_locked}
                 canDeleteItems={canDeleteItems}
                 swapPick={swapPick}
                 setSwapPick={setSwapPick}
@@ -5254,6 +5289,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
               {t("planner.noLocationsInPlan")}
             </Text>
             {isPlanOwner &&
+              !plan?.is_locked &&
               (String(plan?.status || "").toLowerCase() === "planning" ||
                 String(plan?.status || "").toLowerCase() === "ongoing") && (
                 <TouchableOpacity
@@ -5307,7 +5343,11 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         favorites={favorites}
         onFetchMoreSites={hasMoreSites ? fetchMoreSites : undefined}
         isFetchingMoreSites={isFetchingMoreSites}
-        onAddSite={isPlanOwner ? (siteId) => handleAddItem(siteId) : undefined}
+        onAddSite={
+          isPlanOwner && !plan?.is_locked
+            ? (siteId) => handleAddItem(siteId)
+            : undefined
+        }
         onOpenNearbyAmenities={handleOpenNearbyAmenitiesFromAddModal}
         onOpenSiteDetail={handleOpenSiteDetailFromAddModal}
         addingItem={addingItem}
