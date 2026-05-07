@@ -3,14 +3,14 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StatusBar,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
@@ -43,7 +43,7 @@ interface AIRouteConfig {
   startDate: string;
   maxDays: number;
   transportMode: "car" | "motorbike" | "bus";
-  priority: "time" | "distance" | "balanced" | "spiritual";
+  priority: "shortest_distance" | "balanced" | "most_spiritual";
   numberOfPeople: number;
 }
 
@@ -91,10 +91,8 @@ export const AIRouteSuggestionScreen = ({ navigation }: AIRouteSuggestionScreenP
   const normalizePriorityForApi = (
     priority: AIRouteConfig["priority"],
   ): string => {
-    if (priority === "distance") return "shortest_distance";
-    if (priority === "time") return "shortest_time";
-    if (priority === "spiritual") return "most_spiritual";
-    return "balanced";
+    // Priority values now match BE exactly, no conversion needed
+    return priority;
   };
 
   const parseDateOnly = (value: string): Date => {

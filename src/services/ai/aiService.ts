@@ -13,7 +13,7 @@ export interface SuggestRouteRequest {
   start_date: string; 
   max_days: number; 
   transport_mode: 'car' | 'motorbike' | 'bus' | 'walking';
-  priority: 'time' | 'distance' | 'balanced' | 'spiritual';
+  priority: 'shortest_distance' | 'balanced' | 'most_spiritual';
   number_of_people: number;
   patron_saint?: string;
 }

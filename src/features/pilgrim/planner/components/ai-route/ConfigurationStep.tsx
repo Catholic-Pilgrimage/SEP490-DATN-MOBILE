@@ -15,7 +15,7 @@ interface AIRouteConfig {
   startDate: string;
   maxDays: number;
   transportMode: "car" | "motorbike" | "bus";
-  priority: "time" | "distance" | "balanced" | "spiritual";
+  priority: "shortest_distance" | "balanced" | "most_spiritual";
   numberOfPeople: number;
 }
 
@@ -37,10 +37,9 @@ export const ConfigurationStep = ({ config, onChange }: ConfigurationStepProps) 
   ];
 
   const priorityOptions = [
-    { value: "time" as const, icon: "time", label: t("aiRoute.configuration.priorityTime"), desc: t("aiRoute.configuration.priorityTimeDesc") },
-    { value: "distance" as const, icon: "navigate", label: t("aiRoute.configuration.priorityDistance"), desc: t("aiRoute.configuration.priorityDistanceDesc") },
+    { value: "shortest_distance" as const, icon: "navigate", label: t("aiRoute.configuration.priorityShortestDistance"), desc: t("aiRoute.configuration.priorityShortestDistanceDesc") },
     { value: "balanced" as const, icon: "scale", label: t("aiRoute.configuration.priorityBalanced"), desc: t("aiRoute.configuration.priorityBalancedDesc") },
-    { value: "spiritual" as const, icon: "heart", label: t("aiRoute.configuration.prioritySpiritual"), desc: t("aiRoute.configuration.prioritySpiritualDesc") },
+    { value: "most_spiritual" as const, icon: "heart", label: t("aiRoute.configuration.prioritySpiritual"), desc: t("aiRoute.configuration.prioritySpiritualDesc") },
   ];
 
   const handleDateChange = (date: string) => {
