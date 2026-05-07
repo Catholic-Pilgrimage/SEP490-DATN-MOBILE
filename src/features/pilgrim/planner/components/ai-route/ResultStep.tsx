@@ -2,10 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { COLORS } from "../../../../../constants/theme.constants";
 import { SuggestRouteResponse } from "../../../../../services/ai/aiService";
@@ -40,10 +40,9 @@ export const ResultStep = ({ result }: ResultStepProps) => {
   // Helper function to get priority label
   const getPriorityLabel = (priority: string) => {
     const labels: Record<string, string> = {
-      time: t("aiRoute.configuration.priorityTime", { defaultValue: "Tiết kiệm thời gian" }),
-      distance: t("aiRoute.configuration.priorityDistance", { defaultValue: "Tiết kiệm quãng đường" }),
+      shortest_distance: t("aiRoute.configuration.priorityShortestDistance", { defaultValue: "Tối ưu di chuyển" }),
       balanced: t("aiRoute.configuration.priorityBalanced", { defaultValue: "Cân bằng" }),
-      spiritual: t("aiRoute.configuration.prioritySpiritual", { defaultValue: "Tâm linh" }),
+      most_spiritual: t("aiRoute.configuration.prioritySpiritual", { defaultValue: "Tâm linh" }),
     };
     return labels[priority] || priority;
   };

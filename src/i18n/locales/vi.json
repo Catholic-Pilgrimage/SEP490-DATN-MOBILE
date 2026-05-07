@@ -2777,14 +2777,12 @@
       "transportBus": "Xe buýt",
       "days": "ngày",
       "people": "người",
-      "priorityTime": "Tiết kiệm thời gian",
-      "priorityTimeDesc": "Ưu tiên lộ trình nhanh nhất",
-      "priorityDistance": "Tiết kiệm quãng đường",
-      "priorityDistanceDesc": "Ưu tiên lộ trình ngắn nhất",
+      "priorityShortestDistance": "Tối ưu di chuyển",
+      "priorityShortestDistanceDesc": "Ưu tiên quãng đường và thời gian ngắn nhất",
       "priorityBalanced": "Cân bằng",
-      "priorityBalancedDesc": "Cân bằng thời gian và quãng đường",
+      "priorityBalancedDesc": "Cân bằng giữa thời gian di chuyển và trải nghiệm tâm linh",
       "prioritySpiritual": "Tâm linh",
-      "prioritySpiritualDesc": "Ưu tiên ý nghĩa tâm linh"
+      "prioritySpiritualDesc": "Ưu tiên thời gian tham dự Thánh Lễ và Sự kiện"
     },
     "loading": {
       "message": "AI đang tạo lộ trình tối ưu cho bạn...",

@@ -2776,14 +2776,12 @@
       "transportBus": "Bus",
       "days": "days",
       "people": "people",
-      "priorityTime": "Save Time",
-      "priorityTimeDesc": "Prioritize fastest route",
-      "priorityDistance": "Save Distance",
-      "priorityDistanceDesc": "Prioritize shortest route",
+      "priorityShortestDistance": "Optimize Travel",
+      "priorityShortestDistanceDesc": "Prioritize shortest distance and time",
       "priorityBalanced": "Balanced",
-      "priorityBalancedDesc": "Balance time and distance",
+      "priorityBalancedDesc": "Balance travel time and spiritual experiences",
       "prioritySpiritual": "Spiritual",
-      "prioritySpiritualDesc": "Prioritize spiritual significance"
+      "prioritySpiritualDesc": "Prioritize Mass attendance and Events"
     },
     "loading": {
       "message": "AI is creating an optimized route for you...",
