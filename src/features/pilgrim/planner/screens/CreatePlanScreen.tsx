@@ -442,6 +442,7 @@ const CreatePlanScreen = ({ navigation, route }: CreatePlanProps) => {
                   setFormErrors((prev) => ({ ...prev, name: undefined }));
                 }
               }}
+              maxLength={40}
             />
             {!!formErrors.name && <Text style={styles.fieldErrorText}>{formErrors.name}</Text>}
           </View>

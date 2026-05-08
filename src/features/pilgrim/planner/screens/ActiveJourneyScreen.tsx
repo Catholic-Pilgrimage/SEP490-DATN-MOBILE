@@ -94,12 +94,16 @@ const normalizeItemStatus = (status: unknown): string =>
     .replace(/\s+/g, "_")
     .replace(/-/g, "_");
 
-const isHandledItemStatus = (status: unknown): boolean => {
+/**
+ * Trạng thái đã CHỐT ở cấp đoàn (visited/skipped/completed/done).
+ * "checked_in" KHÔNG nằm ở đây vì check-in chỉ là hành động cá nhân,
+ * chưa phải trạng thái đã chốt điểm → không được auto-advance sang item kế.
+ */
+const isItemFinalized = (status: unknown): boolean => {
   const normalized = normalizeItemStatus(status);
   return (
     normalized === "visited" ||
     normalized === "skipped" ||
-    normalized === "checked_in" ||
     normalized === "completed" ||
     normalized === "done"
   );
@@ -284,46 +288,49 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     [actionableDayKey, plan?.items_by_day],
   );
 
-  const isHandledStatus = useCallback(
-    (item: PlanItem) => {
-      const status = normalizeItemStatus(item.status);
-      return (
-        isHandledItemStatus(status) ||
-        (item.id ? checkedInIds.has(item.id) : false)
-      );
-    },
-    [checkedInIds],
+  /**
+   * Item đã được chốt ở cấp đoàn (visited / skipped / completed / done).
+   * Dùng để quyết định nextPendingItem, day progress, close-day eligibility.
+   * KHÔNG bao gồm checked_in → người đã check-in vẫn thấy item hiện tại.
+   */
+  const isFinalized = useCallback(
+    (item: PlanItem) => isItemFinalized(item.status),
+    [],
   );
 
-  const isActionableDayHandled = useMemo(() => {
+  const isActionableDayFinalized = useMemo(() => {
     if (!actionableDayItems.length) return false;
-    return actionableDayItems.every((item) => isHandledStatus(item));
-  }, [actionableDayItems, isHandledStatus]);
+    return actionableDayItems.every((item) => isFinalized(item));
+  }, [actionableDayItems, isFinalized]);
 
-  const inferredCurrentCheckinDayKey = useMemo(() => {
-    if (!sortedDays.length) return "";
-
-    for (const dayKey of sortedDays) {
-      const dayItems = [...(plan?.items_by_day?.[dayKey] || [])].sort(compareItemsInDay);
-      if (!dayItems.length) continue;
-
-      const allHandled = dayItems.every((item) => isHandledStatus(item));
-      if (!allHandled) {
-        return dayKey;
-      }
-    }
-
-    return actionableDayKey || sortedDays[sortedDays.length - 1] || "";
-  }, [actionableDayKey, isHandledStatus, plan?.items_by_day, sortedDays]);
+  /**
+   * Ngày hiện tại cần focus: luôn là actionableDayKey (= lastClosedDay + 1).
+   * KHOANG nhảy sang ngày kế khi tất cả items đã finalized nhưng chưa chốt ngày.
+   */
+  const inferredCurrentCheckinDayKey = useMemo(
+    () => actionableDayKey || sortedDays[0] || "",
+    [actionableDayKey, sortedDays],
+  );
 
   const nextPendingItem = useMemo(
     () =>
       actionableDayItems.find((item) => {
         if (!item?.id) return false;
-        return !isHandledStatus(item);
+        return !isFinalized(item);
       }) || null,
-    [actionableDayItems, isHandledStatus],
+    [actionableDayItems, isFinalized],
   );
+
+  /**
+   * Item hiển trên banner: ưu tiên nextPendingItem, nếu không có (all finalized)
+   * thì hiện item cuối cùng của ngày actionable (đã viếng gần nhất), không nhảy sang ngày kế.
+   */
+  const bannerItem = useMemo(() => {
+    if (nextPendingItem) return nextPendingItem;
+    // All items in day are finalized → show last item of actionable day
+    const lastActionableItem = actionableDayItems[actionableDayItems.length - 1];
+    return lastActionableItem || firstItem;
+  }, [nextPendingItem, actionableDayItems, firstItem]);
 
   const journalPrefillItem = useMemo(() => {
     if (!allItemsFlat.length) return nextPendingItem;
@@ -390,9 +397,9 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   );
 
   const selectedDayNumber = Number(selectedDay);
-  const isSelectedDayHandled =
+  const isSelectedDayFinalized =
     selectedDayItems.length > 0 &&
-    selectedDayItems.every((item) => isHandledStatus(item));
+    selectedDayItems.every((item) => isFinalized(item));
 
   const closeTargetDayNumber = useMemo(() => {
     if (Number.isFinite(selectedDayNumber) && selectedDayNumber > 0) {
@@ -435,7 +442,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     Number.isFinite(selectedDayNumber) &&
     selectedDayNumber > 0 &&
     selectedDayNumber === nextDayToClose &&
-    isSelectedDayHandled;
+    isSelectedDayFinalized;
 
   const actionableDayNumber = useMemo(() => {
     const raw = Number(actionableDayKey || nextDayToClose);
@@ -447,6 +454,18 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     Number.isFinite(selectedDayNumber) &&
     selectedDayNumber > 0 &&
     selectedDayNumber !== actionableDayNumber;
+
+  /**
+   * Tất cả items trong ngày hiện tại đã finalized nhưng chưa chốt ngày.
+   * Member thấy trạng thái "đợi trưởng đoàn chốt ngày".
+   * Owner thấy nút "Chốt ngày" (canShowCloseDayCta).
+   */
+  const isWaitingForDayClose =
+    !isViewingNonCurrentDay &&
+    !canShowCloseDayCta &&
+    !nextPendingItem &&
+    selectedDayItems.length > 0 &&
+    isSelectedDayFinalized;
 
   const isViewingPastClosedDay =
     isViewingNonCurrentDay && selectedDayNumber < actionableDayNumber;
@@ -480,8 +499,8 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     }
 
     const dayItems = plan.items_by_day?.[String(dayNumber)] || [];
-    const dayHandled = dayItems.length > 0 && dayItems.every((item) => isHandledStatus(item));
-    if (!dayHandled) {
+    const dayFinalized = dayItems.length > 0 && dayItems.every((item) => isFinalized(item));
+    if (!dayFinalized) {
       Toast.show({
         type: "info",
         text1: t("planner.closeDayNotReadyTitle", {
@@ -539,7 +558,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
     }
   }, [
     closeTargetDayNumber,
-    isHandledStatus,
+    isFinalized,
     lastClosedDayNumber,
     plan,
     refreshPlan,
@@ -549,7 +568,6 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (!shouldSnapToActionableDay) return;
 
-    // Prioritize day inferred from real check-in progress, then fall back to last_closed_day + 1.
     const fallbackTodayDay = sortedDays[todayIdx >= 0 ? todayIdx : 0] || "";
     const targetDay = inferredCurrentCheckinDayKey || actionableDayKey || fallbackTodayDay;
     if (!targetDay) return;
@@ -711,8 +729,10 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
   );
 
   // Determine check-in button state
+  // "Đã check-in" = client đã add vào checkedInIds HOẶC backend đã trả status checked_in
   const isAlreadyCheckedIn = nextPendingItem
-    ? checkedInIds.has(nextPendingItem.id)
+    ? checkedInIds.has(nextPendingItem.id) ||
+      normalizeItemStatus(nextPendingItem.status) === "checked_in"
     : false;
   const isCheckInDisabled =
     !nextPendingItem ||
@@ -787,7 +807,15 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
       >
         {/* HERO */}
         <View style={styles.heroWrap}>
-          <PlanHeader plan={plan} firstItem={nextPendingItem || firstItem} />
+          <PlanHeader
+            plan={plan}
+            firstItem={bannerItem}
+            eyebrowLabel={
+              isWaitingForDayClose
+                ? t("planner.active.currentStop", { defaultValue: "Điểm hiện tại" })
+                : undefined
+            }
+          />
 
           <LinearGradient
             colors={["rgba(14, 9, 4, 0.55)", "rgba(14, 9, 4, 0.12)", "transparent"]}
@@ -959,7 +987,7 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                 date.setDate(date.getDate() + idx);
                 const dayItems = [...(plan?.items_by_day?.[d] || [])].sort(compareItemsInDay);
                 const totalStops = dayItems.length;
-                const handledStops = dayItems.filter((item) => isHandledStatus(item)).length;
+                const handledStops = dayItems.filter((item) => isFinalized(item)).length;
 
                 return {
                   key: d,
@@ -1072,6 +1100,23 @@ export default function ActiveJourneyScreen({ route, navigation }: Props) {
                 </Text>
               </>
             )}
+          </TouchableOpacity>
+        ) : isWaitingForDayClose ? (
+          <TouchableOpacity
+            style={[styles.stickyCheckinBtn, styles.stickyCheckinBtnDisabled]}
+            disabled
+            activeOpacity={1}
+          >
+            <Ionicons name="hourglass-outline" size={20} color="#fff" />
+            <Text style={styles.stickyCheckinText} numberOfLines={1}>
+              {isOwner
+                ? t("planner.active.ownerCloseDayHint", {
+                    defaultValue: "Chốt ngày để tiếp tục",
+                  })
+                : t("planner.active.waitingDayClose", {
+                    defaultValue: "Đợi trưởng đoàn chốt ngày",
+                  })}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity

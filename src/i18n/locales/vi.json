@@ -647,7 +647,10 @@
       "emptyTimeline": "Chưa có lịch trình cho chuyến đi này",
       "checkedInThisStop": "Đã check-in điểm này ✓",
       "checkInAt": "Check-in: {{site}}",
-      "nextStopPlaceholder": "Điểm đến kế tiếp sẽ hiển thị tại đây"
+      "nextStopPlaceholder": "Điểm đến kế tiếp sẽ hiển thị tại đây",
+      "currentStop": "Điểm hiện tại",
+      "waitingDayClose": "Đợi trưởng đoàn chốt ngày",
+      "ownerCloseDayHint": "Chốt ngày để tiếp tục"
     },
     "day": "Ngày {{count}}",
     "editPlanMenu": "Sửa kế hoạch",
@@ -767,7 +770,7 @@
     "groupOpenChat": "Chat nhóm",
     "groupPerMemberVisitNote": "Gợi ý: trên chuyến, mỗi thành viên nên có ít nhất một lần check-in (visited) tại một điểm trong lịch — quy tắc chi tiết do server & trưởng đoàn áp dụng.",
     "finalizeNow": "Chốt ngay",
-    "startNow": "Bắt đầu ngay",
+    "startNow": "Bắt đầu",
     "droppedOutBanner": "Bạn đã rời nhóm, nhưng vẫn có thể xem lại kế hoạch do có liên quan đến tiền ký quỹ.",
     "droppedOutProgressCta": "Tiến độ đoàn",
     "droppedOutProgressA11y": "Xem tiến độ và thành viên (chỉ xem)",

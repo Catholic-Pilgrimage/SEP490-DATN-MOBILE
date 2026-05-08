@@ -263,6 +263,7 @@ export default function EditPlanModal(props: EditPlanModalProps) {
               }}
               placeholder={t("planner.planNamePlaceholder")}
               placeholderTextColor={COLORS.textSecondary}
+              maxLength={40}
             />
 
             <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>

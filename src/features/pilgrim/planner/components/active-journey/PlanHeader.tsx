@@ -10,9 +10,11 @@ type Props = {
   plan: PlanEntity;
   firstItem: PlanItem | null;
   compact?: boolean;
+  /** Override the eyebrow label above the site name. */
+  eyebrowLabel?: string;
 };
 
-export default function PlanHeader({ plan, firstItem, compact }: Props) {
+export default function PlanHeader({ plan, firstItem, compact, eyebrowLabel }: Props) {
   const { t } = useTranslation();
   const heroTitle =
     firstItem?.site?.name ||
@@ -53,7 +55,7 @@ export default function PlanHeader({ plan, firstItem, compact }: Props) {
       <View style={styles.heroContentWrap}>
         <View style={styles.heroContentCard}>
           <Text style={styles.heroEyebrow}>
-            {t("planner.active.nextStop", { defaultValue: "Điểm kế tiếp" })}
+            {eyebrowLabel || t("planner.active.nextStop", { defaultValue: "Điểm tiếp theo" })}
           </Text>
           <Text
             style={[styles.subtitleBase, heroTitleStyle]}

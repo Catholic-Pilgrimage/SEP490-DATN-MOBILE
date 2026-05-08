@@ -110,6 +110,9 @@ interface TimeInputModalProps {
   setBufferMinutes?: (minutes: number) => void;
   /** Remove event binding → switch to normal site mode */
   onUnlockEvent?: () => void;
+
+  /** Selected transportation mode for accurate icon display */
+  transportationMode?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -169,6 +172,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
     eventDurationMinutes,
     setBufferMinutes,
     onUnlockEvent,
+    transportationMode,
   } = props;
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView | null>(null);
@@ -178,6 +182,20 @@ export default function TimeInputModal(props: TimeInputModalProps) {
   const previousVisibleRef = useRef(visible);
   const [pastHalfEventModal, setPastHalfEventModal] = useState(false);
   const [pastHalfRemainMins, setPastHalfRemainMins] = useState(0);
+
+  const transportIconName = useMemo(() => {
+    switch (transportationMode) {
+      case "bus":
+        return "bus";
+      case "motorbike":
+        return "bicycle";
+      case "walking":
+        return "walk";
+      case "car":
+      default:
+        return "car";
+    }
+  }, [transportationMode]);
 
   const tryConfirmAdd = useCallback(() => {
     if (!eventStartTime || !eventEndTime) {
@@ -1090,7 +1108,7 @@ export default function TimeInputModal(props: TimeInputModalProps) {
                     />
                     <View style={localStyles.travelLine}>
                       <Text style={localStyles.travelLineText}>
-                        🚗{" "}
+                        <Ionicons name={transportIconName as any} size={14} color="#6B7280" />{" "}
                         {t("planner.travelTime", {
                           time: formatDurationLocalized(travelMinutes!, t),
                         })}

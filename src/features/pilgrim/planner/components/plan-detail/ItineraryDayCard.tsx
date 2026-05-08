@@ -56,6 +56,7 @@ interface ItineraryDayCardProps {
   styles: any; // We can lazily accept parents styles instead of copy-pasting 50 styles
   formatTimeValueCalc: (value: any) => string;
   calculateEndTimeCalc: (startTimeStr: any, durationStr: any) => string;
+  transportationMode?: string;
 }
 
 function getPilgrimTag(
@@ -113,6 +114,7 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
   styles,
   formatTimeValueCalc,
   calculateEndTimeCalc,
+  transportationMode,
 }) => {
   const conflictedItemIds = React.useMemo(() => {
     const toMinutes = (value: string): number | null => {
@@ -869,7 +871,19 @@ export const ItineraryDayCard: React.FC<ItineraryDayCardProps> = ({
                   <View style={styles.travelSegment}>
                     <View style={styles.verticalDashedLine} />
                     <View style={styles.travelBadge}>
-                      <Ionicons name="car" size={14} color="#6B7280" />
+                      <Ionicons 
+                        name={
+                          transportationMode === "bus" 
+                            ? "bus" 
+                            : transportationMode === "motorbike" 
+                              ? "bicycle" 
+                              : transportationMode === "walking" 
+                                ? "walk" 
+                                : "car"
+                        } 
+                        size={14} 
+                        color="#6B7280" 
+                      />
                       <Text style={styles.travelText}>
                         {t("planner.travelDurationLabel", {
                           duration: formatDurationLocalized(

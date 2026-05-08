@@ -1628,7 +1628,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                   ? { edit_lock_at: editLockAt }
                   : {}),
               }
-            : { deposit_amount: 0, penalty_percentage: 0 }),
+            : { deposit_amount: 0, penalty_percentage: 0, min_people_required: 1 }),
         };
       }
 
@@ -1647,7 +1647,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                   penalty_percentage: penaltyPct,
                   min_people_required: editPlanMinPeople,
                 }
-              : { deposit_amount: 0, penalty_percentage: 0 }),
+              : { deposit_amount: 0, penalty_percentage: 0, min_people_required: 1 }),
           });
         }
 
@@ -5274,6 +5274,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
                 pendingNearbyRemovalsByItem={pendingNearbyRemovalsByItem}
                 onUndoRemoveNearbyAmenity={handleUndoRemoveNearbyAmenity}
                 styles={styles}
+                transportationMode={plan?.transportation}
               />
             );
           })
@@ -5395,6 +5396,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         eventDurationMinutes={addSiteFlow.eventDurationMinutes}
         setBufferMinutes={addSiteFlow.setBufferMinutes}
         onUnlockEvent={addSiteFlow.unlockEvent}
+        transportationMode={plan?.transportation}
       />
 
       <TimeInputModal
@@ -5446,6 +5448,7 @@ const PlanDetailScreen = ({ route, navigation }: PlanDetailScreenProps) => {
         eventEndTime={editScheduleContext.eventEndTime}
         insight={editInsight}
         suggestedTime={editSuggestedTime}
+        transportationMode={plan?.transportation}
       />
 
       <NearbyPlacesModal
