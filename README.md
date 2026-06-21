@@ -2,7 +2,7 @@
   <img src="./assets/logo_readme.png" width="160" alt="Catholic Pilgrimage Logo">
 </p>
 
-<h1 align="center">⛪ Catholic Pilgrim Mobile Application</h1>
+<h1 align="center">Catholic Pilgrim Mobile Application</h1>
 <p align="center"><b>Cross-Platform iOS & Android Mobile Application built with React Native & Expo</b></p>
 
 <p align="center">
