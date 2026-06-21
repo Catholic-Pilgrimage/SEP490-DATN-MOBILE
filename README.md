@@ -6,11 +6,11 @@
 <p align="center"><b>Cross-Platform iOS & Android Mobile Application built with React Native & Expo</b></p>
 
 <p align="center">
-  <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/React_Native-0.81.5-20232a?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React Native"></a>
-  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo-54.0.31-000020?style=for-the-badge&logo=expo&logoColor=ffffff" alt="Expo"></a>
-  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.9.2-3178C6?style=for-the-badge&logo=typescript&logoColor=3178C6" alt="TypeScript"></a>
-  <a href="https://www.mapbox.com"><img src="https://img.shields.io/badge/Mapbox-10.2.10-000000?style=for-the-badge&logo=mapbox&logoColor=3bb2d0" alt="Mapbox"></a>
-  <a href="https://firebase.google.com"><img src="https://img.shields.io/badge/Firebase-12.10.0-FFCA28?style=for-the-badge&logo=firebase&logoColor=FFA000" alt="Firebase"></a>
+  <a href="https://reactnative.dev"><img src="https://img.shields.io/badge/React_Native_v0.81.5-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React Native"></a>
+  <a href="https://expo.dev"><img src="https://img.shields.io/badge/Expo_v54.0.31-000020?style=for-the-badge&logo=expo&logoColor=white" alt="Expo"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript_v5.9.2-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://www.mapbox.com"><img src="https://img.shields.io/badge/Mapbox_v10.2.10-000000?style=for-the-badge&logo=mapbox&logoColor=3bb2d0" alt="Mapbox"></a>
+  <a href="https://firebase.google.com"><img src="https://img.shields.io/badge/Firebase_v12.10.0-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Firebase"></a>
 </p>
 
 ---
