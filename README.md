@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/images/logo.png" width="160" alt="Catholic Pilgrimage Logo">
+  <img src="./assets/logo_readme.png" width="160" alt="Catholic Pilgrimage Logo">
 </p>
 
 <h1 align="center">⛪ Catholic Pilgrim Mobile Application</h1>
